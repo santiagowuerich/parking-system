@@ -96,13 +96,13 @@ export default function ParkingApp() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          licensePlate: vehicle.licensePlate,
+          license_plate: vehicle.licensePlate,
           type: vehicle.type,
-          entryTime: entryTime.toISOString(),
-          exitTime: exitTime.toISOString(),
+          entry_time: entryTime.toISOString(),
+          exit_time: exitTime.toISOString(),
           duration,
           fee,
-          userId: user?.id,
+          user_id: user?.id,
         }),
       });
 
@@ -112,22 +112,35 @@ export default function ParkingApp() {
 
       const data = await response.json();
 
-      // Actualizar el estado local
+      // Actualizar el estado local con el nuevo registro del historial
+      const newHistoryEntry: ParkingHistory = {
+        id: data.id,
+        licensePlate: vehicle.licensePlate,
+        type: vehicle.type,
+        entryTime: new Date(entryTime),
+        exitTime: new Date(exitTime),
+        duration,
+        fee
+      };
+
       setParking((prev) => ({
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter(
           (v) => v.licensePlate !== licensePlate
         ),
-        history: [...prev.history, data],
+        history: [...prev.history, newHistoryEntry],
       }));
 
+      // Actualizar la información de salida
       setExitInfo({
-        licensePlate: vehicle.licensePlate,
-        type: vehicle.type,
-        entryTime,
+        vehicle: {
+          licensePlate: vehicle.licensePlate,
+          type: vehicle.type,
+          entryTime: entryTime
+        },
         exitTime,
-        duration,
-        fee,
+        duration: formatDuration(duration),
+        fee: fee
       });
     } catch (error) {
       console.error("Error al procesar la salida:", error);
@@ -271,8 +284,8 @@ export default function ParkingApp() {
           type: h.type,
           entryTime: new Date(h.entry_time + 'Z'),
           exitTime: new Date(h.exit_time + 'Z'),
-          duration: h.duration,
-          fee: h.fee,
+          duration: typeof h.duration === 'number' ? h.duration : parseInt(h.duration),
+          fee: typeof h.fee === 'number' ? h.fee : parseFloat(h.fee)
         })) as ParkingHistory[];
 
         setParking((prev) => ({

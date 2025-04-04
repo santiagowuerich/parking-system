@@ -52,6 +52,7 @@ export default function AdminPanel({
   const [tempCapacities, setTempCapacities] = useState(capacity)
   const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
 
   const todayIncome = history
     .filter((entry) => new Date(entry.exitTime) >= today)
@@ -102,6 +103,39 @@ export default function AdminPanel({
     } catch (error) {
       console.error("Error al actualizar registro:", error);
       alert("Error al actualizar el registro");
+    }
+  };
+
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      setSelectedEntries(new Set(history.map(entry => entry.id)));
+    } else {
+      setSelectedEntries(new Set());
+    }
+  };
+
+  const handleSelectEntry = (id: string) => {
+    const newSelected = new Set(selectedEntries);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedEntries(newSelected);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedEntries.size === 0) return;
+    
+    if (window.confirm(`¿Está seguro que desea eliminar ${selectedEntries.size} registros?`)) {
+      try {
+        const promises = Array.from(selectedEntries).map(id => onDeleteHistoryEntry?.(id));
+        await Promise.all(promises);
+        setSelectedEntries(new Set());
+      } catch (error) {
+        console.error("Error al eliminar registros:", error);
+        alert("Error al eliminar los registros");
+      }
     }
   };
 
@@ -187,8 +221,18 @@ export default function AdminPanel({
 
       {/* Historial */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row justify-between items-center">
           <CardTitle>Historial de Operaciones</CardTitle>
+          {selectedEntries.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              className="ml-2"
+            >
+              Eliminar seleccionados ({selectedEntries.size})
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
@@ -198,39 +242,53 @@ export default function AdminPanel({
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 px-2">Matrícula</th>
-                    <th className="text-left py-2 px-2">Tipo</th>
-                    <th className="text-left py-2 px-2">Entrada</th>
-                    <th className="text-left py-2 px-2">Salida</th>
-                    <th className="text-left py-2 px-2">Duración</th>
-                    <th className="text-left py-2 px-2">Tarifa</th>
-                    <th className="text-left py-2 px-2">Acciones</th>
+                    <th className="text-left p-2">
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAll}
+                        checked={selectedEntries.size === history.length}
+                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                    </th>
+                    <th className="text-left p-2">Matrícula</th>
+                    <th className="text-left p-2">Tipo</th>
+                    <th className="text-left p-2">Entrada</th>
+                    <th className="text-left p-2">Salida</th>
+                    <th className="text-left p-2">Duración</th>
+                    <th className="text-left p-2">Tarifa</th>
+                    <th className="text-left p-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((entry, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="py-2 px-2">{entry.licensePlate}</td>
-                      <td className="py-2 px-2">{entry.type}</td>
-                      <td className="py-2 px-2">{formatTime(entry.entryTime)}</td>
-                      <td className="py-2 px-2">{formatTime(entry.exitTime)}</td>
-                      <td className="py-2 px-2">{formatDuration(entry.duration)}</td>
-                      <td className="py-2 px-2 font-semibold">{formatCurrency(entry.fee)}</td>
-                      <td className="py-2 px-2">
+                  {history.map((entry) => (
+                    <tr key={entry.id} className="border-b">
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedEntries.has(entry.id)}
+                          onChange={() => handleSelectEntry(entry.id)}
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </td>
+                      <td className="p-2">{entry.licensePlate}</td>
+                      <td className="p-2">{entry.type}</td>
+                      <td className="p-2">{formatTime(entry.entryTime)}</td>
+                      <td className="p-2">{formatTime(entry.exitTime)}</td>
+                      <td className="p-2">{formatDuration(entry.duration)}</td>
+                      <td className="p-2">{formatCurrency(entry.fee)}</td>
+                      <td className="p-2">
                         <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(entry)}
-                            className="h-8 w-8"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
-                            variant="destructive"
+                            variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(entry.id)}
-                            className="h-8 w-8"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
