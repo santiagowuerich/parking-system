@@ -11,7 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { Pencil, Trash2 } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
@@ -52,6 +63,9 @@ export default function AdminPanel({
   const [tempCapacities, setTempCapacities] = useState(capacity);
   const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
+  const [multipleDeleteDialogOpen, setMultipleDeleteDialogOpen] = useState(false);
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -80,9 +94,16 @@ export default function AdminPanel({
   }
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("¿Está seguro que desea eliminar este registro?")) {
+    setEntryToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (entryToDelete) {
       try {
-        await onDeleteHistoryEntry?.(id);
+        await onDeleteHistoryEntry?.(entryToDelete);
+        setDeleteDialogOpen(false);
+        setEntryToDelete(null);
       } catch (error) {
         console.error("Error al eliminar registro:", error);
         alert("Error al eliminar el registro");
@@ -110,7 +131,7 @@ export default function AdminPanel({
 
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
-      setSelectedEntries(new Set(history.map(entry => entry.id)));
+      setSelectedEntries(new Set(filteredHistory.map(entry => entry.id)));
     } else {
       setSelectedEntries(new Set());
     }
@@ -128,16 +149,18 @@ export default function AdminPanel({
 
   const handleDeleteSelected = async () => {
     if (selectedEntries.size === 0) return;
-    
-    if (window.confirm(`¿Está seguro que desea eliminar ${selectedEntries.size} registros?`)) {
-      try {
-        const promises = Array.from(selectedEntries).map(id => onDeleteHistoryEntry?.(id));
-        await Promise.all(promises);
-        setSelectedEntries(new Set());
-      } catch (error) {
-        console.error("Error al eliminar registros:", error);
-        alert("Error al eliminar los registros");
-      }
+    setMultipleDeleteDialogOpen(true);
+  };
+
+  const confirmMultipleDelete = async () => {
+    try {
+      const promises = Array.from(selectedEntries).map(id => onDeleteHistoryEntry?.(id));
+      await Promise.all(promises);
+      setSelectedEntries(new Set());
+      setMultipleDeleteDialogOpen(false);
+    } catch (error) {
+      console.error("Error al eliminar registros:", error);
+      alert("Error al eliminar los registros");
     }
   };
 
@@ -296,6 +319,7 @@ export default function AdminPanel({
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(entry.id)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -309,6 +333,46 @@ export default function AdminPanel({
           )}
         </CardContent>
       </Card>
+
+      {/* Diálogo de confirmación para eliminar un registro */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente este registro del historial.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo de confirmación para eliminar múltiples registros */}
+      <AlertDialog open={multipleDeleteDialogOpen} onOpenChange={setMultipleDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedEntries.size} registros del historial.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMultipleDeleteDialogOpen(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMultipleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar {selectedEntries.size} registros
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog para editar entrada */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
