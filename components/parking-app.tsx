@@ -14,6 +14,7 @@ import { UserNav } from "@/components/layout/user-nav";
 
 export default function ParkingApp() {
   const { user, loading } = useAuth();
+  const [exitInfo, setExitInfo] = useState<any>(null);
 
   const [parking, setParking] = useState<Parking>({
     capacity: {
@@ -36,45 +37,58 @@ export default function ParkingApp() {
       entryTime: new Date(),
     };
 
+    if (!user?.id) {
+      console.error("❌ Error: No hay usuario autenticado");
+      alert("Error: Debe iniciar sesión para registrar entradas");
+      return;
+    }
+
     try {
-      await fetch("/api/parking/entry", {
+      const response = await fetch("/api/parking/entry", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           license_plate: newVehicle.licensePlate,
           type: newVehicle.type,
           entry_time: newVehicle.entryTime.toISOString(),
+          user_id: user.id,
         }),
       });
-    } catch (err) {
-      console.error("❌ Error al guardar entrada en Supabase", err);
-      alert("Error al registrar la entrada.");
-    }
 
-    setParking((prev) => ({
-      ...prev,
-      parkedVehicles: [...prev.parkedVehicles, newVehicle],
-    }));
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Error al guardar entrada:", errorData);
+        alert("Error al registrar la entrada del vehículo.");
+        return;
+      }
+
+      setParking((prev) => ({
+        ...prev,
+        parkedVehicles: [...prev.parkedVehicles, newVehicle],
+      }));
+    } catch (err) {
+      console.error("❌ Error al guardar entrada en Supabase:", err);
+      alert("Error al registrar la entrada del vehículo.");
+    }
   };
 
-  const registerExit = async (licensePlate: string) => {
-    const exitTime = new Date();
-    const vehicle = parking.parkedVehicles.find((v) => v.licensePlate === licensePlate);
-    if (!vehicle) return null;
-
-    const durationMs = exitTime.getTime() - vehicle.entryTime.getTime();
-    const durationHours = durationMs / (1000 * 60 * 60);
-    const fee = calculateFee(durationHours, parking.rates[vehicle.type]);
-
-    const historyEntry: ParkingHistory = {
-      ...vehicle,
-      exitTime,
-      duration: durationMs,
-      fee,
-    };
-
+  const handleExit = async (licensePlate: string) => {
     try {
-      await fetch("/api/parking/log", {
+      const vehicle = parking.parkedVehicles.find((v) => v.licensePlate === licensePlate);
+      if (!vehicle) {
+        console.error("Vehículo no encontrado:", licensePlate);
+        return;
+      }
+
+      const exitTime = new Date();
+      const durationMs = exitTime.getTime() - vehicle.entryTime.getTime();
+      const durationHours = durationMs / (1000 * 60 * 60);
+      const fee = calculateFee(durationHours, parking.rates[vehicle.type]);
+
+      // Registrar la salida
+      const logResponse = await fetch("/api/parking/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -84,36 +98,50 @@ export default function ParkingApp() {
           exit_time: exitTime,
           duration: durationMs,
           fee,
+          user_id: user?.id,
         }),
       });
 
-      const deleteResponse = await fetch(`/api/parking/parked/${vehicle.licensePlate}`, {
+      if (!logResponse.ok) {
+        const errorData = await logResponse.json();
+        console.error("Error al registrar salida:", errorData);
+        throw new Error("Error al registrar la salida");
+      }
+
+      // Eliminar el vehículo
+      const deleteResponse = await fetch(`/api/parking/parked/${licensePlate}`, {
         method: "DELETE",
       });
 
       if (!deleteResponse.ok) {
         const errorData = await deleteResponse.json();
-        console.error("❌ Error al eliminar vehículo de Supabase", errorData);
-        alert("Error al eliminar el vehículo.");
-        return;
+        console.error("Error al eliminar vehículo:", errorData);
+        throw new Error("Error al eliminar el vehículo");
       }
 
+      // Actualizar el estado local
       setParking((prev) => ({
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter((v) => v.licensePlate !== licensePlate),
-        history: [historyEntry, ...prev.history],
+        history: [{
+          ...vehicle,
+          exitTime,
+          duration: durationMs,
+          fee,
+        }, ...prev.history],
       }));
-    } catch (err) {
-      console.error("❌ Error al registrar salida o eliminar vehículo en Supabase", err);
-      alert("Error al registrar la salida.");
-    }
 
-    return {
-      vehicle,
-      exitTime,
-      duration: formatDuration(durationMs),
-      fee,
-    };
+      // Mostrar información de salida
+      setExitInfo({
+        vehicle,
+        exitTime,
+        duration: formatDuration(durationMs),
+        fee,
+      });
+    } catch (err) {
+      console.error("Error al procesar la salida:", err);
+      alert("Error al procesar la salida del vehículo");
+    }
   };
 
   const updateRate = (type: VehicleType, rate: number) => {
@@ -158,12 +186,35 @@ export default function ParkingApp() {
     const fetchData = async () => {
       try {
         const [resParked, resHistory] = await Promise.all([
-          fetch("/api/parking/parked"),
-          fetch("/api/parking/history"),
+          fetch("/api/parking/parked", {
+            headers: {
+              "user-id": user?.id || "",
+            } as HeadersInit,
+          }),
+          fetch("/api/parking/history", {
+            headers: {
+              "user-id": user?.id || "",
+            } as HeadersInit,
+          }),
         ]);
+
+        if (!resParked.ok || !resHistory.ok) {
+          throw new Error("Error al obtener datos del servidor");
+        }
 
         const parkedData = await resParked.json();
         const historyData = await resHistory.json();
+
+        // Validar que los datos sean arreglos
+        if (!Array.isArray(parkedData)) {
+          console.error("parkedData no es un arreglo:", parkedData);
+          throw new Error("Formato de datos de vehículos estacionados inválido");
+        }
+
+        if (!Array.isArray(historyData)) {
+          console.error("historyData no es un arreglo:", historyData);
+          throw new Error("Formato de datos de historial inválido");
+        }
 
         const parkedVehicles = parkedData.map((v: any) => ({
           licensePlate: v.license_plate,
@@ -186,8 +237,8 @@ export default function ParkingApp() {
           history,
         }));
       } catch (err) {
-        console.error("❌ Error al cargar datos desde Supabase", err);
-        alert("Error al cargar datos.");
+        console.error("❌ Error al cargar datos desde Supabase:", err);
+        alert("Error al cargar datos. Por favor, intente nuevamente.");
       }
     };
 
@@ -195,7 +246,7 @@ export default function ParkingApp() {
       fetchData();
     }
   }, [user, loading]);
-
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -227,7 +278,7 @@ export default function ParkingApp() {
             parking={parking}
             availableSpaces={getAvailableSpaces()}
             onRegisterEntry={registerEntry}
-            onRegisterExit={registerExit}
+            onRegisterExit={handleExit}
           />
         </TabsContent>
 

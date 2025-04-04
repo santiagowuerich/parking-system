@@ -12,27 +12,37 @@ export async function POST(req: Request) {
     exit_time,
     duration,
     fee,
+    user_id
   } = body;
 
-  // 1. Insertar en historial
-  const { error: historyError } = await supabase.from("parking_history").insert([
-    {
-      license_plate,
-      type,
-      entry_time,
-      exit_time,
-      duration,
-      fee,
-    },
-  ]);
+  try {
+    // 1. Insertar en historial
+    const { error: historyError } = await supabase.from("parking_history").insert([
+      {
+        license_plate,
+        type,
+        entry_time,
+        exit_time,
+        duration,
+        fee,
+        user_id
+      },
+    ]);
 
-  // 2. Eliminar vehículo de parked_vehicles
-    const {error: deleteError} = await supabase.from("parked_vehicles").delete().match({license_plate: license_plate});
+    // 2. Eliminar vehículo de parked_vehicles
+    const {error: deleteError} = await supabase
+      .from("parked_vehicles")
+      .delete()
+      .match({license_plate: license_plate, user_id: user_id});
 
-  if (historyError || deleteError) {
-    console.error("❌ Error al registrar salida:", historyError || deleteError);
-    return NextResponse.json({ error: "Error al registrar salida" }, { status: 500 });
+    if (historyError || deleteError) {
+      console.error("❌ Error al registrar salida:", historyError || deleteError);
+      return NextResponse.json({ error: "Error al registrar salida" }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: "Salida registrada" });
+  } catch (err) {
+    console.error("❌ Error inesperado al registrar salida:", err);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
-
-  return NextResponse.json({ message: "Salida registrada" });
 }
