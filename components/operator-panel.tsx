@@ -30,7 +30,9 @@ interface OperatorPanelProps {
     }
   }
   onRegisterEntry: (vehicle: Omit<Vehicle, "entryTime">) => void
-  onRegisterExit: (licensePlate: string) => any
+  onRegisterExit: (licensePlate: string) => Promise<void>
+  exitInfo: any
+  setExitInfo: (info: any) => void
 }
 
 export default function OperatorPanel({
@@ -38,11 +40,12 @@ export default function OperatorPanel({
   availableSpaces,
   onRegisterEntry,
   onRegisterExit,
+  exitInfo,
+  setExitInfo,
 }: OperatorPanelProps) {
   const [licensePlate, setLicensePlate] = useState("")
   const [vehicleType, setVehicleType] = useState<VehicleType | "">("")
   const [error, setError] = useState("")
-  const [exitInfo, setExitInfo] = useState<any>(null)
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,11 +80,8 @@ export default function OperatorPanel({
     setVehicleType("")
   }
 
-  const handleExit = (licensePlate: string) => {
-    const result = onRegisterExit(licensePlate)
-    if (result) {
-      setExitInfo(result)
-    }
+  const handleExit = async (licensePlate: string) => {
+    await onRegisterExit(licensePlate);
   }
 
   return (
@@ -174,7 +174,7 @@ export default function OperatorPanel({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {exitInfo?.vehicle ? (
+              {exitInfo.vehicle ? (
                 <>
                   <p><strong>Matrícula:</strong> {exitInfo.vehicle.licensePlate}</p>
                   <p><strong>Tipo:</strong> {exitInfo.vehicle.type}</p>

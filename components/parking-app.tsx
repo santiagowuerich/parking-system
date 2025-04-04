@@ -124,20 +124,28 @@ export default function ParkingApp() {
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter((v) => v.licensePlate !== licensePlate),
         history: [{
-          ...vehicle,
+          licensePlate: vehicle.licensePlate,
+          type: vehicle.type,
+          entryTime: vehicle.entryTime,
           exitTime,
           duration: durationMs,
           fee,
         }, ...prev.history],
       }));
 
-      // Mostrar información de salida
-      setExitInfo({
-        vehicle,
+      // Actualizar la información de salida
+      const exitInfoData = {
+        vehicle: {
+          licensePlate: vehicle.licensePlate,
+          type: vehicle.type,
+          entryTime: vehicle.entryTime
+        },
         exitTime,
         duration: formatDuration(durationMs),
-        fee,
-      });
+        fee
+      };
+      setExitInfo(exitInfoData);
+
     } catch (err) {
       console.error("Error al procesar la salida:", err);
       alert("Error al procesar la salida del vehículo");
@@ -279,6 +287,8 @@ export default function ParkingApp() {
             availableSpaces={getAvailableSpaces()}
             onRegisterEntry={registerEntry}
             onRegisterExit={handleExit}
+            exitInfo={exitInfo}
+            setExitInfo={setExitInfo}
           />
         </TabsContent>
 

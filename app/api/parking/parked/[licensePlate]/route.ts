@@ -6,7 +6,7 @@ export async function DELETE(
   { params }: { params: { licensePlate: string } }
 ) {
   const supabase = createClient();
-  const { licensePlate } = params;
+  const licensePlate = (await params).licensePlate;
 
   try {
     const { error } = await supabase
