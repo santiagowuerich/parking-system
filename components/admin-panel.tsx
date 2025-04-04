@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Pencil, Trash2 } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 
@@ -32,6 +33,8 @@ interface AdminPanelProps {
     Camioneta: number
   }
   onUpdateCapacity: (type: VehicleType, value: number) => void
+  onDeleteHistoryEntry?: (id: string) => Promise<void>
+  onUpdateHistoryEntry?: (id: string, data: Partial<ParkingHistory>) => Promise<void>
 }
 
 export default function AdminPanel({
@@ -39,12 +42,16 @@ export default function AdminPanel({
   availableSpaces,
   capacity,
   onUpdateCapacity,
+  onDeleteHistoryEntry,
+  onUpdateHistoryEntry,
 }: AdminPanelProps) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
   const [open, setOpen] = useState(false)
   const [tempCapacities, setTempCapacities] = useState(capacity)
+  const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const todayIncome = history
     .filter((entry) => new Date(entry.exitTime) >= today)
@@ -68,6 +75,35 @@ export default function AdminPanel({
     })
     setOpen(false)
   }
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("¿Está seguro que desea eliminar este registro?")) {
+      try {
+        await onDeleteHistoryEntry?.(id);
+      } catch (error) {
+        console.error("Error al eliminar registro:", error);
+        alert("Error al eliminar el registro");
+      }
+    }
+  };
+
+  const handleEdit = (entry: ParkingHistory) => {
+    setEditingEntry(entry);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateEntry = async () => {
+    if (!editingEntry) return;
+
+    try {
+      await onUpdateHistoryEntry?.(editingEntry.id, editingEntry);
+      setIsEditDialogOpen(false);
+      setEditingEntry(null);
+    } catch (error) {
+      console.error("Error al actualizar registro:", error);
+      alert("Error al actualizar el registro");
+    }
+  };
 
   const renderSpaceInfo = (label: string, type: VehicleType) => (
     <div key={type} className="p-3 bg-gray-50 rounded-md">
@@ -167,7 +203,8 @@ export default function AdminPanel({
                     <th className="text-left py-2 px-2">Entrada</th>
                     <th className="text-left py-2 px-2">Salida</th>
                     <th className="text-left py-2 px-2">Duración</th>
-                    <th className="text-left py-2 px-2 font-bold">Tarifa</th>
+                    <th className="text-left py-2 px-2">Tarifa</th>
+                    <th className="text-left py-2 px-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,6 +216,26 @@ export default function AdminPanel({
                       <td className="py-2 px-2">{formatTime(entry.exitTime)}</td>
                       <td className="py-2 px-2">{formatDuration(entry.duration)}</td>
                       <td className="py-2 px-2 font-semibold">{formatCurrency(entry.fee)}</td>
+                      <td className="py-2 px-2">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEdit(entry)}
+                            className="h-8 w-8"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDelete(entry.id)}
+                            className="h-8 w-8"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -187,6 +244,54 @@ export default function AdminPanel({
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog para editar entrada */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Registro</DialogTitle>
+          </DialogHeader>
+          {editingEntry && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="licensePlate">Matrícula</label>
+                <Input
+                  id="licensePlate"
+                  value={editingEntry.licensePlate}
+                  onChange={(e) =>
+                    setEditingEntry({
+                      ...editingEntry,
+                      licensePlate: e.target.value,
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="fee">Tarifa</label>
+                <Input
+                  id="fee"
+                  type="number"
+                  value={editingEntry.fee}
+                  onChange={(e) =>
+                    setEditingEntry({
+                      ...editingEntry,
+                      fee: parseFloat(e.target.value),
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateEntry}>Guardar Cambios</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

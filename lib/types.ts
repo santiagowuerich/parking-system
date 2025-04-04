@@ -6,7 +6,11 @@ export interface Vehicle {
   entryTime: Date
 }
 
-export interface ParkingHistory extends Vehicle {
+export interface ParkingHistory {
+  id: string
+  licensePlate: string
+  type: VehicleType
+  entryTime: Date
   exitTime: Date
   duration: number // en milisegundos
   fee: number

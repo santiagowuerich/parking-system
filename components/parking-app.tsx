@@ -76,82 +76,62 @@ export default function ParkingApp() {
 
   const handleExit = async (licensePlate: string) => {
     try {
-      const vehicle = parking.parkedVehicles.find((v) => v.licensePlate === licensePlate);
+      const vehicle = parking.parkedVehicles.find(
+        (v) => v.licensePlate === licensePlate
+      );
+
       if (!vehicle) {
-        console.error("Vehículo no encontrado:", licensePlate);
-        return;
+        throw new Error("Vehículo no encontrado");
       }
 
       const exitTime = new Date();
-      const entryTime = new Date(vehicle.entryTime); // Asegurarnos de que es una fecha
-      
-      // Calcular la duración en milisegundos
-      const durationMs = Math.abs(exitTime.getTime() - entryTime.getTime());
-      const durationHours = durationMs / (1000 * 60 * 60);
-      const fee = calculateFee(durationHours, parking.rates[vehicle.type]);
+      const entryTime = new Date(vehicle.entryTime);
+      const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
+      const hours = duration / (1000 * 60 * 60);
+      const fee = calculateFee(hours, parking.rates[vehicle.type]);
 
-      // Registrar la salida
-      const logResponse = await fetch("/api/parking/log", {
+      const response = await fetch("/api/parking/log", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          license_plate: vehicle.licensePlate,
+          licensePlate: vehicle.licensePlate,
           type: vehicle.type,
-          entry_time: entryTime.toISOString(),
-          exit_time: exitTime.toISOString(),
-          duration: durationMs,
+          entryTime: entryTime.toISOString(),
+          exitTime: exitTime.toISOString(),
+          duration,
           fee,
-          user_id: user?.id,
+          userId: user?.id,
         }),
       });
 
-      if (!logResponse.ok) {
-        const errorData = await logResponse.json();
-        console.error("Error al registrar salida:", errorData);
+      if (!response.ok) {
         throw new Error("Error al registrar la salida");
       }
 
-      // Eliminar el vehículo
-      const deleteResponse = await fetch(`/api/parking/parked/${licensePlate}`, {
-        method: "DELETE",
-      });
-
-      if (!deleteResponse.ok) {
-        const errorData = await deleteResponse.json();
-        console.error("Error al eliminar vehículo:", errorData);
-        throw new Error("Error al eliminar el vehículo");
-      }
+      const data = await response.json();
 
       // Actualizar el estado local
       setParking((prev) => ({
         ...prev,
-        parkedVehicles: prev.parkedVehicles.filter((v) => v.licensePlate !== licensePlate),
-        history: [{
-          licensePlate: vehicle.licensePlate,
-          type: vehicle.type,
-          entryTime: entryTime,
-          exitTime,
-          duration: durationMs,
-          fee,
-        }, ...prev.history],
+        parkedVehicles: prev.parkedVehicles.filter(
+          (v) => v.licensePlate !== licensePlate
+        ),
+        history: [...prev.history, data],
       }));
 
-      // Actualizar la información de salida
-      const exitInfoData = {
-        vehicle: {
-          licensePlate: vehicle.licensePlate,
-          type: vehicle.type,
-          entryTime: entryTime
-        },
+      setExitInfo({
+        licensePlate: vehicle.licensePlate,
+        type: vehicle.type,
+        entryTime,
         exitTime,
-        duration: formatDuration(durationMs),
-        fee
-      };
-      setExitInfo(exitInfoData);
-
-    } catch (err) {
-      console.error("Error al procesar la salida:", err);
-      alert("Error al procesar la salida del vehículo");
+        duration,
+        fee,
+      });
+    } catch (error) {
+      console.error("Error al procesar la salida:", error);
+      throw error;
     }
   };
 
@@ -191,6 +171,58 @@ export default function ParkingApp() {
         occupied: Object.values(occupied).reduce((a, b) => a + b, 0),
       },
     };
+  };
+
+  const handleDeleteHistoryEntry = async (id: string) => {
+    try {
+      const response = await fetch(`/api/parking/history/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al eliminar el registro");
+      }
+
+      // Actualizar el estado local solo si la eliminación fue exitosa
+      if (data.success) {
+        setParking((prev) => ({
+          ...prev,
+          history: prev.history.filter((entry) => entry.id !== id),
+        }));
+      }
+    } catch (error) {
+      console.error("Error al eliminar registro:", error);
+      throw error;
+    }
+  };
+
+  const handleUpdateHistoryEntry = async (id: string, data: Partial<ParkingHistory>) => {
+    try {
+      const response = await fetch(`/api/parking/history/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al actualizar el registro");
+      }
+
+      // Actualizar el estado local
+      setParking((prev) => ({
+        ...prev,
+        history: prev.history.map((entry) =>
+          entry.id === id ? { ...entry, ...data } : entry
+        ),
+      }));
+    } catch (error) {
+      console.error("Error al actualizar registro:", error);
+      throw error;
+    }
   };
 
   useEffect(() => {
@@ -234,13 +266,14 @@ export default function ParkingApp() {
         }));
 
         const history = historyData.map((h: any) => ({
+          id: h.id,
           licensePlate: h.license_plate,
           type: h.type,
           entryTime: new Date(h.entry_time + 'Z'),
           exitTime: new Date(h.exit_time + 'Z'),
           duration: h.duration,
           fee: h.fee,
-        }));
+        })) as ParkingHistory[];
 
         setParking((prev) => ({
           ...prev,
@@ -301,6 +334,8 @@ export default function ParkingApp() {
             availableSpaces={getAvailableSpaces()}
             capacity={parking.capacity}
             onUpdateCapacity={updateCapacity}
+            onDeleteHistoryEntry={handleDeleteHistoryEntry}
+            onUpdateHistoryEntry={handleUpdateHistoryEntry}
           />
         </TabsContent>
 
