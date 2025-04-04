@@ -15,6 +15,7 @@ import {
 import { Pencil, Trash2 } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
+import HistoryFilters from "./history-filters"
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -45,16 +46,17 @@ export default function AdminPanel({
   onDeleteHistoryEntry,
   onUpdateHistoryEntry,
 }: AdminPanelProps) {
+  const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState(false);
+  const [tempCapacities, setTempCapacities] = useState(capacity);
+  const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const [open, setOpen] = useState(false)
-  const [tempCapacities, setTempCapacities] = useState(capacity)
-  const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
-
-  const todayIncome = history
+  const todayIncome = filteredHistory
     .filter((entry) => new Date(entry.exitTime) >= today)
     .reduce((sum, entry) => sum + entry.fee, 0)
 
@@ -62,7 +64,7 @@ export default function AdminPanel({
   weekAgo.setDate(weekAgo.getDate() - 7)
   weekAgo.setHours(0, 0, 0, 0)
 
-  const weekIncome = history
+  const weekIncome = filteredHistory
     .filter((entry) => new Date(entry.exitTime) >= weekAgo)
     .reduce((sum, entry) => sum + entry.fee, 0)
 
@@ -235,10 +237,15 @@ export default function AdminPanel({
           )}
         </CardHeader>
         <CardContent>
-          {history.length === 0 ? (
+          <HistoryFilters
+            history={history}
+            onFilteredDataChange={setFilteredHistory}
+          />
+          
+          {filteredHistory.length === 0 ? (
             <p className="text-center text-gray-500 py-4">No hay operaciones registradas</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mt-4">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
@@ -246,7 +253,7 @@ export default function AdminPanel({
                       <input
                         type="checkbox"
                         onChange={handleSelectAll}
-                        checked={selectedEntries.size === history.length}
+                        checked={selectedEntries.size === filteredHistory.length}
                         className="rounded border-gray-300 text-primary focus:ring-primary"
                       />
                     </th>
@@ -260,7 +267,7 @@ export default function AdminPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((entry) => (
+                  {filteredHistory.map((entry) => (
                     <tr key={entry.id} className="border-b">
                       <td className="p-2">
                         <input
