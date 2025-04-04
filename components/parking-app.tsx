@@ -83,7 +83,10 @@ export default function ParkingApp() {
       }
 
       const exitTime = new Date();
-      const durationMs = exitTime.getTime() - vehicle.entryTime.getTime();
+      const entryTime = new Date(vehicle.entryTime); // Asegurarnos de que es una fecha
+      
+      // Calcular la duración en milisegundos
+      const durationMs = Math.abs(exitTime.getTime() - entryTime.getTime());
       const durationHours = durationMs / (1000 * 60 * 60);
       const fee = calculateFee(durationHours, parking.rates[vehicle.type]);
 
@@ -94,8 +97,8 @@ export default function ParkingApp() {
         body: JSON.stringify({
           license_plate: vehicle.licensePlate,
           type: vehicle.type,
-          entry_time: vehicle.entryTime,
-          exit_time: exitTime,
+          entry_time: entryTime.toISOString(),
+          exit_time: exitTime.toISOString(),
           duration: durationMs,
           fee,
           user_id: user?.id,
@@ -126,7 +129,7 @@ export default function ParkingApp() {
         history: [{
           licensePlate: vehicle.licensePlate,
           type: vehicle.type,
-          entryTime: vehicle.entryTime,
+          entryTime: entryTime,
           exitTime,
           duration: durationMs,
           fee,
@@ -138,7 +141,7 @@ export default function ParkingApp() {
         vehicle: {
           licensePlate: vehicle.licensePlate,
           type: vehicle.type,
-          entryTime: vehicle.entryTime
+          entryTime: entryTime
         },
         exitTime,
         duration: formatDuration(durationMs),
@@ -227,14 +230,14 @@ export default function ParkingApp() {
         const parkedVehicles = parkedData.map((v: any) => ({
           licensePlate: v.license_plate,
           type: v.type,
-          entryTime: new Date(v.entry_time),
+          entryTime: new Date(v.entry_time + 'Z'),
         }));
 
         const history = historyData.map((h: any) => ({
           licensePlate: h.license_plate,
           type: h.type,
-          entryTime: new Date(h.entry_time),
-          exitTime: new Date(h.exit_time),
+          entryTime: new Date(h.entry_time + 'Z'),
+          exitTime: new Date(h.exit_time + 'Z'),
           duration: h.duration,
           fee: h.fee,
         }));

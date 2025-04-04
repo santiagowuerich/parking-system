@@ -15,33 +15,38 @@ export function formatCurrency(amount: number): string {
 
 // Formatear hora
 export function formatTime(date: Date): string {
-  return new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(date))
+  // Asegurarnos de que la fecha sea un objeto Date válido
+  const dateObj = new Date(date);
+  
+  // Ajustar a la zona horaria local
+  return dateObj.toLocaleString('es-AR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'America/Argentina/Buenos_Aires'
+  });
 }
 
 // Formatear duración
 export function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / (1000 * 60))
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
 
   if (hours === 0) {
-    return `${minutes} min`
+    return `${minutes} min`;
   }
 
-  return `${hours} h ${minutes} min`
+  return `${hours} h ${minutes} min`;
 }
 
 // Calcular tarifa
-export function calculateFee(hours: number, hourlyRate: number): number {
-  // Asegurar que se cobre como mínimo 1 hora
-  const billableHours = Math.max(hours, 1)
-  return billableHours * hourlyRate
+export function calculateFee(hours: number, rate: number): number {
+  // Siempre cobrar al menos una hora
+  const effectiveHours = Math.max(1, Math.ceil(hours));
+  return effectiveHours * rate;
 }
 
