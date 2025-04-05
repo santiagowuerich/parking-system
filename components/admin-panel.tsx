@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2, ArrowLeft } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
@@ -47,6 +47,7 @@ interface AdminPanelProps {
   onUpdateCapacity: (type: VehicleType, value: number) => void
   onDeleteHistoryEntry?: (id: string) => Promise<void>
   onUpdateHistoryEntry?: (id: string, data: Partial<ParkingHistory>) => Promise<void>
+  onReenterVehicle?: (entry: ParkingHistory) => Promise<void>
 }
 
 export default function AdminPanel({
@@ -56,6 +57,7 @@ export default function AdminPanel({
   onUpdateCapacity,
   onDeleteHistoryEntry,
   onUpdateHistoryEntry,
+  onReenterVehicle,
 }: AdminPanelProps) {
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -66,6 +68,8 @@ export default function AdminPanel({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
   const [multipleDeleteDialogOpen, setMultipleDeleteDialogOpen] = useState(false);
+  const [reenterDialogOpen, setReenterDialogOpen] = useState(false);
+  const [entryToReenter, setEntryToReenter] = useState<ParkingHistory | null>(null);
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -162,6 +166,36 @@ export default function AdminPanel({
       console.error("Error al eliminar registros:", error);
       alert("Error al eliminar los registros");
     }
+  };
+
+  const handleReenter = async (entry: ParkingHistory) => {
+    setEntryToReenter(entry);
+    setReenterDialogOpen(true);
+  };
+
+  const confirmReenter = async () => {
+    if (!entryToReenter || !onReenterVehicle) return;
+    
+    try {
+      await onReenterVehicle(entryToReenter);
+      setReenterDialogOpen(false);
+      setEntryToReenter(null);
+      setFilteredHistory(prev => prev.filter(entry => entry.id !== entryToReenter.id));
+    } catch (error) {
+      console.error("Error al reingresar vehículo:", error);
+      alert(error instanceof Error ? error.message : "Error al reingresar el vehículo");
+    }
+  };
+
+  const handleFilteredDataChange = (newData: ParkingHistory[]) => {
+    const validEntries = newData.filter(entry => entry && entry.id);
+    const uniqueEntries = new Map();
+    
+    validEntries.forEach(entry => {
+      uniqueEntries.set(entry.id, entry);
+    });
+    
+    setFilteredHistory(Array.from(uniqueEntries.values()));
   };
 
   const renderSpaceInfo = (label: string, type: VehicleType) => (
@@ -262,7 +296,7 @@ export default function AdminPanel({
         <CardContent>
           <HistoryFilters
             history={history}
-            onFilteredDataChange={setFilteredHistory}
+            onFilteredDataChange={handleFilteredDataChange}
           />
           
           {filteredHistory.length === 0 ? (
@@ -290,43 +324,57 @@ export default function AdminPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredHistory.map((entry) => (
-                    <tr key={entry.id} className="border-b">
-                      <td className="p-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedEntries.has(entry.id)}
-                          onChange={() => handleSelectEntry(entry.id)}
-                          className="rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                      </td>
-                      <td className="p-2">{entry.licensePlate}</td>
-                      <td className="p-2">{entry.type}</td>
-                      <td className="p-2">{formatTime(entry.entryTime)}</td>
-                      <td className="p-2">{formatTime(entry.exitTime)}</td>
-                      <td className="p-2">{formatDuration(entry.duration)}</td>
-                      <td className="p-2">{formatCurrency(entry.fee)}</td>
-                      <td className="p-2">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(entry)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(entry.id)}
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredHistory
+                    .filter(entry => entry && entry.id && typeof entry.id === 'string')
+                    .map((entry) => {
+                      const rowKey = `history-row-${entry.id}-${entry.licensePlate}`;
+                      return (
+                        <tr key={rowKey} className="border-b">
+                          <td className="p-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedEntries.has(entry.id)}
+                              onChange={() => handleSelectEntry(entry.id)}
+                              className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                          </td>
+                          <td className="p-2">{entry.licensePlate}</td>
+                          <td className="p-2">{entry.type}</td>
+                          <td className="p-2">{formatTime(entry.entryTime)}</td>
+                          <td className="p-2">{formatTime(entry.exitTime)}</td>
+                          <td className="p-2">{formatDuration(entry.duration)}</td>
+                          <td className="p-2">{formatCurrency(entry.fee)}</td>
+                          <td className="p-2">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(entry)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(entry.id)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleReenter(entry)}
+                                className="text-primary hover:text-primary hover:bg-primary/10"
+                                title="Reingresar vehículo"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -421,6 +469,31 @@ export default function AdminPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo de confirmación para reingresar un vehículo */}
+      <AlertDialog open={reenterDialogOpen} onOpenChange={setReenterDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Reingresar vehículo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {entryToReenter && (
+                <>
+                  ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.licensePlate}?
+                  Esta acción eliminará el registro de salida y creará una nueva entrada.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setReenterDialogOpen(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReenter} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Reingresar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

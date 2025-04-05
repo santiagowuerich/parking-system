@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/lib/auth-context";
 import AuthPage from "@/components/auth/auth-page";
 import { UserNav } from "@/components/layout/user-nav";
+import { supabase } from "@/lib/supabase";
 
 export default function ParkingApp() {
   const { user, loading } = useAuth();
@@ -238,6 +239,94 @@ export default function ParkingApp() {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const resHistory = await fetch("/api/parking/history", {
+        headers: {
+          "user-id": user?.id || "",
+        } as HeadersInit,
+      });
+
+      if (!resHistory.ok) {
+        throw new Error("Error al obtener datos del servidor");
+      }
+
+      const historyData = await resHistory.json();
+
+      if (!Array.isArray(historyData)) {
+        console.error("historyData no es un arreglo:", historyData);
+        throw new Error("Formato de datos de historial inválido");
+      }
+
+      const history = historyData.map((h: any) => ({
+        id: h.id,
+        licensePlate: h.license_plate,
+        type: h.type,
+        entryTime: new Date(h.entry_time + 'Z'),
+        exitTime: new Date(h.exit_time + 'Z'),
+        duration: typeof h.duration === 'number' ? h.duration : parseInt(h.duration),
+        fee: typeof h.fee === 'number' ? h.fee : parseFloat(h.fee)
+      })) as ParkingHistory[];
+
+      setParking(prev => ({
+        ...prev,
+        history
+      }));
+    } catch (error) {
+      console.error("Error al cargar historial:", error);
+      throw error;
+    }
+  };
+
+  const handleReenterVehicle = async (entry: ParkingHistory) => {
+    if (!user) return;
+
+    try {
+      // Primero, eliminamos el registro de salida
+      await handleDeleteHistoryEntry(entry.id);
+
+      // Luego, creamos un nuevo registro de entrada
+      const response = await fetch("/api/parking/entry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          license_plate: entry.licensePlate,
+          type: entry.type,
+          entry_time: entry.entryTime.toISOString(),
+          user_id: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al crear nuevo registro de entrada");
+      }
+
+      const newEntry = await response.json();
+
+      // Actualizamos el estado local
+      setParking((prev) => ({
+        ...prev,
+        parkedVehicles: [
+          ...prev.parkedVehicles,
+          {
+            licensePlate: entry.licensePlate,
+            type: entry.type,
+            entryTime: new Date(entry.entryTime),
+            userId: user.id
+          }
+        ],
+      }));
+
+      // Actualizamos el historial
+      await fetchHistory();
+    } catch (error) {
+      console.error("Error al reingresar vehículo:", error);
+      throw new Error("Error al reingresar el vehículo");
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -349,6 +438,7 @@ export default function ParkingApp() {
             onUpdateCapacity={updateCapacity}
             onDeleteHistoryEntry={handleDeleteHistoryEntry}
             onUpdateHistoryEntry={handleUpdateHistoryEntry}
+            onReenterVehicle={handleReenterVehicle}
           />
         </TabsContent>
 

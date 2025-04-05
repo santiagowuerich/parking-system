@@ -34,66 +34,63 @@ export default function HistoryFilters({
   });
 
   const applyFilters = () => {
-    let filteredData = [...history];
+    let filtered = [...history];
 
-    // Filtro por tipo de vehículo
-    if (filters.vehicleType && filters.vehicleType !== "todos") {
-      filteredData = filteredData.filter(
-        (entry) => entry.type === filters.vehicleType
-      );
+    // Filtrar por tipo de vehículo
+    if (filters.vehicleType !== "todos") {
+      filtered = filtered.filter((entry) => entry.type === filters.vehicleType);
     }
 
-    // Filtro por matrícula
+    // Filtrar por matrícula
     if (filters.licensePlate) {
-      filteredData = filteredData.filter((entry) =>
+      filtered = filtered.filter((entry) =>
         entry.licensePlate.toLowerCase().includes(filters.licensePlate.toLowerCase())
       );
     }
 
-    // Filtro por rango de fechas
+    // Filtrar por fecha
     if (filters.dateFrom) {
-      const fromDate = new Date(filters.dateFrom);
-      filteredData = filteredData.filter(
-        (entry) => entry.entryTime >= fromDate
+      filtered = filtered.filter(
+        (entry) => new Date(entry.entryTime) >= new Date(filters.dateFrom)
       );
     }
+
     if (filters.dateTo) {
-      const toDate = new Date(filters.dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      filteredData = filteredData.filter(
-        (entry) => entry.entryTime <= toDate
+      filtered = filtered.filter(
+        (entry) => new Date(entry.exitTime) <= new Date(filters.dateTo)
       );
     }
 
-    // Filtro por duración
+    // Filtrar por duración
     if (filters.durationMin) {
-      const minDuration = parseFloat(filters.durationMin) * 60 * 60 * 1000; // convertir horas a milisegundos
-      filteredData = filteredData.filter(
-        (entry) => entry.duration >= minDuration
+      filtered = filtered.filter(
+        (entry) => entry.duration >= parseFloat(filters.durationMin) * 60 * 60 * 1000
       );
     }
+
     if (filters.durationMax) {
-      const maxDuration = parseFloat(filters.durationMax) * 60 * 60 * 1000;
-      filteredData = filteredData.filter(
-        (entry) => entry.duration <= maxDuration
+      filtered = filtered.filter(
+        (entry) => entry.duration <= parseFloat(filters.durationMax) * 60 * 60 * 1000
       );
     }
 
-    // Filtro por tarifa
+    // Filtrar por tarifa
     if (filters.feeMin) {
-      const minFee = parseFloat(filters.feeMin);
-      filteredData = filteredData.filter(
-        (entry) => entry.fee >= minFee
-      );
-    }
-    if (filters.feeMax) {
-      const maxFee = parseFloat(filters.feeMax);
-      filteredData = filteredData.filter(
-        (entry) => entry.fee <= maxFee
-      );
+      filtered = filtered.filter((entry) => entry.fee >= parseFloat(filters.feeMin));
     }
 
-    onFilteredDataChange(filteredData);
+    if (filters.feeMax) {
+      filtered = filtered.filter((entry) => entry.fee <= parseFloat(filters.feeMax));
+    }
+
+    // Asegurarse de que no hay duplicados y todos tienen ID válido
+    const uniqueFiltered = filtered.filter(entry => entry.id);
+    const uniqueEntries = new Map();
+    uniqueFiltered.forEach(entry => {
+      uniqueEntries.set(entry.id, entry);
+    });
+
+    onFilteredDataChange(Array.from(uniqueEntries.values()));
   };
 
   const clearFilters = () => {

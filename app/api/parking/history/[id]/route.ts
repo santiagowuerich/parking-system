@@ -1,13 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: { id: string } }
 ) {
   const supabase = createClient();
-  const { id } = params;
-
+  const { id } = await Promise.resolve(context.params);
+  
   try {
     const { error } = await supabase
       .from("parking_history")
@@ -20,29 +20,30 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Error inesperado al eliminar registro:", err);
+  } catch (error) {
+    console.error("Error al eliminar registro:", error);
     return NextResponse.json(
-      { error: "Error interno del servidor" },
+      { error: "Error al eliminar el registro" },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: { id: string } }
 ) {
   const supabase = createClient();
-  const { id } = params;
-  const body = await req.json();
-
+  const { id } = await Promise.resolve(context.params);
+  
   try {
+    const data = await request.json();
+
     const { error } = await supabase
       .from("parking_history")
       .update({
-        license_plate: body.licensePlate,
-        fee: body.fee,
+        license_plate: data.licensePlate,
+        fee: data.fee,
       })
       .eq("id", id);
 
@@ -52,10 +53,10 @@ export async function PATCH(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Error inesperado al actualizar registro:", err);
+  } catch (error) {
+    console.error("Error al actualizar registro:", error);
     return NextResponse.json(
-      { error: "Error interno del servidor" },
+      { error: "Error al actualizar el registro" },
       { status: 500 }
     );
   }
