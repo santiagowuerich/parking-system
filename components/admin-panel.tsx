@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
+  DialogDescription
 } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -27,7 +27,8 @@ import { Pencil, Trash2, ArrowLeft } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
-import { PaymentMethodDialog } from "./payment-method-dialog"
+import { toast } from "@/components/ui/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -61,18 +62,16 @@ export default function AdminPanel({
   onReenterVehicle,
 }: AdminPanelProps) {
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
-  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
+  const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [tempCapacities, setTempCapacities] = useState(capacity);
   const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
-  const [multipleDeleteDialogOpen, setMultipleDeleteDialogOpen] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<ParkingHistory | null>(null);
+  const [multipleDelete, setMultipleDelete] = useState(false);
   const [reenterDialogOpen, setReenterDialogOpen] = useState(false);
   const [entryToReenter, setEntryToReenter] = useState<ParkingHistory | null>(null);
-  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<ParkingHistory | null>(null);
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -100,64 +99,63 @@ export default function AdminPanel({
     setOpen(false)
   }
 
-  const handleDelete = async (entry: ParkingHistory) => {
-    setSelectedEntry(entry);
-    setPaymentMethodDialogOpen(true);
+  const handleDeleteSelected = () => {
+    if (selectedEntries.length === 0) return;
+    setEntryToDelete(null);
+    setMultipleDelete(true);
+    setShowDeleteDialog(true);
   };
 
-  const handlePaymentMethod = async (method: string) => {
-    if (!selectedEntry || !onDeleteHistoryEntry) return;
-
+  const confirmDelete = async () => {
+    if (!entryToDelete || !onDeleteHistoryEntry) return;
     try {
-      // Registrar el pago
-      const response = await fetch("/api/parking/payment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          historyId: selectedEntry.id,
-          method,
-          amount: selectedEntry.fee,
-          userId: selectedEntry.userId,
-        }),
+      await onDeleteHistoryEntry(entryToDelete.id);
+      setFilteredHistory(prev => prev.filter(entry => entry.id !== entryToDelete.id));
+      setSelectedEntries(selectedEntries.filter(id => id !== entryToDelete.id));
+      toast({
+        title: "Registro eliminado",
+        description: "El registro ha sido eliminado exitosamente.",
       });
-
-      if (!response.ok) {
-        throw new Error("Error al registrar el pago");
-      }
-
-      // Procesar según el método de pago
-      switch (method) {
-        case 'efectivo':
-          // El pago en efectivo se procesa inmediatamente
-          break;
-        case 'transferencia':
-          // Mostrar información de la cuenta para transferencia
-          alert("Por favor, realiza la transferencia a la siguiente cuenta:\n\nBanco: XXX\nCBU: XXXXXXXXXXXXX\nAlias: XXXXX");
-          break;
-        case 'link':
-          // Abrir link de pago (ejemplo)
-          window.open(`https://tu-link-de-pago.com/${selectedEntry.id}`, '_blank');
-          break;
-        case 'qr':
-          // Mostrar código QR (ejemplo)
-          alert("Función de QR en desarrollo");
-          break;
-      }
-
-      // Eliminar el registro del historial
-      await onDeleteHistoryEntry(selectedEntry.id);
-      
-      setPaymentMethodDialogOpen(false);
-      setSelectedEntry(null);
-      
-      // Actualizar la lista filtrada
-      setFilteredHistory(prev => prev.filter(entry => entry.id !== selectedEntry.id));
     } catch (error) {
-      console.error("Error al procesar el pago:", error);
-      alert("Error al procesar el pago");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo eliminar el registro.",
+      });
+    } finally {
+      setShowDeleteDialog(false);
+      setEntryToDelete(null);
     }
+  };
+
+  const confirmMultipleDelete = async () => {
+    if (!onDeleteHistoryEntry) return;
+    try {
+      for (const id of selectedEntries) {
+        await onDeleteHistoryEntry(id);
+      }
+      setFilteredHistory(prev => prev.filter(entry => !selectedEntries.includes(entry.id)));
+      setSelectedEntries([]);
+      toast({
+        title: "Registros eliminados",
+        description: `${selectedEntries.length} registros han sido eliminados exitosamente.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron eliminar algunos registros.",
+      });
+    } finally {
+      setShowDeleteDialog(false);
+      setMultipleDelete(false);
+    }
+  };
+
+  const handleDelete = (entry: ParkingHistory) => {
+    setEntryToDelete(entry);
+    setMultipleDelete(false);
+    setShowDeleteDialog(true);
   };
 
   const handleEdit = (entry: ParkingHistory) => {
@@ -178,38 +176,20 @@ export default function AdminPanel({
     }
   };
 
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedEntries(new Set(filteredHistory.map(entry => entry.id)));
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = filteredHistory.map(entry => entry.id);
+      setSelectedEntries(allIds);
     } else {
-      setSelectedEntries(new Set());
+      setSelectedEntries([]);
     }
   };
 
-  const handleSelectEntry = (id: string) => {
-    const newSelected = new Set(selectedEntries);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
+  const handleSelectOne = (e: React.ChangeEvent<HTMLInputElement>, entry: ParkingHistory) => {
+    if (e.target.checked) {
+      setSelectedEntries([...selectedEntries, entry.id]);
     } else {
-      newSelected.add(id);
-    }
-    setSelectedEntries(newSelected);
-  };
-
-  const handleDeleteSelected = async () => {
-    if (selectedEntries.size === 0) return;
-    setMultipleDeleteDialogOpen(true);
-  };
-
-  const confirmMultipleDelete = async () => {
-    try {
-      const promises = Array.from(selectedEntries).map(id => onDeleteHistoryEntry?.(id));
-      await Promise.all(promises);
-      setSelectedEntries(new Set());
-      setMultipleDeleteDialogOpen(false);
-    } catch (error) {
-      console.error("Error al eliminar registros:", error);
-      alert("Error al eliminar los registros");
+      setSelectedEntries(selectedEntries.filter(id => id !== entry.id));
     }
   };
 
@@ -233,14 +213,29 @@ export default function AdminPanel({
   };
 
   const handleFilteredDataChange = (newData: ParkingHistory[]) => {
-    const validEntries = newData.filter(entry => entry && entry.id);
+    // Filtrar entradas válidas y eliminar duplicados basados en id y tiempo de salida
+    const validEntries = newData.filter(entry => 
+      entry && 
+      entry.id && 
+      typeof entry.id === 'string' &&
+      entry.exitTime // asegurarse de que tenga tiempo de salida
+    );
+
+    // Usar Map para mantener solo la entrada más reciente por matrícula
     const uniqueEntries = new Map();
     
     validEntries.forEach(entry => {
-      uniqueEntries.set(entry.id, entry);
+      const existingEntry = uniqueEntries.get(entry.licensePlate);
+      if (!existingEntry || new Date(entry.exitTime) > new Date(existingEntry.exitTime)) {
+        uniqueEntries.set(entry.licensePlate, entry);
+      }
     });
     
-    setFilteredHistory(Array.from(uniqueEntries.values()));
+    // Convertir el Map a array y ordenar por tiempo de salida (más reciente primero)
+    const filteredEntries = Array.from(uniqueEntries.values())
+      .sort((a, b) => new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime());
+    
+    setFilteredHistory(filteredEntries);
   };
 
   const renderSpaceInfo = (label: string, type: VehicleType) => (
@@ -327,14 +322,14 @@ export default function AdminPanel({
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
           <CardTitle>Historial de Operaciones</CardTitle>
-          {selectedEntries.size > 0 && (
+          {selectedEntries.length > 0 && (
             <Button
               variant="destructive"
               size="sm"
               onClick={handleDeleteSelected}
               className="ml-2"
             >
-              Eliminar seleccionados ({selectedEntries.size})
+              Eliminar seleccionados ({selectedEntries.length})
             </Button>
           )}
         </CardHeader>
@@ -351,12 +346,17 @@ export default function AdminPanel({
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-2">
-                      <input
-                        type="checkbox"
-                        onChange={handleSelectAll}
-                        checked={selectedEntries.size === filteredHistory.length}
-                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                    <th className="w-[50px]">
+                      <Checkbox
+                        checked={selectedEntries.length > 0 && selectedEntries.length === filteredHistory.length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            const allIds = filteredHistory.map(entry => entry.id);
+                            setSelectedEntries(allIds);
+                          } else {
+                            setSelectedEntries([]);
+                          }
+                        }}
                       />
                     </th>
                     <th className="text-left p-2">Matrícula</th>
@@ -365,74 +365,63 @@ export default function AdminPanel({
                     <th className="text-left p-2">Salida</th>
                     <th className="text-left p-2">Duración</th>
                     <th className="text-left p-2">Tarifa</th>
-                    <th className="text-left p-2">Método de Pago</th>
                     <th className="text-left p-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredHistory
-                    .filter(entry => entry && entry.id && typeof entry.id === 'string')
-                    .map((entry) => {
-                      const rowKey = `history-row-${entry.id}-${entry.licensePlate}`;
-                      return (
-                        <tr key={rowKey} className="border-b">
-                          <td className="p-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedEntries.has(entry.id)}
-                              onChange={() => handleSelectEntry(entry.id)}
-                              className="rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                          </td>
-                          <td className="p-2">{entry.licensePlate}</td>
-                          <td className="p-2">{entry.type}</td>
-                          <td className="p-2">{formatTime(entry.entryTime)}</td>
-                          <td className="p-2">{formatTime(entry.exitTime)}</td>
-                          <td className="p-2">{formatDuration(entry.duration)}</td>
-                          <td className="p-2">{formatCurrency(entry.fee)}</td>
-                          <td className="p-2">
-                            {entry.paymentMethod ? (
-                              <span className={`capitalize ${
-                                entry.paymentMethod === 'efectivo' ? 'text-green-600' :
-                                entry.paymentMethod === 'transferencia' ? 'text-blue-600' :
-                                entry.paymentMethod === 'link' ? 'text-purple-600' :
-                                entry.paymentMethod === 'qr' ? 'text-orange-600' : ''
-                              }`}>
-                                {entry.paymentMethod}
-                              </span>
-                            ) : 'No especificado'}
-                          </td>
-                          <td className="p-2">
-                            <div className="flex gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEdit(entry)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(entry)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleReenter(entry)}
-                                className="text-primary hover:text-primary hover:bg-primary/10"
-                                title="Reingresar vehículo"
-                              >
-                                <ArrowLeft className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  {filteredHistory.map((entry) => {
+                    const rowKey = `${entry.id}-${entry.exitTime}`;
+                    return (
+                      <tr key={rowKey} className="border-b">
+                        <td className="p-2">
+                          <Checkbox
+                            checked={selectedEntries.includes(entry.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedEntries([...selectedEntries, entry.id]);
+                              } else {
+                                setSelectedEntries(selectedEntries.filter(id => id !== entry.id));
+                              }
+                            }}
+                          />
+                        </td>
+                        <td className="p-2">{entry.licensePlate}</td>
+                        <td className="p-2">{entry.type}</td>
+                        <td className="p-2">{formatTime(entry.entryTime)}</td>
+                        <td className="p-2">{formatTime(entry.exitTime)}</td>
+                        <td className="p-2">{formatDuration(entry.duration)}</td>
+                        <td className="p-2">{formatCurrency(entry.fee)}</td>
+                        <td className="p-2">
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(entry)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(entry)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleReenter(entry)}
+                              className="text-primary hover:text-primary hover:bg-primary/10"
+                              title="Reingresar vehículo"
+                            >
+                              <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -441,40 +430,24 @@ export default function AdminPanel({
       </Card>
 
       {/* Diálogo de confirmación para eliminar un registro */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente este registro del historial.
+              {multipleDelete 
+                ? `Esta acción eliminará ${selectedEntries.length} registros del historial.`
+                : "Esta acción eliminará el registro del historial."}
+              Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => setDeleteDialogOpen(false)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={multipleDelete ? confirmMultipleDelete : confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Diálogo de confirmación para eliminar múltiples registros */}
-      <AlertDialog open={multipleDeleteDialogOpen} onOpenChange={setMultipleDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedEntries.size} registros del historial.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setMultipleDeleteDialogOpen(false)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmMultipleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar {selectedEntries.size} registros
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -552,14 +525,6 @@ export default function AdminPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Agregar el diálogo de método de pago */}
-      <PaymentMethodDialog
-        open={paymentMethodDialogOpen}
-        onOpenChange={setPaymentMethodDialogOpen}
-        onSelectMethod={handlePaymentMethod}
-        fee={selectedEntry?.fee || 0}
-      />
     </div>
   )
 }

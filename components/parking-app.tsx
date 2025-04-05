@@ -108,11 +108,116 @@ export default function ParkingApp() {
         case 'transferencia':
           alert("Por favor, realiza la transferencia a la siguiente cuenta:\n\nBanco: XXX\nCBU: XXXXXXXXXXXXX\nAlias: XXXXX");
           break;
-        case 'link':
-          window.open(`https://tu-link-de-pago.com/parking-exit`, '_blank');
+        case 'mercadopago':
+          try {
+            const mpResponse = await fetch("/api/payment/mercadopago", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                licensePlate: exitingVehicle.licensePlate,
+                fee: fee,
+                vehicleType: exitingVehicle.type,
+                paymentType: 'regular'
+              }),
+            });
+
+            if (!mpResponse.ok) {
+              throw new Error("Error al generar el pago con Mercado Pago");
+            }
+
+            const { init_point } = await mpResponse.json();
+            window.open(init_point, '_blank');
+          } catch (error) {
+            console.error("Error con Mercado Pago:", error);
+            alert("Error al procesar el pago con Mercado Pago");
+            return;
+          }
           break;
         case 'qr':
-          alert("Función de QR en desarrollo");
+          try {
+            const mpResponse = await fetch("/api/payment/mercadopago", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                licensePlate: exitingVehicle.licensePlate,
+                fee: fee,
+                vehicleType: exitingVehicle.type,
+                paymentType: 'qr'
+              }),
+            });
+
+            if (!mpResponse.ok) {
+              const errorData = await mpResponse.json();
+              console.error("Error de Mercado Pago:", errorData);
+              throw new Error(errorData.error || "Error al generar el QR de Mercado Pago");
+            }
+
+            const { qr_code, init_point } = await mpResponse.json();
+            if (qr_code || init_point) {
+              const qrWindow = window.open('', '_blank');
+              if (qrWindow) {
+                qrWindow.document.write(`
+                  <html>
+                    <head>
+                      <title>Código QR para pago</title>
+                      <style>
+                        body {
+                          display: flex;
+                          flex-direction: column;
+                          align-items: center;
+                          justify-content: center;
+                          min-height: 100vh;
+                          margin: 0;
+                          font-family: Arial, sans-serif;
+                          background-color: #f5f5f5;
+                        }
+                        .container {
+                          text-align: center;
+                          padding: 20px;
+                          background-color: white;
+                          border-radius: 10px;
+                          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        }
+                        h1 {
+                          color: #333;
+                          margin-bottom: 20px;
+                        }
+                        .amount {
+                          font-size: 24px;
+                          color: #2563eb;
+                          margin-bottom: 20px;
+                        }
+                        img {
+                          max-width: 300px;
+                          margin-bottom: 20px;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="container">
+                        <h1>Escanea el código QR para pagar</h1>
+                        <div class="amount">Monto a pagar: $${fee.toFixed(2)}</div>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr_code || init_point)}" alt="QR Code"/>
+                        <p>Abre Mercado Pago en tu celular y escanea este código</p>
+                      </div>
+                    </body>
+                  </html>
+                `);
+              } else {
+                alert("No se pudo abrir la ventana del QR. Por favor, habilita las ventanas emergentes.");
+              }
+            } else {
+              throw new Error("No se pudo generar el código QR");
+            }
+          } catch (error) {
+            console.error("Error al generar QR:", error);
+            alert(error instanceof Error ? error.message : "Error al generar el código QR para el pago");
+            return;
+          }
           break;
       }
 

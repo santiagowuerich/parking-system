@@ -3,11 +3,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CreditCard, Banknote, Link, QrCode } from "lucide-react";
+import { CreditCard, Banknote, QrCode, Building2 } from "lucide-react";
 
 interface PaymentMethodDialogProps {
   open: boolean;
@@ -24,56 +23,47 @@ export function PaymentMethodDialog({
 }: PaymentMethodDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>¿Cómo deseas realizar el pago?</DialogTitle>
+          <DialogTitle>Seleccionar método de pago</DialogTitle>
           <DialogDescription>
-            Selecciona el método de pago para completar la operación. Monto a pagar: ${fee}
+            Total a pagar: ${fee.toFixed(2)}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="flex flex-col gap-4">
           <Button
             variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4"
+            className="w-full justify-start"
             onClick={() => onSelectMethod("efectivo")}
           >
-            <Banknote className="h-6 w-6" />
-            <span>Efectivo</span>
-            <span className="text-xs text-muted-foreground">Pago en efectivo</span>
+            <Banknote className="mr-2 h-4 w-4" />
+            Efectivo
           </Button>
           <Button
             variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4"
+            className="w-full justify-start"
             onClick={() => onSelectMethod("transferencia")}
           >
-            <CreditCard className="h-6 w-6" />
-            <span>Transferencia</span>
-            <span className="text-xs text-muted-foreground">Transferencia bancaria</span>
+            <Building2 className="mr-2 h-4 w-4" />
+            Transferencia Bancaria
           </Button>
           <Button
             variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4"
-            onClick={() => onSelectMethod("link")}
+            className="w-full justify-start"
+            onClick={() => onSelectMethod("mercadopago")}
           >
-            <Link className="h-6 w-6" />
-            <span>Link de Pago</span>
-            <span className="text-xs text-muted-foreground">Pago online</span>
+            <CreditCard className="mr-2 h-4 w-4" />
+            Mercado Pago
           </Button>
           <Button
             variant="outline"
-            className="flex flex-col items-center gap-2 h-auto py-4"
+            className="w-full justify-start"
             onClick={() => onSelectMethod("qr")}
           >
-            <QrCode className="h-6 w-6" />
-            <span>QR</span>
-            <span className="text-xs text-muted-foreground">Escanear código QR</span>
+            <QrCode className="mr-2 h-4 w-4" />
+            Código QR
           </Button>
         </div>
-        <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

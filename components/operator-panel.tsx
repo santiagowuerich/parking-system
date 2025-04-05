@@ -44,8 +44,9 @@ export default function OperatorPanel({
   setExitInfo,
 }: OperatorPanelProps) {
   const [licensePlate, setLicensePlate] = useState("")
-  const [vehicleType, setVehicleType] = useState<VehicleType | "">("")
+  const [selectedType, setSelectedType] = useState<VehicleType>("Auto")
   const [error, setError] = useState("")
+  const [processingExit, setProcessingExit] = useState<string | null>(null)
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,7 +57,7 @@ export default function OperatorPanel({
       return
     }
 
-    if (!vehicleType) {
+    if (!selectedType) {
       setError("Debe seleccionar un tipo de vehículo")
       return
     }
@@ -66,26 +67,35 @@ export default function OperatorPanel({
       return
     }
 
-    if (availableSpaces[vehicleType as VehicleType] <= 0) {
-      setError(`No hay espacios disponibles para ${vehicleType}`)
+    if (availableSpaces[selectedType] <= 0) {
+      setError(`No hay espacios disponibles para ${selectedType}`)
       return
     }
 
     onRegisterEntry({
       licensePlate,
-      type: vehicleType as VehicleType,
+      type: selectedType,
     })
 
     setLicensePlate("")
-    setVehicleType("")
+    setSelectedType("Auto")
   }
 
-  const handleExit = async (licensePlate: string) => {
-    await onRegisterExit(licensePlate);
-  }
+  const handleExit = async (vehicle: Vehicle) => {
+    if (processingExit === vehicle.licensePlate) return;
+    try {
+      setProcessingExit(vehicle.licensePlate);
+      await onRegisterExit(vehicle.licensePlate);
+      // Actualizar la lista de vehículos estacionados localmente
+      const updatedVehicles = parking.parkedVehicles.filter(v => v.licensePlate !== vehicle.licensePlate);
+      parking.parkedVehicles = updatedVehicles;
+    } finally {
+      setProcessingExit(null);
+    }
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Disponibilidad */}
       <Card>
         <CardHeader>
@@ -141,8 +151,8 @@ export default function OperatorPanel({
               <div className="space-y-2">
                 <Label htmlFor="vehicleType">Tipo de Vehículo</Label>
                 <Select
-                  value={vehicleType}
-                  onValueChange={(value: string) => setVehicleType(value as VehicleType)}
+                  value={selectedType}
+                  onValueChange={(value: string) => setSelectedType(value as VehicleType)}
                 >
                   <SelectTrigger id="vehicleType">
                     <SelectValue placeholder="Seleccionar tipo" />
@@ -206,33 +216,40 @@ export default function OperatorPanel({
           {parking.parkedVehicles.length === 0 ? (
             <p className="text-center text-gray-500 py-4">No hay vehículos estacionados actualmente</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="border rounded-lg">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2 px-2">Matrícula</th>
-                    <th className="text-left py-2 px-2">Tipo</th>
-                    <th className="text-left py-2 px-2">Hora de Entrada</th>
-                    <th className="text-left py-2 px-2">Acción</th>
+                    <th className="text-left p-2">Matrícula</th>
+                    <th className="text-left p-2">Tipo</th>
+                    <th className="text-left p-2">Hora de Entrada</th>
+                    <th className="text-left p-2">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {parking.parkedVehicles.map((vehicle) => (
-                    <tr key={vehicle.licensePlate} className="border-b">
-                      <td className="py-2 px-2">{vehicle.licensePlate}</td>
-                      <td className="py-2 px-2">{vehicle.type}</td>
-                      <td className="py-2 px-2">{formatTime(vehicle.entryTime)}</td>
-                      <td className="py-2 px-2">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleExit(vehicle.licensePlate)}
-                        >
-                          Registrar Salida
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {parking.parkedVehicles
+                    .filter((vehicle, index, self) => 
+                      index === self.findIndex(v => v.licensePlate === vehicle.licensePlate)
+                    )
+                    .map((vehicle) => (
+                      <tr 
+                        key={`${vehicle.licensePlate}-${vehicle.entryTime.getTime()}`} 
+                        className="border-b"
+                      >
+                        <td className="p-2">{vehicle.licensePlate}</td>
+                        <td className="p-2">{vehicle.type}</td>
+                        <td className="p-2">{formatTime(vehicle.entryTime)}</td>
+                        <td className="p-2">
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleExit(vehicle)}
+                            disabled={processingExit === vehicle.licensePlate}
+                          >
+                            {processingExit === vehicle.licensePlate ? 'Procesando...' : 'Registrar Salida'}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
