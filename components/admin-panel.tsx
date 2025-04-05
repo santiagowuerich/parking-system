@@ -27,6 +27,7 @@ import { Pencil, Trash2, ArrowLeft } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
+import { PaymentMethodDialog } from "./payment-method-dialog"
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -70,6 +71,8 @@ export default function AdminPanel({
   const [multipleDeleteDialogOpen, setMultipleDeleteDialogOpen] = useState(false);
   const [reenterDialogOpen, setReenterDialogOpen] = useState(false);
   const [entryToReenter, setEntryToReenter] = useState<ParkingHistory | null>(null);
+  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<ParkingHistory | null>(null);
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -97,21 +100,63 @@ export default function AdminPanel({
     setOpen(false)
   }
 
-  const handleDelete = async (id: string) => {
-    setEntryToDelete(id);
-    setDeleteDialogOpen(true);
+  const handleDelete = async (entry: ParkingHistory) => {
+    setSelectedEntry(entry);
+    setPaymentMethodDialogOpen(true);
   };
 
-  const confirmDelete = async () => {
-    if (entryToDelete) {
-      try {
-        await onDeleteHistoryEntry?.(entryToDelete);
-        setDeleteDialogOpen(false);
-        setEntryToDelete(null);
-      } catch (error) {
-        console.error("Error al eliminar registro:", error);
-        alert("Error al eliminar el registro");
+  const handlePaymentMethod = async (method: string) => {
+    if (!selectedEntry || !onDeleteHistoryEntry) return;
+
+    try {
+      // Registrar el pago
+      const response = await fetch("/api/parking/payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          historyId: selectedEntry.id,
+          method,
+          amount: selectedEntry.fee,
+          userId: selectedEntry.userId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al registrar el pago");
       }
+
+      // Procesar según el método de pago
+      switch (method) {
+        case 'efectivo':
+          // El pago en efectivo se procesa inmediatamente
+          break;
+        case 'transferencia':
+          // Mostrar información de la cuenta para transferencia
+          alert("Por favor, realiza la transferencia a la siguiente cuenta:\n\nBanco: XXX\nCBU: XXXXXXXXXXXXX\nAlias: XXXXX");
+          break;
+        case 'link':
+          // Abrir link de pago (ejemplo)
+          window.open(`https://tu-link-de-pago.com/${selectedEntry.id}`, '_blank');
+          break;
+        case 'qr':
+          // Mostrar código QR (ejemplo)
+          alert("Función de QR en desarrollo");
+          break;
+      }
+
+      // Eliminar el registro del historial
+      await onDeleteHistoryEntry(selectedEntry.id);
+      
+      setPaymentMethodDialogOpen(false);
+      setSelectedEntry(null);
+      
+      // Actualizar la lista filtrada
+      setFilteredHistory(prev => prev.filter(entry => entry.id !== selectedEntry.id));
+    } catch (error) {
+      console.error("Error al procesar el pago:", error);
+      alert("Error al procesar el pago");
     }
   };
 
@@ -320,6 +365,7 @@ export default function AdminPanel({
                     <th className="text-left p-2">Salida</th>
                     <th className="text-left p-2">Duración</th>
                     <th className="text-left p-2">Tarifa</th>
+                    <th className="text-left p-2">Método de Pago</th>
                     <th className="text-left p-2">Acciones</th>
                   </tr>
                 </thead>
@@ -345,6 +391,18 @@ export default function AdminPanel({
                           <td className="p-2">{formatDuration(entry.duration)}</td>
                           <td className="p-2">{formatCurrency(entry.fee)}</td>
                           <td className="p-2">
+                            {entry.paymentMethod ? (
+                              <span className={`capitalize ${
+                                entry.paymentMethod === 'efectivo' ? 'text-green-600' :
+                                entry.paymentMethod === 'transferencia' ? 'text-blue-600' :
+                                entry.paymentMethod === 'link' ? 'text-purple-600' :
+                                entry.paymentMethod === 'qr' ? 'text-orange-600' : ''
+                              }`}>
+                                {entry.paymentMethod}
+                              </span>
+                            ) : 'No especificado'}
+                          </td>
+                          <td className="p-2">
                             <div className="flex gap-2">
                               <Button
                                 variant="ghost"
@@ -356,7 +414,7 @@ export default function AdminPanel({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDelete(entry.id)}
+                                onClick={() => handleDelete(entry)}
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -395,7 +453,7 @@ export default function AdminPanel({
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => setDeleteDialogOpen(false)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -494,6 +552,14 @@ export default function AdminPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Agregar el diálogo de método de pago */}
+      <PaymentMethodDialog
+        open={paymentMethodDialogOpen}
+        onOpenChange={setPaymentMethodDialogOpen}
+        onSelectMethod={handlePaymentMethod}
+        fee={selectedEntry?.fee || 0}
+      />
     </div>
   )
 }

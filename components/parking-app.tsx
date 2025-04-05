@@ -12,10 +12,13 @@ import { useAuth } from "@/lib/auth-context";
 import AuthPage from "@/components/auth/auth-page";
 import { UserNav } from "@/components/layout/user-nav";
 import { supabase } from "@/lib/supabase";
+import { PaymentMethodDialog } from "./payment-method-dialog";
 
 export default function ParkingApp() {
   const { user, loading } = useAuth();
   const [exitInfo, setExitInfo] = useState<any>(null);
+  const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
+  const [exitingVehicle, setExitingVehicle] = useState<Vehicle | null>(null);
 
   const [parking, setParking] = useState<Parking>({
     capacity: {
@@ -76,76 +79,82 @@ export default function ParkingApp() {
   };
 
   const handleExit = async (licensePlate: string) => {
+    if (!user) return;
+    
+    const vehicle = parking.parkedVehicles.find(v => v.licensePlate === licensePlate);
+    if (!vehicle) {
+      throw new Error("Vehículo no encontrado");
+    }
+
+    setExitingVehicle(vehicle);
+    setPaymentMethodDialogOpen(true);
+  };
+
+  const handlePaymentMethod = async (method: string) => {
+    if (!exitingVehicle || !user) return;
+
     try {
-      const vehicle = parking.parkedVehicles.find(
-        (v) => v.licensePlate === licensePlate
-      );
-
-      if (!vehicle) {
-        throw new Error("Vehículo no encontrado");
-      }
-
       const exitTime = new Date();
-      const entryTime = new Date(vehicle.entryTime);
+      const entryTime = new Date(exitingVehicle.entryTime);
       const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
       const hours = duration / (1000 * 60 * 60);
-      const fee = calculateFee(hours, parking.rates[vehicle.type]);
+      const fee = calculateFee(hours, parking.rates[exitingVehicle.type]);
 
+      // Procesar según el método de pago
+      switch (method) {
+        case 'efectivo':
+          // El pago en efectivo se procesa inmediatamente
+          break;
+        case 'transferencia':
+          alert("Por favor, realiza la transferencia a la siguiente cuenta:\n\nBanco: XXX\nCBU: XXXXXXXXXXXXX\nAlias: XXXXX");
+          break;
+        case 'link':
+          window.open(`https://tu-link-de-pago.com/parking-exit`, '_blank');
+          break;
+        case 'qr':
+          alert("Función de QR en desarrollo");
+          break;
+      }
+
+      // Registrar la salida
       const response = await fetch("/api/parking/log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          license_plate: vehicle.licensePlate,
-          type: vehicle.type,
+          license_plate: exitingVehicle.licensePlate,
+          type: exitingVehicle.type,
           entry_time: entryTime.toISOString(),
           exit_time: exitTime.toISOString(),
           duration,
           fee,
-          user_id: user?.id,
+          user_id: user.id,
+          payment_method: method,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Error al registrar la salida");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al registrar la salida");
       }
 
-      const data = await response.json();
-
-      // Actualizar el estado local con el nuevo registro del historial
-      const newHistoryEntry: ParkingHistory = {
-        id: data.id,
-        licensePlate: vehicle.licensePlate,
-        type: vehicle.type,
-        entryTime: new Date(entryTime),
-        exitTime: new Date(exitTime),
-        duration,
-        fee
-      };
-
-      setParking((prev) => ({
+      // Actualizar el estado local
+      setParking(prev => ({
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter(
-          (v) => v.licensePlate !== licensePlate
+          v => v.licensePlate !== exitingVehicle.licensePlate
         ),
-        history: [...prev.history, newHistoryEntry],
       }));
 
-      // Actualizar la información de salida
-      setExitInfo({
-        vehicle: {
-          licensePlate: vehicle.licensePlate,
-          type: vehicle.type,
-          entryTime: entryTime
-        },
-        exitTime,
-        duration: formatDuration(duration),
-        fee: fee
-      });
+      setPaymentMethodDialogOpen(false);
+      setExitingVehicle(null);
+      
+      // Actualizar el historial inmediatamente
+      await fetchHistory();
     } catch (error) {
       console.error("Error al procesar la salida:", error);
-      throw error;
+      alert(error instanceof Error ? error.message : "Error al procesar la salida del vehículo");
     }
   };
 
@@ -265,7 +274,9 @@ export default function ParkingApp() {
         entryTime: new Date(h.entry_time + 'Z'),
         exitTime: new Date(h.exit_time + 'Z'),
         duration: typeof h.duration === 'number' ? h.duration : parseInt(h.duration),
-        fee: typeof h.fee === 'number' ? h.fee : parseFloat(h.fee)
+        fee: typeof h.fee === 'number' ? h.fee : parseFloat(h.fee),
+        userId: h.user_id,
+        paymentMethod: h.payment_method || 'No especificado'
       })) as ParkingHistory[];
 
       setParking(prev => ({
@@ -448,6 +459,18 @@ export default function ParkingApp() {
       </Tabs>
 
       <Toaster />
+
+      <PaymentMethodDialog
+        open={paymentMethodDialogOpen}
+        onOpenChange={setPaymentMethodDialogOpen}
+        onSelectMethod={handlePaymentMethod}
+        fee={exitingVehicle ? calculateFee(calculateHours(exitingVehicle.entryTime), parking.rates[exitingVehicle.type]) : 0}
+      />
     </main>
   );
+}
+
+function calculateHours(entryTime: Date): number {
+  const duration = Math.abs(new Date().getTime() - new Date(entryTime).getTime());
+  return duration / (1000 * 60 * 60);
 }

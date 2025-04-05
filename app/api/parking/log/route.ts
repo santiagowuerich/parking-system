@@ -3,46 +3,52 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const supabase = createClient();
-  const body = await req.json();
-
-  const {
-    license_plate,
-    type,
-    entry_time,
-    exit_time,
-    duration,
-    fee,
-    user_id
-  } = body;
 
   try {
-    // 1. Insertar en historial
-    const { error: historyError } = await supabase.from("parking_history").insert([
-      {
-        license_plate,
-        type,
-        entry_time,
-        exit_time,
-        duration,
-        fee,
-        user_id
-      },
-    ]);
+    const {
+      license_plate,
+      type,
+      entry_time,
+      exit_time,
+      duration,
+      fee,
+      user_id,
+      payment_method,
+    } = await req.json();
 
-    // 2. Eliminar vehículo de parked_vehicles
-    const {error: deleteError} = await supabase
-      .from("parked_vehicles")
-      .delete()
-      .match({license_plate: license_plate, user_id: user_id});
+    const { data, error } = await supabase
+      .from("parking_history")
+      .insert([
+        {
+          license_plate,
+          type,
+          entry_time,
+          exit_time,
+          duration,
+          fee,
+          user_id,
+          payment_method,
+        },
+      ])
+      .select();
 
-    if (historyError || deleteError) {
-      console.error("❌ Error al registrar salida:", historyError || deleteError);
-      return NextResponse.json({ error: "Error al registrar salida" }, { status: 500 });
+    if (error) {
+      console.error("Error al registrar en el historial:", error);
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    return NextResponse.json({ message: "Salida registrada" });
-  } catch (err) {
-    console.error("❌ Error inesperado al registrar salida:", err);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error en la ruta POST /api/parking/log:", error);
+    return new Response(JSON.stringify({ error: "Error interno del servidor" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }

@@ -14,6 +14,8 @@ export interface ParkingHistory {
   exitTime: Date
   duration: number // en milisegundos
   fee: number
+  userId: string
+  paymentMethod: string
 }
 
 export interface Parking {
