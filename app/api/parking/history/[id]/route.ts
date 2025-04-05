@@ -44,6 +44,7 @@ export async function PATCH(
       .update({
         license_plate: data.licensePlate,
         fee: data.fee,
+        payment_method: data.paymentMethod || 'No especificado'
       })
       .eq("id", id);
 

@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
-import { Pencil, Trash2, ArrowLeft } from "lucide-react"
+import { Pencil, Trash2, ArrowLeft, Filter } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
@@ -72,6 +72,7 @@ export default function AdminPanel({
   const [multipleDelete, setMultipleDelete] = useState(false);
   const [reenterDialogOpen, setReenterDialogOpen] = useState(false);
   const [entryToReenter, setEntryToReenter] = useState<ParkingHistory | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -321,7 +322,18 @@ export default function AdminPanel({
       {/* Historial */}
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
-          <CardTitle>Historial de Operaciones</CardTitle>
+          <div className="flex items-center gap-4">
+            <CardTitle>Historial de Operaciones</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(true)}
+              className="flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filtros
+            </Button>
+          </div>
           {selectedEntries.length > 0 && (
             <Button
               variant="destructive"
@@ -334,10 +346,27 @@ export default function AdminPanel({
           )}
         </CardHeader>
         <CardContent>
-          <HistoryFilters
-            history={history}
-            onFilteredDataChange={handleFilteredDataChange}
-          />
+          <Dialog open={showFilters} onOpenChange={setShowFilters}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Filtros de Búsqueda</DialogTitle>
+                <DialogDescription>
+                  Ajusta los filtros para encontrar registros específicos en el historial.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <HistoryFilters
+                  history={history}
+                  onFilteredDataChange={handleFilteredDataChange}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowFilters(false)}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           
           {filteredHistory.length === 0 ? (
             <p className="text-center text-gray-500 py-4">No hay operaciones registradas</p>
@@ -365,6 +394,7 @@ export default function AdminPanel({
                     <th className="text-left p-2">Salida</th>
                     <th className="text-left p-2">Duración</th>
                     <th className="text-left p-2">Tarifa</th>
+                    <th className="text-left p-2">Método de Pago</th>
                     <th className="text-left p-2">Acciones</th>
                   </tr>
                 </thead>
@@ -391,6 +421,17 @@ export default function AdminPanel({
                         <td className="p-2">{formatTime(entry.exitTime)}</td>
                         <td className="p-2">{formatDuration(entry.duration)}</td>
                         <td className="p-2">{formatCurrency(entry.fee)}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-1 rounded-full text-sm ${
+                            entry.paymentMethod === 'Efectivo' ? 'bg-green-100 text-green-800' :
+                            entry.paymentMethod === 'Transferencia' ? 'bg-blue-100 text-blue-800' :
+                            entry.paymentMethod === 'Link de pago' ? 'bg-purple-100 text-purple-800' :
+                            entry.paymentMethod === 'QR' ? 'bg-orange-100 text-orange-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {entry.paymentMethod || 'No especificado'}
+                          </span>
+                        </td>
                         <td className="p-2">
                           <div className="flex gap-2">
                             <Button
@@ -458,6 +499,9 @@ export default function AdminPanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar Registro</DialogTitle>
+            <DialogDescription>
+              Modifica los detalles del registro seleccionado.
+            </DialogDescription>
           </DialogHeader>
           {editingEntry && (
             <div className="grid gap-4 py-4">
@@ -485,6 +529,20 @@ export default function AdminPanel({
                     setEditingEntry({
                       ...editingEntry,
                       fee: parseFloat(e.target.value),
+                    })
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="paymentMethod">Método de Pago</label>
+                <Input
+                  id="paymentMethod"
+                  value={editingEntry.paymentMethod || 'No especificado'}
+                  onChange={(e) =>
+                    setEditingEntry({
+                      ...editingEntry,
+                      paymentMethod: e.target.value,
                     })
                   }
                   className="col-span-3"
