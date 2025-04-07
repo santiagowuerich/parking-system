@@ -5,12 +5,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { Button } from "./ui/button";
 
 interface QRDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   qrCode: string;
   fee: number;
+  onConfirmPayment: (success: boolean) => void;
 }
 
 export function QRDialog({
@@ -18,9 +20,29 @@ export function QRDialog({
   onOpenChange,
   qrCode,
   fee,
+  onConfirmPayment,
 }: QRDialogProps) {
+  const handleClose = () => {
+    // Al cerrar con la X o haciendo clic fuera, preguntar si el pago fue exitoso
+    const confirmed = window.confirm("¿El pago fue exitoso?");
+    onConfirmPayment(confirmed);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    // Al hacer clic en Cancelar, no preguntar y simplemente indicar que no fue exitoso
+    onConfirmPayment(false);
+    onOpenChange(false);
+  };
+
+  const handleConfirm = () => {
+    // Al hacer clic en Confirmar, indicar que fue exitoso
+    onConfirmPayment(true);
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Escanea el código QR para pagar</DialogTitle>
@@ -39,6 +61,14 @@ export function QRDialog({
           <p className="text-center text-gray-600">
             Abre Mercado Pago en tu celular y escanea este código
           </p>
+          <div className="flex justify-end space-x-2 w-full">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirm}>
+              Confirmar Pago
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

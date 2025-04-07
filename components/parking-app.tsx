@@ -23,9 +23,10 @@ export default function ParkingApp() {
   const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
   const [exitingVehicle, setExitingVehicle] = useState<Vehicle | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [qrData, setQrData] = useState({ code: "", fee: 0 });
+  const [qrData, setQrData] = useState<{ code: string; fee: number } | null>(null);
   const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
   const [lastCalculatedFee, setLastCalculatedFee] = useState(0);
+  const [paymentDetails, setPaymentDetails] = useState<any>(null);
 
   const [parking, setParking] = useState<Parking>({
     capacity: {
@@ -104,13 +105,21 @@ export default function ParkingApp() {
 
   const handleExit = async (licensePlate: string) => {
     if (!user) return;
-    
+
     const vehicle = parking.parkedVehicles.find(v => v.licensePlate === licensePlate);
     if (!vehicle) {
-      throw new Error("Vehículo no encontrado");
+      toast({ title: "Error", description: "Vehículo no encontrado", variant: "destructive" });
+      return;
     }
 
+    const exitTime = new Date();
+    const entryTime = new Date(vehicle.entryTime);
+    const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
+    const hours = duration / (1000 * 60 * 60);
+    const fee = calculateFee(hours, parking.rates[vehicle.type]);
+
     setExitingVehicle(vehicle);
+    setLastCalculatedFee(fee);
     setPaymentMethodDialogOpen(true);
   };
 
@@ -121,60 +130,23 @@ export default function ParkingApp() {
       const exitTime = new Date();
       const entryTime = new Date(exitingVehicle.entryTime);
       const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
-      const hours = duration / (1000 * 60 * 60);
-      const fee = calculateFee(hours, parking.rates[exitingVehicle.type]);
-      
-      // Guardamos el monto calculado
-      setLastCalculatedFee(fee);
+      const fee = lastCalculatedFee;
 
-      // Procesar según el método de pago
       switch (method) {
         case 'efectivo':
-          // Registrar la salida inmediatamente para pago en efectivo
-          await registerExit(exitingVehicle, method, fee, duration, exitTime);
-          setPaymentMethodDialogOpen(false);
-          setExitingVehicle(null);
-          setLastCalculatedFee(0);
-          break;
         case 'transferencia':
-          alert("Por favor, realiza la transferencia a la siguiente cuenta:\n\nBanco: XXX\nCBU: XXXXXXXXXXXXX\nAlias: XXXXX");
+          if (method === 'transferencia') {
+            alert("Por favor, realiza la transferencia y confirma manualmente.");
+          }
           await registerExit(exitingVehicle, method, fee, duration, exitTime);
           setPaymentMethodDialogOpen(false);
           setExitingVehicle(null);
-          setLastCalculatedFee(0);
           break;
+
         case 'mercadopago':
-          try {
-            const mpResponse = await fetch("/api/payment/mercadopago", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                licensePlate: exitingVehicle.licensePlate,
-                fee: fee,
-                vehicleType: exitingVehicle.type,
-                paymentType: 'regular'
-              }),
-            });
-
-            if (!mpResponse.ok) {
-              throw new Error("Error al generar el pago con Mercado Pago");
-            }
-
-            const { init_point } = await mpResponse.json();
-            window.open(init_point, '_blank');
-            await registerExit(exitingVehicle, method, fee, duration, exitTime);
-            setPaymentMethodDialogOpen(false);
-            setExitingVehicle(null);
-            setLastCalculatedFee(0);
-          } catch (error) {
-            console.error("Error con Mercado Pago:", error);
-            throw new Error("Error al procesar el pago con Mercado Pago");
-          }
-          break;
         case 'qr':
           try {
+            const paymentType = method === 'qr' ? 'qr' : 'regular';
             const mpResponse = await fetch("/api/payment/mercadopago", {
               method: "POST",
               headers: {
@@ -184,86 +156,126 @@ export default function ParkingApp() {
                 licensePlate: exitingVehicle.licensePlate,
                 fee: fee,
                 vehicleType: exitingVehicle.type,
-                paymentType: 'qr'
+                paymentType: paymentType,
+                userId: user.id
               }),
             });
 
             if (!mpResponse.ok) {
               const errorData = await mpResponse.json();
               console.error("Error de Mercado Pago:", errorData);
-              throw new Error(errorData.error || "Error al generar el QR de Mercado Pago");
+              throw new Error(errorData.error || `Error al generar ${method === 'qr' ? 'QR' : 'pago'}`);
             }
 
-            const { qr_code, init_point } = await mpResponse.json();
-            if (qr_code || init_point) {
-              setQrData({ code: qr_code || init_point, fee });
-              setPaymentMethodDialogOpen(false);
-              setQrDialogOpen(true);
-              // Removemos el vehículo de parkedVehicles solo cuando se muestra el QR
-              setParking(prev => ({
-                ...prev,
-                parkedVehicles: prev.parkedVehicles.filter(
-                  v => v.licensePlate !== exitingVehicle.licensePlate
-                ),
-              }));
+            const responseData = await mpResponse.json();
+
+            if (method === 'qr') {
+              if (responseData.qr_code || responseData.init_point) {
+                setQrData({ code: responseData.qr_code || responseData.init_point, fee });
+                setPaymentMethodDialogOpen(false);
+                setQrDialogOpen(true);
+              } else {
+                throw new Error("No se pudo obtener el código QR o link de pago.");
+              }
             } else {
-              throw new Error("No se pudo generar el código QR");
+              if (responseData.init_point) {
+                window.open(responseData.init_point, '_blank');
+                setPaymentMethodDialogOpen(false);
+                setExitingVehicle(null);
+                toast({
+                  title: "Redireccionando a Mercado Pago",
+                  description: "Completa el pago en la nueva pestaña.",
+                });
+              } else {
+                throw new Error("No se pudo obtener el link de pago.");
+              }
             }
-          } catch (error) {
-            console.error("Error al generar QR:", error);
-            throw error;
+
+          } catch (error: any) {
+            console.error("Error con Mercado Pago:", error);
+            toast({
+              title: "Error de Pago",
+              description: error.message || "No se pudo iniciar el proceso de pago.",
+              variant: "destructive",
+            });
           }
           break;
+
+        default:
+          console.warn("Método de pago no reconocido:", method);
+          toast({ title: "Error", description: "Método de pago no válido." });
       }
-    } catch (error) {
-      console.error("Error al procesar la salida:", error);
+    } catch (error: any) {
+      console.error("Error al procesar método de pago:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al procesar la salida del vehículo"
+        description: error.message || "Error al procesar la salida del vehículo",
       });
     }
   };
 
-  const registerExit = async (vehicle: Vehicle, method: string, fee: number, duration: number, exitTime: Date) => {
-    // Registrar la salida en la base de datos
-    const response = await fetch("/api/parking/log", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        license_plate: vehicle.licensePlate,
-        type: vehicle.type,
-        entry_time: vehicle.entryTime.toISOString(),
-        exit_time: exitTime.toISOString(),
-        duration,
-        fee,
-        user_id: user?.id,
-        payment_method: method,
-      }),
-    });
+  const registerExit = async (
+    vehicle: Vehicle,
+    paymentMethod: string,
+    fee: number,
+    duration: number,
+    exitTime: Date
+  ) => {
+    try {
+      const response = await fetch("/api/parking/log", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          license_plate: vehicle.licensePlate,
+          type: vehicle.type,
+          entry_time: vehicle.entryTime,
+          exit_time: exitTime,
+          duration,
+          fee,
+          payment_method: paymentMethod,
+          user_id: user?.id
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Error al registrar la salida");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al registrar la salida");
+      }
+
+      const historyEntry = await response.json();
+
+      setParking((prev) => ({
+        ...prev,
+        parkedVehicles: prev.parkedVehicles.filter(
+          (v) => v.licensePlate !== vehicle.licensePlate
+        ),
+        history: [historyEntry, ...prev.history],
+      }));
+
+      toast({
+        title: "Salida registrada",
+        description: `Vehículo ${vehicle.licensePlate} salió. Tarifa: ${formatDuration(duration)}`,
+      });
+
+      if (qrDialogOpen) {
+        setQrDialogOpen(false);
+        setQrData(null);
+        setExitingVehicle(null);
+      }
+
+      window.location.reload();
+
+    } catch (error: any) {
+      console.error("Error registrando salida:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al registrar salida",
+        description: error.message,
+      });
     }
-
-    // Remover el vehículo de parkedVehicles
-    setParking(prev => ({
-      ...prev,
-      parkedVehicles: prev.parkedVehicles.filter(
-        v => v.licensePlate !== vehicle.licensePlate
-      ),
-    }));
-
-    // Actualizar el historial inmediatamente
-    await fetchHistory();
-
-    toast({
-      title: "Salida registrada",
-      description: `Se ha registrado la salida del vehículo ${vehicle.licensePlate}`,
-    });
   };
 
   const updateRate = (type: VehicleType, rate: number) => {
@@ -316,7 +328,6 @@ export default function ParkingApp() {
         throw new Error(data.error || "Error al eliminar el registro");
       }
 
-      // Actualizar el estado local solo si la eliminación fue exitosa
       if (data.success) {
         setParking((prev) => ({
           ...prev,
@@ -343,7 +354,6 @@ export default function ParkingApp() {
         throw new Error("Error al actualizar el registro");
       }
 
-      // Actualizar el estado local
       setParking((prev) => ({
         ...prev,
         history: prev.history.map((entry) =>
@@ -401,7 +411,6 @@ export default function ParkingApp() {
     if (!user) return;
 
     try {
-      // Verificar si el vehículo ya está estacionado
       const isAlreadyParked = parking.parkedVehicles.some(
         v => v.licensePlate === entry.licensePlate
       );
@@ -410,10 +419,8 @@ export default function ParkingApp() {
         throw new Error("Este vehículo ya se encuentra estacionado");
       }
 
-      // Primero, eliminamos el registro de salida
       await handleDeleteHistoryEntry(entry.id);
 
-      // Luego, creamos un nuevo registro de entrada
       const response = await fetch("/api/parking/entry", {
         method: "POST",
         headers: {
@@ -422,7 +429,7 @@ export default function ParkingApp() {
         body: JSON.stringify({
           license_plate: entry.licensePlate,
           type: entry.type,
-          entry_time: new Date().toISOString(), // Usar la hora actual
+          entry_time: new Date().toISOString(),
           user_id: user.id
         }),
       });
@@ -431,7 +438,6 @@ export default function ParkingApp() {
         throw new Error("Error al crear nuevo registro de entrada");
       }
 
-      // Actualizamos el estado local de vehículos estacionados
       const newVehicle = {
         licensePlate: entry.licensePlate,
         type: entry.type,
@@ -442,10 +448,9 @@ export default function ParkingApp() {
       setParking(prev => ({
         ...prev,
         parkedVehicles: [...prev.parkedVehicles, newVehicle],
-        history: prev.history.filter(h => h.id !== entry.id) // Eliminar del historial
+        history: prev.history.filter(h => h.id !== entry.id)
       }));
 
-      // Actualizamos el historial
       await fetchHistory();
 
       toast({
@@ -462,42 +467,80 @@ export default function ParkingApp() {
     }
   };
 
-  const handleQRDialogClose = () => {
-    setQrDialogOpen(false);
-    setPaymentConfirmationOpen(true);
+  const handleQRDialogClose = (open: boolean) => {
+    if (!open) {
+      setQrDialogOpen(false);
+      setQrData(null);
+      if (exitingVehicle && !parking.parkedVehicles.find(v => v.licensePlate === exitingVehicle.licensePlate)) {
+        setParking(prev => ({...prev, parkedVehicles: [exitingVehicle, ...prev.parkedVehicles]}));
+      }
+      setExitingVehicle(null);
+      toast({ title: "Pago cancelado", description: "El proceso de pago con QR fue cancelado." });
+    }
   };
 
   const handlePaymentConfirmation = async (success: boolean) => {
-    if (!success) {
-      // Si el pago no fue exitoso, volver a mostrar el diálogo de métodos de pago
-      setPaymentMethodDialogOpen(true);
-      // Revertir la eliminación del vehículo
-      if (exitingVehicle) {
-        setParking(prev => ({
-          ...prev,
-          parkedVehicles: [...prev.parkedVehicles, exitingVehicle],
-        }));
-      }
-    } else {
-      // Si el pago fue exitoso, registrar la salida
-      if (exitingVehicle) {
-        const exitTime = new Date();
-        const entryTime = new Date(exitingVehicle.entryTime);
-        const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
-        try {
-          await registerExit(exitingVehicle, 'qr', qrData.fee, duration, exitTime);
-          setExitingVehicle(null);
-          setLastCalculatedFee(0);
-        } catch (error) {
-          console.error("Error al registrar la salida:", error);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Error al registrar la salida del vehículo"
-          });
+    if (!exitingVehicle || !user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se encontró información del vehículo o usuario.",
+      });
+      return;
+    }
+
+    if (success) {
+      const exitTime = new Date();
+      const entryTime = new Date(exitingVehicle.entryTime);
+      const duration = Math.abs(exitTime.getTime() - entryTime.getTime());
+      
+      try {
+        await registerExit(exitingVehicle, 'qr', lastCalculatedFee, duration, exitTime);
+        toast({
+          title: "Pago confirmado",
+          description: "El pago se ha registrado correctamente.",
+        });
+
+        // Limpiar estados
+        setQrDialogOpen(false);
+        setQrData(null);
+        setExitingVehicle(null);
+        setPaymentMethodDialogOpen(false);
+
+      } catch (error: any) {
+        console.error("Error al registrar salida:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo registrar la salida. Por favor, intente nuevamente.",
+        });
+        // Restaurar el vehículo a la lista si hubo error
+        if (!parking.parkedVehicles.some(v => v.licensePlate === exitingVehicle.licensePlate)) {
+          setParking(prev => ({
+            ...prev,
+            parkedVehicles: [exitingVehicle, ...prev.parkedVehicles]
+          }));
         }
       }
+    } else {
+      // Si el pago no fue exitoso
+      if (!parking.parkedVehicles.some(v => v.licensePlate === exitingVehicle.licensePlate)) {
+        setParking(prev => ({
+          ...prev,
+          parkedVehicles: [exitingVehicle, ...prev.parkedVehicles]
+        }));
+      }
+      
+      setPaymentMethodDialogOpen(true);
+      toast({
+        title: "Pago no completado",
+        description: "Por favor, seleccione otro método de pago o intente nuevamente.",
+      });
     }
+
+    // Limpiar estados del QR
+    setQrDialogOpen(false);
+    setQrData(null);
   };
 
   useEffect(() => {
@@ -523,7 +566,6 @@ export default function ParkingApp() {
         const parkedData = await resParked.json();
         const historyData = await resHistory.json();
 
-        // Validar que los datos sean arreglos
         if (!Array.isArray(parkedData)) {
           console.error("parkedData no es un arreglo:", parkedData);
           throw new Error("Formato de datos de vehículos estacionados inválido");
@@ -534,7 +576,6 @@ export default function ParkingApp() {
           throw new Error("Formato de datos de historial inválido");
         }
 
-        // Filtrar vehículos duplicados por matrícula
         const uniqueParkedVehicles = parkedData.reduce((acc: any[], v: any) => {
           const exists = acc.find(x => x.license_plate === v.license_plate);
           if (!exists) {
@@ -568,7 +609,6 @@ export default function ParkingApp() {
           history,
         }));
 
-        // Si hay alguna inconsistencia, limpiar los registros duplicados en la base de datos
         if (parkedData.length !== uniqueParkedVehicles.length) {
           console.warn("Se detectaron vehículos duplicados, limpiando...");
           const response = await fetch("/api/parking/cleanup", {
@@ -662,9 +702,10 @@ export default function ParkingApp() {
 
       <QRDialog
         open={qrDialogOpen}
-        onOpenChange={handleQRDialogClose}
-        qrCode={qrData.code}
-        fee={qrData.fee}
+        onOpenChange={setQrDialogOpen}
+        qrCode={qrData?.code || ""}
+        fee={qrData?.fee || 0}
+        onConfirmPayment={handlePaymentConfirmation}
       />
 
       <PaymentConfirmationDialog
