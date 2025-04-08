@@ -1,11 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
-    const body = await req.json();
-
+    const body = await request.json();
     const { license_plate, type, entry_time, user_id } = body;
 
     // Validar que todos los campos requeridos estén presentes
@@ -16,6 +14,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const { supabase, response } = createClient(request);
 
     // Intentar insertar el vehículo
     const { data, error } = await supabase
@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    const jsonResponse = NextResponse.json({ success: true, data });
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error("❌ Error inesperado:", err);
     return NextResponse.json(

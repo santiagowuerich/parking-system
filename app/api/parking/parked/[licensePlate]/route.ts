@@ -1,14 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { licensePlate: string } }
 ) {
-  const supabase = createClient();
   const licensePlate = (await params).licensePlate;
 
   try {
+    const { supabase, response } = createClient(request);
+
     const { error } = await supabase
       .from("parked_vehicles")
       .delete()
@@ -19,7 +20,8 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    const jsonResponse = NextResponse.json({ success: true });
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error("Error inesperado al eliminar vehículo:", err);
     return NextResponse.json(

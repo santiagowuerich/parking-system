@@ -7,95 +7,166 @@ import {
   useEffect,
   ReactNode,
 } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import { User } from "@supabase/supabase-js";
+import { useRouter, usePathname } from "next/navigation";
 
 type SignUpParams = {
+  email: string;
+  password: string;
   name: string;
+};
+
+type SignInParams = {
   email: string;
   password: string;
 };
 
-type User = {
-  id: string;
-  email: string;
-};
-
-type AuthContextType = {
+export const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
   signUp: (params: SignUpParams) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-};
+  signIn: (params: SignInParams) => Promise<void>;
+  signOut: () => Promise<void>;
+}>({
+  user: null,
+  loading: true,
+  signUp: async () => {},
+  signIn: async () => {},
+  signOut: async () => {},
+});
 
-const AuthContext = createContext<AuthContextType>(null!);
-
-export const useAuth = () => useContext(AuthContext);
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // Efecto para manejar redirecciones basadas en autenticación
+  useEffect(() => {
+    if (!loading) {
+      const isAuthRoute = pathname?.startsWith("/auth/");
+      if (!user && !isAuthRoute) {
+        router.push("/auth/login");
+      } else if (user && isAuthRoute) {
+        router.push("/");
+      }
+    }
+  }, [user, loading, pathname, router]);
 
   useEffect(() => {
-    const savedId = localStorage.getItem("adminId");
-    const savedEmail = localStorage.getItem("adminEmail");
+    let mounted = true;
 
-    console.log("🔍 Datos en localStorage:", { savedId, savedEmail });
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setUser(session?.user ?? null);
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
 
-    if (savedId && savedEmail) {
-      setUser({ id: savedId, email: savedEmail });
-      console.log("✅ Usuario cargado del localStorage");
-    } else {
-      console.warn("⛔ No hay sesión activa en localStorage");
-    }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
 
-    setLoading(false);
-  }, []);
-
-  const signUp = async ({ name, email, password }: SignUpParams) => {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        router.push("/auth/login");
+      } else if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
     });
 
-    const data = await res.json();
+    initializeAuth();
 
-    if (!res.ok) throw new Error(data.error || "Error en el registro");
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase, router]);
+
+  const signUp = async ({ email, password, name }: SignUpParams) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const signIn = async (email: string, password: string) => {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  const signIn = async ({ email, password }: SignInParams) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    const data = await res.json();
-
-    if (!res.ok) throw new Error(data.error || "Error en el login");
-
-    const adminId = data.adminId;
-
-    if (!adminId || !email) {
-      console.error("❌ Datos inválidos del login:", { adminId, email });
-      throw new Error("Datos inválidos al iniciar sesión");
+      if (error) throw error;
+    } finally {
+      setLoading(false);
     }
-
-    console.log("✅ Login exitoso. Guardando en localStorage:", {
-      adminId,
-      email,
-    });
-
-    localStorage.setItem("adminId", String(adminId));
-    localStorage.setItem("adminEmail", String(email));
-
-    setUser({ id: String(adminId), email });
-
-    window.location.reload();
   };
+
+  const signOut = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return null; // O un componente de carga si lo prefieres
+  }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signUp, signIn }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        signUp,
+        signIn,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth debe usarse dentro de un AuthProvider");
+  }
+  return context;
 };

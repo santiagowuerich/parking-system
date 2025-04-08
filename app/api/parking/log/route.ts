@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
-export async function POST(req: Request) {
-  const supabase = createClient();
-
+export async function POST(request: NextRequest) {
   try {
     const {
       license_plate,
@@ -14,7 +12,9 @@ export async function POST(req: Request) {
       fee,
       user_id,
       payment_method,
-    } = await req.json();
+    } = await request.json();
+
+    const { supabase, response } = createClient(request);
 
     // Primero eliminamos el vehículo de parked_vehicles
     const { error: deleteError } = await supabase
@@ -25,10 +25,7 @@ export async function POST(req: Request) {
 
     if (deleteError) {
       console.error("Error al eliminar vehículo estacionado:", deleteError);
-      return new Response(JSON.stringify({ error: deleteError.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
     // Luego registramos la salida en el historial
@@ -50,21 +47,16 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("Error al registrar en el historial:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    const jsonResponse = NextResponse.json(data);
+    return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error en la ruta POST /api/parking/log:", error);
-    return new Response(JSON.stringify({ error: "Error interno del servidor" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
 }

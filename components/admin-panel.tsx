@@ -29,6 +29,8 @@ import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
 import { toast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useAuth } from "@/lib/auth-context"
+import { createBrowserClient } from "@supabase/ssr"
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -61,6 +63,7 @@ export default function AdminPanel({
   onUpdateHistoryEntry,
   onReenterVehicle,
 }: AdminPanelProps) {
+  const { user } = useAuth();
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -78,7 +81,7 @@ export default function AdminPanel({
   today.setHours(0, 0, 0, 0)
 
   const todayIncome = filteredHistory
-    .filter((entry) => new Date(entry.exitTime) >= today)
+    .filter((entry) => new Date(entry.exit_time) >= today)
     .reduce((sum, entry) => sum + entry.fee, 0)
 
   const weekAgo = new Date()
@@ -86,19 +89,81 @@ export default function AdminPanel({
   weekAgo.setHours(0, 0, 0, 0)
 
   const weekIncome = filteredHistory
-    .filter((entry) => new Date(entry.exitTime) >= weekAgo)
+    .filter((entry) => new Date(entry.exit_time) >= weekAgo)
     .reduce((sum, entry) => sum + entry.fee, 0)
 
   const handleChange = (type: VehicleType, value: number) => {
     setTempCapacities((prev) => ({ ...prev, [type]: value }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    try {
+      if (!user?.id) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Debe iniciar sesión para guardar la capacidad"
+        });
+        return;
+      }
+
+      // Obtener el token de sesión
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se encontró una sesión válida"
+        });
+        return;
+      }
+
+      console.log('Enviando capacidad:', {
+        userId: user.id,
+        capacity: tempCapacities
+      });
+
+      const response = await fetch("/api/capacity", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          capacity: tempCapacities,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al actualizar la capacidad");
+      }
+
     Object.entries(tempCapacities).forEach(([type, value]) => {
-      onUpdateCapacity(type as VehicleType, value)
-    })
-    setOpen(false)
-  }
+        onUpdateCapacity(type as VehicleType, value);
+      });
+
+      toast({
+        title: "Capacidad actualizada",
+        description: "La capacidad se ha guardado correctamente.",
+      });
+      setOpen(false);
+    } catch (error) {
+      console.error("Error al guardar capacidad:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar la capacidad.",
+      });
+    }
+  };
 
   const handleDeleteSelected = () => {
     if (selectedEntries.length === 0) return;
@@ -219,22 +284,22 @@ export default function AdminPanel({
       entry && 
       entry.id && 
       typeof entry.id === 'string' &&
-      entry.exitTime // asegurarse de que tenga tiempo de salida
+      entry.exit_time // asegurarse de que tenga tiempo de salida
     );
 
     // Usar Map para mantener solo la entrada más reciente por matrícula
     const uniqueEntries = new Map();
     
     validEntries.forEach(entry => {
-      const existingEntry = uniqueEntries.get(entry.licensePlate);
-      if (!existingEntry || new Date(entry.exitTime) > new Date(existingEntry.exitTime)) {
-        uniqueEntries.set(entry.licensePlate, entry);
+      const existingEntry = uniqueEntries.get(entry.license_plate);
+      if (!existingEntry || new Date(entry.exit_time) > new Date(existingEntry.exit_time)) {
+        uniqueEntries.set(entry.license_plate, entry);
       }
     });
     
     // Convertir el Map a array y ordenar por tiempo de salida (más reciente primero)
     const filteredEntries = Array.from(uniqueEntries.values())
-      .sort((a, b) => new Date(b.exitTime).getTime() - new Date(a.exitTime).getTime());
+      .sort((a, b) => new Date(b.exit_time).getTime() - new Date(a.exit_time).getTime());
     
     setFilteredHistory(filteredEntries);
   };
@@ -323,7 +388,7 @@ export default function AdminPanel({
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
           <div className="flex items-center gap-4">
-            <CardTitle>Historial de Operaciones</CardTitle>
+          <CardTitle>Historial de Operaciones</CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -400,7 +465,7 @@ export default function AdminPanel({
                 </thead>
                 <tbody>
                   {filteredHistory.map((entry) => {
-                    const rowKey = `${entry.id}-${entry.exitTime}`;
+                    const rowKey = `${entry.id}-${entry.exit_time}`;
                     return (
                       <tr key={rowKey} className="border-b">
                         <td className="p-2">
@@ -415,21 +480,21 @@ export default function AdminPanel({
                             }}
                           />
                         </td>
-                        <td className="p-2">{entry.licensePlate}</td>
+                        <td className="p-2">{entry.license_plate}</td>
                         <td className="p-2">{entry.type}</td>
-                        <td className="p-2">{formatTime(entry.entryTime)}</td>
-                        <td className="p-2">{formatTime(entry.exitTime)}</td>
+                        <td className="p-2">{formatTime(new Date(entry.entry_time))}</td>
+                        <td className="p-2">{formatTime(new Date(entry.exit_time))}</td>
                         <td className="p-2">{formatDuration(entry.duration)}</td>
                         <td className="p-2">{formatCurrency(entry.fee)}</td>
                         <td className="p-2">
                           <span className={`px-2 py-1 rounded-full text-sm ${
-                            entry.paymentMethod === 'Efectivo' ? 'bg-green-100 text-green-800' :
-                            entry.paymentMethod === 'Transferencia' ? 'bg-blue-100 text-blue-800' :
-                            entry.paymentMethod === 'Link de pago' ? 'bg-purple-100 text-purple-800' :
-                            entry.paymentMethod === 'QR' ? 'bg-orange-100 text-orange-800' :
+                            entry.payment_method === 'Efectivo' ? 'bg-green-100 text-green-800' :
+                            entry.payment_method === 'Transferencia' ? 'bg-blue-100 text-blue-800' :
+                            entry.payment_method === 'Link de pago' ? 'bg-purple-100 text-purple-800' :
+                            entry.payment_method === 'QR' ? 'bg-orange-100 text-orange-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {entry.paymentMethod || 'No especificado'}
+                            {entry.payment_method || 'No especificado'}
                           </span>
                         </td>
                         <td className="p-2">
@@ -460,7 +525,7 @@ export default function AdminPanel({
                             </Button>
                           </div>
                         </td>
-                      </tr>
+                    </tr>
                     );
                   })}
                 </tbody>
@@ -506,14 +571,14 @@ export default function AdminPanel({
           {editingEntry && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="licensePlate">Matrícula</label>
+                <label htmlFor="license_plate">Matrícula</label>
                 <Input
-                  id="licensePlate"
-                  value={editingEntry.licensePlate}
+                  id="license_plate"
+                  value={editingEntry.license_plate}
                   onChange={(e) =>
                     setEditingEntry({
                       ...editingEntry,
-                      licensePlate: e.target.value,
+                      license_plate: e.target.value,
                     })
                   }
                   className="col-span-3"
@@ -535,14 +600,14 @@ export default function AdminPanel({
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="paymentMethod">Método de Pago</label>
+                <label htmlFor="payment_method">Método de Pago</label>
                 <Input
-                  id="paymentMethod"
-                  value={editingEntry.paymentMethod || 'No especificado'}
+                  id="payment_method"
+                  value={editingEntry.payment_method || 'No especificado'}
                   onChange={(e) =>
                     setEditingEntry({
                       ...editingEntry,
-                      paymentMethod: e.target.value,
+                      payment_method: e.target.value,
                     })
                   }
                   className="col-span-3"
@@ -567,7 +632,7 @@ export default function AdminPanel({
             <AlertDialogDescription>
               {entryToReenter && (
                 <>
-                  ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.licensePlate}?
+                  ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.license_plate}?
                   Esta acción eliminará el registro de salida y creará una nueva entrada.
                 </>
               )}

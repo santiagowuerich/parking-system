@@ -1,170 +1,173 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import type { VehicleType } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { VehicleType } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
-import { toast } from "@/components/ui/use-toast";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { toast } from "./ui/use-toast";
+import { Button } from "./ui/button";
 
 interface RatesPanelProps {
   rates: Record<VehicleType, number>;
-  onUpdateRate: (type: VehicleType, newRate: number) => void;
+  onUpdateRate: (type: VehicleType, rate: number) => void;
 }
 
 export default function RatesPanel({ rates, onUpdateRate }: RatesPanelProps) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
-  const [newRates, setNewRates] = useState(rates);
-  const [apiKey, setApiKey] = useState("");
-  const [isLoadingKey, setIsLoadingKey] = useState(false);
-  const [isSavingKey, setIsSavingKey] = useState(false);
-  const [isLoadingRates, setIsLoadingRates] = useState(false);
-  const [isSavingRates, setIsSavingRates] = useState(false);
+  const [localRates, setLocalRates] = useState<Record<VehicleType, number> | null>(null);
+  const [mercadopagoApiKey, setMercadopagoApiKey] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
 
   useEffect(() => {
+    setLocalRates(rates);
+  }, [rates]);
+
+  useEffect(() => {
+    // Cargar API key de MercadoPago
+    const fetchApiKey = async () => {
+      try {
+        const response = await fetch(`/api/user/settings?userId=${user?.id}`);
+        const data = await response.json();
+        if (data.mercadopagoApiKey) {
+          setMercadopagoApiKey(data.mercadopagoApiKey);
+        }
+      } catch (error) {
+        console.error("Error al cargar API key:", error);
+      }
+    };
+
     if (user?.id) {
-      setIsLoadingKey(true);
-      fetch(`/api/user/settings?userId=${user.id}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Error al cargar la API Key");
-          return res.json();
-        })
-        .then((data) => {
-          setApiKey(data.mercadopagoApiKey || "");
-        })
-        .catch((error) => {
-          console.error("Error fetching API Key:", error);
-          toast({
-            title: "Error",
-            description: "No se pudo cargar la API Key de MercadoPago.",
-            variant: "destructive",
-          });
-        })
-        .finally(() => setIsLoadingKey(false));
+      fetchApiKey();
     }
   }, [user?.id]);
 
+  if (!localRates) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
   const handleRateChange = (type: VehicleType, value: string) => {
-    const rate = parseFloat(value);
-    if (!isNaN(rate) && rate >= 0) {
-      setNewRates((prevRates) => ({
-        ...prevRates,
-        [type]: rate,
-      }));
+    const numericValue = Number(value);
+    if (isNaN(numericValue) || numericValue < 0) return;
+
+    const newRates = { ...localRates, [type]: numericValue };
+    setLocalRates(newRates);
+  };
+
+  const handleSaveRates = async () => {
+    if (!user?.id) return;
+    setIsSaving(true);
+
+    try {
+      const response = await fetch("/api/rates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          rates: localRates,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al actualizar tarifas");
+      }
+
+      // Actualizar las tarifas en el componente padre
+      Object.entries(localRates).forEach(([type, rate]) => {
+        onUpdateRate(type as VehicleType, Number(rate));
+      });
+
+      toast({
+        title: "Tarifas actualizadas",
+        description: "Las tarifas se han guardado correctamente.",
+      });
+    } catch (error) {
+      console.error("Error al guardar tarifas:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron guardar las tarifas.",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleUpdateRates = () => {
-    setIsSavingRates(true);
-    Object.entries(newRates).forEach(([type, rate]) => {
-      if (rates[type as VehicleType] !== rate) {
-        onUpdateRate(type as VehicleType, rate);
-      }
-    });
-    setTimeout(() => setIsSavingRates(false), 1000);
-    toast({
-      title: "Éxito",
-      description: "Tarifas actualizadas correctamente.",
-    });
-  };
-
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setApiKey(e.target.value);
+  const handleApiKeyChange = (value: string) => {
+    setMercadopagoApiKey(value);
   };
 
   const handleSaveApiKey = async () => {
-    if (!user?.id) {
-      toast({
-        title: "Error",
-        description: "Usuario no autenticado.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!user?.id) return;
+    setIsSavingApiKey(true);
 
-    setIsSavingKey(true);
     try {
       const response = await fetch("/api/user/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId: user.id, mercadopagoApiKey: apiKey }),
+        body: JSON.stringify({
+          userId: user.id,
+          mercadopagoApiKey: mercadopagoApiKey,
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al guardar la API Key");
+        throw new Error("Error al guardar API key");
       }
 
       toast({
-        title: "Éxito",
-        description: "API Key de MercadoPago guardada correctamente.",
+        title: "API Key guardada",
+        description: "La API Key de MercadoPago se ha guardado correctamente.",
       });
-    } catch (error: any) {
-      console.error("Error saving API Key:", error);
+    } catch (error) {
+      console.error("Error al guardar API key:", error);
       toast({
-        title: "Error",
-        description: error.message || "No se pudo guardar la API Key.",
         variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar la API Key.",
       });
     } finally {
-      setIsSavingKey(false);
+      setIsSavingApiKey(false);
     }
   };
 
   return (
-    <div className="grid gap-8 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Gestionar Tarifas por Hora</CardTitle>
+          <CardTitle>Tarifas por Hora</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tipo de Vehículo</TableHead>
-                <TableHead className="text-right">Tarifa por Hora</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Object.entries(newRates).map(([type, rate]) => (
-                <TableRow key={type}>
-                  <TableCell className="font-medium capitalize">{type}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      <span>$</span>
-                      <Input
-                        type="number"
-                        value={rate.toString()}
-                        onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
-                        className="w-24 text-right"
-                        min="0"
-                        step="0.01"
-                        disabled={isLoadingRates || isSavingRates}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="mt-6 flex justify-end">
-            <Button onClick={handleUpdateRates} disabled={isLoadingRates || isSavingRates}>
-              {isSavingRates ? "Guardando..." : "Actualizar Tarifas"}
+        <CardContent className="space-y-4">
+          {Object.entries(localRates).map(([type, rate]) => (
+            <div key={type} className="space-y-2">
+              <Label htmlFor={`rate-${type}`}>{type}</Label>
+              <Input
+                id={`rate-${type}`}
+                type="number"
+                min="0"
+                step="0.01"
+                value={rate}
+                onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
+              />
+            </div>
+          ))}
+          <div className="pt-4">
+            <Button 
+              onClick={handleSaveRates} 
+              disabled={isSaving}
+              className="w-full"
+            >
+              {isSaving ? "Guardando..." : "Guardar Tarifas"}
             </Button>
           </div>
         </CardContent>
@@ -174,36 +177,25 @@ export default function RatesPanel({ rates, onUpdateRate }: RatesPanelProps) {
         <CardHeader>
           <CardTitle>Configuración de MercadoPago</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key de Producción</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Ingresa tu API Key de Producción"
-                value={apiKey}
-                onChange={handleApiKeyChange}
-                disabled={isLoadingKey || isSavingKey}
-              />
-              <p className="text-sm text-muted-foreground">
-                Tu clave secreta para procesar pagos. Encuéntrala en tus{" "}
-                <a
-                  href="https://www.mercadopago.com/developers/panel/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  credenciales de MercadoPago
-                </a>.
-              </p>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={handleSaveApiKey} disabled={isLoadingKey || isSavingKey}>
-                {isSavingKey ? "Guardando..." : "Guardar API Key"}
-              </Button>
-            </div>
-            {isLoadingKey && <p className="text-sm text-muted-foreground text-center">Cargando configuración...</p>}
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="mercadopago-api-key">API Key</Label>
+            <Input
+              id="mercadopago-api-key"
+              type="password"
+              value={mercadopagoApiKey}
+              onChange={(e) => handleApiKeyChange(e.target.value)}
+              placeholder="Ingresa tu API Key de MercadoPago"
+            />
+          </div>
+          <div className="pt-2">
+            <Button 
+              onClick={handleSaveApiKey} 
+              disabled={isSavingApiKey}
+              className="w-full"
+            >
+              {isSavingApiKey ? "Guardando..." : "Guardar API Key"}
+            </Button>
           </div>
         </CardContent>
       </Card>

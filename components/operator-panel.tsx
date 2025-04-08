@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { createBrowserClient } from "@supabase/ssr"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,9 +15,21 @@ import {
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { formatInTimeZone } from 'date-fns-tz'
 
-import type { Parking, Vehicle, VehicleType } from "@/lib/types"
+import type { Parking, Vehicle, VehicleType, ParkingHistory } from "@/lib/types"
 import { formatCurrency, formatTime } from "@/lib/utils"
+
+interface ExitInfo {
+  vehicle: Vehicle
+  exitTime: Date
+  duration: string
+  fee: number
+}
 
 interface OperatorPanelProps {
   parking: Parking
@@ -29,10 +42,10 @@ interface OperatorPanelProps {
       occupied: number
     }
   }
-  onRegisterEntry: (vehicle: Omit<Vehicle, "entryTime">) => void
+  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time" | "user_id">) => void
   onRegisterExit: (licensePlate: string) => Promise<void>
-  exitInfo: any
-  setExitInfo: (info: any) => void
+  exitInfo: ExitInfo | null
+  setExitInfo: (info: ExitInfo | null) => void
 }
 
 export default function OperatorPanel({
@@ -43,10 +56,28 @@ export default function OperatorPanel({
   exitInfo,
   setExitInfo,
 }: OperatorPanelProps) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
   const [licensePlate, setLicensePlate] = useState("")
   const [selectedType, setSelectedType] = useState<VehicleType>("Auto")
   const [error, setError] = useState("")
   const [processingExit, setProcessingExit] = useState<string | null>(null)
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false)
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT") {
+        toast.error("La sesión ha expirado. Por favor, inicie sesión nuevamente.")
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,7 +93,7 @@ export default function OperatorPanel({
       return
     }
 
-    if (parking.parkedVehicles.some((v) => v.licensePlate === licensePlate)) {
+    if (parking.parkedVehicles.some((v) => v.license_plate === licensePlate)) {
       setError("Ya existe un vehículo con esta matrícula en el estacionamiento")
       return
     }
@@ -73,7 +104,7 @@ export default function OperatorPanel({
     }
 
     onRegisterEntry({
-      licensePlate,
+      license_plate: licensePlate,
       type: selectedType,
     })
 
@@ -82,17 +113,14 @@ export default function OperatorPanel({
   }
 
   const handleExit = async (vehicle: Vehicle) => {
-    if (processingExit === vehicle.licensePlate) return;
+    if (processingExit === vehicle.license_plate) return
     try {
-      setProcessingExit(vehicle.licensePlate);
-      await onRegisterExit(vehicle.licensePlate);
-      // Actualizar la lista de vehículos estacionados localmente
-      const updatedVehicles = parking.parkedVehicles.filter(v => v.licensePlate !== vehicle.licensePlate);
-      parking.parkedVehicles = updatedVehicles;
+      setProcessingExit(vehicle.license_plate)
+      await onRegisterExit(vehicle.license_plate)
     } finally {
-      setProcessingExit(null);
+      setProcessingExit(null)
     }
-  };
+  }
 
   return (
     <div className="space-y-8">
@@ -115,7 +143,7 @@ export default function OperatorPanel({
           </div>
           <div className="mt-4 p-3 bg-gray-100 rounded-md">
             <p className="text-center font-medium">
-              Total: {availableSpaces.total.occupied} vehículos ocupando {availableSpaces.total.capacity} espacios (
+              Total: {parking.parkedVehicles.length} vehículos ocupando {availableSpaces.total.capacity} espacios (
               {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
             </p>
           </div>
@@ -186,10 +214,10 @@ export default function OperatorPanel({
             <div className="space-y-2">
               {exitInfo.vehicle ? (
                 <>
-                  <p><strong>Matrícula:</strong> {exitInfo.vehicle.licensePlate}</p>
+                  <p><strong>Matrícula:</strong> {exitInfo.vehicle.license_plate}</p>
                   <p><strong>Tipo:</strong> {exitInfo.vehicle.type}</p>
-                  <p><strong>Entrada:</strong> {formatTime(exitInfo.vehicle.entryTime)}</p>
-                  <p><strong>Salida:</strong> {formatTime(exitInfo.exitTime)}</p>
+                  <p><strong>Entrada:</strong> {format(exitInfo.vehicle.entry_time, 'dd/MM/yyyy HH:mm:ss')}</p>
+                  <p><strong>Salida:</strong> {format(exitInfo.exitTime, 'dd/MM/yyyy HH:mm:ss')}</p>
                   <p><strong>Tiempo estacionado:</strong> {exitInfo.duration}</p>
                   <p className="text-lg font-bold">Total a cobrar: {formatCurrency(exitInfo.fee)}</p>
                   {exitInfo.duration.includes("min") && !exitInfo.duration.includes("h") && (
@@ -216,44 +244,57 @@ export default function OperatorPanel({
           {parking.parkedVehicles.length === 0 ? (
             <p className="text-center text-gray-500 py-4">No hay vehículos estacionados actualmente</p>
           ) : (
-            <div className="border rounded-lg">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Matrícula</th>
-                    <th className="text-left p-2">Tipo</th>
-                    <th className="text-left p-2">Hora de Entrada</th>
-                    <th className="text-left p-2">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {parking.parkedVehicles
-                    .filter((vehicle, index, self) => 
-                      index === self.findIndex(v => v.licensePlate === vehicle.licensePlate)
-                    )
-                    .map((vehicle) => (
-                      <tr 
-                        key={`${vehicle.licensePlate}-${vehicle.entryTime.getTime()}`} 
-                        className="border-b"
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Matrícula</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Hora de Entrada</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {parking.parkedVehicles.map((vehicle) => (
+                  <TableRow key={vehicle.license_plate + vehicle.entry_time}>
+                    <TableCell>{vehicle.license_plate}</TableCell>
+                    <TableCell>{vehicle.type}</TableCell>
+                    <TableCell>{format(vehicle.entry_time, 'dd/MM/yyyy HH:mm:ss')}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleExit(vehicle)}
+                        disabled={processingExit === vehicle.license_plate}
                       >
-                        <td className="p-2">{vehicle.licensePlate}</td>
-                        <td className="p-2">{vehicle.type}</td>
-                        <td className="p-2">{formatTime(vehicle.entryTime)}</td>
-                        <td className="p-2">
-                          <Button
-                            variant="destructive"
-                            onClick={() => handleExit(vehicle)}
-                            disabled={processingExit === vehicle.licensePlate}
-                          >
-                            {processingExit === vehicle.licensePlate ? 'Procesando...' : 'Registrar Salida'}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+                        {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Espacios Disponibles */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Espacios Disponibles</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-lg font-semibold">Autos</p>
+            <p>{availableSpaces.Auto} / {parking.capacity.Auto}</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold">Motos</p>
+            <p>{availableSpaces.Moto} / {parking.capacity.Moto}</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold">Camionetas</p>
+            <p>{availableSpaces.Camioneta} / {parking.capacity.Camioneta}</p>
+          </div>
         </CardContent>
       </Card>
     </div>

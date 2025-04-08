@@ -1,13 +1,15 @@
-// app/api/parking/parked/route.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function GET(request: NextRequest) {
+export async function PUT(request: NextRequest) {
   try {
-    const userId = new URL(request.url).searchParams.get("userId");
+    const { license_plate, entry_time, user_id } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    if (!license_plate || !entry_time || !user_id) {
+      return NextResponse.json(
+        { error: "Todos los campos son requeridos" },
+        { status: 400 }
+      );
     }
 
     // Crear la respuesta inicial
@@ -47,16 +49,18 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("parked_vehicles")
-      .select("*")
-      .eq("user_id", userId);
+      .update({ entry_time })
+      .eq("license_plate", license_plate)
+      .eq("user_id", user_id)
+      .select();
 
     if (error) {
-      console.error("Error fetching parked vehicles:", error);
+      console.error("Error al actualizar vehículo:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const jsonResponse = NextResponse.json({ parkedVehicles: data || [] });
-
+    const jsonResponse = NextResponse.json({ success: true, data });
+    
     // Copiar las cookies de la respuesta temporal a la respuesta final
     response.cookies.getAll().forEach(cookie => {
       const { name, value, ...options } = cookie
@@ -64,8 +68,11 @@ export async function GET(request: NextRequest) {
     })
 
     return jsonResponse;
-  } catch (err) {
-    console.error("Unexpected error fetching parked vehicles:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error) {
+    console.error("Error inesperado:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-}
+} 

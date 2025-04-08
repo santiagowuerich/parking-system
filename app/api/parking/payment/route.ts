@@ -1,12 +1,12 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
-  const supabase = createClient();
-
+export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     const { historyId, method, amount, userId } = data;
+
+    const { supabase, response } = createClient(request);
 
     // Registrar el pago en la base de datos
     const { data: payment, error } = await supabase
@@ -29,7 +29,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(payment);
+    const jsonResponse = NextResponse.json(payment);
+    return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error al procesar pago:", error);
     return NextResponse.json(

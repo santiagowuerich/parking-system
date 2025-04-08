@@ -45,8 +45,7 @@ export function formatDuration(ms: number): string {
 
 // Calcular tarifa
 export function calculateFee(hours: number, rate: number): number {
-  // Siempre cobrar al menos una hora
-  const effectiveHours = Math.max(1, Math.ceil(hours));
-  return effectiveHours * rate;
+  const effectiveHours = Math.ceil(hours);
+  return Math.max(1, effectiveHours) * rate;
 }
 

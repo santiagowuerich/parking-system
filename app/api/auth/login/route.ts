@@ -1,13 +1,15 @@
-// app/api/parking/parked/route.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const userId = new URL(request.url).searchParams.get("userId");
+    const { email, password } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email y contraseña son requeridos" },
+        { status: 400 }
+      );
     }
 
     // Crear la respuesta inicial
@@ -45,17 +47,24 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { data, error } = await supabase
-      .from("parked_vehicles")
-      .select("*")
-      .eq("user_id", userId);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) {
-      console.error("Error fetching parked vehicles:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Error de autenticación:", error);
+      return NextResponse.json(
+        { error: "Credenciales inválidas" },
+        { status: 401 }
+      );
     }
 
-    const jsonResponse = NextResponse.json({ parkedVehicles: data || [] });
+    // Crear la respuesta final con los datos y las cookies
+    const jsonResponse = NextResponse.json({
+      adminId: data.user.id,
+      email: data.user.email,
+    });
 
     // Copiar las cookies de la respuesta temporal a la respuesta final
     response.cookies.getAll().forEach(cookie => {
@@ -64,8 +73,11 @@ export async function GET(request: NextRequest) {
     })
 
     return jsonResponse;
-  } catch (err) {
-    console.error("Unexpected error fetching parked vehicles:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error) {
+    console.error("Error en el servidor:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-}
+} 

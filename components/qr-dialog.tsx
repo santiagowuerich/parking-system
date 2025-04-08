@@ -11,6 +11,7 @@ interface QRDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   qrCode: string;
+  qrCodeBase64?: string;
   fee: number;
   onConfirmPayment: (success: boolean) => void;
 }
@@ -19,24 +20,22 @@ export function QRDialog({
   open,
   onOpenChange,
   qrCode,
+  qrCodeBase64,
   fee,
   onConfirmPayment,
 }: QRDialogProps) {
   const handleClose = () => {
-    // Al cerrar con la X o haciendo clic fuera, preguntar si el pago fue exitoso
-    const confirmed = window.confirm("¿El pago fue exitoso?");
-    onConfirmPayment(confirmed);
+    // Al cerrar con la X o haciendo clic fuera, simplemente cerrar el diálogo
     onOpenChange(false);
   };
 
   const handleCancel = () => {
-    // Al hacer clic en Cancelar, no preguntar y simplemente indicar que no fue exitoso
-    onConfirmPayment(false);
+    // Al cancelar, simplemente cerrar el diálogo
     onOpenChange(false);
   };
 
   const handleConfirm = () => {
-    // Al hacer clic en Confirmar, indicar que fue exitoso
+    // SOLO al confirmar explícitamente llamamos a onConfirmPayment
     onConfirmPayment(true);
     onOpenChange(false);
   };
@@ -52,11 +51,23 @@ export function QRDialog({
             Monto a pagar: {formatCurrency(fee)}
           </div>
           <div className="bg-white p-4 rounded-lg shadow-lg">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
-              alt="Código QR"
-              className="w-64 h-64"
-            />
+            {qrCodeBase64 ? (
+              <img
+                src={`data:image/png;base64,${qrCodeBase64}`}
+                alt="Código QR"
+                className="w-64 h-64"
+              />
+            ) : qrCode ? (
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`}
+                alt="Código QR"
+                className="w-64 h-64"
+              />
+            ) : (
+              <div className="w-64 h-64 flex items-center justify-center text-gray-400">
+                Error al generar QR
+              </div>
+            )}
           </div>
           <p className="text-center text-gray-600">
             Abre Mercado Pago en tu celular y escanea este código

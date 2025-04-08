@@ -14,7 +14,7 @@ import {
 import { LogOut } from "lucide-react";
 
 export function UserNav() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   if (!user) return null;
 
@@ -25,6 +25,14 @@ export function UserNav() {
     .toUpperCase();
 
   const nameToShow = user.email?.split("@")[0] ?? "Administrador";
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -44,13 +52,7 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            localStorage.removeItem("adminId");
-            localStorage.removeItem("adminEmail");
-            window.location.reload();
-          }}
-        >
+        <DropdownMenuItem onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Cerrar sesión</span>
         </DropdownMenuItem>

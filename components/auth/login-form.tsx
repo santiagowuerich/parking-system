@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 
 interface LoginFormProps {
   onToggleForm: () => void;
@@ -24,6 +26,8 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,30 +35,19 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
     setIsLoading(true);
   
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      await signIn({
+        email,
+        password
       });
-  
-      const data = await res.json();
-  
-      if (!res.ok) throw new Error(data.error || "Login fallido");
-  
-      // ✅ Guardar ID y EMAIL en localStorage
-      localStorage.setItem("adminId", data.adminId);
-      localStorage.setItem("adminEmail", email); // 👈 ESTO FALTABA
-  
-      alert("Login exitoso ✅");
-      window.location.reload(); // Opcional, para que el contexto se actualice
-  
+      
+      router.push("/"); // Redirigir al inicio después del login exitoso
     } catch (err: any) {
-      setError(err.message);
+      console.error("Error en login:", err);
+      setError(err.message || "Error al iniciar sesión");
     } finally {
       setIsLoading(false);
     }
   };
-  
 
   return (
     <Card className="w-full max-w-md mx-auto">

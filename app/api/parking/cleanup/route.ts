@@ -1,15 +1,16 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
-export async function POST(req: Request) {
-  const supabase = createClient();
-  const userId = req.headers.get("user-id");
+export async function POST(request: NextRequest) {
+  const userId = request.headers.get("user-id");
 
   if (!userId) {
     return NextResponse.json({ error: "User ID is required" }, { status: 400 });
   }
 
   try {
+    const { supabase, response } = createClient(request);
+
     // Obtener todos los vehículos estacionados del usuario
     const { data: parkedVehicles, error: fetchError } = await supabase
       .from("parked_vehicles")
@@ -45,7 +46,8 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    const jsonResponse = NextResponse.json({ success: true });
+    return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error al limpiar registros:", error);
     return NextResponse.json(

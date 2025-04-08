@@ -1,14 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   context: { params: { id: string } }
 ) {
-  const supabase = createClient();
   const { id } = await Promise.resolve(context.params);
   
   try {
+    const { supabase, response } = createClient(request);
+
     const { error } = await supabase
       .from("parking_history")
       .delete()
@@ -19,7 +20,8 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    const jsonResponse = NextResponse.json({ success: true });
+    return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error al eliminar registro:", error);
     return NextResponse.json(
@@ -30,14 +32,14 @@ export async function DELETE(
 }
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   context: { params: { id: string } }
 ) {
-  const supabase = createClient();
   const { id } = await Promise.resolve(context.params);
   
   try {
     const data = await request.json();
+    const { supabase, response } = createClient(request);
 
     const { error } = await supabase
       .from("parking_history")
@@ -53,7 +55,8 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    const jsonResponse = NextResponse.json({ success: true });
+    return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error al actualizar registro:", error);
     return NextResponse.json(

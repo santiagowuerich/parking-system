@@ -1,21 +1,18 @@
 export type VehicleType = "Auto" | "Moto" | "Camioneta"
 
 export interface Vehicle {
-  licensePlate: string
+  license_plate: string
   type: VehicleType
-  entryTime: Date
+  entry_time: string
+  user_id: string
 }
 
-export interface ParkingHistory {
+export interface ParkingHistory extends Vehicle {
   id: string
-  licensePlate: string
-  type: VehicleType
-  entryTime: Date
-  exitTime: Date
+  exit_time: string
   duration: number // en milisegundos
   fee: number
-  userId: string
-  paymentMethod: string
+  payment_method: string
 }
 
 export interface Parking {
