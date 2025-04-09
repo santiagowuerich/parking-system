@@ -31,6 +31,14 @@ import { toast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth-context"
 import { createBrowserClient } from "@supabase/ssr"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -225,20 +233,32 @@ export default function AdminPanel({
   };
 
   const handleEdit = (entry: ParkingHistory) => {
-    setEditingEntry(entry);
+    setEditingEntry({ ...entry, payment_method: entry.payment_method || 'No especificado' });
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateEntry = async () => {
     if (!editingEntry) return;
-
     try {
       await onUpdateHistoryEntry?.(editingEntry.id, editingEntry);
+      setFilteredHistory(prev => 
+        prev.map(entry => 
+          entry.id === editingEntry.id ? { ...entry, ...editingEntry } : entry
+        )
+      );
       setIsEditDialogOpen(false);
       setEditingEntry(null);
+      toast({
+        title: "Registro actualizado",
+        description: "El registro ha sido actualizado exitosamente.",
+      });
     } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al actualizar",
+        description: "No se pudo actualizar el registro.",
+      });
       console.error("Error al actualizar registro:", error);
-      alert("Error al actualizar el registro");
     }
   };
 
@@ -571,54 +591,52 @@ export default function AdminPanel({
           {editingEntry && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="license_plate">Matrícula</label>
+                <Label htmlFor="matricula" className="text-right">
+                  Matrícula
+                </Label>
                 <Input
-                  id="license_plate"
+                  id="matricula"
                   value={editingEntry.license_plate}
-                  onChange={(e) =>
-                    setEditingEntry({
-                      ...editingEntry,
-                      license_plate: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setEditingEntry({ ...editingEntry, license_plate: e.target.value })}
                   className="col-span-3"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="fee">Tarifa</label>
-                <Input
-                  id="fee"
-                  type="number"
-                  value={editingEntry.fee}
-                  onChange={(e) =>
-                    setEditingEntry({
-                      ...editingEntry,
-                      fee: parseFloat(e.target.value),
-                    })
-                  }
-                  className="col-span-3"
-                />
+                 <Label htmlFor="tarifa" className="text-right">
+                   Tarifa
+                 </Label>
+                 <Input
+                   id="tarifa"
+                   type="number"
+                   value={editingEntry.fee}
+                   onChange={(e) => setEditingEntry({ ...editingEntry, fee: parseFloat(e.target.value) || 0 })}
+                   className="col-span-3"
+                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="payment_method">Método de Pago</label>
-                <Input
-                  id="payment_method"
+                <Label htmlFor="payment_method" className="text-right">
+                  Método de Pago
+                </Label>
+                <Select
                   value={editingEntry.payment_method || 'No especificado'}
-                  onChange={(e) =>
-                    setEditingEntry({
-                      ...editingEntry,
-                      payment_method: e.target.value,
-                    })
-                  }
-                  className="col-span-3"
-                />
+                  onValueChange={(value) => setEditingEntry({ ...editingEntry, payment_method: value })}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Seleccionar método" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="efectivo">Efectivo</SelectItem>
+                    <SelectItem value="transferencia">Transferencia</SelectItem>
+                    <SelectItem value="qr">Código QR</SelectItem>
+                    <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+                    <SelectItem value="No especificado">No especificado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpdateEntry}>Guardar Cambios</Button>
           </DialogFooter>
         </DialogContent>

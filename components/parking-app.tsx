@@ -432,28 +432,38 @@ export default function ParkingApp() {
     }
   };
 
-  const handleUpdateHistoryEntry = async (id: string, data: Partial<ParkingHistory>) => {
+  const handleUpdateHistoryEntry = async (id: string, updates: Partial<ParkingHistory>) => {
     try {
       const response = await fetch(`/api/parking/history/${id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
+          // Podríamos necesitar añadir Authorization header si la API lo requiere
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
-        throw new Error("Error al actualizar el registro");
+        const errorData = await response.json().catch(() => ({})); // Intenta parsear error, si no, objeto vacío
+        throw new Error(errorData.error || `Error ${response.status} al actualizar el registro`);
       }
 
-      setParking((prev) => ({
+      const updatedEntry = await response.json();
+
+      // Actualizar el estado local CON LA RESPUESTA DE LA API
+      setParking(prev => ({
         ...prev,
-        history: prev.history.map((entry) =>
-          entry.id === id ? { ...entry, ...data } : entry
+        history: prev.history.map(entry => 
+          entry.id === id ? { ...entry, ...updatedEntry } : entry
         ),
       }));
+
+      // Ya no necesitamos el toast aquí, AdminPanel lo maneja
+      // toast({ ... });
+
     } catch (error) {
-      console.error("Error al actualizar registro:", error);
+      console.error("Error en handleUpdateHistoryEntry:", error);
+      // Relanzar el error para que AdminPanel lo capture y muestre el toast de error
       throw error;
     }
   };
@@ -651,31 +661,6 @@ export default function ParkingApp() {
       hour12: false
     });
   };
-
-  // Modificar donde se procesa el historial
-  useEffect(() => {
-    const fetchParkingHistory = async () => {
-      try {
-        const response = await fetch("/api/parking/history");
-        const data = await response.json();
-        
-        if (response.ok) {
-          const formattedHistory = data.map((h: any) => ({
-            ...h,
-            entry_time: formatDateTime(h.entry_time),
-            exit_time: formatDateTime(h.exit_time)
-          }));
-          setParkingHistory(formattedHistory);
-        }
-      } catch (error) {
-        console.error("Error al cargar el historial:", error);
-      }
-    };
-
-    if (user) {
-      fetchParkingHistory();
-    }
-  }, [user]);
 
   useEffect(() => {
     const loadInitialData = async () => {
