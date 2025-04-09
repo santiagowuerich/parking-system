@@ -18,6 +18,7 @@ import { QRDialog } from "./qr-dialog";
 import { PaymentConfirmationDialog } from "./payment-confirmation-dialog";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import dayjs from "dayjs";
 
 type ExitInfo = {
   vehicle: Vehicle;
@@ -155,156 +156,96 @@ export default function ParkingApp() {
 
   const handleExit = async (licensePlate: string) => {
     if (!user) {
-      toast({ 
-        title: "Error", 
-        description: "Debe iniciar sesión para registrar salidas", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: "Debe iniciar sesión...", variant: "destructive" });
       return;
     }
-
-    console.log('Buscando vehículo:', { licensePlate, parkedVehicles: parking.parkedVehicles });
     const vehicle = parking.parkedVehicles.find(v => v.license_plate === licensePlate);
-    
     if (!vehicle) {
-      toast({ 
-        title: "Error", 
-        description: "Vehículo no encontrado", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: "Vehículo no encontrado", variant: "destructive" });
       return;
     }
-
     if (!vehicle.entry_time) {
-      console.error('Vehículo sin fecha de entrada:', vehicle);
-      toast({ 
-        title: "Error", 
-        description: "El vehículo no tiene fecha de entrada registrada", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: "El vehículo no tiene fecha de entrada...", variant: "destructive" });
       return;
     }
 
     try {
       console.log('Procesando salida para vehículo:', vehicle);
       
-      // Parsear la fecha ISO directamente
-      const entryTime = new Date(vehicle.entry_time);
-      
-      if (isNaN(entryTime.getTime())) {
-        console.error('Fecha inválida:', {
-          original: vehicle.entry_time,
-          parsed: entryTime
-        });
-        throw new Error("Fecha de entrada inválida");
+      const entryTimeDayjs = dayjs.utc(vehicle.entry_time);
+      if (!entryTimeDayjs.isValid()) {
+          throw new Error("Fecha de entrada inválida (Day.js) en handleExit");
       }
+      const entryTime = entryTimeDayjs.toDate();
+      const exitTime = new Date(); // Hora actual para cálculo inicial
 
-      const now = new Date();
-      const diffInMinutes = Math.abs(now.getTime() - entryTime.getTime()) / (1000 * 60);
+      const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
       const durationHours = Math.max(diffInMinutes / 60, 1);
-      
-      if (!parking.rates[vehicle.type]) {
-        console.error('Tarifa no encontrada para el tipo de vehículo:', vehicle.type);
-        throw new Error(`Tarifa no configurada para ${vehicle.type}`);
-      }
-
-      const rate = parking.rates[vehicle.type];
+      const rate = parking.rates[vehicle.type] || 0;
       const fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
-
-      console.log('Cálculo de tarifa:', {
-        entryTime: entryTime.toISOString(),
-        exitTime: now.toISOString(),
-        durationHours,
-        rate,
-        fee,
-        diffInMinutes,
-        vehicle
-      });
-
-      // Formatear la duración como string
-      const durationStr = diffInMinutes < 60 
-        ? `${Math.round(diffInMinutes)} min`
-        : `${Math.floor(diffInMinutes / 60)}h ${Math.round(diffInMinutes % 60)}min`;
-
-      setExitInfo({
-        vehicle,
-        fee,
-        exitTime: now,
-        duration: durationStr
-      });
+      if (!fee || fee <= 0) {
+          console.warn("Tarifa calculada es 0 o negativa en handleExit", { durationHours, rate, fee });
+          // Podrías lanzar error o asignar una tarifa mínima si esto no debería pasar
+          throw new Error("La tarifa calculada inicialmente es inválida");
+      }
       
+      console.log('Tarifa inicial calculada en handleExit:', { fee, durationHours });
+
+      // Guardar vehículo y tarifa calculada en el estado ANTES de abrir el diálogo
       setExitingVehicle(vehicle);
       setLastCalculatedFee(fee);
       setPaymentMethodDialogOpen(true);
 
     } catch (error) {
-      console.error('Error al calcular tarifa:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error al calcular la tarifa. Verifique la fecha de entrada."
-      });
+      console.error('Error al iniciar proceso de salida:', error);
+      toast({ variant: "destructive", title: "Error", description: error instanceof Error ? error.message : "Error al iniciar el proceso de salida." });
     }
   };
 
   const handlePaymentMethod = async (method: string) => {
     if (!exitingVehicle || !user) return;
+    let shouldCloseDialog = false;
+    let historyEntry: ParkingHistory | null = null;
 
     try {
       const exitTime = new Date();
-      // Parsear la fecha ISO directamente
-      const entryTime = new Date(exitingVehicle.entry_time);
-      
-      if (isNaN(entryTime.getTime())) {
-        console.error('Fecha inválida en handlePaymentMethod:', {
-          original: exitingVehicle.entry_time,
-          parsed: entryTime
-        });
-        throw new Error("Fecha de entrada inválida");
+
+      console.log("Parsing entry_time in handlePaymentMethod:", exitingVehicle.entry_time);
+      const entryTimeDayjs = dayjs.utc(exitingVehicle.entry_time);
+      if (!entryTimeDayjs.isValid()) {
+          throw new Error("Fecha de entrada inválida (Day.js)");
       }
+      const entryTime = entryTimeDayjs.toDate();
 
       const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
-      const durationHours = Math.max(diffInMinutes / 60, 1); // Mínimo 1 hora
+      const durationHours = Math.max(diffInMinutes / 60, 1);
       const rate = parking.rates[exitingVehicle.type] || 0;
       const fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
-      
-      console.log('Calculando tarifa en handlePaymentMethod:', {
-        entryTime: entryTime.toISOString(),
-        exitTime: exitTime.toISOString(),
-        durationHours,
-        rate,
-        fee,
-        diffInMinutes,
-        vehicle: exitingVehicle
-      });
-      
-      if (!fee || fee <= 0) {
-        throw new Error("La tarifa debe ser mayor a 0");
-      }
-
+      if (!fee || fee <= 0) throw new Error("La tarifa debe ser mayor a 0");
       setLastCalculatedFee(fee);
+      const durationStr = formatDuration(diffInMinutes * 60 * 1000);
+
+      console.log('Calculando tarifa en handlePaymentMethod (parsed with Day.js):', {
+        entryTimeString: exitingVehicle.entry_time,
+        entryTimeISO: entryTime.toISOString(),
+        exitTimeISO: exitTime.toISOString(),
+        durationHours, rate, fee, diffInMinutes
+      });
 
       if (method === 'qr' || method === 'mercadopago') {
-        // Verificar si el usuario tiene API key configurada
         const response = await fetch(`/api/user/settings?userId=${user.id}`);
         const data = await response.json();
-
         if (!data.mercadopagoApiKey) {
           toast({
             variant: "destructive",
             title: "API Key no configurada",
             description: "Debes configurar tu API Key de MercadoPago en el panel de tarifas antes de usar pagos con QR.",
           });
-          setPaymentMethodDialogOpen(false);
-          // Mantener el vehículo en la lista de estacionados
           return;
         }
-
         const responseMp = await fetch("/api/payment/mercadopago", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             licensePlate: exitingVehicle.license_plate,
             fee: fee,
@@ -313,47 +254,50 @@ export default function ParkingApp() {
             userId: user.id
           }),
         });
-
         if (!responseMp.ok) {
           const errorData = await responseMp.json();
           throw new Error(errorData.error || "Error al generar el pago");
         }
-
         const paymentData = await responseMp.json();
-        
         if (method === 'qr') {
-          setQrData({
-            code: paymentData.qr_code,
-            fee: paymentData.fee,
-            qrCodeBase64: paymentData.qr_code_base64
-          });
+          setQrData({ code: paymentData.qr_code, fee: paymentData.fee, qrCodeBase64: paymentData.qr_code_base64 });
           setShowQRDialog(true);
         } else if (method === 'mercadopago' && paymentData.init_point) {
           window.open(paymentData.init_point, '_blank');
-          setPaymentMethodDialogOpen(false);
-          toast({
-            title: "Procesando pago",
-            description: "Se ha abierto una nueva ventana para completar el pago.",
-          });
+          toast({ title: "Procesando pago", description: "Se ha abierto una nueva ventana..." });
           setPaymentConfirmationOpen(true);
-          return;
+          shouldCloseDialog = true;
         }
       } else {
-        await registerExit(exitingVehicle, method, fee, diffInMinutes, exitTime);
+        historyEntry = await registerExit(exitingVehicle, method, fee, diffInMinutes, exitTime);
+        shouldCloseDialog = true;
+        setExitInfo({
+          vehicle: exitingVehicle,
+          fee: fee,
+          exitTime: exitTime,
+          duration: durationStr
+        });
       }
     } catch (error: any) {
-      console.error("Error en el proceso de pago:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Error desconocido"
-      });
-      // No cerrar el diálogo de pago si hay un error
-      return;
+      if (!error.message?.includes("Error al registrar salida")) {
+          console.error("Error en handlePaymentMethod (antes de registerExit o en MP):");
+          toast({ variant: "destructive", title: "Error", description: error.message || "Error desconocido"});
+      } else {
+          console.error("Error capturado en handlePaymentMethod (probablemente de registerExit):");
+      }
+       console.error(error); 
+       return;
     }
     
-    // Solo cerrar el diálogo si todo fue exitoso
-    setPaymentMethodDialogOpen(false);
+    if (shouldCloseDialog) {
+      setPaymentMethodDialogOpen(false);
+      if (historyEntry) {
+        toast({
+          title: "Salida registrada",
+          description: `Vehículo ${historyEntry.license_plate} salió. Duración: ${formatDuration(historyEntry.duration)}`,
+        });
+      }
+    }
   };
 
   const registerExit = async (
@@ -362,18 +306,15 @@ export default function ParkingApp() {
     fee: number,
     duration: number,
     exitTime: Date
-  ) => {
+  ): Promise<ParkingHistory> => {
     try {
       if (!user?.id) {
         throw new Error("Debe iniciar sesión para registrar salidas");
       }
 
       const exitTimeISO = exitTime.toISOString();
+      const durationInMs = Math.round(duration * 60 * 1000);
 
-      // Convertir la duración a milisegundos (entero)
-      const durationInMs = Math.round(duration * 60 * 1000); // convertir minutos a milisegundos
-
-      // Usar la ruta correcta para registrar salidas
       const response = await fetch("/api/parking/log", {
         method: "POST",
         headers: {
@@ -396,37 +337,36 @@ export default function ParkingApp() {
         throw new Error(errorData.error || "Error al registrar la salida");
       }
 
-      const historyEntry = await response.json();
+      const historyEntryResponse = await response.json(); // Obtener respuesta (puede ser array)
+      const newHistoryEntry = Array.isArray(historyEntryResponse) ? historyEntryResponse[0] : historyEntryResponse;
 
-      if (showQRDialog) {
-        setShowQRDialog(false);
-        setQrData(null);
-        setExitingVehicle(null);
+      if (!newHistoryEntry || !newHistoryEntry.id) {
+          console.error("Respuesta inválida de /api/parking/log:", historyEntryResponse);
+          throw new Error("No se recibió la entrada de historial creada desde la API.");
       }
 
-      // Actualizar el estado local
+      // Actualizar el estado local SIN mostrar toast aquí
       setParking((prev) => ({
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter(
           (v) => v.license_plate !== vehicle.license_plate
         ),
-        history: [historyEntry[0], ...prev.history],
+        // Asegurarse de añadir la entrada correcta al historial
+        history: [newHistoryEntry, ...prev.history.filter(h => h.id !== newHistoryEntry.id)], 
       }));
 
-      // Mostrar mensaje de éxito
-      toast({
-        title: "Salida registrada",
-        description: `Vehículo ${vehicle.license_plate} salió. Duración: ${formatDuration(durationInMs)}`,
-      });
+      // Devolver la entrada creada para que el llamador muestre el toast
+      return newHistoryEntry;
 
     } catch (error: any) {
       console.error("Error registrando salida:", error);
+      // Mostrar toast de error aquí
       toast({
         variant: "destructive",
         title: "Error al registrar salida",
         description: error.message || "Error desconocido",
       });
-      throw error;
+      throw error; // Relanzar para que el llamador sepa que falló
     }
   };
 
@@ -564,12 +504,14 @@ export default function ParkingApp() {
       const isAlreadyParked = parking.parkedVehicles.some(
         v => v.license_plate === entry.license_plate
       );
-
       if (isAlreadyParked) {
         throw new Error("Este vehículo ya se encuentra estacionado");
       }
 
       await handleDeleteHistoryEntry(entry.id);
+
+      const now = new Date(); // Crear fecha una sola vez
+      const entryTimeISO = now.toISOString(); // Usar ISO para la API
 
       const response = await fetch("/api/parking/entry", {
         method: "POST",
@@ -579,7 +521,7 @@ export default function ParkingApp() {
         body: JSON.stringify({
           license_plate: entry.license_plate,
           type: entry.type,
-          entry_time: new Date().toISOString(),
+          entry_time: entryTimeISO, // Enviar ISO a la API
           user_id: user.id
         }),
       });
@@ -588,29 +530,22 @@ export default function ParkingApp() {
         throw new Error("Error al crear nuevo registro de entrada");
       }
 
+      // Crear el objeto para el estado local usando la misma fecha ISO
       const newVehicle: Vehicle = {
         license_plate: entry.license_plate,
         type: entry.type,
-        entry_time: new Date().toLocaleString('es-AR', {
-          timeZone: 'America/Argentina/Buenos_Aires',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        }),
+        entry_time: entryTimeISO, // Usar ISO también en el estado local
         user_id: user.id
       };
 
+      // Actualizar estado
       setParking(prev => ({
         ...prev,
         parkedVehicles: [...prev.parkedVehicles, newVehicle],
         history: prev.history.filter(h => h.id !== entry.id)
       }));
 
-      await fetchHistory();
+      await fetchHistory(); // Recargar historial completo por si acaso
 
       toast({
         title: "Vehículo reingresado",
@@ -638,68 +573,66 @@ export default function ParkingApp() {
 
   const handlePaymentConfirmation = async (success: boolean) => {
     setPaymentConfirmationOpen(false);
+    let historyEntry: ParkingHistory | null = null;
     
     if (!exitingVehicle || !user) {
-      toast({
-        variant: "destructive",
-        title: "Error de estado",
-        description: "No se encontró información del vehículo o usuario para confirmar.",
-      });
-      setShowQRDialog(false); 
-      setQrData(null);
-      setExitingVehicle(null);
+      toast({ variant: "destructive", title: "Error de estado", description: "No se encontró información del vehículo o usuario para confirmar." });
+      setShowQRDialog(false); setQrData(null); setExitingVehicle(null);
+      setPaymentMethodDialogOpen(false);
       return;
     }
 
-    if (success) {
-      const exitTime = new Date();
-      // Parsear la fecha ISO directamente
-      const entryTime = new Date(exitingVehicle.entry_time);
-      
-      if (isNaN(entryTime.getTime())) {
-        console.error('Fecha inválida en handlePaymentConfirmation:', {
-          original: exitingVehicle.entry_time,
-          parsed: entryTime
-        });
-        // Lanzar un error o manejarlo como prefieras
-        toast({
-          variant: "destructive",
-          title: "Error interno",
-          description: "No se pudo parsear la fecha de entrada del vehículo.",
-        });
-        setShowQRDialog(false); 
-        setQrData(null);
-        setExitingVehicle(null);
+    const exitTime = new Date();
+
+    console.log("Parsing entry_time in handlePaymentConfirmation:", exitingVehicle.entry_time);
+    const entryTimeDayjs = dayjs.utc(exitingVehicle.entry_time);
+    let entryTime: Date;
+    if (!entryTimeDayjs.isValid()) {
+        toast({ variant: "destructive", title: "Error interno", description: "No se pudo parsear la fecha de entrada (Day.js)..." });
+        setShowQRDialog(false); setQrData(null); setExitingVehicle(null); setPaymentMethodDialogOpen(false);
         return; 
-      }
-      
-      // Calcular la duración en minutos
-      const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
-      
+    }
+    entryTime = entryTimeDayjs.toDate();
+
+    let fee = lastCalculatedFee;
+    let diffInMinutes = 0;
+    let durationStr = "Error calculando";
+
+    diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
+    durationStr = formatDuration(diffInMinutes * 60 * 1000);
+    if (fee <= 0) {
+        const durationHours = Math.max(diffInMinutes / 60, 1);
+        const rate = parking.rates[exitingVehicle.type] || 0;
+        fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+    }
+    
+    if (success) {
       try {
-        await registerExit(exitingVehicle, qrData ? 'qr' : 'mercadopago', lastCalculatedFee, diffInMinutes, exitTime);
-        toast({
-          title: "Pago confirmado",
-          description: "El pago y la salida se han registrado correctamente.",
+        historyEntry = await registerExit(exitingVehicle, qrData ? 'qr' : 'mercadopago', fee, diffInMinutes, exitTime);
+        setExitInfo({
+          vehicle: exitingVehicle,
+          fee: fee,
+          exitTime: exitTime,
+          duration: durationStr
         });
       } catch (error: any) {
-        console.error("Error al registrar salida tras confirmación:", error);
-        toast({
-          variant: "destructive",
-          title: "Error post-confirmación",
-          description: "No se pudo registrar la salida aunque el pago se marcó como exitoso.",
-        });
+        console.error("Error al registrar salida tras confirmación (ya se mostró toast de error):");
       }
     } else {
-      toast({
-        title: "Confirmación cancelada",
-        description: "El pago no fue marcado como exitoso.",
-      });
+      toast({ title: "Confirmación cancelada", description: "El pago no fue marcado como exitoso." });
     }
 
     setShowQRDialog(false); 
     setQrData(null);
     setExitingVehicle(null);
+    setPaymentMethodDialogOpen(false);
+
+    if (historyEntry) {
+        toast({
+          title: "Pago confirmado y Salida registrada",
+          description: `Vehículo ${historyEntry.license_plate} salió. Duración: ${formatDuration(historyEntry.duration)}`,
+        });
+    }
   };
 
   // Función auxiliar para formatear fechas
@@ -797,186 +730,6 @@ export default function ParkingApp() {
     loadInitialData();
   }, [user]);
   
-  const correctParkedVehiclesDates = async () => {
-    if (!user?.id) return;
-
-    try {
-      const correctedVehicles = parking.parkedVehicles.map(vehicle => {
-        try {
-          if (!vehicle.entry_time) {
-            console.error('Vehículo sin fecha de entrada:', vehicle);
-            return vehicle;
-          }
-
-          // Verificar si la fecha ya está en formato 24h
-          if (!vehicle.entry_time.toLowerCase().includes('a.m.') && 
-              !vehicle.entry_time.toLowerCase().includes('p.m.')) {
-            return vehicle;
-          }
-
-          const parts = vehicle.entry_time.split(', ');
-          if (parts.length !== 2) {
-            console.error('Formato de fecha inválido:', vehicle.entry_time);
-            return vehicle;
-          }
-
-          const [datePart, timePart] = parts;
-          const [day, month, year] = datePart.split('/');
-          
-          if (!timePart || !day || !month || !year) {
-            console.error('Componentes de fecha faltantes:', { datePart, timePart });
-            return vehicle;
-          }
-
-          const timeComponents = timePart.split(':');
-          if (timeComponents.length < 2) {
-            console.error('Formato de hora inválido:', timePart);
-            return vehicle;
-          }
-
-          let [hours, minutes, seconds] = timeComponents;
-          let hoursNum = parseInt(hours, 10);
-          
-          if (isNaN(hoursNum)) {
-            console.error('Hora inválida:', hours);
-            return vehicle;
-          }
-
-          // Determinar si es AM o PM
-          const isPM = timePart.toLowerCase().includes('p.m.') || timePart.toLowerCase().includes('pm');
-          const isAM = timePart.toLowerCase().includes('a.m.') || timePart.toLowerCase().includes('am');
-          
-          // Ajustar las horas para PM
-          if (isPM && hoursNum !== 12) {
-            hoursNum += 12;
-          }
-          // Ajustar para medianoche (12 AM)
-          if (isAM && hoursNum === 12) {
-            hoursNum = 0;
-          }
-
-          // Limpiar los segundos de cualquier texto adicional (AM/PM)
-          const cleanSeconds = seconds ? seconds.split(' ')[0] : '00';
-
-          // Formatear la nueva fecha en formato 24h
-          const correctedTime = `${String(hoursNum).padStart(2, '0')}:${minutes}:${cleanSeconds}`;
-          
-          console.log('Corrigiendo fecha:', {
-            original: vehicle.entry_time,
-            datePart,
-            timePart,
-            hoursNum,
-            isPM,
-            isAM,
-            correctedTime
-          });
-
-          return {
-            ...vehicle,
-            entry_time: `${datePart}, ${correctedTime}`
-          };
-        } catch (error) {
-          console.error('Error procesando vehículo:', vehicle, error);
-          return vehicle;
-        }
-      });
-
-      // Actualizar en la base de datos solo los vehículos que cambiaron
-      const updatedVehicles = correctedVehicles.filter((corrected, index) => 
-        corrected.entry_time !== parking.parkedVehicles[index].entry_time
-      );
-
-      if (updatedVehicles.length === 0) {
-        toast({
-          title: "Sin cambios",
-          description: "No se encontraron fechas para corregir."
-        });
-        return;
-      }
-
-      // Actualizar en la base de datos
-      for (const vehicle of updatedVehicles) {
-        const response = await fetch("/api/parking/entry/update", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            license_plate: vehicle.license_plate,
-            entry_time: vehicle.entry_time,
-            user_id: user.id
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Error al actualizar el vehículo ${vehicle.license_plate}`);
-        }
-      }
-
-      // Actualizar el estado local
-      setParking(prev => ({
-        ...prev,
-        parkedVehicles: correctedVehicles
-      }));
-
-      toast({
-        title: "Fechas corregidas",
-        description: `Se han actualizado ${updatedVehicles.length} vehículos.`
-      });
-
-    } catch (error) {
-      console.error("Error al corregir fechas:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron corregir las fechas de algunos vehículos."
-      });
-    }
-  };
-
-  const handleClearParking = async () => {
-    if (!user?.id || parking.parkedVehicles.length === 0) return;
-
-    if (!confirm('¿Está seguro que desea eliminar todos los vehículos estacionados? Esta acción no se puede deshacer.')) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/parking/clear", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: user.id
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Error al limpiar el estacionamiento");
-      }
-
-      // Actualizar el estado local
-      setParking(prev => ({
-        ...prev,
-        parkedVehicles: []
-      }));
-
-      toast({
-        title: "Estacionamiento limpiado",
-        description: "Se han eliminado todos los vehículos estacionados."
-      });
-
-    } catch (error) {
-      console.error("Error al limpiar estacionamiento:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo limpiar el estacionamiento."
-      });
-    }
-  };
-
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -985,29 +738,15 @@ export default function ParkingApp() {
     );
   }
 
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <main className="container mx-auto p-4 max-w-6xl">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Sistema de Gestión de Estacionamiento</h1>
         <div className="flex items-center gap-4">
-          {parking.parkedVehicles.length > 0 && (
-            <>
-              <Button
-                variant="outline"
-                onClick={correctParkedVehiclesDates}
-                className="mr-2"
-              >
-                Corregir Fechas
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleClearParking}
-                className="mr-2"
-              >
-                Limpiar Estacionamiento
-              </Button>
-            </>
-          )}
           <UserNav />
         </div>
       </div>
@@ -1053,15 +792,12 @@ export default function ParkingApp() {
         open={paymentMethodDialogOpen}
         onOpenChange={(open) => {
           setPaymentMethodDialogOpen(open);
-          if (!open && exitingVehicle && !parking.parkedVehicles.find(v => v.license_plate === exitingVehicle.license_plate)) {
-            setParking(prev => ({
-              ...prev,
-              parkedVehicles: [...prev.parkedVehicles, exitingVehicle]
-            }));
+          if (!open) {
+            setExitingVehicle(null);
           }
         }}
         onSelectMethod={handlePaymentMethod}
-        fee={lastCalculatedFee || (exitingVehicle ? calculateFee(calculateHours(exitingVehicle.entry_time), parking.rates[exitingVehicle.type]) : 0)}
+        fee={lastCalculatedFee}
       />
 
       <QRDialog

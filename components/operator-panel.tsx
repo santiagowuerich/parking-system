@@ -17,9 +17,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { formatInTimeZone } from 'date-fns-tz'
+
+// Importar dayjs y plugins
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+// Extender dayjs con los plugins
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 import type { Parking, Vehicle, VehicleType, ParkingHistory } from "@/lib/types"
 import { formatCurrency, formatTime } from "@/lib/utils"
@@ -122,6 +128,22 @@ export default function OperatorPanel({
     }
   }
 
+  // --- Función auxiliar con Day.js --- 
+  const formatArgentineTimeWithDayjs = (dateString: string | Date): string => {
+    try {
+      // Asegurar que dayjs interprete la fecha como UTC si es un string ISO
+      const dateUtc = dayjs.utc(dateString);
+      if (!dateUtc.isValid()) {
+        return "Fecha inválida";
+      }
+      // Convertir a la zona horaria de Argentina y formatear
+      return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
+    } catch (error) {
+      console.error("Error formateando fecha con Day.js:", error);
+      return "Error de formato";
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Disponibilidad */}
@@ -216,8 +238,8 @@ export default function OperatorPanel({
                 <>
                   <p><strong>Matrícula:</strong> {exitInfo.vehicle.license_plate}</p>
                   <p><strong>Tipo:</strong> {exitInfo.vehicle.type}</p>
-                  <p><strong>Entrada:</strong> {format(exitInfo.vehicle.entry_time, 'dd/MM/yyyy HH:mm:ss')}</p>
-                  <p><strong>Salida:</strong> {format(exitInfo.exitTime, 'dd/MM/yyyy HH:mm:ss')}</p>
+                  <p><strong>Entrada:</strong> {formatArgentineTimeWithDayjs(exitInfo.vehicle.entry_time)}</p>
+                  <p><strong>Salida:</strong> {formatArgentineTimeWithDayjs(exitInfo.exitTime)}</p>
                   <p><strong>Tiempo estacionado:</strong> {exitInfo.duration}</p>
                   <p className="text-lg font-bold">Total a cobrar: {formatCurrency(exitInfo.fee)}</p>
                   {exitInfo.duration.includes("min") && !exitInfo.duration.includes("h") && (
@@ -254,23 +276,27 @@ export default function OperatorPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parking.parkedVehicles.map((vehicle) => (
-                  <TableRow key={vehicle.license_plate + vehicle.entry_time}>
-                    <TableCell>{vehicle.license_plate}</TableCell>
-                    <TableCell>{vehicle.type}</TableCell>
-                    <TableCell>{format(vehicle.entry_time, 'dd/MM/yyyy HH:mm:ss')}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleExit(vehicle)}
-                        disabled={processingExit === vehicle.license_plate}
-                      >
-                        {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {parking.parkedVehicles.map((vehicle) => {
+                  let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
+                  
+                  return (
+                    <TableRow key={vehicle.license_plate + vehicle.entry_time}>
+                      <TableCell>{vehicle.license_plate}</TableCell>
+                      <TableCell>{vehicle.type}</TableCell>
+                      <TableCell>{formattedTime}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleExit(vehicle)}
+                          disabled={processingExit === vehicle.license_plate}
+                        >
+                          {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -278,6 +304,7 @@ export default function OperatorPanel({
       </Card>
 
       {/* Espacios Disponibles */}
+      {/* 
       <Card>
         <CardHeader>
           <CardTitle>Espacios Disponibles</CardTitle>
@@ -297,6 +324,7 @@ export default function OperatorPanel({
           </div>
         </CardContent>
       </Card>
+      */}
     </div>
   )
 }
