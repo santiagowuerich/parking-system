@@ -11,6 +11,7 @@ interface TransferInfoDialogProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string | undefined; // Changed from null to undefined to match session?.user?.id
+  onConfirmTransfer: () => void; // Add confirmation callback prop
 }
 
 interface UserSettings {
@@ -19,7 +20,7 @@ interface UserSettings {
   bankAccountAlias: string | null;
 }
 
-export function TransferInfoDialog({ isOpen, onClose, userId }: TransferInfoDialogProps) {
+export function TransferInfoDialog({ isOpen, onClose, userId, onConfirmTransfer }: TransferInfoDialogProps) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +118,12 @@ export function TransferInfoDialog({ isOpen, onClose, userId }: TransferInfoDial
     return <p className="text-center text-gray-500">No se pudo cargar la información.</p>; // Fallback
   };
 
+  // Handle confirmation button click
+  const handleConfirm = () => {
+    onConfirmTransfer();
+    // Don't call onClose here, let the parent handle closing via state change triggered by onConfirmTransfer
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}> {/* Call onClose only when closing */}
       <DialogContent className="sm:max-w-[425px]">
@@ -129,7 +136,16 @@ export function TransferInfoDialog({ isOpen, onClose, userId }: TransferInfoDial
         <div className="mt-4">
           {renderContent()}
         </div>
-         <Button onClick={onClose} className="mt-6 w-full">Cerrar</Button>
+         {/* Replace single Close button with Cancel and Confirm */}
+         {/* <Button onClick={onClose} className="mt-6 w-full">Cerrar</Button> */}
+         <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={onClose}> {/* Calls onClose directly */}
+                Cancelar
+            </Button>
+            <Button onClick={handleConfirm}> {/* Calls the new handler */}
+                Confirmar Pago
+            </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

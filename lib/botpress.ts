@@ -12,10 +12,16 @@ export async function sendMessage(message: string, userId?: string) {
     return 'Asistente no disponible (falta configuración de token).'; // O simplemente return;
   }
 
-  const effectiveUserId = userId || 'anonymous'
+  // Use the real userId if available, otherwise use the nil UUID for anonymous users
+  const effectiveUserId = userId || '00000000-0000-0000-0000-000000000000'; 
+  // Use userId directly if available (it's 36 chars), otherwise use a short fixed ID.
+  const conversationIdToSend = userId ? userId : 'anonymous-config-session' // Max 36 chars
+  
   try {
     const response = await botpressClient.createMessage({
-      conversationId: `${effectiveUserId}-config-session`,
+      // Use the validated/shortened conversationId
+      conversationId: conversationIdToSend, 
+      // Pass the potentially modified userId (real or nil UUID)
       userId: effectiveUserId,
       type: 'text',
       payload: { 

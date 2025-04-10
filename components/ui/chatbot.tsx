@@ -23,23 +23,38 @@ interface ParkingConfigData {
   carCapacity?: number
   motorcycleCapacity?: number
   vanCapacity?: number
+  bankAccountHolder?: string
+  bankAccountCbu?: string
+  bankAccountAlias?: string
 }
 
+// Define sequences for each section
+const RATES_SEQUENCE = [
+    { key: 'carRate', question: '¿Tarifa por hora para autos? (Número)', type: 'number' },
+    { key: 'motorcycleRate', question: '¿Tarifa por hora para motos? (Número)', type: 'number' },
+    { key: 'vanRate', question: '¿Tarifa por hora para camionetas? (Número)', type: 'number' },
+];
+const CAPACITY_SEQUENCE = [
+    { key: 'vehicleCapacities', question: 'Introduce capacidad para Autos, Motos y Camionetas (ej: 50,30,10).', type: 'vehicleCapacities' },
+];
+const BANK_SEQUENCE = [
+    { key: 'bankAccountHolder', question: '¿Nombre del titular de la cuenta?', type: 'string' },
+    { key: 'bankAccountCbu', question: '¿CBU/CVU de la cuenta?', type: 'string' },
+    { key: 'bankAccountAlias', question: '¿Alias de la cuenta?', type: 'string' },
+];
+
+// New Initial Message with Menu
 const INITIAL_MESSAGES: Message[] = [
   {
-    id: 'init-1',
-    content: '¡Hola! Soy tu asistente de configuración. Primero, ¿cuál es la tarifa por hora para autos? (Introduce solo el número)',
+    id: 'init-menu',
+    content: '¡Hola! ¿Qué deseas configurar hoy?\n1. Tarifas\n2. Espacios\n3. Cuenta Bancaria (Transferencia)\n(Escribe 1, 2 o 3)',
     isUser: false,
     timestamp: new Date()
   }
-]
+];
 
-const CONFIG_QUESTIONS = [
-  { key: 'carRate', question: 'Perfecto. Ahora, ¿cuál es la tarifa por hora para motos? (Introduce solo el número)', type: 'number' },
-  { key: 'motorcycleRate', question: 'Entendido. ¿Y la tarifa por hora para camionetas? (Introduce solo el número)', type: 'number' },
-  { key: 'vanRate', question: 'Genial. Ahora, introduce la capacidad total para Autos, Motos y Camionetas, separadas por coma (ej: 50,30,10). Puedes usar 0.', type: 'vehicleCapacities' },
-  { key: 'vehicleCapacities', question: '', type: 'end' }
-]
+// Define Modes
+type ConfigMode = null | 'rates' | 'capacity' | 'bank';
 
 export function Chatbot() {
   const [session, setSession] = useState<Session | null>(null)
@@ -47,7 +62,11 @@ export function Chatbot() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  
+  // New state for mode and sub-sequence index
+  const [mode, setMode] = useState<ConfigMode>(null)
+  const [currentSubIndex, setCurrentSubIndex] = useState(0)
+  
   const [configData, setConfigData] = useState<Partial<ParkingConfigData>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
@@ -72,180 +91,267 @@ export function Chatbot() {
     scrollToBottom()
   }, [messages])
 
-  const saveConfiguration = async (finalConfig: ParkingConfigData) => {
-    if (!session?.user) {
-      toast({ title: "Error", description: "Debes iniciar sesión para guardar la configuración.", variant: "destructive" });
-      return;
+  const saveConfiguration = async (modeToSave: ConfigMode, dataToSave: Partial<ParkingConfigData>) => {
+    if (!session?.user || !modeToSave) { 
+        toast({ title: "Error", description: "No se puede guardar sin usuario o modo específico.", variant: "destructive" });
+        return; 
     }
     setIsLoading(true);
     const savingMessage: Message = {
-      id: 'saving',
-      content: 'Guardando configuración usando las APIs...',
+      id: 'saving-' + modeToSave,
+      content: `Guardando configuración de ${modeToSave}...`,
       isUser: false,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, savingMessage]);
 
     const userId = session.user.id;
-    let errorOccurred = false;
-    let errorMessageContent = '';
+    let apiPath = '';
+    let payload: any = { userId };
+    let success = false;
+    let errorMsg: string | null = null;
 
     try {
-      // 1. Llamar a POST /api/rates
-      const ratesPayload = {
-        userId: userId,
-        // Ensure correct capitalization if API expects it (Auto, Moto, Camioneta)
-        rates: {
-          Auto: finalConfig.carRate ?? 0,
-          Moto: finalConfig.motorcycleRate ?? 0,
-          Camioneta: finalConfig.vanRate ?? 0 // Assuming API uses 'Camioneta'
-        }
-      };
-      const ratesResponse = await fetch('/api/rates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ratesPayload)
-      });
-
-      if (!ratesResponse.ok) {
-        const errorData = await ratesResponse.json();
-        throw new Error(`Error guardando tarifas: ${errorData.error || ratesResponse.statusText}`);
+      if (modeToSave === 'rates') {
+        apiPath = '/api/rates';
+        payload.rates = {
+          Auto: dataToSave.carRate ?? 0,
+          Moto: dataToSave.motorcycleRate ?? 0,
+          Camioneta: dataToSave.vanRate ?? 0
+        };
+      } else if (modeToSave === 'capacity') {
+        apiPath = '/api/capacity';
+        payload.capacity = {
+          Auto: dataToSave.carCapacity ?? 0,
+          Moto: dataToSave.motorcycleCapacity ?? 0,
+          Camioneta: dataToSave.vanCapacity ?? 0
+        };
+      } else if (modeToSave === 'bank') {
+        apiPath = '/api/user/settings';
+        payload.bankAccountHolder = dataToSave.bankAccountHolder;
+        payload.bankAccountCbu = dataToSave.bankAccountCbu;
+        payload.bankAccountAlias = dataToSave.bankAccountAlias;
+        // Don't send other user_settings fields unless intended
       }
 
-      // 2. Llamar a POST /api/capacity
-      const capacityPayload = {
-        userId: userId,
-        // Ensure correct capitalization matching the rates payload
-        capacity: {
-          Auto: finalConfig.carCapacity ?? 0,
-          Moto: finalConfig.motorcycleCapacity ?? 0,
-          Camioneta: finalConfig.vanCapacity ?? 0
-        }
-      };
-      const capacityResponse = await fetch('/api/capacity', {
+      if (!apiPath) throw new Error("Modo de configuración inválido.");
+
+      const response = await fetch(apiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(capacityPayload)
+        body: JSON.stringify(payload)
       });
 
-      if (!capacityResponse.ok) {
-        const errorData = await capacityResponse.json();
-        throw new Error(`Error guardando capacidad: ${errorData.error || capacityResponse.statusText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Error al guardar ${modeToSave}`);
       }
-
-      // 3. Éxito (si ambas llamadas fueron ok)
-      const successMessage: Message = {
-        id: 'saved',
-        content: '¡Configuración de tarifas y capacidad guardada exitosamente usando las APIs! Puedes cerrar esta ventana.',
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages(prev => prev.filter(m => m.id !== 'saving').concat(successMessage));
-      toast({ title: "Éxito", description: "La configuración ha sido guardada." });
+      
+      success = true;
 
     } catch (error: any) {
-      errorOccurred = true;
-      errorMessageContent = error.message || 'Ocurrió un error inesperado.';
-      console.error('Error detallado al guardar configuración vía API:', error);
-      const errorMessage: Message = {
-        id: 'save-error',
-        content: `Error al guardar: ${errorMessageContent}. Por favor, revisa los datos o inténtalo más tarde.`,
-        isUser: false,
-        timestamp: new Date()
-      };
-      setMessages(prev => prev.filter(m => m.id !== 'saving').concat(errorMessage));
-      toast({ title: "Error al guardar", description: errorMessageContent, variant: "destructive" });
+      console.error(`Error al guardar ${modeToSave}:`, error);
+      errorMsg = error.message || `Error desconocido al guardar ${modeToSave}.`;
     } finally {
       setIsLoading(false);
+      // Remove saving message
+      setMessages(prev => prev.filter(m => m.id !== 'saving-' + modeToSave));
+
+      if (success) {
+        const successMessage: Message = {
+          id: 'saved-' + modeToSave + Date.now(),
+          content: `¡${modeToSave.charAt(0).toUpperCase() + modeToSave.slice(1)} configurados! ¿Deseas configurar algo más? (Escribe 'menu' para volver al inicio o cierra la ventana).`,
+          isUser: false,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, successMessage]);
+        toast({ title: "Éxito", description: `Configuración de ${modeToSave} guardada.` });
+        // Reset state to allow further configuration
+        setMode(null); 
+        setCurrentSubIndex(0);
+        setConfigData({}); // Clear potentially stale partial data
+      } else {
+        const errorMessage: Message = {
+          id: 'error-save-' + modeToSave + Date.now(),
+          content: `Error al guardar ${modeToSave}: ${errorMsg}. Intenta de nuevo o escribe 'menu'.`,
+          isUser: false,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        toast({ title: `Error al guardar ${modeToSave}`, description: errorMsg, variant: "destructive" });
+        // Optionally reset mode or keep it to allow retry
+        // setMode(null); setCurrentSubIndex(0); setConfigData({});
+      }
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+       e.preventDefault();
+       if (!input.trim() || isLoading) return;
+       
+       const currentInput = input.trim();
+       const userMessage: Message = {
+           id: Date.now().toString(),
+           content: currentInput,
+           isUser: true,
+           timestamp: new Date()
+       };
+       setMessages(prev => [...prev, userMessage]);
+       setInput('');
+       setIsLoading(true);
 
-    const currentConfigQuestion = CONFIG_QUESTIONS[currentQuestionIndex];
-    let processedInput: any = input.trim();
-    let isValid = true;
-    let partialConfigUpdate: Partial<ParkingConfigData> = {};
+       let nextBotMessage: Message | null = null;
+       let newMode: ConfigMode = mode;
+       let newSubIndex = currentSubIndex;
+       let dataToUpdate: Partial<ParkingConfigData> = {};
+       let shouldSave = false;
 
-    if (currentConfigQuestion.type === 'number') {
-      const num = parseFloat(processedInput);
-      if (isNaN(num) || num < 0) {
-        toast({ title: "Entrada inválida", description: "Por favor, introduce un número válido (0 o mayor).", variant: "destructive" });
-        isValid = false;
-      } else {
-        processedInput = num;
-        partialConfigUpdate = { [currentConfigQuestion.key]: processedInput };
-      }
-    } else if (currentConfigQuestion.type === 'vehicleCapacities') {
-      const parts = processedInput.split(',').map((s: string) => s.trim());
-      if (parts.length !== 3) {
-        toast({ title: "Entrada inválida", description: "Debes introducir exactamente 3 capacidades (Auto, Moto, Camioneta) separadas por coma (ej: 50,30,10).", variant: "destructive" });
-        isValid = false;
-      } else {
-        const nums = parts.map(Number);
-        if (nums.some(isNaN) || nums.some((n: number) => n < 0)) {
-          toast({ title: "Entrada inválida", description: "Todas las capacidades deben ser números válidos (0 o mayor).", variant: "destructive" });
-          isValid = false;
-        } else {
-          partialConfigUpdate = {
-            carCapacity: nums[0],
-            motorcycleCapacity: nums[1],
-            vanCapacity: nums[2]
-          };
-          processedInput = nums;
-        }
-      }
-    }
+       if (mode === null) {
+           // --- Handling Menu Choice (or 'menu' command) --- 
+           let sequence: any[] = [];
+           
+           // Check for 'menu' command first
+           if (currentInput.toLowerCase() === 'menu') {
+               nextBotMessage = {
+                   id: 'menu-redisplay-' + Date.now(),
+                   content: INITIAL_MESSAGES[0].content, // Reuse the initial menu message content
+                   isUser: false,
+                   timestamp: new Date()
+               };
+               newMode = null; // Stay in menu mode
+               newSubIndex = 0; // Reset sub-index just in case
+           } 
+           // Then check for numeric/keyword choices for configuration
+           else if (currentInput === '1' || currentInput.toLowerCase().includes('tarifas')) {
+               newMode = 'rates';
+               sequence = RATES_SEQUENCE;
+           } else if (currentInput === '2' || currentInput.toLowerCase().includes('espacios')) {
+               newMode = 'capacity';
+               sequence = CAPACITY_SEQUENCE;
+           } else if (currentInput === '3' || currentInput.toLowerCase().includes('cuenta')) {
+               newMode = 'bank';
+               sequence = BANK_SEQUENCE;
+           } else {
+               // Invalid menu choice (and not 'menu')
+               nextBotMessage = {
+                   id: 'error-' + Date.now(),
+                   content: "Opción inválida. Por favor, escribe 1, 2, 3 o 'menu'.",
+                   isUser: false,
+                   timestamp: new Date()
+               };
+               newMode = null; // Stay in menu mode
+           }
+           
+           // If a valid config mode was chosen (not 'menu' command)
+           if (newMode && newMode !== mode && sequence.length > 0) { // Added newMode !== mode check
+               // Ask the first question of the selected sequence
+               nextBotMessage = {
+                   id: 'q-' + newMode + '-0', 
+                   content: sequence[0].question,
+                   isUser: false,
+                   timestamp: new Date()
+               };
+               newSubIndex = 0; // Start from the first question
+           }
 
-    if (!isValid) {
-      setInput('');
-      return;
-    }
+       } else {
+           // --- Handling Answer within a Mode --- 
+           let currentSequence: any[] = [];
+           if (mode === 'rates') currentSequence = RATES_SEQUENCE;
+           else if (mode === 'capacity') currentSequence = CAPACITY_SEQUENCE;
+           else if (mode === 'bank') currentSequence = BANK_SEQUENCE;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: input,
-      isUser: true,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
+           const currentQuestionItem = currentSequence[currentSubIndex];
+           let processedInput: any = currentInput;
+           let isValid = true;
 
-    setConfigData(prev => ({ ...prev, ...partialConfigUpdate }));
-    setInput('');
-    setIsLoading(true);
+           // Validation logic (similar to before, adapt as needed)
+           if (currentQuestionItem.type === 'number') {
+               const num = parseFloat(processedInput);
+               if (isNaN(num) || num < 0) {
+                   toast({ title: "Entrada inválida", description: "Por favor, introduce un número válido (0 o mayor).", variant: "destructive" });
+                   isValid = false;
+               } else {
+                   processedInput = num;
+                   // Use the key from the answered question
+                   dataToUpdate = { [currentQuestionItem.key]: processedInput };
+               }
+           } else if (currentQuestionItem.type === 'vehicleCapacities') {
+               const parts = processedInput.split(',').map((s: string) => s.trim());
+               if (parts.length !== 3) {
+                   toast({ title: "Entrada inválida", description: "Debes introducir exactamente 3 capacidades (Auto, Moto, Camioneta) separadas por coma (ej: 50,30,10).", variant: "destructive" });
+                   isValid = false;
+               } else {
+                   const nums = parts.map(Number);
+                   if (nums.some(isNaN) || nums.some((n: number) => n < 0)) {
+                       toast({ title: "Entrada inválida", description: "Todas las capacidades deben ser números válidos (0 o mayor).", variant: "destructive" });
+                       isValid = false;
+                   } else {
+                       // Store capacities directly into the update object
+                       dataToUpdate = {
+                           carCapacity: nums[0],
+                           motorcycleCapacity: nums[1],
+                           vanCapacity: nums[2]
+                       };
+                       // Keep processedInput as the array for potential logging/Botpress
+                       processedInput = nums; 
+                   }
+               }
+           } else if (currentQuestionItem.type === 'string') {
+               if (!processedInput) {
+                   toast({ title: "Entrada inválida", description: "Este campo no puede estar vacío.", variant: "destructive" });
+                   isValid = false;
+               } else {
+                   dataToUpdate = { [currentQuestionItem.key]: processedInput };
+               }
+           }
 
-    // Enviar mensaje a Botpress (opcional, más para logging)
-    try {
-      await sendMessage(input, session?.user?.id);
-      // No necesitamos hacer nada con la respuesta aquí
-    } catch (error: any) {
-       // Solo loguear la advertencia, no mostrar toast ni detener
-       console.warn('No se pudo enviar mensaje al asistente externo:', error.message || error);
-    }
+           if (isValid) {
+               setConfigData(prev => ({ ...prev, ...dataToUpdate })); // Update collected data
+               newSubIndex = currentSubIndex + 1; // Prepare for next question
 
-    const nextIndex = currentQuestionIndex + 1;
-    if (nextIndex < CONFIG_QUESTIONS.length) {
-      const nextQuestion = CONFIG_QUESTIONS[nextIndex];
-      if (nextQuestion.type !== 'end') {
-        const botQuestionMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: nextQuestion.question,
-          isUser: false,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, botQuestionMessage]);
-        setCurrentQuestionIndex(nextIndex);
-        setIsLoading(false);
-      } else {
-        await saveConfiguration({ ...configData, ...partialConfigUpdate } as ParkingConfigData);
-      }
-    } else {
-       console.warn("Reached end of questions unexpectedly.");
+               if (newSubIndex < currentSequence.length) {
+                   // Ask next question in the current sequence
+                   const nextQuestionItem = currentSequence[newSubIndex];
+                   nextBotMessage = {
+                       id: 'q-' + mode + '-' + newSubIndex,
+                       content: nextQuestionItem.question,
+                       isUser: false,
+                       timestamp: new Date()
+                   };
+               } else {
+                   // Finished sequence for this mode, trigger save
+                   shouldSave = true; 
+                   // We'll call saveConfiguration after setting state
+                   // No immediate next bot message, saveConfiguration will add one
+               }
+           }
+       }
+       
+       // Update state based on logic above
+       if (nextBotMessage) {
+           setMessages(prev => [...prev, nextBotMessage!]);
+       }
+       setMode(newMode);
+       setCurrentSubIndex(newSubIndex);
+       
+       if (shouldSave) {
+            // Gather only the data relevant to the completed mode before saving
+            let relevantData: Partial<ParkingConfigData> = {};
+            const finalConfigData = { ...configData, ...dataToUpdate }; // Ensure last piece is included
+            if (mode === 'rates') {
+                relevantData = { carRate: finalConfigData.carRate, motorcycleRate: finalConfigData.motorcycleRate, vanRate: finalConfigData.vanRate };
+            } else if (mode === 'capacity') {
+                 relevantData = { carCapacity: finalConfigData.carCapacity, motorcycleCapacity: finalConfigData.motorcycleCapacity, vanCapacity: finalConfigData.vanCapacity };
+            } else if (mode === 'bank') {
+                 relevantData = { bankAccountHolder: finalConfigData.bankAccountHolder, bankAccountCbu: finalConfigData.bankAccountCbu, bankAccountAlias: finalConfigData.bankAccountAlias };
+            }
+            await saveConfiguration(mode, relevantData);
+             setConfigData({}); // Clear collected data after saving a section
+       }
+
        setIsLoading(false);
-    }
-  }
+   };
 
   return (
     <div className="fixed bottom-4 right-4 z-50">

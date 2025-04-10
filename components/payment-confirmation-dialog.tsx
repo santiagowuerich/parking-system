@@ -11,20 +11,29 @@ interface PaymentConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (success: boolean) => void;
+  paymentMethod?: string;
 }
 
 export function PaymentConfirmationDialog({
   open,
   onOpenChange,
   onConfirm,
+  paymentMethod,
 }: PaymentConfirmationDialogProps) {
+
+  const confirmationMessage = 
+    paymentMethod === 'Transferencia' ? '¿Confirmas que la transferencia fue recibida?' :
+    paymentMethod?.toLowerCase().includes('qr') ? '¿El cliente logró realizar el pago con el código QR?' :
+    paymentMethod === 'Efectivo' ? '¿Confirmas que el pago en efectivo fue recibido?' :
+    '¿Confirmas que el pago fue exitoso?';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Confirmación de Pago</DialogTitle>
           <DialogDescription>
-            ¿El cliente logró realizar el pago con el código QR?
+            {confirmationMessage}
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end space-x-4 mt-4">

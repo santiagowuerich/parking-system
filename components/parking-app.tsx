@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OperatorPanel from "@/components/operator-panel";
 import AdminPanel from "@/components/admin-panel";
-import RatesPanel from "@/components/rates-panel";
+import SettingsPanel from "@/components/rates-panel";
 import type { Parking, Vehicle, ParkingHistory, VehicleType } from "@/lib/types";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
@@ -591,40 +591,68 @@ export default function ParkingApp() {
     setPaymentConfirmationOpen(false);
     let historyEntry: ParkingHistory | null = null;
     
-    if (!exitingVehicle || !user) {
-      toast({ variant: "destructive", title: "Error de estado", description: "No se encontró información del vehículo o usuario para confirmar." });
-      setShowQRDialog(false); setQrData(null); setExitingVehicle(null);
+    // Check for vehicle and payment details early
+    if (!exitingVehicle || !user || !paymentDetails?.method) { // Added check for paymentDetails.method
+      toast({ variant: "destructive", title: "Error de estado", description: "Falta información del vehículo, usuario o método de pago para confirmar." });
+      // Reset potentially inconsistent state
+      setShowQRDialog(false); 
+      setQrData(null); 
+      setExitingVehicle(null);
+      setPaymentDetails(null); // Clear payment details
       setPaymentMethodDialogOpen(false);
+      setShowTransferInfoDialog(false);
       return;
     }
 
     const exitTime = new Date();
-
-    console.log("Parsing entry_time in handlePaymentConfirmation:", exitingVehicle.entry_time);
-    const entryTimeDayjs = dayjs.utc(exitingVehicle.entry_time);
     let entryTime: Date;
-    if (!entryTimeDayjs.isValid()) {
-        toast({ variant: "destructive", title: "Error interno", description: "No se pudo parsear la fecha de entrada (Day.js)..." });
-        setShowQRDialog(false); setQrData(null); setExitingVehicle(null); setPaymentMethodDialogOpen(false);
-        return; 
-    }
-    entryTime = entryTimeDayjs.toDate();
-
     let fee = lastCalculatedFee;
     let diffInMinutes = 0;
     let durationStr = "Error calculando";
 
-    diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
-    durationStr = formatDuration(diffInMinutes * 60 * 1000);
-    if (fee <= 0) {
-        const durationHours = Math.max(diffInMinutes / 60, 1);
-        const rate = parking.rates[exitingVehicle.type] || 0;
-        fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+    // --- Recalculate duration and fee (important for accuracy at confirmation time) ---
+    try {
+      console.log("Parsing entry_time in handlePaymentConfirmation:", exitingVehicle.entry_time);
+      const entryTimeDayjs = dayjs.utc(exitingVehicle.entry_time);
+      if (!entryTimeDayjs.isValid()) {
+          throw new Error("Fecha de entrada inválida (Day.js)...");
+      }
+      entryTime = entryTimeDayjs.toDate();
+      
+      diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
+      durationStr = formatDuration(diffInMinutes * 60 * 1000);
+      
+      // Use last calculated fee if available, otherwise recalculate
+      if (fee <= 0) {
+          const durationHours = Math.max(diffInMinutes / 60, 1);
+          const rate = parking.rates[exitingVehicle.type] || 0;
+          fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+      }
+       if (fee <= 0) {
+          throw new Error("La tarifa final calculada es inválida.");
+      }
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error interno", description: error.message || "No se pudo calcular la duración/tarifa final." });
+        // Reset state on critical calculation error
+        setExitingVehicle(null);
+        setPaymentDetails(null);
+        return;
     }
+    // --- End Recalculation ---
     
     if (success) {
       try {
-        historyEntry = await registerExit(exitingVehicle, qrData ? 'qr' : 'mercadopago', fee, diffInMinutes, exitTime);
+        // Use the payment method stored in paymentDetails state
+        const finalPaymentMethod = paymentDetails.method; 
+        
+        historyEntry = await registerExit(
+          exitingVehicle, 
+          finalPaymentMethod, // Pass the correct method
+          fee, 
+          diffInMinutes, 
+          exitTime
+        );
+        // Set exit info only after successful registration
         setExitInfo({
           vehicle: exitingVehicle,
           fee: fee,
@@ -632,20 +660,30 @@ export default function ParkingApp() {
           duration: durationStr
         });
       } catch (error: any) {
-        console.error("Error al registrar salida tras confirmación (ya se mostró toast de error):");
+        // Error during registerExit is already handled and toasted inside that function
+        console.error("Error al registrar salida tras confirmación (ya se mostró toast de error):", error.message);
+        // No resetear el estado aquí necesariamente, el usuario podría querer reintentar
+        // Pero limpiamos los detalles de pago para evitar reconfirmación accidental
+        setPaymentDetails(null);
+        return; // Stop further execution in case of error
       }
     } else {
-      toast({ title: "Confirmación cancelada", description: "El pago no fue marcado como exitoso." });
+      toast({ title: "Confirmación cancelada", description: "El pago no fue marcado como exitoso. Puede elegir otro método." });
+      // Re-open payment method selection if payment was not confirmed
+      setPaymentMethodDialogOpen(true); 
     }
 
-    setShowQRDialog(false); 
-    setQrData(null);
-    setExitingVehicle(null);
-    setPaymentMethodDialogOpen(false);
+    // Clean up state regardless of success/failure AFTER potential registerExit call
+    // Don't clear exitingVehicle here if registerExit failed, allowing potential retry? Or clear always?
+    // Let's clear exitingVehicle and paymentDetails for now to prevent stale state issues.
+    setExitingVehicle(null); 
+    setPaymentDetails(null);
+    // Other dialogs should already be closed or handled
 
+    // Show final success toast only if historyEntry was created
     if (historyEntry) {
         toast({
-          title: "Pago confirmado y Salida registrada",
+          title: `Pago (${historyEntry.payment_method}) confirmado y Salida registrada`,
           description: `Vehículo ${historyEntry.license_plate} salió. Duración: ${formatDuration(historyEntry.duration)}`,
         });
     }
@@ -733,6 +771,16 @@ export default function ParkingApp() {
     return <AuthPage />;
   }
 
+  // Handle confirm from TransferInfoDialog
+  const handleTransferConfirmation = () => {
+    // Similar logic to handlePaymentConfirmation or QR confirm
+    setShowTransferInfoDialog(false); // Close transfer info
+    setPaymentMethodDialogOpen(false); // <<<< AÑADIR ESTA LÍNEA para cerrar el diálogo de selección
+    setPaymentDetails({ method: 'Transferencia', status: 'Pendiente' }); // Set details
+    // Directly open the final confirmation dialog
+    setPaymentConfirmationOpen(true);
+  };
+
   return (
     <main className="container mx-auto p-4 max-w-6xl">
       <div className="flex justify-between items-center mb-6">
@@ -773,7 +821,7 @@ export default function ParkingApp() {
         </TabsContent>
 
         <TabsContent value="rates">
-          <RatesPanel rates={parking.rates} onUpdateRate={updateRate} />
+          <SettingsPanel />
         </TabsContent>
       </Tabs>
 
@@ -810,12 +858,14 @@ export default function ParkingApp() {
         isOpen={showTransferInfoDialog}
         onClose={() => setShowTransferInfoDialog(false)}
         userId={user?.id}
+        onConfirmTransfer={handleTransferConfirmation}
       />
 
       <PaymentConfirmationDialog
         open={paymentConfirmationOpen}
         onOpenChange={setPaymentConfirmationOpen}
         onConfirm={handlePaymentConfirmation}
+        paymentMethod={paymentDetails?.method}
       />
     </main>
   );
