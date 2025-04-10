@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 // --- Importar y configurar Day.js --- 
 import dayjs from 'dayjs'
@@ -536,7 +537,11 @@ export default function AdminPanel({
                         <TableCell>{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
                         <TableCell>{formatDuration(entry.duration)}</TableCell>
                         <TableCell>{formatCurrency(entry.fee)}</TableCell>
-                        <TableCell>{entry.payment_method || "N/A"}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-black text-white hover:bg-gray-800">
+                            {entry.payment_method || "N/A"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-2">
                             <Button

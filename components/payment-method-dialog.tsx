@@ -34,7 +34,7 @@ export function PaymentMethodDialog({
           <Button
             variant="outline"
             onClick={() => onSelectMethod("efectivo")}
-            className="h-24"
+            className="h-24 flex items-center justify-center"
           >
             <div className="flex flex-col items-center">
               <span className="text-2xl mb-2">💵</span>
@@ -44,7 +44,7 @@ export function PaymentMethodDialog({
           <Button
             variant="outline"
             onClick={() => onSelectMethod("transferencia")}
-            className="h-24"
+            className="h-24 flex items-center justify-center"
           >
             <div className="flex flex-col items-center">
               <span className="text-2xl mb-2">🏦</span>
@@ -54,7 +54,7 @@ export function PaymentMethodDialog({
           <Button
             variant="outline"
             onClick={() => onSelectMethod("mercadopago")}
-            className="h-24"
+            className="h-24 flex items-center justify-center"
           >
             <div className="flex flex-col items-center">
               <span className="text-2xl mb-2">💳</span>
@@ -64,7 +64,7 @@ export function PaymentMethodDialog({
           <Button
             variant="outline"
             onClick={() => onSelectMethod("qr")}
-            className="h-24"
+            className="h-24 flex items-center justify-center"
           >
             <div className="flex flex-col items-center">
               <span className="text-2xl mb-2">📱</span>

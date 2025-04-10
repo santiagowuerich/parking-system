@@ -572,12 +572,10 @@ export default function ParkingApp() {
   };
 
   const handleQRDialogClose = (open: boolean) => {
-    setShowQRDialog(open);
-    
     if (!open) {
-      console.log("QR Dialog closed. Cleaning up QR state.");
-      setQrData(null);
-      setExitingVehicle(null);
+        console.log("QR Dialog closed. Cleaning up QR state, keeping payment method open.");
+        setShowQRDialog(false);
+        setQrData(null);
     }
   };
 
