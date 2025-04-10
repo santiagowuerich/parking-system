@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
-import { Pencil, Trash2, ArrowLeft, Filter } from "lucide-react"
+import { Pencil, Trash2, ArrowLeft, Filter, CheckCircle2 } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
@@ -39,6 +39,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+// --- Importar y configurar Day.js --- 
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+dayjs.extend(utc)
+dayjs.extend(timezone)
+// -----------------------------------
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -61,6 +70,22 @@ interface AdminPanelProps {
   onUpdateHistoryEntry?: (id: string, data: Partial<ParkingHistory>) => Promise<void>
   onReenterVehicle?: (entry: ParkingHistory) => Promise<void>
 }
+
+// --- Función de formato con Day.js --- 
+const formatArgentineTimeWithDayjs = (dateString: string | Date | null | undefined): string => {
+  if (!dateString) return "N/A"; // Manejar nulos/undefined
+  try {
+    const dateUtc = dayjs.utc(dateString);
+    if (!dateUtc.isValid()) {
+      return "Fecha inválida";
+    }
+    return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
+  } catch (error) {
+    console.error("Error formateando fecha con Day.js en AdminPanel:", error);
+    return "Error";
+  }
+};
+// ---------------------------------------
 
 export default function AdminPanel({
   history,
@@ -333,6 +358,11 @@ export default function AdminPanel({
     </div>
   )
 
+  useEffect(() => {
+    // Actualizar historial filtrado si el historial original cambia
+    setFilteredHistory(history);
+  }, [history]);
+
   return (
     <div className="space-y-6">
       {/* Ingresos */}
@@ -457,67 +487,57 @@ export default function AdminPanel({
             <p className="text-center text-gray-500 py-4">No hay operaciones registradas</p>
           ) : (
             <div className="overflow-x-auto mt-4">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="w-[50px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
                       <Checkbox
-                        checked={selectedEntries.length > 0 && selectedEntries.length === filteredHistory.length}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            const allIds = filteredHistory.map(entry => entry.id);
-                            setSelectedEntries(allIds);
+                            setSelectedEntries(filteredHistory.map(entry => entry.id));
                           } else {
                             setSelectedEntries([]);
                           }
                         }}
+                        checked={selectedEntries.length === filteredHistory.length && filteredHistory.length > 0}
+                        aria-label="Seleccionar todo"
                       />
-                    </th>
-                    <th className="text-left p-2">Matrícula</th>
-                    <th className="text-left p-2">Tipo</th>
-                    <th className="text-left p-2">Entrada</th>
-                    <th className="text-left p-2">Salida</th>
-                    <th className="text-left p-2">Duración</th>
-                    <th className="text-left p-2">Tarifa</th>
-                    <th className="text-left p-2">Método de Pago</th>
-                    <th className="text-left p-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredHistory.map((entry) => {
-                    const rowKey = `${entry.id}-${entry.exit_time}`;
-                    return (
-                      <tr key={rowKey} className="border-b">
-                        <td className="p-2">
+                    </TableHead>
+                    <TableHead>Matrícula</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Entrada</TableHead>
+                    <TableHead>Salida</TableHead>
+                    <TableHead>Duración</TableHead>
+                    <TableHead>Tarifa</TableHead>
+                    <TableHead>Método de Pago</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredHistory.length > 0 ? (
+                    filteredHistory.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
                           <Checkbox
-                            checked={selectedEntries.includes(entry.id)}
                             onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedEntries([...selectedEntries, entry.id]);
-                              } else {
-                                setSelectedEntries(selectedEntries.filter(id => id !== entry.id));
-                              }
+                              setSelectedEntries(prev => 
+                                checked 
+                                  ? [...prev, entry.id] 
+                                  : prev.filter(id => id !== entry.id)
+                              );
                             }}
+                            checked={selectedEntries.includes(entry.id)}
+                            aria-label="Seleccionar fila"
                           />
-                        </td>
-                        <td className="p-2">{entry.license_plate}</td>
-                        <td className="p-2">{entry.type}</td>
-                        <td className="p-2">{formatTime(new Date(entry.entry_time))}</td>
-                        <td className="p-2">{formatTime(new Date(entry.exit_time))}</td>
-                        <td className="p-2">{formatDuration(entry.duration)}</td>
-                        <td className="p-2">{formatCurrency(entry.fee)}</td>
-                        <td className="p-2">
-                          <span className={`px-2 py-1 rounded-full text-sm ${
-                            entry.payment_method === 'Efectivo' ? 'bg-green-100 text-green-800' :
-                            entry.payment_method === 'Transferencia' ? 'bg-blue-100 text-blue-800' :
-                            entry.payment_method === 'Link de pago' ? 'bg-purple-100 text-purple-800' :
-                            entry.payment_method === 'QR' ? 'bg-orange-100 text-orange-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {entry.payment_method || 'No especificado'}
-                          </span>
-                        </td>
-                        <td className="p-2">
+                        </TableCell>
+                        <TableCell>{entry.license_plate}</TableCell>
+                        <TableCell>{entry.type}</TableCell>
+                        <TableCell>{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
+                        <TableCell>{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
+                        <TableCell>{formatDuration(entry.duration)}</TableCell>
+                        <TableCell>{formatCurrency(entry.fee)}</TableCell>
+                        <TableCell>{entry.payment_method || "N/A"}</TableCell>
+                        <TableCell className="text-right">
                           <div className="flex gap-2">
                             <Button
                               variant="ghost"
@@ -544,12 +564,18 @@ export default function AdminPanel({
                               <ArrowLeft className="h-4 w-4" />
                             </Button>
                           </div>
-                        </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={9} className="h-24 text-center">
+                        No hay resultados.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
