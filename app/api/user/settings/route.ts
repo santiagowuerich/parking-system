@@ -11,25 +11,27 @@ export async function GET(request: NextRequest) {
   try {
     const { supabase, response } = createClient(request);
 
+    // Seleccionar todos los campos relevantes de user_settings
     const { data, error } = await supabase
       .from("user_settings")
-      .select("mercadopago_api_key")
+      .select("mercadopago_api_key, bank_account_holder, bank_account_cbu, bank_account_alias") // Añadir nuevos campos
       .eq("user_id", userId)
-      .single();
+      .maybeSingle(); // Usar maybeSingle para no fallar si no existe la fila
 
     if (error) {
-      // Si el error es porque no se encontró la fila, devolvemos un objeto vacío
-      if (error.code === 'PGRST116') {
-        const jsonResponse = NextResponse.json({ mercadopagoApiKey: null });
-        return copyResponseCookies(response, jsonResponse);
-      }
-      console.error("Error fetching user settings:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Error fetching user settings:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const jsonResponse = NextResponse.json({
-      mercadopagoApiKey: data?.mercadopago_api_key || null
-    });
+    // Devolver todos los datos encontrados o nulls si no hay fila
+    const responseData = {
+      mercadopagoApiKey: data?.mercadopago_api_key || null,
+      bankAccountHolder: data?.bank_account_holder || null,
+      bankAccountCbu: data?.bank_account_cbu || null,
+      bankAccountAlias: data?.bank_account_alias || null,
+    };
+
+    const jsonResponse = NextResponse.json(responseData);
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error("Unexpected error fetching user settings:", err);
@@ -39,36 +41,45 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, mercadopagoApiKey } = await request.json();
+    // Aceptar todos los campos posibles en el body
+    const { 
+      userId,
+      mercadopagoApiKey, 
+      bankAccountHolder, 
+      bankAccountCbu, 
+      bankAccountAlias 
+    } = await request.json();
 
     if (!userId) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
-    if (typeof mercadopagoApiKey !== 'string') {
-      return NextResponse.json({ error: "mercadopagoApiKey must be a string" }, { status: 400 });
-    }
+    
+    // Construir el objeto de datos a actualizar/insertar
+    // Incluir solo los campos que realmente vienen en la petición
+    // (o definir si se deben borrar si vienen como null/undefined)
+    const dataToUpsert: any = {
+        user_id: userId,
+        updated_at: new Date().toISOString()
+    };
+    if (mercadopagoApiKey !== undefined) dataToUpsert.mercadopago_api_key = mercadopagoApiKey;
+    if (bankAccountHolder !== undefined) dataToUpsert.bank_account_holder = bankAccountHolder;
+    if (bankAccountCbu !== undefined) dataToUpsert.bank_account_cbu = bankAccountCbu;
+    if (bankAccountAlias !== undefined) dataToUpsert.bank_account_alias = bankAccountAlias;
 
     const { supabase, response } = createClient(request);
 
-    // Primero intentamos actualizar, si no existe el registro lo creamos
-    const { error: updateError } = await supabase
+    const { error: upsertError } = await supabase
       .from("user_settings")
-      .upsert({
-        user_id: userId,
-        mercadopago_api_key: mercadopagoApiKey,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
+      .upsert(dataToUpsert, { onConflict: 'user_id' });
 
-    if (updateError) {
-      console.error("Error updating user settings:", updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    if (upsertError) {
+      console.error("Error updating user settings:", upsertError);
+      return NextResponse.json({ error: upsertError.message }, { status: 500 });
     }
 
     const jsonResponse = NextResponse.json({ 
       success: true,
-      message: "API Key guardada correctamente" 
+      message: "Configuración guardada correctamente" 
     });
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {

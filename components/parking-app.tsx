@@ -19,6 +19,7 @@ import { PaymentConfirmationDialog } from "./payment-confirmation-dialog";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
+import { TransferInfoDialog } from "./ui/transfer-info-dialog";
 
 type ExitInfo = {
   vehicle: Vehicle;
@@ -53,6 +54,7 @@ export default function ParkingApp() {
   const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
   const [lastCalculatedFee, setLastCalculatedFee] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState<any>(null);
+  const [showTransferInfoDialog, setShowTransferInfoDialog] = useState(false);
 
   const [parking, setParking] = useState<Parking>({
     capacity: {
@@ -204,6 +206,12 @@ export default function ParkingApp() {
 
   const handlePaymentMethod = async (method: string) => {
     if (!exitingVehicle || !user) return;
+
+    if (method === 'transferencia') {
+        setShowTransferInfoDialog(true);
+        return;
+    }
+
     let shouldCloseDialog = false;
     let historyEntry: ParkingHistory | null = null;
 
@@ -774,10 +782,8 @@ export default function ParkingApp() {
       <PaymentMethodDialog
         open={paymentMethodDialogOpen}
         onOpenChange={(open) => {
-          setPaymentMethodDialogOpen(open);
-          if (!open) {
-            setExitingVehicle(null);
-          }
+            setPaymentMethodDialogOpen(open);
+            if (!open) setExitingVehicle(null);
         }}
         onSelectMethod={handlePaymentMethod}
         fee={lastCalculatedFee}
@@ -785,11 +791,25 @@ export default function ParkingApp() {
 
       <QRDialog
         open={showQRDialog}
-        onOpenChange={handleQRDialogClose}
+        onOpenChange={setShowQRDialog}
         qrCode={qrData?.code || ''}
+        fee={qrData?.fee || 0}
         qrCodeBase64={qrData?.qrCodeBase64}
-        fee={qrData?.fee || lastCalculatedFee}
-        onConfirmPayment={() => handlePaymentConfirmation(true)}
+        onConfirmPayment={(success) => {
+            setShowQRDialog(false);
+            if (success) {
+                setPaymentDetails({ method: 'MercadoPago QR', status: 'Aprobado' });
+                setPaymentConfirmationOpen(true);
+            } else {
+                setPaymentMethodDialogOpen(true);
+            }
+        }}
+      />
+
+      <TransferInfoDialog
+        isOpen={showTransferInfoDialog}
+        onClose={() => setShowTransferInfoDialog(false)}
+        userId={user?.id}
       />
 
       <PaymentConfirmationDialog

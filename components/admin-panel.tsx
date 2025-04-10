@@ -41,6 +41,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Chatbot } from './ui/chatbot'
 
 // --- Importar y configurar Day.js --- 
 import dayjs from 'dayjs'
@@ -697,6 +698,7 @@ export default function AdminPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Chatbot />
     </div>
   )
 }
