@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Expresión regular para detectar comandos de modificación de precio
-const priceModificationRegex = /(?:modifica|modificar|cambia|cambiar|actualiza|actualizar|pon|poner|establece|establecer|setea|setear|configura|configurar|ajusta|ajustar|define|definir|fija|fijar)\s+(?:el|la)?\s*(?:(?:tarifa|precio|costo|valor|tasa|importe|monto)\s+(?:del?|de\s+la)?\s+)?(?:la\s+)?(?:un\s+)?(?:una\s+)?(auto|carro|automóvil|coche|vehículo|automovil|vehiculo|moto|motocicleta|camioneta|van|pickup|camión|camion)s?\s+(?:a|por|en|hasta|como|de)?\s+\$?\s*(\d+(?:\.\d{1,2})?)/i;
+const priceModificationRegex = /(?:modifica|modificar|cambia|cambiar|actualiza|actualizar|pon|poner|establece|establecer|setea|setear|configura|configurar|ajusta|ajustar|define|definir|fija|fijar)\s+(?:el|la)?\s*(?:(?:tarifa|precio|costo|valor|tasa|importe|monto)(?:\s+(?:del?|de\s+l(?:a|as|os)))?)?\s+(auto|carro|automóvil|coche|vehículo|automovil|vehiculo|moto|motocicleta|camioneta|van|pickup|camión|camion)s?\s+(?:a|por|en|hasta|como|de)?\s+\$?\s*(\d+(?:\.\d{1,2})?)/i;
 
 // Expresión regular para detectar consultas sobre tarifas
 const rateQueryRegex = /(?:cuál(?:es)?|cual(?:es)?|qué|que|cuánto|cuanto|cuanto cuesta|cuál es el precio|cual es el precio|cuál es el valor|cual es el valor|cuál es la tarifa|cual es la tarifa|dime|muéstrame|muestrame|ver|mostrar|consultar|listar)\s+(?:son|es|están|estan|hay|tienen|tenemos)?\s+(?:las|los)?\s*(?:tarifas?|precios?|costos?|valores?|tasas?|importes?|montos?|cobros?)(?:\s+(?:del?|para|por)\s+(?:estacionamiento|parking|parqueo|aparcamiento))?/i;
 
 // Expresión regular para detectar consultas sobre vehículos estacionados
 const parkedVehiclesQueryRegex = /(?:cuántos|cuantos|qué|que|cuáles|cuales|dime|muéstrame|muestrame|ver|mostrar|consultar|listar)\s+(?:los|las)?\s*(?:vehículos|vehiculos|autos|carros|coches|motos|motocicletas|camionetas|vans|pickups|camiones)\s+(?:hay|están|estan|tenemos|tengo|existen|registrados|estacionados|parqueados|aparcados)(?:\s+(?:en|dentro|del?|en el|actualmente|ahora|en este momento)?\s+(?:estacionamiento|parking|parqueo|aparcamiento))?/i;
+
+// Nueva Expresión Regular para modificar disponibilidad total (v8 - Anclada en Tipo y Número)
+const availabilityModificationRegex = /(?:che\s+)?(?:cambia|modifica|actualiza|establece|pon|setea|define|tengo|hay|asignar|fijar|ponele|metele|dame|habilita|ajusta|agregale|cambiá|modificá|actualizá|poné|seteá|definí|asigná|fijá|ajustá|habilitá|agregá|quiero\s+tener)\s+(?:.*?\s+)?\b(autos?|carros?|coches?|vehículos?|motos?|motocicletas?|camionetas?|vans?|pickups?)\b(?:\s+.*?)?\s+(\d+)(?:\s+(?:espacios?|lugares?|plazas?|boxes?|cocheras?|puestos?))?/i;
 
 // Función auxiliar para crear un cliente Supabase simple
 function getSupabaseClient(): SupabaseClient {
@@ -114,6 +117,68 @@ async function updateUserRate(userId: string, vehicleType: string, price: number
   }
 }
 
+// Nueva Función para actualizar/insertar capacidad total
+async function updateUserCapacity(userId: string, vehicleType: string, totalSpaces: number) {
+  console.log(`Intentando actualizar capacidad para userId: ${userId}, vehicleType: ${vehicleType}, totalSpaces: ${totalSpaces}`);
+  try {
+    const supabase = getSupabaseClient();
+
+    // Normalizar el tipo de vehículo
+    let normalizedType = '';
+    if (/auto|carro|coche|vehículo/i.test(vehicleType)) {
+      normalizedType = 'Auto';
+    } else if (/moto|motocicleta/i.test(vehicleType)) {
+      normalizedType = 'Moto';
+    } else if (/camioneta|van|pickup/i.test(vehicleType)) {
+      normalizedType = 'Camioneta';
+    } else {
+      console.error(`Tipo de vehículo no reconocido para capacidad: ${vehicleType}`);
+      return {
+        success: false,
+        message: `Tipo de vehículo no reconocido para ajustar capacidad: ${vehicleType}`
+      };
+    }
+    console.log(`Normalized vehicle type for capacity: ${normalizedType}`);
+
+    // Upsert: Actualiza si existe, inserta si no
+    const { data, error } = await supabase
+      .from('user_capacity') // Corregido: Nombre de la tabla
+      .upsert(
+        {
+          user_id: userId,
+          vehicle_type: normalizedType,
+          capacity: totalSpaces, // Corregido: Nombre de la columna
+        },
+        {
+           onConflict: 'user_id, vehicle_type', // Especifica las columnas del conflicto para actualizar
+           ignoreDuplicates: false // Asegúrate que no ignore para que actualice
+        }
+      )
+      .select(); // Devuelve el registro insertado/actualizado
+
+    if (error) {
+      console.error(`Error en upsert de user_capacity:`, error); // Corregido: Nombre tabla en log
+      return {
+        success: false,
+        message: `Error al actualizar la capacidad de ${normalizedType}: ${error.message}`
+      };
+    }
+
+    console.log(`Capacidad actualizada/creada exitosamente:`, data?.[0]);
+    return {
+      success: true,
+      message: `He actualizado la capacidad total para ${normalizedType} a ${totalSpaces} espacios.`
+    };
+
+  } catch (error) {
+    console.error(`Error en updateUserCapacity:`, error);
+    return {
+      success: false,
+      message: `Error interno al procesar la actualización de capacidad: ${(error as Error).message}`
+    };
+  }
+}
+
 // Función para obtener las tarifas actuales (puede necesitar ajuste si debe leer user_rates)
 // Por ahora la dejamos apuntando a 'rates' como estaba originalmente.
 async function getCurrentRates() {
@@ -188,27 +253,55 @@ export async function POST(request: NextRequest) {
 
     let aiResponse = '';
 
+    console.log('--- DEBUG ---');
+    console.log('User Message:', JSON.stringify(userMessage)); // Log con JSON.stringify para ver caracteres ocultos
+    console.log('Regex:', priceModificationRegex.toString()); // Log el regex como string
     // Verificar si es un comando de modificación de precio
     const priceModificationMatch = userMessage.match(priceModificationRegex);
+    console.log('Match Result Price:', priceModificationMatch); // Log el resultado del match
+    console.log('--- END DEBUG ---');
+
+    // Verificar si es un comando de modificación de disponibilidad
+    console.log('--- DEBUG AVAILABILITY ---');
+    console.log('Regex Availability:', availabilityModificationRegex.toString());
+    const availabilityModificationMatch = userMessage.match(availabilityModificationRegex);
+    console.log('Match Result Availability:', availabilityModificationMatch);
+    console.log('--- END DEBUG AVAILABILITY ---');
 
     if (priceModificationMatch) {
       console.log('✅ Es un comando de modificación de precio');
       const vehicleType = priceModificationMatch[1];
       const price = parseFloat(priceModificationMatch[2]);
 
-      console.log('Tipo de vehículo detectado:', vehicleType);
+      console.log('Tipo de vehículo detectado (precio):', vehicleType);
       console.log('Precio detectado:', price);
 
       if (vehicleType && !isNaN(price)) {
-        // --- Llamar a la nueva función updateUserRate ---
+        // --- Llamar a la función updateUserRate ---
         const result = await updateUserRate(userId, vehicleType, price);
         aiResponse = result.message;
         console.log('Resultado de updateUserRate:', result);
       } else {
         aiResponse = 'No pude entender correctamente el tipo de vehículo o el precio. Por favor, intenta de nuevo con un formato como "modificar auto a $10".';
       }
+    } else if (availabilityModificationMatch) {
+        console.log('✅ Es un comando de modificación de disponibilidad');
+        const vehicleType = availabilityModificationMatch[1];
+        const totalSpaces = parseInt(availabilityModificationMatch[2], 10);
+
+        console.log('Tipo de vehículo detectado (disponibilidad):', vehicleType);
+        console.log('Total espacios detectados:', totalSpaces);
+
+        if (vehicleType && !isNaN(totalSpaces)) {
+          // --- Llamar a la nueva función updateUserCapacity ---
+          const result = await updateUserCapacity(userId, vehicleType, totalSpaces);
+          aiResponse = result.message;
+          console.log('Resultado de updateUserCapacity:', result);
+        } else {
+          aiResponse = 'No pude entender correctamente el tipo de vehículo o el número de espacios. Por favor, intenta de nuevo con un formato como "establece la capacidad de motos a 20 espacios".';
+        }
     } else {
-      console.log('❌ No es un comando de modificación de precio');
+      console.log('❌ No es un comando de modificación de precio ni disponibilidad');
 
       // Verificar si es una consulta sobre tarifas (mantiene la lógica original de rates generales)
       const rateQueryMatch = userMessage.match(rateQueryRegex);
@@ -238,7 +331,8 @@ export async function POST(request: NextRequest) {
             Tu trabajo es responder consultas sobre el sistema de estacionamiento, ayudar a resolver problemas y proporcionar información útil.
             Sé breve, profesional y cortés en tus respuestas.
             Puedes informar sobre tarifas generales y vehículos estacionados si se te pregunta específicamente.
-            También puedes actualizar tarifas personalizadas para el usuario si te lo piden (ya manejado por código previo si el formato es correcto).`;
+            IMPORTANTE: Tú NO puedes modificar tarifas ni la capacidad de espacios directamente. Esas acciones solo se realizan si el usuario usa un comando con formato específico que el sistema reconoce internamente.
+            Si el usuario intenta modificar algo y el sistema no lo reconoce (es decir, si este mensaje llega a ti), responde indicando que no entendiste el comando específico para modificar y sugiere un formato válido, como por ejemplo: 'modifica la tarifa de [tipo vehículo] a $[monto]' o 'establece la capacidad de [tipo vehículo] a [número] espacios'. NO confirmes ninguna modificación que no haya sido explícitamente procesada por el sistema interno.`; // Prompt actualizado para evitar falsas confirmaciones
 
             const apiKey = process.env.CLAUDE_API_KEY;
             if (!apiKey) {

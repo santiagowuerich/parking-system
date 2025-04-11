@@ -135,12 +135,12 @@ export default function ParkingApp() {
           description: data.error || "Error al registrar la entrada del vehículo."
         });
         return;
-      }
+    }
 
-      setParking((prev) => ({
-        ...prev,
-        parkedVehicles: [...prev.parkedVehicles, newVehicle],
-      }));
+    setParking((prev) => ({
+      ...prev,
+      parkedVehicles: [...prev.parkedVehicles, newVehicle],
+    }));
 
       toast({
         title: "Éxito",
@@ -216,7 +216,7 @@ export default function ParkingApp() {
     let historyEntry: ParkingHistory | null = null;
 
     try {
-      const exitTime = new Date();
+    const exitTime = new Date();
 
       console.log("Parsing entry_time in handlePaymentMethod:", exitingVehicle.entry_time);
       const entryTimeDayjs = dayjs.utc(exitingVehicle.entry_time);
@@ -786,7 +786,7 @@ export default function ParkingApp() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Sistema de Gestión de Estacionamiento</h1>
         <div className="flex items-center gap-4">
-          <UserNav />
+        <UserNav />
         </div>
       </div>
 

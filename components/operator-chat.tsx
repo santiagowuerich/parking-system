@@ -344,11 +344,14 @@ export function OperatorChat() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setIsOpen(false)}
-              aria-label="Cerrar asistente"
-              className="text-white hover:text-gray-200"
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              onClick={() => {
+                setIsOpen(false);
+                window.location.reload();
+              }}
             >
-              <X className="w-4 h-4" />
+              <X className="h-5 w-5" />
+              <span className="sr-only">Cerrar chat</span>
             </Button>
           </div>
           
