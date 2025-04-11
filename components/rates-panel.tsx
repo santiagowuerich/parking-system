@@ -169,25 +169,25 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
-      <Card>
-        <CardHeader>
+    <Card>
+      <CardHeader>
           <CardTitle>Tarifas por Hora</CardTitle>
-        </CardHeader>
+      </CardHeader>
         <CardContent className="space-y-4">
           {localRates ? (
             Object.entries(localRates).map(([type, rate]) => (
               <div key={type} className="space-y-2">
                 <Label htmlFor={`rate-${type}`}>{type}</Label>
-                <Input
+                  <Input
                   id={`rate-${type}`}
-                  type="number"
-                  min="0"
-                  step="0.01"
+                    type="number"
+                    min="0"
+                    step="0.01"
                   value={rate ?? ''}
                   onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
                   disabled={isSavingRates}
-                />
-              </div>
+                  />
+                </div>
             ))
           ) : (
             <p>Error al cargar tarifas.</p>
@@ -249,7 +249,7 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
           <div className="space-y-2">
             <Label htmlFor="bankAlias">Alias</Label>
             <Input id="bankAlias" value={bankAccountAlias} onChange={(e) => setBankAccountAlias(e.target.value)} disabled={isSavingTransfer} placeholder="tu.alias.mp" />
-          </div>
+            </div>
           <div className="pt-4">
             <Button 
               onClick={handleSaveTransferDetails} 
@@ -258,9 +258,9 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
             >
               {isSavingTransfer ? "Guardando..." : "Guardar Datos Transferencia"}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+      </CardContent>
+    </Card>
       
     </div>
   );

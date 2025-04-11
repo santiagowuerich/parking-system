@@ -159,8 +159,10 @@ export default function AdminPanel({
         return;
       }
 
+      const currentUserId = session?.user?.id; 
+
       console.log('Enviando capacidad:', {
-        userId: user.id,
+        userId: currentUserId,
         capacity: tempCapacities
       });
 
@@ -171,7 +173,7 @@ export default function AdminPanel({
           "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          userId: user.id,
+          userId: currentUserId,
           capacity: tempCapacities,
         }),
       });

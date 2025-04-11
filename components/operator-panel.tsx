@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { OperatorChat } from './operator-chat'
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -145,7 +146,7 @@ export default function OperatorPanel({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-4 p-4">
       {/* Disponibilidad */}
       <Card>
         <CardHeader>
@@ -325,6 +326,7 @@ export default function OperatorPanel({
         </CardContent>
       </Card>
       */}
+      <OperatorChat />
     </div>
   )
 }
