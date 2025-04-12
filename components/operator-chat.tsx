@@ -344,7 +344,7 @@ export function OperatorChat() {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              className="absolute top-2 right-2 text-black hover:text-gray-700 dark:text-white dark:hover:text-gray-300"
               onClick={() => {
                 setIsOpen(false);
                 window.location.reload();
