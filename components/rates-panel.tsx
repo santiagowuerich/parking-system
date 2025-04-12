@@ -160,24 +160,33 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
   if (isLoadingSettings) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent></Card>
-        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-20 w-full" /></CardContent></Card>
-        <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader><Skeleton className="h-6 w-3/4 dark:bg-zinc-800" /></CardHeader>
+          <CardContent><Skeleton className="h-40 w-full dark:bg-zinc-800" /></CardContent>
+        </Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader><Skeleton className="h-6 w-3/4 dark:bg-zinc-800" /></CardHeader>
+          <CardContent><Skeleton className="h-20 w-full dark:bg-zinc-800" /></CardContent>
+        </Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader><Skeleton className="h-6 w-3/4 dark:bg-zinc-800" /></CardHeader>
+          <CardContent><Skeleton className="h-32 w-full dark:bg-zinc-800" /></CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
-    <Card>
+    <Card className="dark:bg-zinc-900 dark:border-zinc-800">
       <CardHeader>
-          <CardTitle>Tarifas por Hora</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Tarifas por Hora</CardTitle>
       </CardHeader>
         <CardContent className="space-y-4">
           {localRates ? (
             Object.entries(localRates).map(([type, rate]) => (
               <div key={type} className="space-y-2">
-                <Label htmlFor={`rate-${type}`}>{type}</Label>
+                <Label htmlFor={`rate-${type}`} className="dark:text-zinc-400">{type}</Label>
                   <Input
                   id={`rate-${type}`}
                     type="number"
@@ -186,17 +195,18 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
                   value={rate ?? ''}
                   onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
                   disabled={isSavingRates}
+                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                   />
                 </div>
             ))
           ) : (
-            <p>Error al cargar tarifas.</p>
+            <p className="dark:text-zinc-500">Error al cargar tarifas.</p>
           )}
           <div className="pt-4">
             <Button 
               onClick={handleSaveRates} 
               disabled={isSavingRates || !localRates}
-              className="w-full"
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
             >
               {isSavingRates ? "Guardando..." : "Guardar Tarifas"}
             </Button>
@@ -204,13 +214,13 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Configuración de MercadoPago</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Configuración de MercadoPago</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="mercadopago-api-key">API Key</Label>
+            <Label htmlFor="mercadopago-api-key" className="dark:text-zinc-400">API Key</Label>
             <Input
               id="mercadopago-api-key"
               type="password"
@@ -218,14 +228,15 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
               onChange={(e) => setMercadopagoApiKey(e.target.value)}
               placeholder="Ingresa tu API Key"
               disabled={isSavingApiKey}
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
             />
-            <p className="text-xs text-muted-foreground">Tu Access Token de producción (APP_USR-...) o pruebas (TEST-...).</p>
+            <p className="text-xs text-muted-foreground dark:text-zinc-500">Tu Access Token de producción (APP_USR-...) o pruebas (TEST-...).</p>
           </div>
           <div className="pt-2">
             <Button 
               onClick={handleSaveApiKey} 
               disabled={isSavingApiKey}
-              className="w-full"
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
             >
               {isSavingApiKey ? "Guardando..." : "Guardar API Key"}
             </Button>
@@ -233,28 +244,28 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Configuración de Transferencia</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Configuración de Transferencia</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="bankHolder">Nombre del Titular</Label>
-            <Input id="bankHolder" value={bankAccountHolder} onChange={(e) => setBankAccountHolder(e.target.value)} disabled={isSavingTransfer} placeholder="Nombre completo" />
+            <Label htmlFor="bankHolder" className="dark:text-zinc-400">Nombre del Titular</Label>
+            <Input id="bankHolder" value={bankAccountHolder} onChange={(e) => setBankAccountHolder(e.target.value)} disabled={isSavingTransfer} placeholder="Nombre completo" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bankCbu">CBU / CVU</Label>
-            <Input id="bankCbu" value={bankAccountCbu} onChange={(e) => setBankAccountCbu(e.target.value)} disabled={isSavingTransfer} placeholder="22 dígitos (CBU) o Alias.CVU" />
+            <Label htmlFor="bankCbu" className="dark:text-zinc-400">CBU / CVU</Label>
+            <Input id="bankCbu" value={bankAccountCbu} onChange={(e) => setBankAccountCbu(e.target.value)} disabled={isSavingTransfer} placeholder="22 dígitos (CBU) o Alias.CVU" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bankAlias">Alias</Label>
-            <Input id="bankAlias" value={bankAccountAlias} onChange={(e) => setBankAccountAlias(e.target.value)} disabled={isSavingTransfer} placeholder="tu.alias.mp" />
+            <Label htmlFor="bankAlias" className="dark:text-zinc-400">Alias</Label>
+            <Input id="bankAlias" value={bankAccountAlias} onChange={(e) => setBankAccountAlias(e.target.value)} disabled={isSavingTransfer} placeholder="tu.alias.mp" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
             </div>
           <div className="pt-4">
             <Button 
               onClick={handleSaveTransferDetails} 
               disabled={isSavingTransfer}
-              className="w-full"
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
             >
               {isSavingTransfer ? "Guardando..." : "Guardar Datos Transferencia"}
             </Button>

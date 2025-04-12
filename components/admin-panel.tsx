@@ -354,9 +354,9 @@ export default function AdminPanel({
   };
 
   const renderSpaceInfo = (label: string, type: VehicleType) => (
-    <div key={type} className="p-3 bg-gray-50 rounded-md">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-lg font-medium">
+    <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+      <p className="text-sm text-gray-500 dark:text-zinc-400">{label}</p>
+      <p className="text-lg font-medium dark:text-zinc-100">
         {capacity[type] - availableSpaces[type]} ocupados de {capacity[type]}
       </p>
     </div>
@@ -371,54 +371,55 @@ export default function AdminPanel({
     <div className="space-y-6">
       {/* Ingresos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
-            <CardTitle>Ingresos del Día</CardTitle>
+            <CardTitle className="dark:text-zinc-100">Ingresos del Día</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{formatCurrency(todayIncome)}</p>
+            <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(todayIncome)}</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
-            <CardTitle>Ingresos de la Semana</CardTitle>
+            <CardTitle className="dark:text-zinc-100">Ingresos de la Semana</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{formatCurrency(weekIncome)}</p>
+            <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(weekIncome)}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Estado actual + botón para modificar */}
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader className="flex flex-row justify-between items-center">
-          <CardTitle>Estado Actual del Estacionamiento</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Estado Actual del Estacionamiento</CardTitle>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Modificar espacios
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
               <DialogHeader>
-                <DialogTitle>Modificar capacidad máxima</DialogTitle>
+                <DialogTitle className="dark:text-zinc-100">Modificar capacidad máxima</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-2">
                 {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
                   <div key={type} className="space-y-1">
-                    <label className="text-sm font-medium">{type}</label>
+                    <label className="text-sm font-medium dark:text-zinc-400">{type}</label>
                     <Input
                       type="number"
                       min={0}
                       value={tempCapacities[type]}
                       onChange={(e) => handleChange(type, parseInt(e.target.value))}
+                      className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                     />
                   </div>
                 ))}
               </div>
               <DialogFooter>
-                <Button onClick={handleSave}>Guardar</Button>
+                <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -429,8 +430,8 @@ export default function AdminPanel({
             {renderSpaceInfo("Motos", "Moto")}
             {renderSpaceInfo("Camionetas", "Camioneta")}
           </div>
-          <div className="mt-4 p-3 bg-gray-100 rounded-md">
-            <p className="text-center font-medium">
+          <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+            <p className="text-center font-medium dark:text-zinc-100">
               Total: {availableSpaces.total.occupied} vehículos ocupando {availableSpaces.total.capacity} espacios (
               {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
             </p>
@@ -439,15 +440,15 @@ export default function AdminPanel({
       </Card>
 
       {/* Historial */}
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader className="flex flex-row justify-between items-center">
           <div className="flex items-center gap-4">
-          <CardTitle>Historial de Operaciones</CardTitle>
+            <CardTitle className="dark:text-zinc-100">Historial de Operaciones</CardTitle>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowFilters(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
               <Filter className="h-4 w-4" />
               Filtros
@@ -458,7 +459,7 @@ export default function AdminPanel({
               variant="destructive"
               size="sm"
               onClick={handleDeleteSelected}
-              className="ml-2"
+              className="ml-2 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
             >
               Eliminar seleccionados ({selectedEntries.length})
             </Button>
@@ -466,10 +467,10 @@ export default function AdminPanel({
         </CardHeader>
         <CardContent>
           <Dialog open={showFilters} onOpenChange={setShowFilters}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl dark:bg-zinc-950 dark:border-zinc-800">
               <DialogHeader>
-                <DialogTitle>Filtros de Búsqueda</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="dark:text-zinc-100">Filtros de Búsqueda</DialogTitle>
+                <DialogDescription className="dark:text-zinc-400">
                   Ajusta los filtros para encontrar registros específicos en el historial.
                 </DialogDescription>
               </DialogHeader>
@@ -480,7 +481,7 @@ export default function AdminPanel({
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowFilters(false)}>
+                <Button variant="outline" onClick={() => setShowFilters(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
                   Cerrar
                 </Button>
               </DialogFooter>
@@ -488,12 +489,12 @@ export default function AdminPanel({
           </Dialog>
           
           {filteredHistory.length === 0 ? (
-            <p className="text-center text-gray-500 py-4">No hay operaciones registradas</p>
+            <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay operaciones registradas</p>
           ) : (
             <div className="overflow-x-auto mt-4">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="dark:border-zinc-800">
                     <TableHead className="w-[50px]">
                       <Checkbox
                         onCheckedChange={(checked) => {
@@ -505,22 +506,23 @@ export default function AdminPanel({
                         }}
                         checked={selectedEntries.length === filteredHistory.length && filteredHistory.length > 0}
                         aria-label="Seleccionar todo"
+                        className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
                       />
                     </TableHead>
-                    <TableHead>Matrícula</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Entrada</TableHead>
-                    <TableHead>Salida</TableHead>
-                    <TableHead>Duración</TableHead>
-                    <TableHead>Tarifa</TableHead>
-                    <TableHead>Método de Pago</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
+                    <TableHead className="dark:text-zinc-400">Tipo</TableHead>
+                    <TableHead className="dark:text-zinc-400">Entrada</TableHead>
+                    <TableHead className="dark:text-zinc-400">Salida</TableHead>
+                    <TableHead className="dark:text-zinc-400">Duración</TableHead>
+                    <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
+                    <TableHead className="dark:text-zinc-400">Método de Pago</TableHead>
+                    <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredHistory.length > 0 ? (
                     filteredHistory.map((entry) => (
-                      <TableRow key={entry.id}>
+                      <TableRow key={entry.id} className="dark:border-zinc-800">
                         <TableCell>
                           <Checkbox
                             onCheckedChange={(checked) => {
@@ -532,25 +534,27 @@ export default function AdminPanel({
                             }}
                             checked={selectedEntries.includes(entry.id)}
                             aria-label="Seleccionar fila"
+                            className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
                           />
                         </TableCell>
-                        <TableCell>{entry.license_plate}</TableCell>
-                        <TableCell>{entry.type}</TableCell>
-                        <TableCell>{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
-                        <TableCell>{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
-                        <TableCell>{formatDuration(entry.duration)}</TableCell>
-                        <TableCell>{formatCurrency(entry.fee)}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{entry.license_plate}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{entry.type}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{formatDuration(entry.duration)}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{formatCurrency(entry.fee)}</TableCell>
                         <TableCell>
-                          <Badge className="bg-black text-white hover:bg-gray-800">
+                          <Badge className="bg-black text-white hover:bg-gray-800 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600">
                             {entry.payment_method || "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-2">
+                          <div className="flex gap-1 justify-end">
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(entry)}
+                              className="dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -558,7 +562,7 @@ export default function AdminPanel({
                               variant="ghost"
                               size="icon"
                               onClick={() => handleDelete(entry)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 dark:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -566,7 +570,7 @@ export default function AdminPanel({
                               variant="ghost"
                               size="icon"
                               onClick={() => handleReenter(entry)}
-                              className="text-primary hover:text-primary hover:bg-primary/10"
+                              className="text-primary hover:text-primary hover:bg-primary/10 dark:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                               title="Reingresar vehículo"
                             >
                               <ArrowLeft className="h-4 w-4" />
@@ -576,8 +580,8 @@ export default function AdminPanel({
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={9} className="h-24 text-center">
+                    <TableRow className="dark:border-zinc-800">
+                      <TableCell colSpan={9} className="h-24 text-center dark:text-zinc-500">
                         No hay resultados.
                       </TableCell>
                     </TableRow>
@@ -591,10 +595,10 @@ export default function AdminPanel({
 
       {/* Diálogo de confirmación para eliminar un registro */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="dark:text-zinc-100">¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription className="dark:text-zinc-400">
               {multipleDelete 
                 ? `Esta acción eliminará ${selectedEntries.length} registros del historial.`
                 : "Esta acción eliminará el registro del historial."}
@@ -602,10 +606,10 @@ export default function AdminPanel({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={multipleDelete ? confirmMultipleDelete : confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
             >
               Eliminar
             </AlertDialogAction>
@@ -615,28 +619,28 @@ export default function AdminPanel({
 
       {/* Dialog para editar entrada */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
           <DialogHeader>
-            <DialogTitle>Editar Registro</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-zinc-100">Editar Registro</DialogTitle>
+            <DialogDescription className="dark:text-zinc-400">
               Modifica los detalles del registro seleccionado.
             </DialogDescription>
           </DialogHeader>
           {editingEntry && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="matricula" className="text-right">
+                <Label htmlFor="matricula" className="text-right dark:text-zinc-400">
                   Matrícula
                 </Label>
                 <Input
                   id="matricula"
                   value={editingEntry.license_plate}
                   onChange={(e) => setEditingEntry({ ...editingEntry, license_plate: e.target.value })}
-                  className="col-span-3"
+                  className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                 <Label htmlFor="tarifa" className="text-right">
+                 <Label htmlFor="tarifa" className="text-right dark:text-zinc-400">
                    Tarifa
                  </Label>
                  <Input
@@ -644,18 +648,18 @@ export default function AdminPanel({
                    type="number"
                    value={editingEntry.fee}
                    onChange={(e) => setEditingEntry({ ...editingEntry, fee: parseFloat(e.target.value) || 0 })}
-                   className="col-span-3"
+                   className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                  />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="payment_method" className="text-right">
+                <Label htmlFor="payment_method" className="text-right dark:text-zinc-400">
                   Método de Pago
                 </Label>
                 <Select
                   value={editingEntry.payment_method || 'No especificado'}
                   onValueChange={(value) => setEditingEntry({ ...editingEntry, payment_method: value })}
                 >
-                  <SelectTrigger className="col-span-3">
+                  <SelectTrigger className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
                     <SelectValue placeholder="Seleccionar método" />
                   </SelectTrigger>
                   <SelectContent>
@@ -670,18 +674,18 @@ export default function AdminPanel({
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpdateEntry}>Guardar Cambios</Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</Button>
+            <Button onClick={handleUpdateEntry} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar Cambios</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Diálogo de confirmación para reingresar un vehículo */}
       <AlertDialog open={reenterDialogOpen} onOpenChange={setReenterDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Reingresar vehículo?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="dark:text-zinc-100">¿Reingresar vehículo?</AlertDialogTitle>
+            <AlertDialogDescription className="dark:text-zinc-400">
               {entryToReenter && (
                 <>
                   ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.license_plate}?
@@ -691,10 +695,10 @@ export default function AdminPanel({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setReenterDialogOpen(false)}>
+            <AlertDialogCancel onClick={() => setReenterDialogOpen(false)} className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmReenter} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <AlertDialogAction onClick={confirmReenter} className="bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-white dark:text-black dark:hover:bg-gray-200">
               Reingresar
             </AlertDialogAction>
           </AlertDialogFooter>

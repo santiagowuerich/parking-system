@@ -18,6 +18,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { OperatorChat } from './operator-chat'
+import { ThemeToggle } from "./theme-toggle"
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -146,26 +147,29 @@ export default function OperatorPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="relative flex flex-col gap-4 p-4">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeToggle />
+      </div>
       {/* Disponibilidad */}
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Disponibilidad de Espacios</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Disponibilidad de Espacios</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
-              <div key={type} className="p-3 bg-gray-50 rounded-md">
-                <p className="text-sm text-gray-500">{type}s</p>
-                <p className="text-lg font-medium">
+              <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+                <p className="text-sm text-gray-500 dark:text-zinc-400">{type}s</p>
+                <p className="text-lg font-medium dark:text-zinc-100">
                   {parking.capacity[type] - availableSpaces[type]} ocupados de {parking.capacity[type]}
                 </p>
-                <p className="text-sm text-green-600">Libres: {availableSpaces[type]}</p>
+                <p className="text-sm text-green-600 dark:text-green-400">Libres: {availableSpaces[type]}</p>
               </div>
             ))}
           </div>
-          <div className="mt-4 p-3 bg-gray-100 rounded-md">
-            <p className="text-center font-medium">
+          <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+            <p className="text-center font-medium dark:text-zinc-100">
               Total: {parking.parkedVehicles.length} vehículos ocupando {availableSpaces.total.capacity} espacios (
               {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
             </p>
@@ -174,14 +178,14 @@ export default function OperatorPanel({
       </Card>
 
       {/* Formulario de entrada */}
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Registrar Entrada</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Registrar Entrada</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleEntrySubmit} className="space-y-4">
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
@@ -190,22 +194,23 @@ export default function OperatorPanel({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="licensePlate">Matrícula</Label>
+                <Label htmlFor="licensePlate" className="dark:text-zinc-400">Matrícula</Label>
                 <Input
                   id="licensePlate"
                   value={licensePlate}
                   onChange={(e) => setLicensePlate(e.target.value)}
                   placeholder="Ej: ABC123"
+                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="vehicleType">Tipo de Vehículo</Label>
+                <Label htmlFor="vehicleType" className="dark:text-zinc-400">Tipo de Vehículo</Label>
                 <Select
                   value={selectedType}
                   onValueChange={(value: string) => setSelectedType(value as VehicleType)}
                 >
-                  <SelectTrigger id="vehicleType">
+                  <SelectTrigger id="vehicleType" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -217,7 +222,7 @@ export default function OperatorPanel({
               </div>
             </div>
 
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200">
               Registrar Entrada
             </Button>
           </form>
@@ -226,31 +231,31 @@ export default function OperatorPanel({
 
       {/* Salida */}
       {exitInfo && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="dark:bg-zinc-900 dark:border-green-700">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <CheckCircle2 className="mr-2 h-5 w-5 text-green-600" />
+            <CardTitle className="flex items-center dark:text-green-400">
+              <CheckCircle2 className="mr-2 h-5 w-5 text-green-600 dark:text-green-400" />
               Salida Registrada
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="dark:text-zinc-300">
             <div className="space-y-2">
               {exitInfo.vehicle ? (
                 <>
-                  <p><strong>Matrícula:</strong> {exitInfo.vehicle.license_plate}</p>
-                  <p><strong>Tipo:</strong> {exitInfo.vehicle.type}</p>
-                  <p><strong>Entrada:</strong> {formatArgentineTimeWithDayjs(exitInfo.vehicle.entry_time)}</p>
-                  <p><strong>Salida:</strong> {formatArgentineTimeWithDayjs(exitInfo.exitTime)}</p>
-                  <p><strong>Tiempo estacionado:</strong> {exitInfo.duration}</p>
-                  <p className="text-lg font-bold">Total a cobrar: {formatCurrency(exitInfo.fee)}</p>
+                  <p><strong className="dark:text-zinc-100">Matrícula:</strong> {exitInfo.vehicle.license_plate}</p>
+                  <p><strong className="dark:text-zinc-100">Tipo:</strong> {exitInfo.vehicle.type}</p>
+                  <p><strong className="dark:text-zinc-100">Entrada:</strong> {formatArgentineTimeWithDayjs(exitInfo.vehicle.entry_time)}</p>
+                  <p><strong className="dark:text-zinc-100">Salida:</strong> {formatArgentineTimeWithDayjs(exitInfo.exitTime)}</p>
+                  <p><strong className="dark:text-zinc-100">Tiempo estacionado:</strong> {exitInfo.duration}</p>
+                  <p className="text-lg font-bold dark:text-white">Total a cobrar: {formatCurrency(exitInfo.fee)}</p>
                   {exitInfo.duration.includes("min") && !exitInfo.duration.includes("h") && (
-                    <p className="text-sm text-amber-600">Nota: Se cobra mínimo 1 hora de estacionamiento.</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-400">Nota: Se cobra mínimo 1 hora de estacionamiento.</p>
                   )}
                 </>
               ) : (
-                <p className="text-gray-500">No hay información del vehículo.</p>
+                <p className="text-gray-500 dark:text-zinc-500">No hay información del vehículo.</p>
               )}
-              <Button variant="outline" className="mt-4 w-full" onClick={() => setExitInfo(null)}>
+              <Button variant="outline" className="mt-4 w-full dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" onClick={() => setExitInfo(null)}>
                 Cerrar
               </Button>
             </div>
@@ -259,21 +264,21 @@ export default function OperatorPanel({
       )}
 
       {/* Vehículos estacionados */}
-      <Card>
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Vehículos Estacionados</CardTitle>
+          <CardTitle className="dark:text-zinc-100">Vehículos Estacionados</CardTitle>
         </CardHeader>
         <CardContent>
           {parking.parkedVehicles.length === 0 ? (
-            <p className="text-center text-gray-500 py-4">No hay vehículos estacionados actualmente</p>
+            <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay vehículos estacionados actualmente</p>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Matrícula</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Hora de Entrada</TableHead>
-                  <TableHead className="text-right">Acción</TableHead>
+                <TableRow className="dark:border-zinc-800">
+                  <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
+                  <TableHead className="dark:text-zinc-400">Tipo</TableHead>
+                  <TableHead className="dark:text-zinc-400">Hora de Entrada</TableHead>
+                  <TableHead className="text-right dark:text-zinc-400">Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -281,16 +286,17 @@ export default function OperatorPanel({
                   let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
                   
                   return (
-                    <TableRow key={vehicle.license_plate + vehicle.entry_time}>
-                      <TableCell>{vehicle.license_plate}</TableCell>
-                      <TableCell>{vehicle.type}</TableCell>
-                      <TableCell>{formattedTime}</TableCell>
+                    <TableRow key={vehicle.license_plate + vehicle.entry_time} className="dark:border-zinc-800">
+                      <TableCell className="dark:text-zinc-100">{vehicle.license_plate}</TableCell>
+                      <TableCell className="dark:text-zinc-100">{vehicle.type}</TableCell>
+                      <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="destructive"
                           size="sm"
                           onClick={() => handleExit(vehicle)}
                           disabled={processingExit === vehicle.license_plate}
+                          className="dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
                         >
                           {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
                         </Button>
