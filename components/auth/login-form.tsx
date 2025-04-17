@@ -50,39 +50,41 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto dark:bg-zinc-900 dark:border-zinc-800">
       <CardHeader>
-        <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>Accedé al sistema como administrador</CardDescription>
+        <CardTitle className="dark:text-zinc-100">Iniciar sesión</CardTitle>
+        <CardDescription className="dark:text-zinc-400">Accedé al sistema como administrador</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive" className="mb-4 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Correo electrónico</Label>
+            <Label htmlFor="email" className="dark:text-zinc-400">Correo electrónico</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
+            <Label htmlFor="password" className="dark:text-zinc-400">Contraseña</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -95,9 +97,9 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
         </form>
       </CardContent>
       <CardFooter className="flex justify-center">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-zinc-400">
           ¿No tenés cuenta?{" "}
-          <Button variant="link" className="p-0" onClick={onToggleForm}>
+          <Button variant="link" className="p-0 dark:text-zinc-100 dark:hover:text-zinc-300" onClick={onToggleForm}>
             Registrate
           </Button>
         </p>
