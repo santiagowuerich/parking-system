@@ -1,0 +1,62 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Puntos Clave y Estructura del Proyecto `expense-tracker`
+
+Esta guía ayuda a navegar y entender la organización del proyecto `expense-tracker`.
+
+## Directorios Principales
+
+-   **Lógica de la Aplicación (App Router):** `[app/](mdc:app/)`
+    -   Layout principal global: `[app/layout.tsx](mdc:app/layout.tsx)`
+    -   Página de inicio / Dashboard: `[app/page.tsx](mdc:app/page.tsx)`
+    -   Módulo de Inventario: `[app/inventario/](mdc:app/inventario/)`
+    -   Módulo de Resúmenes y Eliminaciones: `[app/resumen/](mdc:app/resumen/)`
+        -   Eliminar Pagos: `[app/resumen/eliminar-pagos/page.tsx](mdc:app/resumen/eliminar-pagos/page.tsx)`
+        -   Eliminar Ventas: `[app/resumen/eliminar-ventas/page.tsx](mdc:app/resumen/eliminar-ventas/page.tsx)`
+    -   Módulo de Ventas: `[app/ventas/](mdc:app/ventas/)`
+    -   Módulo de Reportes de Inventario: `[app/reporte-inventario/](mdc:app/reporte-inventario/)`
+    -   Endpoints de API (Route Handlers): `[app/api/](mdc:app/api/)`
+
+-   **Componentes Reutilizables:** `[components/](mdc:components/)`
+    -   Componentes de UI genéricos (shadcn/ui): `[components/ui/](mdc:components/ui/)`
+    -   Componentes específicos de ventas: `[components/ventas/](mdc:components/ventas/)`
+    -   Proveedor de Tema: `[components/theme-provider.tsx](mdc:components/theme-provider.tsx)`
+    -   Providers generales: `[components/providers.tsx](mdc:components/providers.tsx)`
+
+-   **Hooks Personalizados de React:** `[hooks/](mdc:hooks/)`
+    -   Lógica de Productos: `[hooks/useProductos.ts](mdc:hooks/useProductos.ts)`
+    -   Lógica de Ventas: `[hooks/useVentas.ts](mdc:hooks/useVentas.ts)`
+    -   Lógica de Resumen de Compras/Pagos: `[hooks/useResumenCompras.ts](mdc:hooks/useResumenCompras.ts)`
+
+-   **Utilidades y Lógica Compartida:** `[lib/](mdc:lib/)`
+    -   Funciones de utilidad general: `[lib/utils.ts](mdc:lib/utils.ts)`
+    -   Cliente Supabase para el navegador: `[lib/supabase-browser.ts](mdc:lib/supabase-browser.ts)`
+    -   Cliente Supabase para el servidor: `[lib/supabase-server.ts](mdc:lib/supabase-server.ts)`
+    -   Funciones de consulta de datos (TanStack Query): `[lib/queries.ts](mdc:lib/queries.ts)`
+    -   Server Actions (si existen): `[lib/actions/](mdc:lib/actions/)`
+
+-   **Archivos Públicos Estáticos:** `[public/](mdc:public/)`
+
+-   **Estilos Globales:** `[styles/](mdc:styles/)`
+    -   Archivo principal de estilos globales: `[styles/globals.css](mdc:styles/globals.css)`
+
+-   **Configuración y Migraciones de Supabase:** `[supabase/](mdc:supabase/)`
+    -   Migraciones de base de datos: `[supabase/migrations/](mdc:supabase/migrations/)`
+
+-   **Definiciones Globales de TypeScript:** `[types/](mdc:types/)`
+    -   Ejemplo de tipo de Venta: `[types/venta.ts](mdc:types/venta.ts)`
+
+-   **Pruebas (Tests):** `[__tests__/](mdc:__tests__/)`
+
+## Archivos de Configuración Clave
+
+-   Dependencias y Scripts: `[package.json](mdc:package.json)`
+-   Configuración de Tailwind CSS: `[tailwind.config.ts](mdc:tailwind.config.ts)`
+-   Configuración de Next.js: `[next.config.mjs](mdc:next.config.mjs)`
+-   Configuración de TypeScript: `[tsconfig.json](mdc:tsconfig.json)`
+-   Configuración de Shadcn/UI: `[components.json](mdc:components.json)`
+
+Recordar que el `[README.md](mdc:README.md)` contiene una descripción más detallada del proyecto y su estructura.

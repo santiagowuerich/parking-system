@@ -24,7 +24,7 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
 import { Pencil, Trash2, ArrowLeft, Filter, CheckCircle2 } from "lucide-react"
-import type { ParkingHistory, VehicleType } from "@/lib/types"
+import type { ParkingHistory, VehicleType, Capacity, Rates } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
 import { toast } from "@/components/ui/use-toast"
@@ -53,24 +53,13 @@ dayjs.extend(timezone)
 
 interface AdminPanelProps {
   history: ParkingHistory[]
-  availableSpaces: {
-    Auto: number
-    Moto: number
-    Camioneta: number
-    total: {
-      capacity: number
-      occupied: number
-    }
-  }
-  capacity: {
-    Auto: number
-    Moto: number
-    Camioneta: number
-  }
-  onUpdateCapacity: (type: VehicleType, value: number) => void
-  onDeleteHistoryEntry?: (id: string) => Promise<void>
-  onUpdateHistoryEntry?: (id: string, data: Partial<ParkingHistory>) => Promise<void>
-  onReenterVehicle?: (entry: ParkingHistory) => Promise<void>
+  availableSpaces: Capacity
+  capacity: Capacity
+  onUpdateCapacity: (newCapacity: Capacity) => Promise<void>
+  onDeleteHistoryEntry: (entryId: string) => Promise<void>
+  onUpdateHistoryEntry: (updatedEntry: ParkingHistory) => Promise<void>
+  onReenterVehicle: (historyEntry: ParkingHistory) => Promise<void>
+  children?: React.ReactNode
 }
 
 // --- Función de formato con Day.js --- 
@@ -97,12 +86,13 @@ export default function AdminPanel({
   onDeleteHistoryEntry,
   onUpdateHistoryEntry,
   onReenterVehicle,
+  children,
 }: AdminPanelProps) {
   const { user } = useAuth();
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
-  const [open, setOpen] = useState(false);
-  const [tempCapacities, setTempCapacities] = useState(capacity);
+  const [openCapacityDialog, setOpenCapacityDialog] = useState(false);
+  const [tempCapacities, setTempCapacities] = useState<Capacity>(capacity);
   const [editingEntry, setEditingEntry] = useState<ParkingHistory | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -127,77 +117,34 @@ export default function AdminPanel({
     .filter((entry) => new Date(entry.exit_time) >= weekAgo)
     .reduce((sum, entry) => sum + entry.fee, 0)
 
-  const handleChange = (type: VehicleType, value: number) => {
-    setTempCapacities((prev) => ({ ...prev, [type]: value }))
+  const handleChangeCapacity = (type: VehicleType, value: string) => {
+    const numericValue = parseInt(value, 10);
+    setTempCapacities((prev) => ({ 
+        ...prev, 
+        [type]: isNaN(numericValue) ? 0 : Math.max(0, numericValue)
+    }));
   }
 
-  const handleSave = async () => {
+  const handleSaveCapacity = async () => {
     try {
       if (!user?.id) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Debe iniciar sesión para guardar la capacidad"
-        });
+        toast({ variant: "destructive", title: "Error", description: "Debe iniciar sesión." });
         return;
       }
 
-      // Obtener el token de sesión
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se encontró una sesión válida"
-        });
-        return;
-      }
-
-      const currentUserId = session?.user?.id; 
-
-      console.log('Enviando capacidad:', {
-        userId: currentUserId,
-        capacity: tempCapacities
-      });
-
-      const response = await fetch("/api/capacity", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          userId: currentUserId,
-          capacity: tempCapacities,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al actualizar la capacidad");
-      }
-
-    Object.entries(tempCapacities).forEach(([type, value]) => {
-        onUpdateCapacity(type as VehicleType, value);
-      });
+      await onUpdateCapacity(tempCapacities);
 
       toast({
         title: "Capacidad actualizada",
         description: "La capacidad se ha guardado correctamente.",
       });
-      setOpen(false);
-    } catch (error) {
+      setOpenCapacityDialog(false);
+    } catch (error: any) {
       console.error("Error al guardar capacidad:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "No se pudo guardar la capacidad.",
+        title: "Error al guardar capacidad",
+        description: error.message || "No se pudo guardar la capacidad.",
       });
     }
   };
@@ -262,32 +209,31 @@ export default function AdminPanel({
   };
 
   const handleEdit = (entry: ParkingHistory) => {
-    setEditingEntry({ ...entry, payment_method: entry.payment_method || 'No especificado' });
+    setEditingEntry({ ...entry });
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateEntry = async () => {
-    if (!editingEntry) return;
+  const handleUpdateEditingEntryField = (field: keyof ParkingHistory, value: any) => {
+    setEditingEntry(prev => prev ? { ...prev, [field]: value } : null);
+  };
+
+  const handleSaveUpdatedEntry = async () => {
+    if (!editingEntry || !onUpdateHistoryEntry) return;
     try {
-      await onUpdateHistoryEntry?.(editingEntry.id, editingEntry);
-      setFilteredHistory(prev => 
-        prev.map(entry => 
-          entry.id === editingEntry.id ? { ...entry, ...editingEntry } : entry
-        )
-      );
+      const entryToUpdate: ParkingHistory = {
+        ...editingEntry,
+        fee: parseFloat(String(editingEntry.fee)) || 0,
+        duration: parseInt(String(editingEntry.duration), 10) || 0,
+      };
+      if (isNaN(entryToUpdate.fee)) entryToUpdate.fee = 0;
+      if (isNaN(entryToUpdate.duration)) entryToUpdate.duration = 0;
+      
+      await onUpdateHistoryEntry(entryToUpdate);
+      toast({ title: "Registro actualizado" });
       setIsEditDialogOpen(false);
       setEditingEntry(null);
-      toast({
-        title: "Registro actualizado",
-        description: "El registro ha sido actualizado exitosamente.",
-      });
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error al actualizar",
-        description: "No se pudo actualizar el registro.",
-      });
-      console.error("Error al actualizar registro:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar el registro." });
     }
   };
 
@@ -328,15 +274,13 @@ export default function AdminPanel({
   };
 
   const handleFilteredDataChange = (newData: ParkingHistory[]) => {
-    // Filtrar entradas válidas y eliminar duplicados basados en id y tiempo de salida
     const validEntries = newData.filter(entry => 
       entry && 
       entry.id && 
       typeof entry.id === 'string' &&
-      entry.exit_time // asegurarse de que tenga tiempo de salida
+      entry.exit_time
     );
 
-    // Usar Map para mantener solo la entrada más reciente por matrícula
     const uniqueEntries = new Map();
     
     validEntries.forEach(entry => {
@@ -346,11 +290,11 @@ export default function AdminPanel({
       }
     });
     
-    // Convertir el Map a array y ordenar por tiempo de salida (más reciente primero)
     const filteredEntries = Array.from(uniqueEntries.values())
       .sort((a, b) => new Date(b.exit_time).getTime() - new Date(a.exit_time).getTime());
     
     setFilteredHistory(filteredEntries);
+    setSelectedEntries([]);
   };
 
   const renderSpaceInfo = (label: string, type: VehicleType) => (
@@ -363,9 +307,9 @@ export default function AdminPanel({
   )
 
   useEffect(() => {
-    // Actualizar historial filtrado si el historial original cambia
+    setTempCapacities(capacity);
     setFilteredHistory(history);
-  }, [history]);
+  }, [history, capacity]);
 
   return (
     <div className="space-y-6">
@@ -394,7 +338,7 @@ export default function AdminPanel({
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader className="flex flex-row justify-between items-center">
           <CardTitle className="dark:text-zinc-100">Estado Actual del Estacionamiento</CardTitle>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={openCapacityDialog} onOpenChange={setOpenCapacityDialog}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Modificar espacios
@@ -405,21 +349,22 @@ export default function AdminPanel({
                 <DialogTitle className="dark:text-zinc-100">Modificar capacidad máxima</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-2">
-                {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
+                {(Object.keys(tempCapacities) as VehicleType[]).map((type) => (
                   <div key={type} className="space-y-1">
                     <label className="text-sm font-medium dark:text-zinc-400">{type}</label>
                     <Input
                       type="number"
                       min={0}
-                      value={tempCapacities[type]}
-                      onChange={(e) => handleChange(type, parseInt(e.target.value))}
+                      value={tempCapacities[type] || 0}
+                      onChange={(e) => handleChangeCapacity(type, e.target.value)}
                       className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                     />
                   </div>
                 ))}
               </div>
               <DialogFooter>
-                <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
+                <Button onClick={() => { setOpenCapacityDialog(false); setTempCapacities(capacity); }} className="dark:bg-transparent dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-700">Cancelar</Button>
+                <Button onClick={handleSaveCapacity} className="dark:bg-green-600 dark:hover:bg-green-700">Guardar Cambios</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -432,8 +377,8 @@ export default function AdminPanel({
           </div>
           <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
             <p className="text-center font-medium dark:text-zinc-100">
-              Total: {availableSpaces.total.occupied} vehículos ocupando {availableSpaces.total.capacity} espacios (
-              {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
+              Total: {Object.values(availableSpaces).reduce((sum, avail) => sum + avail, 0)} vehículos ocupando {Object.values(capacity).reduce((sum, cap) => sum + cap, 0)} espacios (
+              {Object.values(capacity).reduce((sum, cap) => sum + cap, 0) - Object.values(availableSpaces).reduce((sum, avail) => sum + avail, 0)} libres)
             </p>
           </div>
         </CardContent>
@@ -674,8 +619,8 @@ export default function AdminPanel({
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</Button>
-            <Button onClick={handleUpdateEntry} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar Cambios</Button>
+            <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setEditingEntry(null); }} className="dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-700">Cancelar</Button>
+            <Button onClick={handleSaveUpdatedEntry} className="dark:bg-blue-600 dark:hover:bg-blue-700">Guardar Cambios</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

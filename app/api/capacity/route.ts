@@ -143,32 +143,21 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Primero eliminamos los registros existentes para este usuario
-    const { error: deleteError } = await supabase
-      .from("user_capacity")
-      .delete()
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      console.error("Error deleting existing capacity:", deleteError);
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
-    }
-
-    // Preparar los datos para insertar
-    const capacityToInsert = Object.entries(capacity).map(([vehicle_type, value]) => ({
+    // Preparar los datos para upsert
+    const capacityToUpsert = Object.entries(capacity).map(([vehicle_type, value]) => ({
       user_id: userId,
       vehicle_type,
       capacity: Number(value)
     }));
 
-    // Insertar los nuevos registros
-    const { error: insertError } = await supabase
+    // Realizar upsert de los registros de capacidad
+    const { error: upsertError } = await supabase
       .from("user_capacity")
-      .insert(capacityToInsert);
+      .upsert(capacityToUpsert, { onConflict: 'user_id, vehicle_type' }); // Asegúrate que 'user_id, vehicle_type' sea tu constraint UNIQUE
 
-    if (insertError) {
-      console.error("Error inserting capacity:", insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    if (upsertError) {
+      console.error("Error upserting capacity:", upsertError);
+      return NextResponse.json({ error: upsertError.message }, { status: 500 });
     }
 
     const jsonResponse = NextResponse.json({ success: true, capacity });

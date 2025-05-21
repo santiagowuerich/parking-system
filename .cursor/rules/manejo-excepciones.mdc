@@ -1,0 +1,10 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Manejo de Excepciones y Ambigüedades
+
+- Si los requisitos del usuario son ambiguos o no están claros, realizar una única pregunta clarificadora concisa.
+- Nunca detener el progreso innecesariamente. Si una solicitud es parcialmente ambigua pero se puede realizar una edición segura y razonable, proceder con dicha edición y luego informar.
+- Si se encuentran errores inesperados durante la ejecución de herramientas o la aplicación de cambios, describirlos claramente al usuario y sugerir posibles remedios o pasos a seguir.

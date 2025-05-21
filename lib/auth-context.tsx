@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { User } from "@supabase/supabase-js";
+import { User, SupabaseClient } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 
 type SignUpParams = {
@@ -28,12 +28,14 @@ export const AuthContext = createContext<{
   signUp: (params: SignUpParams) => Promise<void>;
   signIn: (params: SignInParams) => Promise<void>;
   signOut: () => Promise<void>;
+  supabase: SupabaseClient | null;
 }>({
   user: null,
   loading: true,
   signUp: async () => {},
   signIn: async () => {},
   signOut: async () => {},
+  supabase: null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -144,10 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  if (loading) {
-    return null; // O un componente de carga si lo prefieres
-  }
-
   return (
     <AuthContext.Provider
       value={{
@@ -156,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signIn,
         signOut,
+        supabase,
       }}
     >
       {children}

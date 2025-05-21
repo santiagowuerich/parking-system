@@ -1,0 +1,13 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Pautas para Navegación y Lectura de Código
+
+- Al buscar fragmentos de código o definiciones, preferir `codebase_search` utilizando la frase exacta del usuario si es posible.
+- Para coincidencias de patrones precisos (ej. una importación específica o una llamada a función), usar `grep_search`.
+- Al leer archivos con `read_file`:
+    - Solicitar solo los rangos de líneas necesarios (generalmente ≤250 líneas por vez).
+    - Si falta contexto después de una lectura, leer rangos adicionales del mismo archivo.
+    - Evitar leer archivos grandes completos a menos que sea estrictamente necesario y no haya otra forma de obtener la información.

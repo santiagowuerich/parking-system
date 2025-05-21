@@ -4,102 +4,77 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { VehicleType } from "@/lib/types";
-import { useAuth } from "@/lib/auth-context";
+import type { VehicleType, Rates, UserSettings } from "@/lib/types";
 import { toast } from "./ui/use-toast";
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
 
 interface SettingsPanelProps {
-  // Rates prop is no longer strictly required as the component fetches its own
-  // rates?: Record<VehicleType, number>; 
+  initialRates: Rates | null;
+  initialUserSettings: UserSettings | null;
+  onSaveRates: (newRates: Rates) => Promise<void>;
+  onSaveUserSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  userId: string;
 }
 
-export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
-  const { user } = useAuth();
-  // State for rates - initialize as null or empty object
-  const [localRates, setLocalRates] = useState<Record<VehicleType, number> | null>(null);
+export default function SettingsPanel({
+  initialRates,
+  initialUserSettings,
+  onSaveRates,
+  onSaveUserSettings,
+  userId 
+}: SettingsPanelProps) {
+  const [localRates, setLocalRates] = useState<Rates | null>(initialRates);
   const [isSavingRates, setIsSavingRates] = useState(false);
+  
   const [mercadopagoApiKey, setMercadopagoApiKey] = useState("");
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  
   const [bankAccountHolder, setBankAccountHolder] = useState("");
   const [bankAccountCbu, setBankAccountCbu] = useState("");
   const [bankAccountAlias, setBankAccountAlias] = useState("");
   const [isSavingTransfer, setIsSavingTransfer] = useState(false);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (!user?.id) {
-        setIsLoadingSettings(false);
-        return;
-      }
-      setIsLoadingSettings(true);
-      try {
-        const [ratesResponse, settingsResponse] = await Promise.all([
-          fetch(`/api/rates?userId=${user.id}`),
-          fetch(`/api/user/settings?userId=${user.id}`)
-        ]);
-
-        if (ratesResponse.ok) {
-          const ratesData = await ratesResponse.json();
-          setLocalRates(ratesData.rates || { Auto: 0, Moto: 0, Camioneta: 0 });
-        } else {
-          console.error("Error al cargar tarifas");
-          setLocalRates({ Auto: 0, Moto: 0, Camioneta: 0 });
-        }
-
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json();
-          setMercadopagoApiKey(settingsData.mercadopagoApiKey || "");
-          setBankAccountHolder(settingsData.bankAccountHolder || "");
-          setBankAccountCbu(settingsData.bankAccountCbu || "");
-          setBankAccountAlias(settingsData.bankAccountAlias || "");
-        } else {
-          console.error("Error al cargar configuración del usuario");
-          setMercadopagoApiKey("");
-          setBankAccountHolder("");
-          setBankAccountCbu("");
-          setBankAccountAlias("");
-        }
-
-      } catch (error) {
-        console.error("Error general al cargar configuración:", error);
-        toast({ title: "Error", description: "No se pudo cargar la configuración.", variant: "destructive" });
-        setLocalRates({ Auto: 0, Moto: 0, Camioneta: 0 });
-        setMercadopagoApiKey("");
-        setBankAccountHolder("");
-        setBankAccountCbu("");
-        setBankAccountAlias("");
-      } finally {
-        setIsLoadingSettings(false);
-      }
-    };
-
-    fetchSettings();
-  }, [user?.id]);
+    setIsLoading(true);
+    if (initialRates) {
+      setLocalRates(initialRates);
+    }
+    if (initialUserSettings) {
+      setMercadopagoApiKey(initialUserSettings.mercadopagoApiKey || "");
+      setBankAccountHolder(initialUserSettings.bankAccountHolder || "");
+      setBankAccountCbu(initialUserSettings.bankAccountCbu || "");
+      setBankAccountAlias(initialUserSettings.bankAccountAlias || "");
+    }
+    setIsLoading(false);
+  }, [initialRates, initialUserSettings]);
 
   const handleRateChange = (type: VehicleType, value: string) => {
     const numericValue = Number(value);
-    if (isNaN(numericValue) || numericValue < 0) return;
+    if (isNaN(numericValue) || numericValue < 0) {
+      const currentRate = localRates ? localRates[type] : '';
+      const input = document.getElementById(`rate-${type}`) as HTMLInputElement;
+      if (input) input.value = String(currentRate || 0);
+      return;
+    }
 
-    const newRates = { ...(localRates ?? {}), [type]: numericValue };
-    setLocalRates(newRates as Record<VehicleType, number>);
+    const newRates = { 
+      ...(localRates ?? { Auto: 0, Moto: 0, Camioneta: 0 }),
+      [type]: numericValue 
+    } as Rates;
+    setLocalRates(newRates);
   };
 
   const handleSaveRates = async () => {
-    if (!user?.id || !localRates) return;
+    if (!localRates) {
+        toast({ title: "Error", description: "No hay tarifas para guardar.", variant: "destructive" });
+        return;
+    }
     setIsSavingRates(true);
     try {
-      const response = await fetch("/api/rates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId: user.id, rates: localRates }),
-      });
-      if (!response.ok) throw new Error("Error al actualizar tarifas");
-      
+      await onSaveRates(localRates);
       toast({ title: "Tarifas actualizadas", description: "Las tarifas se han guardado correctamente." });
     } catch (error) {
       console.error("Error al guardar tarifas:", error);
@@ -110,17 +85,9 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
   };
 
   const handleSaveApiKey = async () => {
-    if (!user?.id) return;
     setIsSavingApiKey(true);
     try {
-      const response = await fetch("/api/user/settings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId: user.id, mercadopagoApiKey }),
-      });
-      if (!response.ok) throw new Error("Error al guardar API key");
+      await onSaveUserSettings({ mercadopagoApiKey });
       toast({ title: "API Key guardada", description: "La API Key de MercadoPago se ha guardado." });
     } catch (error) {
       console.error("Error al guardar API key:", error);
@@ -131,23 +98,13 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
   };
 
   const handleSaveTransferDetails = async () => {
-    if (!user?.id) return;
     setIsSavingTransfer(true);
     try {
-      const response = await fetch("/api/user/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          bankAccountHolder: bankAccountHolder,
-          bankAccountCbu: bankAccountCbu,
-          bankAccountAlias: bankAccountAlias
-        }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Error al guardar datos de transferencia");
-      }
+      await onSaveUserSettings({
+        bankAccountHolder: bankAccountHolder,
+        bankAccountCbu: bankAccountCbu,
+        bankAccountAlias: bankAccountAlias
+      }); 
       toast({ title: "Datos de Transferencia guardados", description: "La información se ha actualizado." });
     } catch (error: any) {
       console.error("Error al guardar datos de transferencia:", error);
@@ -157,7 +114,7 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
     }
   };
 
-  if (isLoadingSettings) {
+  if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
@@ -183,8 +140,7 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
           <CardTitle className="dark:text-zinc-100">Tarifas por Hora</CardTitle>
       </CardHeader>
         <CardContent className="space-y-4">
-          {localRates ? (
-            Object.entries(localRates).map(([type, rate]) => (
+          {(localRates ? Object.entries(localRates) : []).map(([type, rate]) => (
               <div key={type} className="space-y-2">
                 <Label htmlFor={`rate-${type}`} className="dark:text-zinc-400">{type}</Label>
                   <Input
@@ -192,16 +148,16 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
                     type="number"
                     min="0"
                     step="0.01"
-                  value={rate ?? ''}
+                  value={localRates?.[type as VehicleType] ?? 0} 
                   onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
                   disabled={isSavingRates}
                   className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                   />
                 </div>
-            ))
-          ) : (
-            <p className="dark:text-zinc-500">Error al cargar tarifas.</p>
-          )}
+            ))}
+            {!localRates && (
+                <p className="dark:text-zinc-500">Cargando tarifas o no disponibles...</p>
+            )}
           <div className="pt-4">
             <Button 
               onClick={handleSaveRates} 
@@ -249,30 +205,25 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
           <CardTitle className="dark:text-zinc-100">Configuración de Transferencia</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="bankHolder" className="dark:text-zinc-400">Nombre del Titular</Label>
-            <Input id="bankHolder" value={bankAccountHolder} onChange={(e) => setBankAccountHolder(e.target.value)} disabled={isSavingTransfer} placeholder="Nombre completo" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bankCbu" className="dark:text-zinc-400">CBU / CVU</Label>
-            <Input id="bankCbu" value={bankAccountCbu} onChange={(e) => setBankAccountCbu(e.target.value)} disabled={isSavingTransfer} placeholder="22 dígitos (CBU) o Alias.CVU" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="bankAlias" className="dark:text-zinc-400">Alias</Label>
-            <Input id="bankAlias" value={bankAccountAlias} onChange={(e) => setBankAccountAlias(e.target.value)} disabled={isSavingTransfer} placeholder="tu.alias.mp" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
+            <div className="space-y-2">
+                <Label htmlFor="bank-holder" className="dark:text-zinc-400">Nombre del Titular</Label>
+                <Input id="bank-holder" value={bankAccountHolder} onChange={e => setBankAccountHolder(e.target.value)} disabled={isSavingTransfer} className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
             </div>
-          <div className="pt-4">
-            <Button 
-              onClick={handleSaveTransferDetails} 
-              disabled={isSavingTransfer}
-              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
-            >
-              {isSavingTransfer ? "Guardando..." : "Guardar Datos Transferencia"}
-            </Button>
+            <div className="space-y-2">
+                <Label htmlFor="bank-cbu" className="dark:text-zinc-400">CBU/CVU</Label>
+                <Input id="bank-cbu" value={bankAccountCbu} onChange={e => setBankAccountCbu(e.target.value)} disabled={isSavingTransfer} className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
             </div>
-      </CardContent>
-    </Card>
-      
+            <div className="space-y-2">
+                <Label htmlFor="bank-alias" className="dark:text-zinc-400">Alias</Label>
+                <Input id="bank-alias" value={bankAccountAlias} onChange={e => setBankAccountAlias(e.target.value)} disabled={isSavingTransfer} className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" />
+            </div>
+            <div className="pt-2">
+                <Button onClick={handleSaveTransferDetails} disabled={isSavingTransfer} className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                    {isSavingTransfer ? "Guardando..." : "Guardar Datos de Transferencia"}
+                </Button>
+            </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

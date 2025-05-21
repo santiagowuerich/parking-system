@@ -323,7 +323,11 @@ export async function POST(request: NextRequest) {
         } else {
           console.log('❌ No es una consulta sobre vehículos estacionados ni tarifas generales');
 
-          // Si no es ninguno de los comandos especiales, enviar a Claude
+          // Si no es ninguno de los comandos especiales, devolver mensaje predefinido
+          // console.log('Enviando mensaje a Claude API...'); // Comentado o eliminado
+          aiResponse = "Lo siento, solo puedo ayudarte con consultas relacionadas con el sistema de estacionamiento.";
+
+          /* // Comentado o eliminado el bloque que llama a Claude API
           console.log('Enviando mensaje a Claude API...');
           try {
             const claudeMessages = [{ role: "user", content: userMessage }];
@@ -379,6 +383,7 @@ export async function POST(request: NextRequest) {
              const errorMessage = (error instanceof Error) ? error.message : "Error desconocido";
             aiResponse = `Ocurrió un error al procesar tu mensaje con el asistente externo: ${errorMessage}. Por favor, inténtalo de nuevo más tarde.`;
           }
+          */
         }
       }
     }

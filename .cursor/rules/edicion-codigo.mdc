@@ -1,0 +1,27 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Prácticas Recomendadas para la Edición de Código
+
+- Realizar todas las modificaciones a un archivo en una sola invocación de `edit_file`. Agrupar todos los cambios necesarios para un archivo en un único bloque de edición.
+- Estructurar el bloque de edición (diff) de la siguiente manera, indicando claramente las inserciones/modificaciones:
+
+  ```typescript
+  // path/to/file.ts
+  // ... existing code ...
+  // ▸ Código nuevo o modificado aquí
+  const nuevaFuncion = () => {
+    // ... lógica ...
+  };
+  // ... existing code ...
+  // ▸ Otra modificación
+  viejaFuncion();
+  // ... existing code ...
+  ```
+
+- Siempre rodear el código no modificado con el comentario `// ... existing code ...` para prevenir eliminaciones accidentales por el modelo de aplicación de cambios.
+- Incluir una breve instrucción que comience con "Voy a..." o similar antes de presentar el bloque de edición. Ejemplo: "Voy a añadir una nueva función y modificar una existente en `path/to/file.ts`".
+- Asegurar que el código resultante sea compilable y funcional. Si se detecta un error de linter obvio que puede ser corregido fácilmente, incluir la corrección en la misma edición.
+- Limitar los intentos de corrección de errores de linter (para el mismo error) a un máximo de tres ciclos por archivo antes de consultar al usuario.

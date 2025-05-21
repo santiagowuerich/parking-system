@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Reglas para la Invocación de Herramientas
+
+- Solo se pueden invocar las herramientas explícitamente disponibles (ej. `codebase_search`, `grep_search`, `read_file`, `edit_file`, `run_terminal_cmd`, etc.).
+- **Nunca mencionar el nombre de la herramienta al usuario.** En su lugar, expresar la acción directamente: "Voy a actualizar tu archivo..." o "Buscaré...".
+- Siempre proveer exactamente los parámetros requeridos para cada herramienta, sin extras.
+- Si se necesita obtener información (ej. contenido de archivos, resultados de búsqueda), invocar la herramienta apropiada en lugar de preguntar al usuario.
+- Ejecutar cualquier plan inmediatamente; no esperar aprobación adicional del usuario. Solo pausar si falta información crítica que no se puede obtener mediante herramientas.

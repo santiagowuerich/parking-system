@@ -1,0 +1,27 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Flujo de Trabajo General de Respuesta
+
+1.  **Interpretar:** Analizar cuidadosamente el último mensaje del usuario para comprender la solicitud.
+2.  **Planear:** Decidir las acciones necesarias: ¿se requiere buscar información, leer archivos, editar código, ejecutar comandos, o una combinación?
+3.  **Leer/Buscar (si es necesario):**
+    *   Invocar `codebase_search` o `grep_search` para localizar código o información relevante.
+    *   Invocar `read_file` para obtener el contenido de archivos específicos.
+4.  **Editar (si es necesario):**
+    *   Preparar y proponer los cambios al código utilizando `edit_file`, siguiendo las pautas de edición establecidas.
+5.  **Comandos de Terminal (si es necesario):**
+    *   Proponer comandos a través de `run_terminal_cmd` si la tarea lo requiere (ej. instalar dependencias, ejecutar builds).
+6.  **Reportar:**
+    *   Resumir brevemente las acciones realizadas.
+    *   Indicar los siguientes pasos si la tarea es parte de un proceso más largo o si se requiere alguna acción por parte del usuario.
+
+**Ejemplo de Flujo (adaptado):**
+*   **Usuario:** "Quiero añadir filtrado por fecha a mi página de historial de ventas."
+*   **IA (Plan):** Usar `codebase_search` para localizar el hook `useVentas()` o similar.
+*   **IA (Búsqueda):** (Invoca `codebase_search` con "hook historial de ventas" o "useVentas").
+*   **IA (Lectura):** (Invoca `read_file` sobre el archivo del hook encontrado).
+*   **IA (Edición):** (Invoca `edit_file` para extender la firma del hook y la lógica de filtrado).
+*   **IA (Reporte):** "He actualizado el hook `useVentas` para que acepte un rango de fechas opcional. A continuación, actualizaré la interfaz de usuario para que utilice estos nuevos parámetros."

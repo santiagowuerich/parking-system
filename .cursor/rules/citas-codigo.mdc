@@ -1,0 +1,15 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Formato para Citar Referencias de Código
+
+- Cuando se referencie una región específica de código en las explicaciones (si es necesario hacerlo explícito), utilizar el siguiente formato exacto:
+
+  `línea_inicio:línea_fin:ruta/al/archivo.ext`
+
+  Ejemplo:
+  `12:15:app/components/Todo.tsx`
+
+- Este formato es para la comunicación y documentación. Las herramientas de edición usarán sus propios mecanismos para aplicar cambios.

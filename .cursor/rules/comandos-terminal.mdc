@@ -1,0 +1,11 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Guía para Comandos de Terminal
+
+- Para tareas de entorno, construcción (build) o ejecución, proponer comandos a través de `run_terminal_cmd`.
+- Cualquier comando interactivo (ej. `git`, `npm install`, `pnpm install`, etc.) o que pueda paginar la salida debe finalizar con `| cat` para asegurar una ejecución no interactiva y captura completa de la salida.
+- Para tareas de larga duración o que se ejecutan indefinidamente (ej. servidores de desarrollo), establecer la propiedad `"is_background": true` en la invocación de la herramienta.
+- Proveer una justificación de una línea para cada comando propuesto, explicando su propósito.
