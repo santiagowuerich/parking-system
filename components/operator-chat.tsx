@@ -7,6 +7,7 @@ import { MessageSquare, Send, X, AlertCircle, RefreshCw } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import { Session } from '@supabase/supabase-js'
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth-context";
 
 interface Message {
   id: string
@@ -26,6 +27,7 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export function OperatorChat() {
+  const { initializeRates, initRatesDone } = useAuth();
   const [session, setSession] = useState<Session | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
@@ -38,8 +40,8 @@ export function OperatorChat() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Añadir estado para seguimiento de inicialización
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Usar el estado del contexto en lugar del estado local
+  const [isInitialized, setIsInitialized] = useState(initRatesDone);
 
   // Agregar estado para detectar comandos especiales
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
@@ -63,12 +65,19 @@ export function OperatorChat() {
     fetchSession();
   }, [supabase]); // Dependencia solo de supabase
 
-  // Añadir useEffect para inicializar tarifas
+  // Efecto para sincronizar el estado local con el contexto
+  useEffect(() => {
+    setIsInitialized(initRatesDone);
+  }, [initRatesDone]);
+
+  // Actualizar el efecto que inicializa las tarifas
   useEffect(() => {
     if (!isInitialized) {
+      // Llamar a la función del contexto en lugar de la función local
       initializeRates();
+      setIsInitialized(true);
     }
-  }, [isInitialized]);
+  }, [isInitialized, initializeRates]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -260,33 +269,6 @@ export function OperatorChat() {
       setIsLoading(false);
     }
   }
-
-  // Función para inicializar tarifas
-  const initializeRates = async () => {
-    try {
-      const response = await fetch('/api/parking/init-rates');
-      const data = await response.json();
-      
-      console.log('Inicialización de tarifas:', data);
-      setIsInitialized(true);
-      
-      // Opcionalmente, mostrar mensaje si se inicializaron nuevas tarifas
-      if (data.message === 'Tarifas inicializadas correctamente.') {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            content: 'He inicializado las tarifas base del sistema. Ahora puedes modificarlas o consultarlas.',
-            isUser: false,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error al inicializar tarifas:', error);
-      setIsInitialized(true); // Marcar como inicializado de todas formas para no seguir intentando
-    }
-  };
 
   // Modificar el renderizado para destacar los comandos de sistema
   const renderMessages = () => {

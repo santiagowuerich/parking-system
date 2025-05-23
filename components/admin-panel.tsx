@@ -269,10 +269,18 @@ export default function AdminPanel({
   const handleUpdateEntry = async () => {
     if (!editingEntry) return;
     try {
-      await onUpdateHistoryEntry?.(editingEntry.id, editingEntry);
+      // Extraer solo los campos que necesitamos actualizar
+      const updates = {
+        license_plate: editingEntry.license_plate,
+        fee: editingEntry.fee,
+        payment_method: editingEntry.payment_method
+      };
+      
+      await onUpdateHistoryEntry?.(editingEntry.id, updates);
+      
       setFilteredHistory(prev => 
         prev.map(entry => 
-          entry.id === editingEntry.id ? { ...entry, ...editingEntry } : entry
+          entry.id === editingEntry.id ? { ...entry, ...updates } : entry
         )
       );
       setIsEditDialogOpen(false);
@@ -665,7 +673,7 @@ export default function AdminPanel({
                   <SelectContent>
                     <SelectItem value="efectivo">Efectivo</SelectItem>
                     <SelectItem value="transferencia">Transferencia</SelectItem>
-                    <SelectItem value="qr">Código QR</SelectItem>
+                    <SelectItem value="MercadoPago QR">Código QR</SelectItem>
                     <SelectItem value="mercadopago">Mercado Pago</SelectItem>
                     <SelectItem value="No especificado">No especificado</SelectItem>
                   </SelectContent>

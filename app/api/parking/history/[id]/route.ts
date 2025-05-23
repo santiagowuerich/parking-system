@@ -6,7 +6,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const id = params.id;
+  const resolvedParams = await Promise.resolve(params);
+  const id = resolvedParams.id;
   const cookieStore = await cookies();
 
   try {
@@ -70,7 +71,8 @@ export async function PATCH(
   const cookieStore = await cookies();
   try {
     const historyId = resolvedParams.id;
-    const updates = await request.json(); 
+    const requestBody = await request.json();
+    const updates = requestBody.updates || {};
     
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -107,6 +109,8 @@ export async function PATCH(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    console.log("Actualizando registro con datos:", updates);
+
     const { data, error } = await supabase
       .from('parking_history')
       .update(updates)
@@ -124,7 +128,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Registro no encontrado o no autorizado" }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({ updatedEntry: data });
   } catch (error: any) {
     console.error("Error en PATCH /api/parking/history/[id]:", error);
     return NextResponse.json({ error: "Error interno del servidor", details: error.message }, { status: 500 });

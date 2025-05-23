@@ -29,15 +29,18 @@ type ExitInfo = {
 };
 
 export default function ParkingApp() {
-  const { user, loading: authLoading } = useAuth();
-  const [parkedVehicles, setParkedVehicles] = useState<Parking[]>([]);
-  const [parkingHistory, setParkingHistory] = useState<ParkingHistory[]>([]);
-  const [rates, setRates] = useState<Record<VehicleType, number>>({
-    Auto: 0,
-    Moto: 0,
-    Camioneta: 0,
-  });
-
+  const { 
+    user, 
+    loading: authLoading, 
+    loadingUserData,
+    parkedVehicles: contextParkedVehicles,
+    parkingHistory: contextParkingHistory,
+    rates: contextRates,
+    parkingCapacity: contextCapacity,
+    refreshParkedVehicles,
+    refreshParkingHistory
+  } = useAuth();
+  
   const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
 
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -48,7 +51,6 @@ export default function ParkingApp() {
     qrCodeBase64?: string;
   } | null>(null);
 
-  const [loading, setLoading] = useState(true);
   const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
   const [exitingVehicle, setExitingVehicle] = useState<Vehicle | null>(null);
   const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
@@ -56,20 +58,25 @@ export default function ParkingApp() {
   const [paymentDetails, setPaymentDetails] = useState<any>(null);
   const [showTransferInfoDialog, setShowTransferInfoDialog] = useState(false);
 
+  // Usar los datos del contexto para inicializar el estado local
   const [parking, setParking] = useState<Parking>({
-    capacity: {
-      Auto: 0,
-      Moto: 0,
-      Camioneta: 0,
-    },
-    rates: {
-      Auto: 0,
-      Moto: 0,
-      Camioneta: 0,
-    },
-    parkedVehicles: [],
-    history: [],
+    capacity: contextCapacity || { Auto: 0, Moto: 0, Camioneta: 0 },
+    rates: contextRates || { Auto: 0, Moto: 0, Camioneta: 0 },
+    parkedVehicles: contextParkedVehicles || [],
+    history: contextParkingHistory || [],
   });
+
+  // Actualizar el estado local cuando cambien los datos en el contexto
+  useEffect(() => {
+    if (contextCapacity || contextRates || contextParkedVehicles || contextParkingHistory) {
+      setParking(prev => ({
+        capacity: contextCapacity || prev.capacity,
+        rates: contextRates || prev.rates,
+        parkedVehicles: contextParkedVehicles || prev.parkedVehicles,
+        history: contextParkingHistory || prev.history,
+      }));
+    }
+  }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory]);
 
   const registerEntry = async (vehicle: Omit<Vehicle, "entry_time" | "user_id">) => {
     if (!user?.id) {
@@ -141,6 +148,9 @@ export default function ParkingApp() {
       ...prev,
       parkedVehicles: [...prev.parkedVehicles, newVehicle],
     }));
+
+    // También actualizamos los datos en el contexto
+    await refreshParkedVehicles();
 
       toast({
         title: "Éxito",
@@ -271,6 +281,8 @@ export default function ParkingApp() {
           setQrData({ code: paymentData.qr_code, fee: paymentData.fee, qrCodeBase64: paymentData.qr_code_base64 });
           setShowQRDialog(true);
         } else if (method === 'mercadopago' && paymentData.init_point) {
+          // Guardar los detalles del método de pago antes de abrir la ventana
+          setPaymentDetails({ method: 'mercadopago', status: 'Pendiente' });
           window.open(paymentData.init_point, '_blank');
           toast({ title: "Procesando pago", description: "Se ha abierto una nueva ventana..." });
           setPaymentConfirmationOpen(true);
@@ -315,14 +327,23 @@ export default function ParkingApp() {
     duration: number,
     exitTime: Date
   ): Promise<ParkingHistory> => {
+    if (!user?.id) {
+      throw new Error("User not authenticated");
+    }
+
+    const exitTimeISO = exitTime.toISOString();
+    const durationInMs = Math.round(duration * 60 * 1000);
+
     try {
-      if (!user?.id) {
-        throw new Error("Debe iniciar sesión para registrar salidas");
-      }
+      console.log('🔄 Registrando salida de vehículo:', {
+        vehicle,
+        paymentMethod,
+        fee,
+        duration,
+        exitTime: exitTimeISO
+      });
 
-      const exitTimeISO = exitTime.toISOString();
-      const durationInMs = Math.round(duration * 60 * 1000);
-
+      // Usar '/api/parking/log' en lugar de '/api/parking/exit'
       const response = await fetch("/api/parking/log", {
         method: "POST",
         headers: {
@@ -341,40 +362,40 @@ export default function ParkingApp() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        const errorData = await response.json();
+        console.error("Error registering vehicle exit:", errorData);
         throw new Error(errorData.error || "Error al registrar la salida");
       }
 
-      const historyEntryResponse = await response.json(); // Obtener respuesta (puede ser array)
-      const newHistoryEntry = Array.isArray(historyEntryResponse) ? historyEntryResponse[0] : historyEntryResponse;
-
-      if (!newHistoryEntry || !newHistoryEntry.id) {
-          console.error("Respuesta inválida de /api/parking/log:", historyEntryResponse);
-          throw new Error("No se recibió la entrada de historial creada desde la API.");
+      const data = await response.json();
+      
+      if (!data || data.length === 0) {
+        throw new Error("No se recibió entrada de historial del servidor");
       }
 
-      // Actualizar el estado local SIN mostrar toast aquí
+      // El primer elemento del array es la entrada de historial
+      const historyEntry = data[0];
+      console.log('✅ Salida registrada correctamente:', historyEntry);
+
+      // Actualizar el estado local
       setParking((prev) => ({
         ...prev,
         parkedVehicles: prev.parkedVehicles.filter(
           (v) => v.license_plate !== vehicle.license_plate
         ),
-        // Asegurarse de añadir la entrada correcta al historial
-        history: [newHistoryEntry, ...prev.history.filter(h => h.id !== newHistoryEntry.id)], 
+        history: [...prev.history, historyEntry],
       }));
 
-      // Devolver la entrada creada para que el llamador muestre el toast
-      return newHistoryEntry;
+      // Actualizar los datos en el contexto
+      await Promise.all([
+        refreshParkedVehicles(),
+        refreshParkingHistory()
+      ]);
 
-    } catch (error: any) {
-      console.error("Error registrando salida:", error);
-      // Mostrar toast de error aquí
-      toast({
-        variant: "destructive",
-        title: "Error al registrar salida",
-        description: error.message || "Error desconocido",
-      });
-      throw error; // Relanzar para que el llamador sepa que falló
+      return historyEntry;
+    } catch (error) {
+      console.error("Error registering exit:", error);
+      throw error;
     }
   };
 
@@ -389,6 +410,25 @@ export default function ParkingApp() {
   };
 
   const updateCapacity = (type: VehicleType, capacity: number) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "No estás autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (capacity < 0) {
+      toast({
+        title: "Error",
+        description: "La capacidad no puede ser negativa",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Actualizar localmente primero para UI responsiva
     setParking((prev) => ({
       ...prev,
       capacity: {
@@ -396,6 +436,50 @@ export default function ParkingApp() {
         [type]: capacity,
       },
     }));
+
+    // Luego enviar al servidor
+    fetch("/api/capacity", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        type,
+        capacity,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Error al actualizar capacidad");
+        
+        // Actualizar el contexto global después de guardar en el servidor
+        await fetch(`/api/capacity?userId=${user.id}`)
+          .then(res => res.json())
+          .then(data => {
+            console.log("Capacidad actualizada en el contexto:", data.capacity);
+          })
+          .catch(error => {
+            console.error("Error al refrescar capacidad en el contexto:", error);
+          });
+          
+        return response.json();
+      })
+      .then(() => {
+        toast({
+          title: "Éxito",
+          description: `Capacidad de ${type} actualizada a ${capacity}`,
+        });
+      })
+      .catch((error) => {
+        console.error("Error al guardar capacidad:", error);
+        toast({
+          title: "Error",
+          description: "No se pudo guardar la capacidad",
+          variant: "destructive",
+        });
+        // Revertir cambio local si falla
+        // fetchCapacity();
+      });
   };
 
   const getAvailableSpaces = () => {
@@ -417,62 +501,103 @@ export default function ParkingApp() {
   };
 
   const handleDeleteHistoryEntry = async (id: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "No estás autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const response = await fetch(`/api/parking/history/${id}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: user.id }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "Error al eliminar el registro");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al eliminar entrada del historial");
       }
 
-      if (data.success) {
-        setParking((prev) => ({
-          ...prev,
-          history: prev.history.filter((entry) => entry.id !== id),
-        }));
-      }
-    } catch (error) {
-      console.error("Error al eliminar registro:", error);
-      throw error;
+      // Actualizar el estado local
+      setParking((prev) => ({
+        ...prev,
+        history: prev.history.filter((entry) => entry.id !== id),
+      }));
+
+      // Actualizar el contexto
+      await refreshParkingHistory();
+
+      toast({
+        title: "Éxito",
+        description: "Entrada eliminada del historial",
+      });
+    } catch (error: any) {
+      console.error("Error eliminando entrada del historial:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Error al eliminar entrada del historial",
+        variant: "destructive",
+      });
     }
   };
 
   const handleUpdateHistoryEntry = async (id: string, updates: Partial<ParkingHistory>) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "No estás autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const response = await fetch(`/api/parking/history/${id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
-          // Podríamos necesitar añadir Authorization header si la API lo requiere
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          userId: user.id,
+          updates,
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})); // Intenta parsear error, si no, objeto vacío
-        throw new Error(errorData.error || `Error ${response.status} al actualizar el registro`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al actualizar entrada del historial");
       }
 
-      const updatedEntry = await response.json();
+      const { updatedEntry } = await response.json();
 
-      // Actualizar el estado local CON LA RESPUESTA DE LA API
-      setParking(prev => ({
+      // Actualizar el estado local
+      setParking((prev) => ({
         ...prev,
-        history: prev.history.map(entry => 
+        history: prev.history.map((entry) =>
           entry.id === id ? { ...entry, ...updatedEntry } : entry
         ),
       }));
 
-      // Ya no necesitamos el toast aquí, AdminPanel lo maneja
-      // toast({ ... });
+      // Actualizar el contexto
+      await refreshParkingHistory();
 
-    } catch (error) {
-      console.error("Error en handleUpdateHistoryEntry:", error);
-      // Relanzar el error para que AdminPanel lo capture y muestre el toast de error
-      throw error;
+      toast({
+        title: "Éxito",
+        description: "Entrada del historial actualizada",
+      });
+    } catch (error: any) {
+      console.error("Error actualizando entrada del historial:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Error al actualizar entrada del historial",
+        variant: "destructive",
+      });
     }
   };
 
@@ -528,8 +653,8 @@ export default function ParkingApp() {
 
       await handleDeleteHistoryEntry(entry.id);
 
-      const now = new Date(); // Crear fecha una sola vez
-      const entryTimeISO = now.toISOString(); // Usar ISO para la API
+      // Usar la hora original de entrada en lugar de la hora actual
+      const originalEntryTime = entry.entry_time;
 
       const response = await fetch("/api/parking/entry", {
         method: "POST",
@@ -539,7 +664,7 @@ export default function ParkingApp() {
         body: JSON.stringify({
           license_plate: entry.license_plate,
           type: entry.type,
-          entry_time: entryTimeISO, // Enviar ISO a la API
+          entry_time: originalEntryTime, // Usar la hora original de entrada
           user_id: user.id
         }),
       });
@@ -548,11 +673,11 @@ export default function ParkingApp() {
         throw new Error("Error al crear nuevo registro de entrada");
       }
 
-      // Crear el objeto para el estado local usando la misma fecha ISO
+      // Crear el objeto para el estado local usando la hora original
       const newVehicle: Vehicle = {
         license_plate: entry.license_plate,
         type: entry.type,
-        entry_time: entryTimeISO, // Usar ISO también en el estado local
+        entry_time: originalEntryTime, // Usar la hora original de entrada
         user_id: user.id
       };
 
@@ -567,7 +692,7 @@ export default function ParkingApp() {
 
       toast({
         title: "Vehículo reingresado",
-        description: `El vehículo ${entry.license_plate} ha sido reingresado exitosamente.`,
+        description: `El vehículo ${entry.license_plate} ha sido reingresado exitosamente con su hora original de entrada.`,
       });
     } catch (error) {
       console.error("Error al reingresar vehículo:", error);
@@ -592,15 +717,32 @@ export default function ParkingApp() {
     let historyEntry: ParkingHistory | null = null;
     
     // Check for vehicle and payment details early
-    if (!exitingVehicle || !user || !paymentDetails?.method) { // Added check for paymentDetails.method
-      toast({ variant: "destructive", title: "Error de estado", description: "Falta información del vehículo, usuario o método de pago para confirmar." });
+    if (!exitingVehicle || !user) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error de estado", 
+        description: "Falta información del vehículo o usuario para confirmar." 
+      });
       // Reset potentially inconsistent state
       setShowQRDialog(false); 
       setQrData(null); 
       setExitingVehicle(null);
-      setPaymentDetails(null); // Clear payment details
+      setPaymentDetails(null);
       setPaymentMethodDialogOpen(false);
       setShowTransferInfoDialog(false);
+      return;
+    }
+    
+    if (!paymentDetails?.method) {
+      console.error("Error: No hay método de pago definido", { paymentDetails });
+      toast({ 
+        variant: "destructive", 
+        title: "Error de método de pago", 
+        description: "No se ha seleccionado un método de pago válido. Inténtelo de nuevo." 
+      });
+      
+      // Volver a mostrar el diálogo de selección de método de pago
+      setPaymentMethodDialogOpen(true);
       return;
     }
 
@@ -709,40 +851,16 @@ export default function ParkingApp() {
   useEffect(() => {
     const loadInitialData = async () => {
       if (!user) {
-        setLoading(false);
         return;
       }
 
       try {
-        const [parkedResponse, historyResponse, ratesResponse, capacityResponse] = await Promise.all([
-          fetch(`/api/parking/parked?userId=${user.id}`),
-          fetch(`/api/parking/history?userId=${user.id}`),
-          fetch(`/api/rates?userId=${user.id}`),
-          fetch(`/api/capacity?userId=${user.id}`)
-        ]);
-
-        const responses = await Promise.all([
-          parkedResponse.ok ? parkedResponse.json() : { parkedVehicles: [] },
-          historyResponse.ok ? historyResponse.json() : { history: [] },
-          ratesResponse.ok ? ratesResponse.json() : { rates: { Auto: 0, Moto: 0, Camioneta: 0 } },
-          capacityResponse.ok ? capacityResponse.json() : { capacity: { Auto: 0, Moto: 0, Camioneta: 0 } }
-        ]);
-
-        const [parkedData, historyData, ratesData, capacityData] = responses;
-
-        console.log('Datos cargados:', { parkedData, historyData, ratesData, capacityData });
-
-        // Ya no formateamos aquí, asumimos que viene en formato compatible con new Date()
-        const parkedVehiclesFromDB = Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : [];
-
-        // Actualizar el estado de parking con todos los datos
-        setParking(prev => ({
-          ...prev,
-          capacity: capacityData.capacity || { Auto: 0, Moto: 0, Camioneta: 0 },
-          rates: ratesData.rates || { Auto: 0, Moto: 0, Camioneta: 0 },
-          parkedVehicles: parkedVehiclesFromDB,
-          history: Array.isArray(historyData.history) ? historyData.history : []
-        }));
+        console.log('Datos cargados desde el contexto:', { 
+          parkedVehicles: contextParkedVehicles, 
+          history: contextParkingHistory, 
+          rates: contextRates, 
+          capacity: contextCapacity 
+        });
 
       } catch (error) {
         console.error("Error loading initial data:", error);
@@ -751,15 +869,13 @@ export default function ParkingApp() {
           title: "Error",
           description: "Error al cargar los datos iniciales"
         });
-      } finally {
-        setLoading(false);
       }
     };
 
     loadInitialData();
-  }, [user]);
+  }, [user, contextParkedVehicles, contextParkingHistory, contextRates, contextCapacity]);
   
-  if (authLoading || loading) {
+  if (authLoading || loadingUserData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-16 h-16 animate-spin" />

@@ -16,68 +16,29 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
-  const { user } = useAuth();
-  // State for rates - initialize as null or empty object
-  const [localRates, setLocalRates] = useState<Record<VehicleType, number> | null>(null);
+  const { user, rates, userSettings, loadingUserData, fetchUserData } = useAuth();
+  // State for rates - initialize with rates from context
+  const [localRates, setLocalRates] = useState<Record<VehicleType, number> | null>(rates);
   const [isSavingRates, setIsSavingRates] = useState(false);
-  const [mercadopagoApiKey, setMercadopagoApiKey] = useState("");
+  const [mercadopagoApiKey, setMercadopagoApiKey] = useState(userSettings?.mercadopagoApiKey || "");
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
-  const [bankAccountHolder, setBankAccountHolder] = useState("");
-  const [bankAccountCbu, setBankAccountCbu] = useState("");
-  const [bankAccountAlias, setBankAccountAlias] = useState("");
+  const [bankAccountHolder, setBankAccountHolder] = useState(userSettings?.bankAccountHolder || "");
+  const [bankAccountCbu, setBankAccountCbu] = useState(userSettings?.bankAccountCbu || "");
+  const [bankAccountAlias, setBankAccountAlias] = useState(userSettings?.bankAccountAlias || "");
   const [isSavingTransfer, setIsSavingTransfer] = useState(false);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
+  // Actualizar los estados locales cuando cambian los datos en el contexto
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (!user?.id) {
-        setIsLoadingSettings(false);
-        return;
-      }
-      setIsLoadingSettings(true);
-      try {
-        const [ratesResponse, settingsResponse] = await Promise.all([
-          fetch(`/api/rates?userId=${user.id}`),
-          fetch(`/api/user/settings?userId=${user.id}`)
-        ]);
-
-        if (ratesResponse.ok) {
-          const ratesData = await ratesResponse.json();
-          setLocalRates(ratesData.rates || { Auto: 0, Moto: 0, Camioneta: 0 });
-        } else {
-          console.error("Error al cargar tarifas");
-          setLocalRates({ Auto: 0, Moto: 0, Camioneta: 0 });
-        }
-
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json();
-          setMercadopagoApiKey(settingsData.mercadopagoApiKey || "");
-          setBankAccountHolder(settingsData.bankAccountHolder || "");
-          setBankAccountCbu(settingsData.bankAccountCbu || "");
-          setBankAccountAlias(settingsData.bankAccountAlias || "");
-        } else {
-          console.error("Error al cargar configuración del usuario");
-          setMercadopagoApiKey("");
-          setBankAccountHolder("");
-          setBankAccountCbu("");
-          setBankAccountAlias("");
-        }
-
-      } catch (error) {
-        console.error("Error general al cargar configuración:", error);
-        toast({ title: "Error", description: "No se pudo cargar la configuración.", variant: "destructive" });
-        setLocalRates({ Auto: 0, Moto: 0, Camioneta: 0 });
-        setMercadopagoApiKey("");
-        setBankAccountHolder("");
-        setBankAccountCbu("");
-        setBankAccountAlias("");
-      } finally {
-        setIsLoadingSettings(false);
-      }
-    };
-
-    fetchSettings();
-  }, [user?.id]);
+    if (rates) {
+      setLocalRates(rates);
+    }
+    if (userSettings) {
+      setMercadopagoApiKey(userSettings.mercadopagoApiKey || "");
+      setBankAccountHolder(userSettings.bankAccountHolder || "");
+      setBankAccountCbu(userSettings.bankAccountCbu || "");
+      setBankAccountAlias(userSettings.bankAccountAlias || "");
+    }
+  }, [rates, userSettings]);
 
   const handleRateChange = (type: VehicleType, value: string) => {
     const numericValue = Number(value);
@@ -101,6 +62,8 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
       if (!response.ok) throw new Error("Error al actualizar tarifas");
       
       toast({ title: "Tarifas actualizadas", description: "Las tarifas se han guardado correctamente." });
+      // Actualizar los datos en el contexto
+      await fetchUserData();
     } catch (error) {
       console.error("Error al guardar tarifas:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron guardar las tarifas." });
@@ -122,6 +85,8 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
       });
       if (!response.ok) throw new Error("Error al guardar API key");
       toast({ title: "API Key guardada", description: "La API Key de MercadoPago se ha guardado." });
+      // Actualizar los datos en el contexto
+      await fetchUserData();
     } catch (error) {
       console.error("Error al guardar API key:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la API Key." });
@@ -149,6 +114,8 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
         throw new Error(errorData.error || "Error al guardar datos de transferencia");
       }
       toast({ title: "Datos de Transferencia guardados", description: "La información se ha actualizado." });
+      // Actualizar los datos en el contexto
+      await fetchUserData();
     } catch (error: any) {
       console.error("Error al guardar datos de transferencia:", error);
       toast({ variant: "destructive", title: "Error", description: error.message || "No se pudieron guardar los datos de transferencia." });
@@ -157,7 +124,7 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
     }
   };
 
-  if (isLoadingSettings) {
+  if (loadingUserData) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
