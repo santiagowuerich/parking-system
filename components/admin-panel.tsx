@@ -98,7 +98,7 @@ export default function AdminPanel({
   onUpdateHistoryEntry,
   onReenterVehicle,
 }: AdminPanelProps) {
-  const { user } = useAuth();
+  const { user, refreshCapacity } = useAuth();
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -183,9 +183,13 @@ export default function AdminPanel({
         throw new Error(errorData.error || "Error al actualizar la capacidad");
       }
 
-    Object.entries(tempCapacities).forEach(([type, value]) => {
+      // Actualizar cada tipo de capacidad en el componente padre
+      Object.entries(tempCapacities).forEach(([type, value]) => {
         onUpdateCapacity(type as VehicleType, value);
       });
+
+      // Refrescar la capacidad en el contexto
+      await refreshCapacity();
 
       toast({
         title: "Capacidad actualizada",

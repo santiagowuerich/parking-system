@@ -44,20 +44,20 @@ export default function HistoryFilters({
     // Filtrar por matrícula
     if (filters.licensePlate) {
       filtered = filtered.filter((entry) =>
-        entry.licensePlate.toLowerCase().includes(filters.licensePlate.toLowerCase())
+        entry.license_plate.toLowerCase().includes(filters.licensePlate.toLowerCase())
       );
     }
 
     // Filtrar por fecha
     if (filters.dateFrom) {
       filtered = filtered.filter(
-        (entry) => new Date(entry.entryTime) >= new Date(filters.dateFrom)
+        (entry) => new Date(entry.entry_time) >= new Date(filters.dateFrom)
       );
     }
 
     if (filters.dateTo) {
       filtered = filtered.filter(
-        (entry) => new Date(entry.exitTime) <= new Date(filters.dateTo)
+        (entry) => new Date(entry.exit_time) <= new Date(filters.dateTo)
       );
     }
 

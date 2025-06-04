@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
-export async function DELETE(req: Request, { params }: { params: { licensePlate: string } }) {
-  const { licensePlate } = params;
+export async function DELETE(req: Request, { params }: { params: Promise<{ licensePlate: string }> }) {
+  const { licensePlate } = await params;
 
   try {
     const { error } = await supabase

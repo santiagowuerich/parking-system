@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverExternalPackages: ["mysql2"],
-  },
+  serverExternalPackages: ["mysql2"],
   env: {
     // Exponer explícitamente CLAUDE_API_KEY a la aplicación
     CLAUDE_API_KEY: process.env.CLAUDE_API_KEY,

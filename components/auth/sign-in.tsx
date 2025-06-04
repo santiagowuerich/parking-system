@@ -29,16 +29,7 @@ export default function SignIn() {
     setError("");
 
     try {
-      const { data, error: signInError } = await signIn(email, password);
-      
-      if (signInError) {
-        throw signInError;
-      }
-
-      if (!data.user) {
-        throw new Error("Error al iniciar sesión");
-      }
-
+      await signIn({ email, password });
       router.push("/");
       router.refresh();
     } catch (err: any) {

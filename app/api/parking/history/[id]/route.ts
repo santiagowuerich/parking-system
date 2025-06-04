@@ -4,10 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const resolvedParams = await Promise.resolve(params);
-  const id = resolvedParams.id;
+  const { id } = await params;
   const cookieStore = await cookies();
 
   try {
@@ -65,12 +64,11 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const resolvedParams = await Promise.resolve(params);
+  const { id: historyId } = await params;
   const cookieStore = await cookies();
   try {
-    const historyId = resolvedParams.id;
     const requestBody = await request.json();
     const updates = requestBody.updates || {};
     

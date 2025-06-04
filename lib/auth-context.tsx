@@ -62,6 +62,7 @@ export const AuthContext = createContext<{
   refreshParkedVehicles: () => Promise<void>;
   refreshParkingHistory: () => Promise<void>;
   initializeRates: () => Promise<void>;
+  refreshCapacity: () => Promise<void>;
 }>({
   user: null,
   loading: true,
@@ -79,6 +80,7 @@ export const AuthContext = createContext<{
   refreshParkedVehicles: async () => {},
   refreshParkingHistory: async () => {},
   initializeRates: async () => {},
+  refreshCapacity: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -262,16 +264,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cachedTimestamp = localStorage.getItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
     
     if (cachedCapacity && cachedTimestamp && (Date.now() - parseInt(cachedTimestamp)) < CACHE_MAX_AGE) {
-      console.log('Usando capacidad desde localStorage');
+      console.log('Usando capacidad desde localStorage:', JSON.parse(cachedCapacity));
       return JSON.parse(cachedCapacity);
     }
     
     try {
+      console.log('Fetching capacity from API for user:', user.id);
       const capacityResponse = await fetch(`/api/capacity?userId=${user.id}`);
       
       if (capacityResponse.ok) {
         const capacityData = await capacityResponse.json();
         const capacity = capacityData.capacity || { Auto: 0, Moto: 0, Camioneta: 0 };
+        
+        console.log('Capacity fetched from API:', capacity);
         
         // Guardar en localStorage
         localStorage.setItem(STORAGE_KEYS.CAPACITY, JSON.stringify(capacity));
@@ -279,13 +284,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         return capacity;
       } else {
-        console.error("Error al cargar capacidad del estacionamiento");
+        const errorData = await capacityResponse.json();
+        console.error("Error al cargar capacidad del estacionamiento:", errorData);
         return { Auto: 0, Moto: 0, Camioneta: 0 };
       }
     } catch (error) {
       console.error("Error general al cargar capacidad del estacionamiento:", error);
       return { Auto: 0, Moto: 0, Camioneta: 0 };
     }
+  };
+
+  // Función para refrescar solo la capacidad
+  const refreshCapacity = async () => {
+    if (!user?.id) return;
+    
+    // Limpiar caché para forzar nueva consulta
+    localStorage.removeItem(STORAGE_KEYS.CAPACITY);
+    localStorage.removeItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
+    
+    const capacity = await fetchCapacity();
+    setParkingCapacity(capacity);
+    
+    console.log('Capacity refreshed:', capacity);
   };
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
@@ -496,6 +516,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshParkedVehicles,
         refreshParkingHistory,
         initializeRates,
+        refreshCapacity,
       }}
     >
       {children}

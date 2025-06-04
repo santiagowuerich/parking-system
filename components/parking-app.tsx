@@ -38,7 +38,8 @@ export default function ParkingApp() {
     rates: contextRates,
     parkingCapacity: contextCapacity,
     refreshParkedVehicles,
-    refreshParkingHistory
+    refreshParkingHistory,
+    refreshCapacity
   } = useAuth();
   
   const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
@@ -68,13 +69,30 @@ export default function ParkingApp() {
 
   // Actualizar el estado local cuando cambien los datos en el contexto
   useEffect(() => {
+    console.log('Context data changed:', {
+      contextCapacity,
+      contextRates,
+      contextParkedVehicles: contextParkedVehicles?.length,
+      contextParkingHistory: contextParkingHistory?.length
+    });
+    
     if (contextCapacity || contextRates || contextParkedVehicles || contextParkingHistory) {
-      setParking(prev => ({
-        capacity: contextCapacity || prev.capacity,
-        rates: contextRates || prev.rates,
-        parkedVehicles: contextParkedVehicles || prev.parkedVehicles,
-        history: contextParkingHistory || prev.history,
-      }));
+      setParking(prev => {
+        const newParking = {
+          capacity: contextCapacity || prev.capacity,
+          rates: contextRates || prev.rates,
+          parkedVehicles: contextParkedVehicles || prev.parkedVehicles,
+          history: contextParkingHistory || prev.history,
+        };
+        
+        console.log('Updating parking state:', {
+          prevCapacity: prev.capacity,
+          newCapacity: newParking.capacity,
+          contextCapacity
+        });
+        
+        return newParking;
+      });
     }
   }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory]);
 
@@ -437,6 +455,12 @@ export default function ParkingApp() {
       },
     }));
 
+    // Preparar el objeto de capacidad en el formato correcto
+    const capacityUpdate = {
+      ...parking.capacity,
+      [type]: capacity,
+    };
+
     // Luego enviar al servidor
     fetch("/api/capacity", {
       method: "POST",
@@ -445,22 +469,14 @@ export default function ParkingApp() {
       },
       body: JSON.stringify({
         userId: user.id,
-        type,
-        capacity,
+        capacity: capacityUpdate, // Enviar objeto completo, no individual
       }),
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Error al actualizar capacidad");
         
         // Actualizar el contexto global después de guardar en el servidor
-        await fetch(`/api/capacity?userId=${user.id}`)
-          .then(res => res.json())
-          .then(data => {
-            console.log("Capacidad actualizada en el contexto:", data.capacity);
-          })
-          .catch(error => {
-            console.error("Error al refrescar capacidad en el contexto:", error);
-          });
+        await refreshCapacity();
           
         return response.json();
       })
@@ -477,8 +493,12 @@ export default function ParkingApp() {
           description: "No se pudo guardar la capacidad",
           variant: "destructive",
         });
+        
         // Revertir cambio local si falla
-        // fetchCapacity();
+        setParking((prev) => ({
+          ...prev,
+          capacity: contextCapacity || { Auto: 0, Moto: 0, Camioneta: 0 },
+        }));
       });
   };
 
