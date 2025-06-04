@@ -1,9 +1,10 @@
-import { Client } from '@botpress/client'
+// import { Client } from '@botpress/sdk'
 
 const BOTPRESS_TOKEN = process.env.NEXT_PUBLIC_BOTPRESS_TOKEN
 
 // Solo crea el cliente si el token existe
-const botpressClient = BOTPRESS_TOKEN ? new Client({ token: BOTPRESS_TOKEN }) : null
+// const botpressClient = BOTPRESS_TOKEN ? new Client({ token: BOTPRESS_TOKEN }) : null
+const botpressClient = null; // Temporarily disabled for deployment
 
 export async function sendMessage(message: string, userId?: string) {
   // Si el cliente no se pudo inicializar (falta token), no hagas nada o retorna un aviso
@@ -18,6 +19,8 @@ export async function sendMessage(message: string, userId?: string) {
   const conversationIdToSend = userId ? userId : 'anonymous-config-session' // Max 36 chars
   
   try {
+    // Temporarily disabled for deployment
+    /*
     const response = await botpressClient.createMessage({
       // Use the validated/shortened conversationId
       conversationId: conversationIdToSend, 
@@ -34,6 +37,8 @@ export async function sendMessage(message: string, userId?: string) {
     
     console.log('Message sent to Botpress:', response.message.id)
     return 'Mensaje enviado al asistente.'
+    */
+    return 'Servicio de asistente temporalmente deshabilitado.'
 
   } catch (error: any) {
     // Manejar errores específicos de Botpress de forma más detallada si es necesario
