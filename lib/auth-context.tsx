@@ -366,12 +366,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
+    // Limpiar datos específicos de la app
     localStorage.removeItem(STORAGE_KEYS.RATES);
     localStorage.removeItem(STORAGE_KEYS.RATES_TIMESTAMP);
     localStorage.removeItem(STORAGE_KEYS.USER_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.USER_SETTINGS_TIMESTAMP);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
+    
+    // Limpiar cualquier otro dato de autenticación
+    if (typeof window !== 'undefined') {
+      // Buscar y eliminar cualquier clave relacionada con supabase
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('supabase') || key.includes('sb-') || key.startsWith('supabase.auth.token')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    
     // No eliminamos INIT_RATES_DONE, ya que es independiente del usuario
   };
 
@@ -485,9 +497,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      clearCache(); // Limpiar caché al cerrar sesión
+      // Primero limpiar el estado local y caché
+      setUser(null);
+      clearCache();
+      
+      // Limpiar cualquier dato adicional que pueda quedar
+      if (typeof window !== 'undefined') {
+        // Limpiar todo el localStorage relacionado con la app
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('parking_') || key.startsWith('supabase') || key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Limpiar sessionStorage también
+        sessionStorage.clear();
+      }
+      
+      // Intentar cerrar sesión en Supabase con scope global
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      
+      // Si hay un error de sesión faltante, no es crítico
+      // ya que significa que no había sesión activa para cerrar
+      if (error && !error.message.includes("Auth session missing")) {
+        console.error("Error al cerrar sesión:", error);
+      }
+      
+      // Forzar recarga completa de la página para limpiar cualquier estado residual
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login';
+      } else {
+        router.push("/auth/login");
+      }
+    } catch (error: any) {
+      console.error("Error durante el cierre de sesión:", error);
+      
+      // Incluso si hay error, limpiar el estado local completamente
+      setUser(null);
+      clearCache();
+      
+      // Limpiar localStorage y sessionStorage
+      if (typeof window !== 'undefined') {
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('parking_') || key.startsWith('supabase') || key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+        sessionStorage.clear();
+        window.location.href = '/auth/login';
+      } else {
+        router.push("/auth/login");
+      }
     } finally {
       setLoading(false);
     }

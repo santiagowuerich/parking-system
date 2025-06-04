@@ -29,8 +29,13 @@ export function UserNav() {
   const handleSignOut = async () => {
     try {
       await signOut();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cerrar sesión:", error);
+      // Incluso si hay error, forzar la navegación al login
+      // ya que la función signOut debería haber limpiado el estado
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login';
+      }
     }
   };
 

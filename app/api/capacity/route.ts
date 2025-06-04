@@ -143,33 +143,30 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Primero eliminamos los registros existentes para este usuario
-    const { error: deleteError } = await supabase
-      .from("user_capacity")
-      .delete()
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      console.error("Error deleting existing capacity:", deleteError);
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
-    }
-
-    // Preparar los datos para insertar
-    const capacityToInsert = Object.entries(capacity).map(([vehicle_type, value]) => ({
+    // Preparar los datos para upsert
+    const capacityToUpsert = Object.entries(capacity).map(([vehicle_type, value]) => ({
       user_id: userId,
       vehicle_type,
       capacity: Number(value)
     }));
 
-    // Insertar los nuevos registros
-    const { error: insertError } = await supabase
-      .from("user_capacity")
-      .insert(capacityToInsert);
+    console.log('Attempting to upsert capacity:', capacityToUpsert);
 
-    if (insertError) {
-      console.error("Error inserting capacity:", insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    // Usar upsert para cada tipo de vehículo
+    for (const capacityRecord of capacityToUpsert) {
+      const { error: upsertError } = await supabase
+        .from("user_capacity")
+        .upsert(capacityRecord, {
+          onConflict: 'user_id,vehicle_type'
+        });
+
+      if (upsertError) {
+        console.error("Error upserting capacity for", capacityRecord.vehicle_type, ":", upsertError);
+        return NextResponse.json({ error: `Error actualizando capacidad para ${capacityRecord.vehicle_type}: ${upsertError.message}` }, { status: 500 });
+      }
     }
+
+    console.log('Capacity upserted successfully');
 
     const jsonResponse = NextResponse.json({ success: true, capacity });
 

@@ -447,59 +447,60 @@ export default function ParkingApp() {
     }
 
     // Actualizar localmente primero para UI responsiva
-    setParking((prev) => ({
-      ...prev,
-      capacity: {
+    setParking((prev) => {
+      const updatedCapacity = {
         ...prev.capacity,
         [type]: capacity,
-      },
-    }));
+      };
 
-    // Preparar el objeto de capacidad en el formato correcto
-    const capacityUpdate = {
-      ...parking.capacity,
-      [type]: capacity,
-    };
-
-    // Luego enviar al servidor
-    fetch("/api/capacity", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: user.id,
-        capacity: capacityUpdate, // Enviar objeto completo, no individual
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Error al actualizar capacidad");
-        
-        // Actualizar el contexto global después de guardar en el servidor
-        await refreshCapacity();
+      // Luego enviar al servidor usando la capacidad actualizada
+      fetch("/api/capacity", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          capacity: updatedCapacity, // Usar la capacidad actualizada
+        }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Error al actualizar capacidad");
+          }
           
-        return response.json();
-      })
-      .then(() => {
-        toast({
-          title: "Éxito",
-          description: `Capacidad de ${type} actualizada a ${capacity}`,
+          // Actualizar el contexto global después de guardar en el servidor
+          await refreshCapacity();
+            
+          return response.json();
+        })
+        .then(() => {
+          toast({
+            title: "Éxito",
+            description: `Capacidad de ${type} actualizada a ${capacity}`,
+          });
+        })
+        .catch((error) => {
+          console.error("Error al guardar capacidad:", error);
+          toast({
+            title: "Error",
+            description: "No se pudo guardar la capacidad",
+            variant: "destructive",
+          });
+          
+          // Revertir cambio local si falla
+          setParking((prevState) => ({
+            ...prevState,
+            capacity: contextCapacity || { Auto: 0, Moto: 0, Camioneta: 0 },
+          }));
         });
-      })
-      .catch((error) => {
-        console.error("Error al guardar capacidad:", error);
-        toast({
-          title: "Error",
-          description: "No se pudo guardar la capacidad",
-          variant: "destructive",
-        });
-        
-        // Revertir cambio local si falla
-        setParking((prev) => ({
-          ...prev,
-          capacity: contextCapacity || { Auto: 0, Moto: 0, Camioneta: 0 },
-        }));
-      });
+
+      return {
+        ...prev,
+        capacity: updatedCapacity,
+      };
+    });
   };
 
   const getAvailableSpaces = () => {

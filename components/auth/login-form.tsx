@@ -50,41 +50,41 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto dark:bg-zinc-900 dark:border-zinc-800">
+    <Card className="w-full max-w-md mx-auto bg-zinc-900 border-zinc-800">
       <CardHeader>
-        <CardTitle className="dark:text-zinc-100">Iniciar sesión</CardTitle>
-        <CardDescription className="dark:text-zinc-400">Accedé al sistema como administrador</CardDescription>
+        <CardTitle className="text-zinc-100">Iniciar sesión</CardTitle>
+        <CardDescription className="text-zinc-400">Accedé al sistema como administrador</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive" className="mb-4 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
+          <Alert variant="destructive" className="mb-4 bg-red-900/30 border-red-700 text-red-300">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email" className="dark:text-zinc-400">Correo electrónico</Label>
+            <Label htmlFor="email" className="text-zinc-400">Correo electrónico</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password" className="dark:text-zinc-400">Contraseña</Label>
+            <Label htmlFor="password" className="text-zinc-400">Contraseña</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
-          <Button type="submit" className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200" disabled={isLoading}>
+          <Button type="submit" className="w-full bg-white text-black hover:bg-gray-200" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -97,9 +97,9 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
         </form>
       </CardContent>
       <CardFooter className="flex justify-center">
-        <p className="text-sm text-gray-600 dark:text-zinc-400">
+        <p className="text-sm text-zinc-400">
           ¿No tenés cuenta?{" "}
-          <Button variant="link" className="p-0 dark:text-zinc-100 dark:hover:text-zinc-300" onClick={onToggleForm}>
+          <Button variant="link" className="p-0 text-zinc-100 hover:text-zinc-300" onClick={onToggleForm}>
             Registrate
           </Button>
         </p>

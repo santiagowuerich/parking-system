@@ -55,20 +55,20 @@ export default function RegisterForm({ onToggleForm }: RegisterFormProps) {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full max-w-md mx-auto bg-zinc-900 border-zinc-800">
       <CardHeader>
-        <CardTitle>Crear Cuenta</CardTitle>
-        <CardDescription>Regístrate para acceder al sistema de estacionamiento</CardDescription>
+        <CardTitle className="text-zinc-100">Crear Cuenta</CardTitle>
+        <CardDescription className="text-zinc-400">Regístrate para acceder al sistema de estacionamiento</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive" className="mb-4 bg-red-900/30 border-red-700 text-red-300">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nombre completo</Label>
+            <Label htmlFor="name" className="text-zinc-400">Nombre completo</Label>
             <Input
               id="name"
               type="text"
@@ -76,10 +76,11 @@ export default function RegisterForm({ onToggleForm }: RegisterFormProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Correo electrónico</Label>
+            <Label htmlFor="email" className="text-zinc-400">Correo electrónico</Label>
             <Input
               id="email"
               type="email"
@@ -87,29 +88,32 @@ export default function RegisterForm({ onToggleForm }: RegisterFormProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
+            <Label htmlFor="password" className="text-zinc-400">Contraseña</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+            <Label htmlFor="confirmPassword" className="text-zinc-400">Confirmar contraseña</Label>
             <Input
               id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              className="bg-zinc-800 border-zinc-700 text-zinc-100 placeholder:text-zinc-400"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full bg-white text-black hover:bg-gray-200" disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -122,9 +126,9 @@ export default function RegisterForm({ onToggleForm }: RegisterFormProps) {
         </form>
       </CardContent>
       <CardFooter className="flex justify-center">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-zinc-400">
           ¿Ya tienes una cuenta?{" "}
-          <Button variant="link" className="p-0" onClick={onToggleForm}>
+          <Button variant="link" className="p-0 text-zinc-100 hover:text-zinc-300" onClick={onToggleForm}>
             Inicia sesión
           </Button>
         </p>
