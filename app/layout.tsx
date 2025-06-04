@@ -4,9 +4,9 @@ import { AuthProvider } from '@/lib/auth-context';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'GRUPO2',
+  description: 'Aplicación de estacionamiento web',
+  generator: 'Next.js',
 };
 
 export default function RootLayout({
