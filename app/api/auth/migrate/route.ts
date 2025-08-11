@@ -3,68 +3,40 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { oldUserId, newUserId } = await request.json();
-
-    if (!oldUserId || !newUserId) {
-      return NextResponse.json(
-        { error: "Se requieren ambos IDs de usuario" },
-        { status: 400 }
-      );
+    const { from_est_id, to_est_id } = await request.json();
+    if (!from_est_id || !to_est_id) {
+      return NextResponse.json({ error: 'Se requieren from_est_id y to_est_id' }, { status: 400 })
     }
 
     const { supabase, response } = createClient(request);
 
-    // 1. Migrar datos de vehículos estacionados
-    const { error: parkedError } = await supabase
-      .from("parked_vehicles")
-      .update({ user_id: newUserId })
-      .eq("user_id", oldUserId);
+    // Nuevo esquema: migrar datos por estacionamiento (tarifas, plazas)
+    const { data: tarifas, error: eTar } = await supabase
+      .from('tarifas')
+      .select('*')
+      .eq('est_id', from_est_id)
+    if (eTar) console.error('Error leyendo tarifas origen:', eTar)
 
-    if (parkedError) {
-      console.error("Error migrando vehículos estacionados:", parkedError);
+    if (tarifas?.length) {
+      const rows = tarifas.map(t => ({ ...t, est_id: to_est_id, tar_f_desde: new Date().toISOString() }))
+      const { error: insTar } = await supabase.from('tarifas').insert(rows)
+      if (insTar) console.error('Error insertando tarifas destino:', insTar)
     }
 
-    // 2. Migrar historial
-    const { error: historyError } = await supabase
-      .from("parking_history")
-      .update({ user_id: newUserId })
-      .eq("user_id", oldUserId);
-
-    if (historyError) {
-      console.error("Error migrando historial:", historyError);
+    const { data: plazas, error: ePl } = await supabase
+      .from('plazas')
+      .select('*')
+      .eq('est_id', from_est_id)
+    if (ePl) console.error('Error leyendo plazas origen:', ePl)
+    if (plazas?.length) {
+      const numbers = plazas.map(p=>p.pla_numero)
+      let next = (numbers.length ? Math.max(...numbers) : 0) + 1
+      const rows = plazas.map(p => ({ est_id: to_est_id, pla_numero: next++, pla_estado: 'Libre', catv_segmento: p.catv_segmento, pla_zona: p.pla_zona }))
+      const { error: insPl } = await supabase.from('plazas').insert(rows)
+      if (insPl) console.error('Error insertando plazas destino:', insPl)
     }
 
-    // 3. Migrar tarifas
-    const { error: ratesError } = await supabase
-      .from("rates")
-      .update({ user_id: newUserId })
-      .eq("user_id", oldUserId);
-
-    if (ratesError) {
-      console.error("Error migrando tarifas:", ratesError);
-    }
-
-    // 4. Migrar capacidad
-    const { error: capacityError } = await supabase
-      .from("user_capacity")
-      .update({ user_id: newUserId })
-      .eq("user_id", oldUserId);
-
-    if (capacityError) {
-      console.error("Error migrando capacidad:", capacityError);
-    }
-
-    // 5. Eliminar la cuenta antigua
-    const { error: deleteError } = await supabase.auth.admin.deleteUser(oldUserId);
-
-    if (deleteError) {
-      console.error("Error eliminando usuario antiguo:", deleteError);
-    }
-
-    const jsonResponse = NextResponse.json({
-      success: true,
-      message: "Datos migrados correctamente",
-    });
+    const jsonResponse = NextResponse.json({ success: true, message: 'Datos migrados por estacionamiento correctamente' });
     return copyResponseCookies(response, jsonResponse);
   } catch (error) {
     console.error("Error en la migración:", error);

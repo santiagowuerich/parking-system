@@ -9,11 +9,19 @@ export async function DELETE(
 
   try {
     const { supabase, response } = createClient(request);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || undefined
 
-    const { error } = await supabase
-      .from("parked_vehicles")
+    let q = supabase
+      .from("ocupacion")
       .delete()
-      .eq("license_plate", licensePlate);
+      .eq("veh_patente", licensePlate)
+      .is("ocu_fh_salida", null)
+    if (estId) {
+      // @ts-ignore
+      q = q.eq('est_id', estId)
+    }
+    const { error } = await q
 
     if (error) {
       console.error("Error al eliminar vehículo:", error);

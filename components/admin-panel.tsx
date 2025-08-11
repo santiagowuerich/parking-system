@@ -31,14 +31,8 @@ import { toast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth-context"
 import { createBrowserClient } from "@supabase/ssr"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Chatbot } from './ui/chatbot'
@@ -98,7 +92,8 @@ export default function AdminPanel({
   onUpdateHistoryEntry,
   onReenterVehicle,
 }: AdminPanelProps) {
-  const { user, refreshCapacity } = useAuth();
+  const { user, refreshCapacity, estId } = useAuth();
+  const [plazasStatus, setPlazasStatus] = useState<{ [seg: string]: { total: number, occupied: number, free: number, plazas: { pla_numero: number, occupied: boolean }[] } } | null>(null)
   const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -166,14 +161,14 @@ export default function AdminPanel({
         capacity: tempCapacities
       });
 
-      const response = await fetch("/api/capacity", {
+      // 1) Actualizar total en estacionamientos
+      const response = await fetch(`/api/capacity?est_id=${estId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          userId: currentUserId,
           capacity: tempCapacities,
         }),
       });
@@ -183,25 +178,32 @@ export default function AdminPanel({
         throw new Error(errorData.error || "Error al actualizar la capacidad");
       }
 
-      // Actualizar cada tipo de capacidad en el componente padre
-      Object.entries(tempCapacities).forEach(([type, value]) => {
-        onUpdateCapacity(type as VehicleType, value);
-      });
+      // 2) Sincronizar plazas por tipo (AUT/MOT/CAM)
+      const syncRes = await fetch(`/api/capacity/plazas/sync?est_id=${estId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(tempCapacities)
+      })
+      if (!syncRes.ok) {
+        const e = await syncRes.json().catch(()=>({}))
+        throw new Error(e.error || 'Error al sincronizar plazas')
+      }
 
-      // Refrescar la capacidad en el contexto
+      // Actualizar estado local y refrescar contexto
+      Object.entries(tempCapacities).forEach(([type, value]) => onUpdateCapacity(type as VehicleType, value));
       await refreshCapacity();
 
-      toast({
-        title: "Capacidad actualizada",
-        description: "La capacidad se ha guardado correctamente.",
-      });
+      toast({ title: "Capacidad actualizada", description: "La capacidad y las plazas se han sincronizado." });
       setOpen(false);
     } catch (error) {
       console.error("Error al guardar capacidad:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo guardar la capacidad.",
+        description: "No se pudo guardar la capacidad/sincronizar plazas.",
       });
     }
   };
@@ -379,8 +381,50 @@ export default function AdminPanel({
     setFilteredHistory(history);
   }, [history]);
 
+  useEffect(() => {
+    const loadPlazas = async () => {
+      try {
+        const res = await fetch(`/api/plazas/status?est_id=${estId}`)
+        if (res.ok) {
+          const js = await res.json()
+          setPlazasStatus(js.byType)
+        }
+      } catch {}
+    }
+    loadPlazas()
+  }, [estId])
+
   return (
     <div className="space-y-6">
+      {/* Capacidad por tipo (plazas) */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Capacidad por Tipo (Plazas)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(["Auto","Moto","Camioneta"] as VehicleType[]).map((t)=> {
+              const seg = t === 'Moto' ? 'MOT' : t === 'Camioneta' ? 'CAM' : 'AUT'
+              const st = plazasStatus?.[seg]
+              return (
+                <div key={t} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">{t}s</p>
+                  <p className="text-lg font-medium dark:text-zinc-100">{st ? `${st.free} libres de ${st.total}` : `${availableSpaces[t]} libres de ${capacity[t]}`}</p>
+                  {st && (
+                    <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
+                      {st.plazas.map(p => (
+                        <span key={p.pla_numero} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+                          {p.pla_numero}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
       {/* Ingresos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">

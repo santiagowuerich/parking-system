@@ -6,14 +6,19 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(request: Request) {
   try {
-    const { user_id } = await request.json();
+    const { license_plate } = await request.json();
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || undefined
 
-    // Eliminar todos los vehículos estacionados del usuario
-    const { error: deleteError } = await supabase
-      .from('parked_vehicles')
+    // Eliminar ocupación activa por matrícula
+    let q = supabase
+      .from('ocupacion')
       .delete()
-      .eq('user_id', user_id);
+      .eq('veh_patente', license_plate)
+      .is('ocu_fh_salida', null)
+    if (estId) q = q.eq('est_id', estId)
+    const { error: deleteError } = await q
 
     if (deleteError) {
       console.error('Error al eliminar vehículos:', deleteError);

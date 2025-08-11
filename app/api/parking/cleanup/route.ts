@@ -2,47 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
 export async function POST(request: NextRequest) {
-  const userId = request.headers.get("user-id");
-
-  if (!userId) {
-    return NextResponse.json({ error: "User ID is required" }, { status: 400 });
-  }
+  // Ya no dependemos de userId en el nuevo esquema
 
   try {
     const { supabase, response } = createClient(request);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || undefined
 
-    // Obtener todos los vehículos estacionados del usuario
-    const { data: parkedVehicles, error: fetchError } = await supabase
-      .from("parked_vehicles")
-      .select("*")
-      .eq("user_id", userId);
+    // Obtener todas las ocupaciones abiertas
+    let q = supabase
+      .from("ocupacion")
+      .select("ocu_id, veh_patente, ocu_fh_entrada")
+      .is("ocu_fh_salida", null)
+    if (estId) q = q.eq('est_id', estId)
+    const { data: ocupaciones, error: fetchError } = await q
 
     if (fetchError) {
       console.error("Error al obtener vehículos:", fetchError);
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
-    // Agrupar por matrícula y mantener solo el registro más reciente
-    const vehicleMap = new Map();
-    parkedVehicles?.forEach(vehicle => {
-      const existing = vehicleMap.get(vehicle.license_plate);
-      if (!existing || new Date(vehicle.entry_time) > new Date(existing.entry_time)) {
-        vehicleMap.set(vehicle.license_plate, vehicle);
+    // Agrupar por matrícula y mantener solo el registro más reciente (por fecha de entrada)
+    const latestByPlate = new Map<string, { ocu_id: number; veh_patente: string; ocu_fh_entrada: string }>();
+    for (const o of ocupaciones || []) {
+      const existing = latestByPlate.get(o.veh_patente);
+      if (!existing || new Date(o.ocu_fh_entrada) > new Date(existing.ocu_fh_entrada)) {
+        latestByPlate.set(o.veh_patente, o);
       }
-    });
+    }
 
-    // Eliminar todos los registros duplicados
-    for (const vehicle of parkedVehicles || []) {
-      const latest = vehicleMap.get(vehicle.license_plate);
-      if (latest.id !== vehicle.id) {
+    // Eliminar ocupaciones duplicadas (mantener solo la última por patente)
+    for (const ocu of ocupaciones || []) {
+      const latest = latestByPlate.get(ocu.veh_patente);
+      if (latest && latest.ocu_id !== ocu.ocu_id) {
         const { error: deleteError } = await supabase
-          .from("parked_vehicles")
+          .from("ocupacion")
           .delete()
-          .eq("id", vehicle.id);
+          .eq("ocu_id", ocu.ocu_id);
 
-        if (deleteError) {
-          console.error("Error al eliminar duplicado:", deleteError);
-        }
+        if (deleteError) console.error("Error al eliminar duplicado:", deleteError);
       }
     }
 

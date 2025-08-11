@@ -3,10 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { VehicleType } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
-  const userId = new URL(request.url).searchParams.get("userId");
-  if (!userId) {
-    return NextResponse.json({ error: "Se requiere ID de usuario" }, { status: 400 });
-  }
+  // userId ya no es obligatorio; capacidad ahora se deriva de 'estacionamientos' (est_id=1) y plazas
 
   // Crear la respuesta inicial
   let response = NextResponse.next()
@@ -44,25 +41,29 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const { data, error } = await supabase
-      .from("user_capacity")
-      .select("vehicle_type, capacity")
-      .eq("user_id", userId);
+    // Opción simple: devolver capacidad total del estacionamiento 1 y derivar por tipo desde plazas
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || 1
+    const [{ data: est, error: e1 }, { data: plazas, error: e2 }] = await Promise.all([
+      supabase.from('estacionamientos').select('est_capacidad').eq('est_id', estId).single(),
+      supabase.from('plazas').select('catv_segmento').eq('est_id', estId)
+    ]);
 
-    if (error) {
-      console.error("Error fetching capacity:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (e1 || e2) {
+      const err = e1 || e2;
+      console.error('Error obteniendo capacidad:', err);
+      return NextResponse.json({ error: err!.message }, { status: 500 });
     }
 
+    // Contar plazas por segmento
+    const counts = (plazas || []).reduce((acc: Record<string, number>, p: any) => {
+      acc[p.catv_segmento] = (acc[p.catv_segmento] || 0) + 1;
+      return acc;
+    }, {});
+
     // Si no hay datos, devolver valores por defecto
-    if (!data || data.length === 0) {
-      const jsonResponse = NextResponse.json({
-        capacity: {
-          Auto: 0,
-          Moto: 0,
-          Camioneta: 0
-        }
-      });
+    if (!plazas) {
+      const jsonResponse = NextResponse.json({ capacity: { Auto: 0, Moto: 0, Camioneta: 0 } });
 
       // Copiar las cookies de la respuesta temporal a la respuesta final
       response.cookies.getAll().forEach(cookie => {
@@ -74,10 +75,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Convertir el array a un objeto
-    const capacity = data.reduce((acc: Record<string, number>, curr) => {
-      acc[curr.vehicle_type] = curr.capacity;
+    const mapSegToType = (seg?: string) => seg === 'MOT' ? 'Moto' : seg === 'CAM' ? 'Camioneta' : 'Auto';
+    const capacity = Object.entries(counts).reduce((acc: Record<string, number>, [seg, n]) => {
+      acc[mapSegToType(seg)] = n as number;
       return acc;
-    }, {});
+    }, { Auto: 0, Moto: 0, Camioneta: 0 });
 
     const jsonResponse = NextResponse.json({
       capacity: {
@@ -102,10 +104,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, capacity } = await request.json();
-
-    if (!userId || !capacity) {
-      return NextResponse.json({ error: "Se requiere ID de usuario y capacidad" }, { status: 400 });
+    const { capacity } = await request.json();
+    if (!capacity) {
+      return NextResponse.json({ error: 'Se requiere capacidad' }, { status: 400 });
     }
 
     // Crear la respuesta inicial
@@ -143,31 +144,22 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Preparar los datos para upsert
-    const capacityToUpsert = Object.entries(capacity).map(([vehicle_type, value]) => ({
-      user_id: userId,
-      vehicle_type,
-      capacity: Number(value)
-    }));
+    // Ajustar capacidad total del estacionamiento 1
+    const total = Number(capacity.Auto || 0) + Number(capacity.Moto || 0) + Number(capacity.Camioneta || 0);
 
-    console.log('Attempting to upsert capacity:', capacityToUpsert);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || 1
+    const { error: updError } = await supabase
+      .from('estacionamientos')
+      .update({ est_capacidad: total })
+      .eq('est_id', estId);
 
-    // Usar upsert para cada tipo de vehículo
-    for (const capacityRecord of capacityToUpsert) {
-      const { error: upsertError } = await supabase
-        .from("user_capacity")
-        .upsert(capacityRecord, {
-          onConflict: 'user_id,vehicle_type'
-        });
-
-      if (upsertError) {
-        console.error("Error upserting capacity for", capacityRecord.vehicle_type, ":", upsertError);
-        return NextResponse.json({ error: `Error actualizando capacidad para ${capacityRecord.vehicle_type}: ${upsertError.message}` }, { status: 500 });
-      }
+    if (updError) {
+      console.error('Error actualizando capacidad total:', updError);
+      return NextResponse.json({ error: updError.message }, { status: 500 });
     }
 
-    console.log('Capacity upserted successfully');
-
+    // Nota: Para capacidad por tipo idealmente se gestionan filas en 'plazas'.
     const jsonResponse = NextResponse.json({ success: true, capacity });
 
     // Copiar las cookies de la respuesta temporal a la respuesta final

@@ -33,7 +33,7 @@ export function TransferInfoDialog({ isOpen, onClose, userId, onConfirmTransfer 
       setError(null);
       setSettings(null); // Clear previous settings
 
-      fetch(`/api/user/settings?userId=${userId}`)
+      fetch(`/api/user/settings`)
         .then(async res => {
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({ error: 'Error desconocido al cargar datos.' }));

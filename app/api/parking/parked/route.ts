@@ -4,11 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = new URL(request.url).searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
-    }
+    // userId ya no es requerido en el nuevo esquema (se ignora si llega)
+    new URL(request.url).searchParams.get("userId");
 
     // Crear la respuesta inicial
     let response = NextResponse.next()
@@ -45,10 +42,17 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { data, error } = await supabase
-      .from("parked_vehicles")
-      .select("*")
-      .eq("user_id", userId);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || undefined
+
+    let query = supabase.from("vw_ocupacion_actual").select("*")
+    if (estId) {
+      // si la vista expone est_id, aplicar filtro
+      // @ts-ignore
+      query = query.eq('est_id', estId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("Error fetching parked vehicles:", error);

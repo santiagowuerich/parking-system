@@ -48,6 +48,7 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 export const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
+  estId: number;
   rates: Record<VehicleType, number> | null;
   userSettings: UserSettings | null;
   parkedVehicles: Vehicle[] | null;
@@ -63,9 +64,11 @@ export const AuthContext = createContext<{
   refreshParkingHistory: () => Promise<void>;
   initializeRates: () => Promise<void>;
   refreshCapacity: () => Promise<void>;
+  setEstId: (id: number) => void;
 }>({
   user: null,
   loading: true,
+  estId: 1,
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -81,6 +84,7 @@ export const AuthContext = createContext<{
   refreshParkingHistory: async () => {},
   initializeRates: async () => {},
   refreshCapacity: async () => {},
+  setEstId: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -93,6 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [parkingCapacity, setParkingCapacity] = useState<Record<VehicleType, number> | null>(null);
   const [loadingUserData, setLoadingUserData] = useState(false);
   const [initRatesDone, setInitRatesDone] = useState(false);
+  const [estId, setEstId] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    const raw = localStorage.getItem('parking_est_id');
+    const n = raw ? parseInt(raw) : 1;
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  });
   const router = useRouter();
   const pathname = usePathname();
 
@@ -135,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
     
     try {
-      const parkedResponse = await fetch(`/api/parking/parked?userId=${user.id}`);
+      const parkedResponse = await fetch(`/api/parking/parked?est_id=${estId}`);
       
       if (parkedResponse.ok) {
         const parkedData = await parkedResponse.json();
@@ -155,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
     
     try {
-      const historyResponse = await fetch(`/api/parking/history?userId=${user.id}`);
+      const historyResponse = await fetch(`/api/parking/history?est_id=${estId}`);
       
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
@@ -184,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      const ratesResponse = await fetch(`/api/rates?userId=${user.id}`);
+      const ratesResponse = await fetch(`/api/rates?est_id=${estId}`);
       
       if (ratesResponse.ok) {
         const ratesData = await ratesResponse.json();
@@ -219,7 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      const settingsResponse = await fetch(`/api/user/settings?userId=${user.id}`);
+      const settingsResponse = await fetch(`/api/user/settings`);
       
       if (settingsResponse.ok) {
         const settingsData = await settingsResponse.json();
@@ -269,8 +279,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      console.log('Fetching capacity from API for user:', user.id);
-      const capacityResponse = await fetch(`/api/capacity?userId=${user.id}`);
+      console.log('Fetching capacity from API');
+      const capacityResponse = await fetch(`/api/capacity?est_id=${estId}`);
       
       if (capacityResponse.ok) {
         const capacityData = await capacityResponse.json();
@@ -323,8 +333,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Obtener datos que siempre se refrescan
       const [parkedResponse, historyResponse] = await Promise.all([
-        fetch(`/api/parking/parked?userId=${user.id}`),
-        fetch(`/api/parking/history?userId=${user.id}`)
+        fetch(`/api/parking/parked?est_id=${estId}`),
+        fetch(`/api/parking/history?est_id=${estId}`)
       ]);
       
       // Actualizar el estado con los datos obtenidos
@@ -403,6 +413,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     initializeRates();
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('parking_est_id', String(estId));
+    }
+  }, [estId]);
 
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
@@ -562,6 +578,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        estId,
         rates,
         userSettings,
         parkedVehicles,
@@ -577,6 +594,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshParkingHistory,
         initializeRates,
         refreshCapacity,
+        setEstId,
       }}
     >
       {children}

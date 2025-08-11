@@ -4,42 +4,43 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const { supabase, response } = createClient(request);
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || 1
 
-    // 1. Limpiar vehículos estacionados
-    const { error: parkedError } = await supabase
-      .from("parked_vehicles")
+    // 1. Limpiar ocupación y pagos del estacionamiento indicado
+    const { error: ocuError } = await supabase
+      .from("ocupacion")
       .delete()
-      .neq("id", 0); // Elimina todos los registros
+      .eq('est_id', estId);
 
-    if (parkedError) {
-      console.error("Error limpiando vehículos estacionados:", parkedError);
+    if (ocuError) {
+      console.error("Error limpiando ocupación:", ocuError);
     }
 
-    // 2. Limpiar historial
-    const { error: historyError } = await supabase
-      .from("parking_history")
+    const { error: pagosError } = await supabase
+      .from("pagos")
       .delete()
-      .neq("id", 0);
+      .eq('est_id', estId);
 
-    if (historyError) {
-      console.error("Error limpiando historial:", historyError);
+    if (pagosError) {
+      console.error("Error limpiando pagos:", pagosError);
     }
 
-    // 3. Limpiar tarifas
+    // 3. Limpiar tarifas del estacionamiento
     const { error: ratesError } = await supabase
-      .from("rates")
+      .from("tarifas")
       .delete()
-      .neq("id", 0);
+      .eq('est_id', estId);
 
     if (ratesError) {
       console.error("Error limpiando tarifas:", ratesError);
     }
 
-    // 4. Limpiar capacidad
+    // 4. Limpiar plazas del estacionamiento
     const { error: capacityError } = await supabase
-      .from("user_capacity")
+      .from("plazas")
       .delete()
-      .neq("id", 0);
+      .eq('est_id', estId);
 
     if (capacityError) {
       console.error("Error limpiando capacidad:", capacityError);
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const jsonResponse = NextResponse.json({
       success: true,
-      message: "Todos los datos han sido eliminados correctamente",
+      message: `Datos del estacionamiento ${estId} eliminados correctamente`,
     });
     return copyResponseCookies(response, jsonResponse);
   } catch (error) {

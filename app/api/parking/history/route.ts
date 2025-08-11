@@ -4,11 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = new URL(request.url).searchParams.get("userId");
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
-    }
+    // userId ya no es requerido en el nuevo esquema (compat: se ignora si se envía)
+    new URL(request.url).searchParams.get("userId");
 
     // Crear la respuesta inicial
     let response = NextResponse.next()
@@ -45,11 +42,19 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { data, error } = await supabase
-      .from("parking_history")
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || undefined
+
+    let query = supabase
+      .from("vw_historial_estacionamiento")
       .select("*")
-      .eq("user_id", userId)
-      .order("exit_time", { ascending: false });
+      .order("exit_time", { ascending: false })
+    if (estId) {
+      // si la vista expone est_id, aplicar filtro
+      // @ts-ignore
+      query = query.eq('est_id', estId)
+    }
+    const { data, error } = await query
 
     if (error) {
       console.error("Error fetching history:", error);

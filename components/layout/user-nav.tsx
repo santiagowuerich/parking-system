@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,7 @@ import {
 import { LogOut } from "lucide-react";
 
 export function UserNav() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, estId, setEstId } = useAuth();
 
   if (!user) return null;
 
@@ -40,6 +41,14 @@ export function UserNav() {
   };
 
   return (
+    <div className="flex items-center gap-2">
+      <Select value={String(estId)} onValueChange={(v)=> setEstId(parseInt(v))}>
+        <SelectTrigger className="w-[120px]"><SelectValue placeholder="Est." /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="1">Est. 1</SelectItem>
+          <SelectItem value="2">Est. 2</SelectItem>
+        </SelectContent>
+      </Select>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -63,5 +72,6 @@ export function UserNav() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </div>
   );
 }

@@ -2,21 +2,19 @@ import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const userId = new URL(request.url).searchParams.get("userId");
-
-  if (!userId) {
-    return NextResponse.json({ error: "Se requiere ID de usuario" }, { status: 400 });
-  }
-
   try {
     const { supabase, response } = createClient(request);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
 
     // Seleccionar todos los campos relevantes de user_settings
     const { data, error } = await supabase
       .from("user_settings")
-      .select("mercadopago_api_key, bank_account_holder, bank_account_cbu, bank_account_alias") // Añadir nuevos campos
-      .eq("user_id", userId)
-      .maybeSingle(); // Usar maybeSingle para no fallar si no existe la fila
+      .select("mercadopago_api_key, bank_account_holder, bank_account_cbu, bank_account_alias")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
     if (error) {
         console.error("Error fetching user settings:", error);
@@ -50,23 +48,27 @@ export async function POST(request: NextRequest) {
       bankAccountAlias 
     } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    const { supabase, response } = createClient(request);
+    let effectiveUserId = userId;
+    if (!effectiveUserId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      }
+      effectiveUserId = user.id;
     }
     
     // Construir el objeto de datos a actualizar/insertar
     // Incluir solo los campos que realmente vienen en la petición
     // (o definir si se deben borrar si vienen como null/undefined)
     const dataToUpsert: any = {
-        user_id: userId,
+        user_id: effectiveUserId,
         updated_at: new Date().toISOString()
     };
     if (mercadopagoApiKey !== undefined) dataToUpsert.mercadopago_api_key = mercadopagoApiKey;
     if (bankAccountHolder !== undefined) dataToUpsert.bank_account_holder = bankAccountHolder;
     if (bankAccountCbu !== undefined) dataToUpsert.bank_account_cbu = bankAccountCbu;
     if (bankAccountAlias !== undefined) dataToUpsert.bank_account_alias = bankAccountAlias;
-
-    const { supabase, response } = createClient(request);
 
     const { error: upsertError } = await supabase
       .from("user_settings")

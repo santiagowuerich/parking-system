@@ -3,9 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function PUT(request: NextRequest) {
   try {
-    const { license_plate, entry_time, user_id } = await request.json();
+    const { license_plate, entry_time } = await request.json();
 
-    if (!license_plate || !entry_time || !user_id) {
+    if (!license_plate || !entry_time) {
       return NextResponse.json(
         { error: "Todos los campos son requeridos" },
         { status: 400 }
@@ -47,12 +47,16 @@ export async function PUT(request: NextRequest) {
       }
     )
 
-    const { data, error } = await supabase
-      .from("parked_vehicles")
-      .update({ entry_time })
-      .eq("license_plate", license_plate)
-      .eq("user_id", user_id)
-      .select();
+    const url = new URL(request.url)
+    const estId = Number(url.searchParams.get('est_id')) || undefined
+
+    let q = supabase
+      .from("ocupacion")
+      .update({ ocu_fh_entrada: entry_time })
+      .eq("veh_patente", license_plate)
+      .is("ocu_fh_salida", null)
+    if (estId) q = q.eq('est_id', estId)
+    const { data, error } = await q.select();
 
     if (error) {
       console.error("Error al actualizar vehículo:", error);

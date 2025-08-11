@@ -4,10 +4,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ licen
   const { licensePlate } = await params;
 
   try {
+    const url = new URL(req.url)
+    const estId = Number(url.searchParams.get('est_id')) || undefined
     const { error } = await supabase
-      .from("parked_vehicles")
+      .from("ocupacion")
       .delete()
-      .match({ license_plate: licensePlate });
+      .eq("veh_patente", licensePlate)
+      .is("ocu_fh_salida", null)
+      .eq(estId ? 'est_id' : 'veh_patente', estId ? estId : licensePlate) // pequeña compatibilidad para evitar condicional más largo
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), { status: 500 });

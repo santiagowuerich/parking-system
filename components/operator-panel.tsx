@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { OperatorChat } from './operator-chat'
 import { ThemeToggle } from "./theme-toggle"
+import { useAuth } from "@/lib/auth-context"
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -50,7 +51,7 @@ interface OperatorPanelProps {
       occupied: number
     }
   }
-  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time" | "user_id">) => void
+  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time">) => void
   onRegisterExit: (licensePlate: string) => Promise<void>
   exitInfo: ExitInfo | null
   setExitInfo: (info: ExitInfo | null) => void
@@ -68,6 +69,9 @@ export default function OperatorPanel({
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+  const { estId } = useAuth()
+  const [plaNumero, setPlaNumero] = useState<string>("")
+  const [plazasStatus, setPlazasStatus] = useState<{ pla_numero: number, occupied: boolean }[]>([])
 
   const [licensePlate, setLicensePlate] = useState("")
   const [selectedType, setSelectedType] = useState<VehicleType>("Auto")
@@ -86,6 +90,20 @@ export default function OperatorPanel({
       subscription.unsubscribe()
     }
   }, [supabase])
+
+  useEffect(() => {
+    const loadPlazas = async () => {
+      try {
+        const res = await fetch(`/api/plazas/status?est_id=${estId}`)
+        if (res.ok) {
+          const js = await res.json()
+          const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
+          setPlazasStatus(js.byType?.[seg]?.plazas || [])
+        }
+      } catch {}
+    }
+    loadPlazas()
+  }, [estId, selectedType])
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,9 +129,14 @@ export default function OperatorPanel({
       return
     }
 
+    // Elegir plaza: si se seleccionó, usarla; si no, tomar la primera libre si existe
+    const freePlazas = plazasStatus.filter(p=> !p.occupied)
+    const chosen = plaNumero ? Number(plaNumero) : (freePlazas[0]?.pla_numero)
+
     onRegisterEntry({
       license_plate: licensePlate,
       type: selectedType,
+      pla_numero: chosen,
     })
 
     setLicensePlate("")
@@ -217,6 +240,19 @@ export default function OperatorPanel({
                     <SelectItem value="Auto">Auto</SelectItem>
                     <SelectItem value="Moto">Moto</SelectItem>
                     <SelectItem value="Camioneta">Camioneta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="dark:text-zinc-400">Plaza (opcional)</Label>
+                <Select value={plaNumero} onValueChange={(v)=> setPlaNumero(v)}>
+                  <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
+                    <SelectValue placeholder={plazasStatus.filter(p=>!p.occupied).length > 0 ? `Elegir plaza libre (${plazasStatus.filter(p=>!p.occupied).length} libres)` : 'Sin plazas libres'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plazasStatus.filter(p=> !p.occupied).map(p => (
+                      <SelectItem key={p.pla_numero} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

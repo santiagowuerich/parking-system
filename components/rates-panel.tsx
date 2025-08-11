@@ -8,6 +8,7 @@ import { VehicleType } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "./ui/use-toast";
 import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "./ui/skeleton";
 
 interface SettingsPanelProps {
@@ -16,10 +17,13 @@ interface SettingsPanelProps {
 }
 
 export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
-  const { user, rates, userSettings, loadingUserData, fetchUserData } = useAuth();
+  const { user, rates, userSettings, loadingUserData, fetchUserData, estId } = useAuth();
   // State for rates - initialize with rates from context
   const [localRates, setLocalRates] = useState<Record<VehicleType, number> | null>(rates);
   const [isSavingRates, setIsSavingRates] = useState(false);
+  const [modalidad, setModalidad] = useState<'Hora'|'Diaria'|'Mensual'>('Hora');
+  const [plaTipo, setPlaTipo] = useState<'Normal'|'VIP'|'Reservada'>('Normal');
+  const [versions, setVersions] = useState<any[]>([]);
   const [mercadopagoApiKey, setMercadopagoApiKey] = useState(userSettings?.mercadopagoApiKey || "");
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
   const [bankAccountHolder, setBankAccountHolder] = useState(userSettings?.bankAccountHolder || "");
@@ -40,6 +44,20 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
     }
   }, [rates, userSettings]);
 
+  useEffect(() => {
+    const loadVersions = async () => {
+      try {
+        const tiptar = modalidad === 'Hora' ? 1 : modalidad === 'Diaria' ? 2 : 3;
+        const res = await fetch(`/api/rates/versions?tiptar=${tiptar}&pla=${plaTipo}&est_id=${estId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setVersions(Array.isArray(data.tarifas) ? data.tarifas : []);
+        }
+      } catch (_) {}
+    }
+    loadVersions();
+  }, [modalidad, plaTipo]);
+
   const handleRateChange = (type: VehicleType, value: string) => {
     const numericValue = Number(value);
     if (isNaN(numericValue) || numericValue < 0) return;
@@ -52,12 +70,12 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
     if (!user?.id || !localRates) return;
     setIsSavingRates(true);
     try {
-      const response = await fetch("/api/rates", {
+      const response = await fetch(`/api/rates?est_id=${estId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId: user.id, rates: localRates }),
+        body: JSON.stringify({ rates: localRates, modalidad, tipoPlaza: plaTipo }),
       });
       if (!response.ok) throw new Error("Error al actualizar tarifas");
       
@@ -147,37 +165,32 @@ export default function SettingsPanel(/* { rates }: SettingsPanelProps */) {
     <div className="grid gap-6 md:grid-cols-3">
     <Card className="dark:bg-zinc-900 dark:border-zinc-800">
       <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Tarifas por Hora</CardTitle>
+        <CardTitle className="dark:text-zinc-100">Gestión de Tarifas</CardTitle>
       </CardHeader>
-        <CardContent className="space-y-4">
-          {localRates ? (
-            Object.entries(localRates).map(([type, rate]) => (
-              <div key={type} className="space-y-2">
-                <Label htmlFor={`rate-${type}`} className="dark:text-zinc-400">{type}</Label>
-                  <Input
-                  id={`rate-${type}`}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                  value={rate ?? ''}
-                  onChange={(e) => handleRateChange(type as VehicleType, e.target.value)}
-                  disabled={isSavingRates}
-                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                  />
-                </div>
-            ))
+      <CardContent>
+        <Button asChild className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200">
+          <a href="/gestion-tarifas">Ir a Gestión de Tarifas</a>
+        </Button>
+      </CardContent>
+    </Card>
+
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Historial de Tarifas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {versions.length === 0 ? (
+            <p className="text-sm dark:text-zinc-500">Sin versiones cargadas para la selección.</p>
           ) : (
-            <p className="dark:text-zinc-500">Error al cargar tarifas.</p>
+            <div className="space-y-2 text-sm">
+              {versions.map((v, i) => (
+                <div key={i} className="flex items-center justify-between dark:text-zinc-300">
+                  <span>{v.catv_segmento} - {new Date(v.tar_f_desde).toLocaleString('es-AR')}</span>
+                  <span>${Number(v.tar_precio).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
           )}
-          <div className="pt-4">
-            <Button 
-              onClick={handleSaveRates} 
-              disabled={isSavingRates || !localRates}
-              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
-            >
-              {isSavingRates ? "Guardando..." : "Guardar Tarifas"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 

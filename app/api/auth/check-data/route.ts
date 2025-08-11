@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email");
+  const estId = Number(searchParams.get('est_id')) || 1
 
   if (!email) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -12,37 +13,16 @@ export async function GET(request: NextRequest) {
   try {
     const { supabase, response } = createClient(request);
 
-    // Buscar registros en las tablas principales
-    const [parkedVehicles, history, capacity] = await Promise.all([
-      supabase
-        .from("parked_vehicles")
-        .select("user_id")
-        .eq("email", email)
-        .limit(1)
-        .single(),
-      supabase
-        .from("parking_history")
-        .select("user_id")
-        .eq("email", email)
-        .limit(1)
-        .single(),
-      supabase
-        .from("user_capacity")
-        .select("user_id")
-        .eq("email", email)
-        .limit(1)
-        .single(),
-    ]);
+    // Nuevo esquema: revisar si hay datos en tablas clave para el est_id
+    const [{ data: ocup }, { data: pagos }, { data: tarifas }] = await Promise.all([
+      supabase.from('ocupacion').select('ocu_id').eq('est_id', estId).limit(1),
+      supabase.from('pagos').select('pag_nro').eq('est_id', estId).limit(1),
+      supabase.from('tarifas').select('est_id').eq('est_id', estId).limit(1),
+    ])
 
-    const oldUserId =
-      parkedVehicles?.data?.user_id ||
-      history?.data?.user_id ||
-      capacity?.data?.user_id;
+    const hasData = Boolean(ocup?.length || pagos?.length || tarifas?.length)
 
-    const jsonResponse = NextResponse.json({
-      hasData: Boolean(oldUserId),
-      oldUserId,
-    });
+    const jsonResponse = NextResponse.json({ hasData, estId });
     return copyResponseCookies(response, jsonResponse);
   } catch (error: any) {
     console.error("Error checking user data:", error);

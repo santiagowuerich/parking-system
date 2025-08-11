@@ -39,7 +39,8 @@ export default function ParkingApp() {
     parkingCapacity: contextCapacity,
     refreshParkedVehicles,
     refreshParkingHistory,
-    refreshCapacity
+    refreshCapacity,
+    estId
   } = useAuth();
   
   const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
@@ -53,6 +54,7 @@ export default function ParkingApp() {
   } | null>(null);
 
   const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
+  const [calcParams, setCalcParams] = useState<{ modalidad: 'Hora'|'Diaria'|'Mensual'; pla_tipo: 'Normal'|'VIP'|'Reservada' }>({ modalidad: 'Hora', pla_tipo: 'Normal' })
   const [exitingVehicle, setExitingVehicle] = useState<Vehicle | null>(null);
   const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
   const [lastCalculatedFee, setLastCalculatedFee] = useState(0);
@@ -96,7 +98,7 @@ export default function ParkingApp() {
     }
   }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory]);
 
-  const registerEntry = async (vehicle: Omit<Vehicle, "entry_time" | "user_id">) => {
+  const registerEntry = async (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number }) => {
     if (!user?.id) {
       toast({
         variant: "destructive",
@@ -112,7 +114,6 @@ export default function ParkingApp() {
     const newVehicle: Vehicle = {
       ...vehicle,
       entry_time: entryTimeISO, // Guardar ISO en estado local
-      user_id: user.id
     };
 
     // Verificar si hay capacidad configurada
@@ -137,7 +138,7 @@ export default function ParkingApp() {
     }
 
     try {
-      const response = await fetch("/api/parking/entry", {
+      const response = await fetch(`/api/parking/entry?est_id=${estId}`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -146,7 +147,7 @@ export default function ParkingApp() {
           license_plate: newVehicle.license_plate,
           type: newVehicle.type,
           entry_time: entryTimeISO, // Enviar ISO a la API
-          user_id: user.id,
+          pla_numero: vehicle.pla_numero,
         }),
       });
 
@@ -255,8 +256,29 @@ export default function ParkingApp() {
 
       const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
       const durationHours = Math.max(diffInMinutes / 60, 1);
-      const rate = parking.rates[exitingVehicle.type] || 0;
-      const fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+      // Calcular tarifa consultando al backend (tarifas vigentes)
+      let fee = 0;
+      try {
+        const calcRes = await fetch(`/api/pricing/calculate?est_id=${estId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vehicleType: exitingVehicle.type,
+            entry_time: entryTime.toISOString(),
+            exit_time: exitTime.toISOString(),
+            pla_tipo: calcParams.pla_tipo,
+            modalidad: calcParams.modalidad
+          })
+        });
+        if (calcRes.ok) {
+          const calc = await calcRes.json();
+          fee = Number(calc.fee || 0);
+        }
+      } catch (_) {}
+      if (!fee || fee <= 0) {
+        const rate = parking.rates[exitingVehicle.type] || 0;
+        fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+      }
       if (!fee || fee <= 0) throw new Error("La tarifa debe ser mayor a 0");
       setLastCalculatedFee(fee);
       const durationStr = formatDuration(diffInMinutes * 60 * 1000);
@@ -265,11 +287,11 @@ export default function ParkingApp() {
         entryTimeString: exitingVehicle.entry_time,
         entryTimeISO: entryTime.toISOString(),
         exitTimeISO: exitTime.toISOString(),
-        durationHours, rate, fee, diffInMinutes
+        durationHours, fee, diffInMinutes
       });
 
       if (method === 'qr' || method === 'mercadopago') {
-        const response = await fetch(`/api/user/settings?userId=${user.id}`);
+        const response = await fetch(`/api/user/settings`);
         const data = await response.json();
         if (!data.mercadopagoApiKey) {
           toast({
@@ -279,7 +301,7 @@ export default function ParkingApp() {
           });
           return;
         }
-        const responseMp = await fetch("/api/payment/mercadopago", {
+        const responseMp = await fetch(`/api/payment/mercadopago?est_id=${estId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -362,20 +384,18 @@ export default function ParkingApp() {
       });
 
       // Usar '/api/parking/log' en lugar de '/api/parking/exit'
-      const response = await fetch("/api/parking/log", {
+      const response = await fetch(`/api/parking/log?est_id=${estId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           license_plate: vehicle.license_plate,
-          type: vehicle.type,
           entry_time: vehicle.entry_time,
           exit_time: exitTimeISO,
           duration: durationInMs,
           fee: Math.round(fee * 100) / 100,
           payment_method: paymentMethod,
-          user_id: user.id
         }),
       });
 
@@ -387,12 +407,16 @@ export default function ParkingApp() {
 
       const data = await response.json();
       
-      if (!data || data.length === 0) {
-        throw new Error("No se recibió entrada de historial del servidor");
-      }
-
-      // El primer elemento del array es la entrada de historial
-      const historyEntry = data[0];
+      const historyEntry = {
+        id: '',
+        license_plate: vehicle.license_plate,
+        type: vehicle.type,
+        entry_time: vehicle.entry_time,
+        exit_time: exitTimeISO,
+        duration: durationInMs,
+        fee: Math.round(fee * 100) / 100,
+        payment_method: paymentMethod,
+      } as ParkingHistory;
       console.log('✅ Salida registrada correctamente:', historyEntry);
 
       // Actualizar el estado local
@@ -537,7 +561,7 @@ export default function ParkingApp() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -585,7 +609,6 @@ export default function ParkingApp() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: user.id,
           updates,
         }),
       });
@@ -626,7 +649,7 @@ export default function ParkingApp() {
     if (!user?.id) return;
     
     try {
-      const resHistory = await fetch(`/api/parking/history?userId=${user.id}`);
+      const resHistory = await fetch(`/api/parking/history`);
 
       if (!resHistory.ok) {
         throw new Error("Error al obtener datos del servidor");
@@ -647,7 +670,6 @@ export default function ParkingApp() {
         exit_time: new Date(h.exit_time + 'Z'),
         duration: typeof h.duration === 'number' ? h.duration : parseInt(h.duration),
         fee: typeof h.fee === 'number' ? h.fee : parseFloat(h.fee),
-        user_id: h.user_id,
         payment_method: h.payment_method || 'No especificado'
       })) as ParkingHistory[];
 
@@ -686,7 +708,6 @@ export default function ParkingApp() {
           license_plate: entry.license_plate,
           type: entry.type,
           entry_time: originalEntryTime, // Usar la hora original de entrada
-          user_id: user.id
         }),
       });
 
@@ -699,7 +720,6 @@ export default function ParkingApp() {
         license_plate: entry.license_plate,
         type: entry.type,
         entry_time: originalEntryTime, // Usar la hora original de entrada
-        user_id: user.id
       };
 
       // Actualizar estado
@@ -972,6 +992,7 @@ export default function ParkingApp() {
         }}
         onSelectMethod={handlePaymentMethod}
         fee={lastCalculatedFee}
+        onChangeCalcParams={(p)=> setCalcParams(p)}
       />
 
       <QRDialog

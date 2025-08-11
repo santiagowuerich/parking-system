@@ -4,11 +4,12 @@ export interface Vehicle {
   license_plate: string
   type: VehicleType
   entry_time: string
-  user_id: string
+  pla_numero?: number
 }
 
-export interface ParkingHistory extends Vehicle {
+export interface ParkingHistory extends Omit<Vehicle, 'entry_time'> {
   id: string
+  entry_time: string
   exit_time: string
   duration: number // en milisegundos
   fee: number

@@ -36,11 +36,8 @@ export async function POST(request: NextRequest) {
   try {
     const { licensePlate, fee, vehicleType, userId, paymentType } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Se requiere ID de usuario" }, { status: 400 });
-    }
-
-    const { key: accessToken, response } = await getApiKey(userId, request);
+    // userId solo se usa para buscar API key y referencia externa si está disponible
+    const { key: accessToken, response } = await getApiKey(userId || null, request);
     const client = new MercadoPagoConfig({ accessToken });
 
     // Obtener User Info
@@ -87,8 +84,8 @@ export async function POST(request: NextRequest) {
         ] : [],
         installments: 1
       },
-      external_reference: `${licensePlate}_${userId}`,
-      notification_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/webhook?userId=${userId}`,
+      external_reference: `${licensePlate}_${userId || 'anon'}`,
+      notification_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/payment/webhook`,
       binary_mode: true
     };
 

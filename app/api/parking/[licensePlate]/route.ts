@@ -7,9 +7,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ licen
 
     try {
         const { data, error } = await supabase
-            .from("parked_vehicles")
+            .from("ocupacion")
             .delete()
-            .eq("license_plate", licensePlate);
+            .eq("veh_patente", licensePlate)
+            .is("ocu_fh_salida", null);
 
         if (error) {
             console.error("Error deleting vehicle:", error);
