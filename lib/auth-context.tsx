@@ -23,6 +23,14 @@ type SignInParams = {
   password: string;
 };
 
+type PasswordResetRequestParams = {
+  email: string;
+};
+
+type PasswordUpdateParams = {
+  newPassword: string;
+};
+
 // Definir la estructura de la configuración del usuario
 type UserSettings = {
   mercadopagoApiKey: string | null;
@@ -59,6 +67,8 @@ export const AuthContext = createContext<{
   signUp: (params: SignUpParams) => Promise<void>;
   signIn: (params: SignInParams) => Promise<void>;
   signOut: () => Promise<void>;
+  requestPasswordReset: (params: PasswordResetRequestParams) => Promise<void>;
+  updatePassword: (params: PasswordUpdateParams) => Promise<void>;
   fetchUserData: () => Promise<void>;
   refreshParkedVehicles: () => Promise<void>;
   refreshParkingHistory: () => Promise<void>;
@@ -79,6 +89,8 @@ export const AuthContext = createContext<{
   signUp: async () => {},
   signIn: async () => {},
   signOut: async () => {},
+  requestPasswordReset: async () => {},
+  updatePassword: async () => {},
   fetchUserData: async () => {},
   refreshParkedVehicles: async () => {},
   refreshParkingHistory: async () => {},
@@ -401,9 +413,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading) {
       const isAuthRoute = pathname?.startsWith("/auth/");
+      const isPasswordResetRoute = pathname === "/auth/reset-password";
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
-      } else if (user && isAuthRoute) {
+      } else if (user && isAuthRoute && !isPasswordResetRoute) {
         router.push("/");
       }
     }
@@ -510,6 +523,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const requestPasswordReset = async ({ email }: PasswordResetRequestParams) => {
+    setLoading(true);
+    try {
+      const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updatePassword = async ({ newPassword }: PasswordUpdateParams) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signOut = async () => {
     setLoading(true);
     try {
@@ -589,6 +627,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signIn,
         signOut,
+        requestPasswordReset,
+        updatePassword,
         fetchUserData,
         refreshParkedVehicles,
         refreshParkingHistory,

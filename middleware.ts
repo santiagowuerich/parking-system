@@ -50,8 +50,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Si hay sesión y el usuario está en una página de autenticación
-  // (Podríamos hacer esto más específico si hay varias páginas dentro de /auth)
-  if (session && url.pathname.startsWith('/auth')) { // Usar startsWith para cubrir /auth/login, /auth/register, etc.
+  // Permitimos /auth/reset-password aunque haya sesión, para que pueda actualizarse
+  if (session && url.pathname.startsWith('/auth') && url.pathname !== '/auth/reset-password') {
     // Redirigir a la página principal
     url.pathname = '/';
     console.log('Middleware: Session found, redirecting from /auth page to /');
