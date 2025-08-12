@@ -96,12 +96,18 @@ export default function LoginForm({ onToggleForm }: LoginFormProps) {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex justify-center">
+      <CardFooter className="flex flex-col items-center space-y-2">
         <p className="text-sm text-zinc-400">
           ¿No tenés cuenta?{" "}
           <Button variant="link" className="p-0 text-zinc-100 hover:text-zinc-300" onClick={onToggleForm}>
             Registrate
           </Button>
+        </p>
+        <p className="text-sm text-zinc-400">
+          ¿Olvidaste tu contraseña?{" "}
+          <a href="/auth/forgot-password" className="text-zinc-100 hover:text-zinc-300 underline">
+            Recuperarla
+          </a>
         </p>
       </CardFooter>
     </Card>

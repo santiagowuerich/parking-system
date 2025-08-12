@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -170,6 +171,12 @@ export default function TariffsManagerPage() {
 
   return (
     <div className="container mx-auto p-4 grid gap-6 md:grid-cols-3">
+      <div className="md:col-span-3 flex justify-between items-center">
+        <h1 className="text-xl font-semibold dark:text-zinc-100">Gestión de Tarifas</h1>
+        <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
+          <Link href="/">Volver al menú</Link>
+        </Button>
+      </div>
       <Card className="md:col-span-2 dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Configurar Tarifas</CardTitle>

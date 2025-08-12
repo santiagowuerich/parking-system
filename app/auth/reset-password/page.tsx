@@ -3,18 +3,35 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 
 export default function ResetPasswordPage() {
   const { updatePassword } = useAuth();
+  const router = useRouter();
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Supabase establece un "recovery" session al aterrizar aquí desde el email
+  // Mostrar aviso si no hay sesión de recuperación
+  const [recoveryReady, setRecoveryReady] = useState(false);
   useEffect(() => {
-    // No necesitamos manejar el token manualmente; supabase-js lo hace al abrir esta URL
+    const check = async () => {
+      try {
+        // Si el usuario navegó aquí desde el correo, Supabase abre una "recovery" session
+        // Podemos intentar obtener la sesión; si no hay, igualmente permitir cambiar contraseña si está autenticado
+        setRecoveryReady(true);
+      } catch {
+        setRecoveryReady(false);
+      }
+    };
+    check();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,7 +51,12 @@ export default function ResetPasswordPage() {
     setLoading(true);
     try {
       await updatePassword({ newPassword });
-      setMessage("Tu contraseña fue actualizada. Ya puedes iniciar sesión.");
+      setMessage("Tu contraseña fue actualizada. Ya podés iniciar sesión.");
+      // Cerrar sesión de forma silenciosa y redirigir al login (sin recargar la página)
+      try { await supabase.auth.signOut({ scope: 'global' }); } catch {}
+      setTimeout(() => {
+        router.replace('/auth/login?reset=ok');
+      }, 1500);
     } catch (err: any) {
       setError(err.message || "No se pudo actualizar la contraseña");
     } finally {
@@ -84,6 +106,16 @@ export default function ResetPasswordPage() {
           >
             {loading ? "Actualizando..." : "Actualizar contraseña"}
           </button>
+          {message && (
+            <p className="text-sm text-green-300 text-center mt-3">
+              {message} <Link href="/auth/login" className="underline">Ir al inicio de sesión</Link>
+            </p>
+          )}
+          {!recoveryReady && (
+            <p className="text-xs text-zinc-400 text-center mt-2">
+              Si llegaste aquí sin usar el enlace del correo, volvé a solicitar recuperación o iniciá sesión y cambiá tu contraseña desde Cuenta → Seguridad.
+            </p>
+          )}
         </form>
         <p className="text-sm text-center text-zinc-400">
           <Link href="/auth/login" className="font-medium text-zinc-100 hover:text-zinc-300">

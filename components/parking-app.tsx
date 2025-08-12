@@ -9,7 +9,6 @@ import type { Parking, Vehicle, ParkingHistory, VehicleType } from "@/lib/types"
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/lib/auth-context";
-import AuthPage from "@/components/auth/auth-page";
 import { UserNav } from "@/components/layout/user-nav";
 import { supabase } from "@/lib/supabase";
 import { PaymentMethodDialog } from "./payment-method-dialog";
@@ -925,7 +924,7 @@ export default function ParkingApp() {
   }
 
   if (!user) {
-    return <AuthPage />;
+    return null;
   }
 
   // Handle confirm from TransferInfoDialog

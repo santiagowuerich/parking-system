@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const router = useRouter();
+  const search = useSearchParams();
+  const resetOk = search?.get('reset') === 'ok';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +37,9 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-black">
       <div className="w-full max-w-md p-8 space-y-6 bg-zinc-900 border border-zinc-800 rounded shadow-md">
         <h2 className="text-2xl font-bold text-center text-zinc-100">Iniciar Sesión</h2>
+        {resetOk && (
+          <p className="text-sm text-center text-emerald-400">Contraseña actualizada. Iniciá sesión con tu nueva contraseña.</p>
+        )}
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label
@@ -86,11 +91,17 @@ export default function LoginPage() {
           </div>
         </form>
          <p className="text-sm text-center text-zinc-400">
-          ¿No tienes cuenta?{" "}
-          <Link href="/auth/register" className="font-medium text-zinc-100 hover:text-zinc-300">
-            Regístrate
-          </Link>
-        </p>
+           ¿No tienes cuenta?{" "}
+           <Link href="/auth/register" className="font-medium text-zinc-100 hover:text-zinc-300">
+             Regístrate
+           </Link>
+         </p>
+         <p className="text-sm text-center text-zinc-400 mt-2">
+           ¿Olvidaste tu contraseña?{" "}
+           <Link href="/auth/forgot-password" className="font-medium text-zinc-100 hover:text-zinc-300">
+             Recuperarla
+           </Link>
+         </p>
       </div>
     </div>
   );

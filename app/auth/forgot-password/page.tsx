@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       await requestPasswordReset({ email });
-      setMessage("Si el correo existe, te enviamos un enlace para restablecer tu contraseña.");
+      setMessage("Revisá tu correo y seguí el enlace para restablecer tu contraseña.");
     } catch (err: any) {
       setError(err.message || "No se pudo enviar el correo de recuperación");
     } finally {
@@ -45,7 +45,11 @@ export default function ForgotPasswordPage() {
               className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md"
             />
           </div>
-          {message && <p className="text-sm text-green-300">{message}</p>}
+          {message && (
+            <p className="text-sm text-green-300">
+              {message} Si no lo ves, revisá la carpeta de spam.
+            </p>
+          )}
           {error && <p className="text-sm text-red-300">{error}</p>}
           <button
             type="submit"
@@ -54,6 +58,13 @@ export default function ForgotPasswordPage() {
           >
             {loading ? "Enviando..." : "Enviar enlace"}
           </button>
+          {message && (
+            <div className="mt-4 text-center">
+              <Link href="/auth/reset-password" className="text-zinc-100 underline">
+                Ya tengo el enlace, ir a restablecer
+              </Link>
+            </div>
+          )}
         </form>
         <p className="text-sm text-center text-zinc-400">
           <Link href="/auth/login" className="font-medium text-zinc-100 hover:text-zinc-300">
