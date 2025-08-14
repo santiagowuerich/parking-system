@@ -254,39 +254,49 @@ export default function ParkingApp() {
       const entryTime = entryTimeDayjs.toDate();
 
       const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
-      const durationHours = Math.max(diffInMinutes / 60, 1);
-      // Calcular tarifa consultando al backend (tarifas vigentes)
-      let fee = 0;
-      try {
-        const calcRes = await fetch(`/api/pricing/calculate?est_id=${estId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            vehicleType: exitingVehicle.type,
-            entry_time: entryTime.toISOString(),
-            exit_time: exitTime.toISOString(),
-            pla_tipo: calcParams.pla_tipo,
-            modalidad: calcParams.modalidad
-          })
-        });
-        if (calcRes.ok) {
-          const calc = await calcRes.json();
-          fee = Number(calc.fee || 0);
-        }
-      } catch (_) {}
+      
+      // CORRECCIÓN: Usar la tarifa ya calculada en handleExit en lugar de recalcularla
+      // Esto evita la duplicación del monto que ocurría al recalcular
+      let fee = lastCalculatedFee;
+      
+      // Solo recalcular si no hay una tarifa previa válida (caso edge)
       if (!fee || fee <= 0) {
-        const rate = parking.rates[exitingVehicle.type] || 0;
-        fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+        console.warn('No hay tarifa precalculada válida, recalculando como fallback...');
+        try {
+          const calcRes = await fetch(`/api/pricing/calculate?est_id=${estId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              vehicleType: exitingVehicle.type,
+              entry_time: entryTime.toISOString(),
+              exit_time: exitTime.toISOString(),
+              pla_tipo: calcParams.pla_tipo,
+              modalidad: calcParams.modalidad
+            })
+          });
+          if (calcRes.ok) {
+            const calc = await calcRes.json();
+            fee = Number(calc.fee || 0);
+          }
+        } catch (_) {}
+        if (!fee || fee <= 0) {
+          const durationHours = Math.max(diffInMinutes / 60, 1);
+          const rate = parking.rates[exitingVehicle.type] || 0;
+          fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+        }
+        if (!fee || fee <= 0) throw new Error("La tarifa debe ser mayor a 0");
+        setLastCalculatedFee(fee);
       }
-      if (!fee || fee <= 0) throw new Error("La tarifa debe ser mayor a 0");
-      setLastCalculatedFee(fee);
+      
       const durationStr = formatDuration(diffInMinutes * 60 * 1000);
 
-      console.log('Calculando tarifa en handlePaymentMethod (parsed with Day.js):', {
+      console.log('Usando tarifa precalculada en handlePaymentMethod:', {
         entryTimeString: exitingVehicle.entry_time,
         entryTimeISO: entryTime.toISOString(),
         exitTimeISO: exitTime.toISOString(),
-        durationHours, fee, diffInMinutes
+        fee: fee,
+        lastCalculatedFee: lastCalculatedFee,
+        diffInMinutes
       });
 
       if (method === 'qr' || method === 'mercadopago') {
@@ -317,7 +327,7 @@ export default function ParkingApp() {
         }
         const paymentData = await responseMp.json();
         if (method === 'qr') {
-          setQrData({ code: paymentData.qr_code, fee: paymentData.fee, qrCodeBase64: paymentData.qr_code_base64 });
+          setQrData({ code: paymentData.qr_code, fee: fee, qrCodeBase64: paymentData.qr_code_base64 });
           setShowQRDialog(true);
         } else if (method === 'mercadopago' && paymentData.init_point) {
           // Guardar los detalles del método de pago antes de abrir la ventana
