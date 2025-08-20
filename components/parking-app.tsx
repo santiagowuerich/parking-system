@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OperatorPanel from "@/components/operator-panel";
 import AdminPanel from "@/components/admin-panel";
-import SettingsPanel from "@/components/rates-panel";
+
 import type { Parking, Vehicle, ParkingHistory, VehicleType } from "@/lib/types";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,7 +16,6 @@ import { toast } from "@/components/ui/use-toast";
 import { QRDialog } from "./qr-dialog";
 import { PaymentConfirmationDialog } from "./payment-confirmation-dialog";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import dayjs from "dayjs";
 import { TransferInfoDialog } from "./ui/transfer-info-dialog";
 
@@ -956,7 +955,11 @@ export default function ParkingApp() {
         </div>
       </div>
 
-      <Tabs defaultValue="operator" className="w-full">
+      <Tabs defaultValue="operator" className="w-full" onValueChange={(value) => {
+        if (value === "rates") {
+          window.location.href = "/gestion-tarifas";
+        }
+      }}>
         <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="operator">Panel de Operador</TabsTrigger>
           <TabsTrigger value="admin">Panel de Administrador</TabsTrigger>
@@ -986,9 +989,7 @@ export default function ParkingApp() {
           />
         </TabsContent>
 
-        <TabsContent value="rates">
-          <SettingsPanel />
-        </TabsContent>
+
       </Tabs>
 
       <Toaster />

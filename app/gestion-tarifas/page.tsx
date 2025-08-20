@@ -12,6 +12,7 @@ import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import type { VehicleType } from "@/lib/types"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Switch } from "@/components/ui/switch"
 
 type Modalidad = 'Hora' | 'Diaria' | 'Mensual'
 type PlazaTipo = 'Normal' | 'VIP' | 'Reservada'
@@ -22,7 +23,7 @@ const nameToSeg = (t: string) => (t === 'Moto' ? 'MOT' : t === 'Camioneta' ? 'CA
 export default function TariffsManagerPage() {
   const { user, estId } = useAuth()
   const [modalidad, setModalidad] = useState<Modalidad>('Hora')
-  const [plaTipo, setPlaTipo] = useState<PlazaTipo>('Normal')
+  const plaTipo = 'Normal' // Fijo en Normal
   const [rates, setRates] = useState<Record<VehicleType, number>>({ Auto: 0, Moto: 0, Camioneta: 0 })
   const [versions, setVersions] = useState<any[]>([])
   const [calcVehicle, setCalcVehicle] = useState<VehicleType>('Auto')
@@ -31,6 +32,18 @@ export default function TariffsManagerPage() {
   const [loading, setLoading] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [baselineNormalHora, setBaselineNormalHora] = useState<Record<VehicleType, number> | null>(null)
+  const [paymentMethods, setPaymentMethods] = useState<{method: string, description: string, enabled: boolean}[]>([])
+  const [loadingPayments, setLoadingPayments] = useState(false)
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false)
+  const [savedRates, setSavedRates] = useState<{rates: Record<VehicleType, number>, modalidad: string, plaTipo: string} | null>(null)
+  
+  // Estados para configuración de MercadoPago y Transferencia
+  const [mercadopagoApiKey, setMercadopagoApiKey] = useState("")
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false)
+  const [bankAccountHolder, setBankAccountHolder] = useState("")
+  const [bankAccountCbu, setBankAccountCbu] = useState("")
+  const [bankAccountAlias, setBankAccountAlias] = useState("")
+  const [isSavingTransfer, setIsSavingTransfer] = useState(false)
 
   // Cargar últimas tarifas por modalidad/plaza seleccionadas usando versions
   useEffect(() => {
@@ -83,6 +96,63 @@ export default function TariffsManagerPage() {
     loadBase()
   }, [estId])
 
+  // Cargar métodos de pago
+  useEffect(() => {
+    const loadPaymentMethods = async () => {
+      try {
+        setLoadingPayments(true)
+        // Cargar todos los métodos disponibles
+        const methodsRes = await fetch(`/api/payment/methods?est_id=${estId}`)
+        if (methodsRes.ok) {
+          const methodsData = await methodsRes.json()
+          setPaymentMethods(methodsData.methods || [])
+        } else {
+          // Fallback: métodos predeterminados
+          setPaymentMethods([
+            { method: 'Efectivo', description: 'Pago en efectivo', enabled: true },
+            { method: 'Transferencia', description: 'Transferencia bancaria', enabled: true },
+            { method: 'MercadoPago', description: 'Pago vía MercadoPago', enabled: true },
+            { method: 'QR', description: 'Código QR', enabled: true }
+          ])
+        }
+      } catch (e) {
+        console.error('Error cargando métodos de pago:', e)
+        // Fallback en caso de error
+        setPaymentMethods([
+          { method: 'Efectivo', description: 'Pago en efectivo', enabled: true },
+          { method: 'Transferencia', description: 'Transferencia bancaria', enabled: true },
+          { method: 'MercadoPago', description: 'Pago vía MercadoPago', enabled: true },
+          { method: 'QR', description: 'Código QR', enabled: true }
+        ])
+      } finally {
+        setLoadingPayments(false)
+      }
+    }
+    loadPaymentMethods()
+  }, [estId])
+
+  // Cargar configuración del usuario (MercadoPago y Transferencia)
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      if (!user?.id) return
+      
+      try {
+        const response = await fetch('/api/user/settings')
+        if (response.ok) {
+          const settings = await response.json()
+          setMercadopagoApiKey(settings.mercadopagoApiKey || "")
+          setBankAccountHolder(settings.bankAccountHolder || "")
+          setBankAccountCbu(settings.bankAccountCbu || "")
+          setBankAccountAlias(settings.bankAccountAlias || "")
+        }
+      } catch (error) {
+        console.error('Error cargando configuración del usuario:', error)
+      }
+    }
+
+    loadUserSettings()
+  }, [user?.id])
+
   const handleRateChange = (type: VehicleType, value: string) => {
     const v = Number(value)
     if (isNaN(v) || v < 0) return
@@ -109,8 +179,11 @@ export default function TariffsManagerPage() {
         const e = await res.json().catch(()=>({}))
         throw new Error(e.error || 'Error al guardar tarifas')
       }
+      
+      // Guardar los datos para mostrar en el diálogo de éxito
+      setSavedRates({ rates: { ...rates }, modalidad, plaTipo })
       setConfirmOpen(false)
-      toast({ title: 'Tarifas actualizadas', description: `Tarifas ${modalidad} (${plaTipo}) guardadas` })
+      setSuccessDialogOpen(true)
     } catch (e: any) {
       console.error(e)
       toast({ variant: 'destructive', title: 'Error', description: e.message || 'No se pudieron guardar las tarifas' })
@@ -119,32 +192,7 @@ export default function TariffsManagerPage() {
     }
   }
 
-  const applySuggestion = () => {
-    // VIP: +20% sobre Normal/Hora
-    // Reservada: si Mensual, calcular desde Normal/Hora * 24 * 30 * 0.8 ; si no, advertir
-    if (!baselineNormalHora) return
-    if (plaTipo === 'VIP') {
-      const uplift = 1.2
-      setRates({
-        Auto: Math.round((baselineNormalHora.Auto * uplift + Number.EPSILON) * 100) / 100,
-        Moto: Math.round((baselineNormalHora.Moto * uplift + Number.EPSILON) * 100) / 100,
-        Camioneta: Math.round((baselineNormalHora.Camioneta * uplift + Number.EPSILON) * 100) / 100,
-      })
-      toast({ title: 'Sugerencia aplicada', description: 'VIP: +20% sobre Normal/Hora' })
-    } else if (plaTipo === 'Reservada') {
-      if (modalidad !== 'Mensual') {
-        toast({ variant: 'destructive', title: 'Sugerencia', description: 'Para plazas Reservadas se recomienda modalidad Mensual.' })
-        return
-      }
-      const factor = 24 * 30 * 0.8 // 20% descuento sobre mensual estimado
-      setRates({
-        Auto: Math.round((baselineNormalHora.Auto * factor + Number.EPSILON) * 100) / 100,
-        Moto: Math.round((baselineNormalHora.Moto * factor + Number.EPSILON) * 100) / 100,
-        Camioneta: Math.round((baselineNormalHora.Camioneta * factor + Number.EPSILON) * 100) / 100,
-      })
-      toast({ title: 'Sugerencia aplicada', description: 'Reservada/Mensual estimada desde Normal/Hora con 20% descuento.' })
-    }
-  }
+
 
   const handleCalculate = async () => {
     try {
@@ -163,6 +211,89 @@ export default function TariffsManagerPage() {
     }
   }
 
+  const handlePaymentMethodToggle = async (method: string, enabled: boolean) => {
+    try {
+      setLoadingPayments(true)
+      const res = await fetch(`/api/payment/methods?est_id=${estId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, enabled })
+      })
+      if (!res.ok) {
+        throw new Error('Error al actualizar método de pago')
+      }
+      
+      // Actualizar el estado local
+      setPaymentMethods(prev => 
+        prev.map(pm => 
+          pm.method === method ? { ...pm, enabled } : pm
+        )
+      )
+      
+      toast({ 
+        title: enabled ? 'Método habilitado' : 'Método deshabilitado',
+        description: `${method} ${enabled ? 'habilitado' : 'deshabilitado'} correctamente` 
+      })
+    } catch (e: any) {
+      console.error('Error:', e)
+      toast({ 
+        variant: 'destructive',
+        title: 'Error',
+        description: e.message || 'No se pudo actualizar el método de pago'
+      })
+    } finally {
+      setLoadingPayments(false)
+    }
+  }
+
+  const handleSaveApiKey = async () => {
+    if (!user?.id) return
+    setIsSavingApiKey(true)
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: user.id, mercadopagoApiKey }),
+      })
+      if (!response.ok) throw new Error("Error al guardar API key")
+      toast({ title: "API Key guardada", description: "La API Key de MercadoPago se ha guardado." })
+    } catch (error) {
+      console.error("Error al guardar API key:", error)
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar la API Key." })
+    } finally {
+      setIsSavingApiKey(false)
+    }
+  }
+
+  const handleSaveTransferDetails = async () => {
+    if (!user?.id) return
+    setIsSavingTransfer(true)
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          bankAccountHolder: bankAccountHolder,
+          bankAccountCbu: bankAccountCbu,
+          bankAccountAlias: bankAccountAlias
+        }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Error al guardar datos de transferencia")
+      }
+      toast({ title: "Datos de Transferencia guardados", description: "La información se ha actualizado." })
+    } catch (error: any) {
+      console.error("Error al guardar datos de transferencia:", error)
+      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudieron guardar los datos de transferencia." })
+    } finally {
+      setIsSavingTransfer(false)
+    }
+  }
+
   const versionsBySeg = useMemo(() => {
     const map: Record<string, any[]> = { AUT: [], MOT: [], CAM: [] }
     for (const v of versions) map[v.catv_segmento]?.push(v)
@@ -170,49 +301,32 @@ export default function TariffsManagerPage() {
   }, [versions])
 
   return (
-    <div className="container mx-auto p-4 grid gap-6 md:grid-cols-3">
-      <div className="md:col-span-3 flex justify-between items-center">
-        <h1 className="text-xl font-semibold dark:text-zinc-100">Gestión de Tarifas</h1>
+    <div className="container mx-auto p-4 space-y-6">
+      <div className="flex items-center justify-between">
         <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
           <Link href="/">Volver al menú</Link>
         </Button>
+        <h1 className="text-xl font-semibold dark:text-zinc-100 absolute left-1/2 transform -translate-x-1/2">Gestión de Tarifas</h1>
+        <div></div> {/* Spacer para mantener el balance */}
       </div>
-      <Card className="md:col-span-2 dark:bg-zinc-900 dark:border-zinc-800">
+      
+      {/* Grid horizontal para los dos modales principales */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Configurar Tarifas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="dark:text-zinc-400">Modalidad</Label>
-              <Select value={modalidad} onValueChange={(v:any)=> setModalidad(v)}>
-                <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"><SelectValue placeholder="Modalidad" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hora">Hora</SelectItem>
-                  <SelectItem value="Diaria">Diaria</SelectItem>
-                  <SelectItem value="Mensual">Mensual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="dark:text-zinc-400">Tipo de Plaza</Label>
-              <Select value={plaTipo} onValueChange={(v:any)=> setPlaTipo(v)}>
-                <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"><SelectValue placeholder="Plaza" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Normal">Normal</SelectItem>
-                  <SelectItem value="VIP">VIP</SelectItem>
-                  <SelectItem value="Reservada">Reservada</SelectItem>
-                </SelectContent>
-              </Select>
-              {(plaTipo === 'VIP' || plaTipo === 'Reservada') && (
-                <Button type="button" variant="outline" onClick={applySuggestion} className="w-full dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                  Aplicar sugerencia {plaTipo === 'VIP' ? '(+20% VIP)' : '(Mensual estimada)' }
-                </Button>
-              )}
-              {plaTipo === 'Reservada' && modalidad !== 'Mensual' && (
-                <p className="text-xs text-amber-600">Sugerencia: usar modalidad Mensual para plazas Reservadas.</p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label className="dark:text-zinc-400">Modalidad</Label>
+            <Select value={modalidad} onValueChange={(v:any)=> setModalidad(v)}>
+              <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"><SelectValue placeholder="Modalidad" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Hora">Hora</SelectItem>
+                <SelectItem value="Diaria">Diaria</SelectItem>
+                <SelectItem value="Mensual">Mensual</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {(["Auto","Moto","Camioneta"] as VehicleType[]).map((t)=> (
             <div key={t} className="space-y-1">
@@ -224,9 +338,9 @@ export default function TariffsManagerPage() {
             <Button onClick={handleSave} disabled={loading} className="dark:bg-white dark:text-black dark:hover:bg-gray-200 w-full">{loading ? 'Guardando...' : 'Guardar Tarifas'}</Button>
           </div>
         </CardContent>
-      </Card>
+        </Card>
 
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Previsualizar Cálculo</CardTitle>
         </CardHeader>
@@ -249,9 +363,124 @@ export default function TariffsManagerPage() {
           <Button onClick={handleCalculate} className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200">Calcular</Button>
           <div className="text-center dark:text-zinc-100 text-xl">{calcFee != null ? `$ ${calcFee.toFixed(2)}` : '—'}</div>
         </CardContent>
+        </Card>
+      </div>
+
+      {/* Nueva sección para gestión de métodos de pago */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Métodos de Pago</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingPayments ? (
+            <div className="text-center py-4">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              <p className="text-sm text-zinc-400 mt-2">Cargando métodos de pago...</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {paymentMethods.map((pm) => (
+                <div key={pm.method} className="flex items-center justify-between p-4 border border-zinc-700 rounded-lg">
+                  <div className="flex flex-col">
+                    <span className="font-medium dark:text-zinc-100">{pm.method}</span>
+                    <span className="text-sm text-zinc-400">{pm.description}</span>
+                  </div>
+                  <Switch
+                    checked={pm.enabled}
+                    onCheckedChange={(checked) => handlePaymentMethodToggle(pm.method, checked)}
+                    disabled={loadingPayments}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      <Card className="md:col-span-3 dark:bg-zinc-900 dark:border-zinc-800">
+      {/* Configuración de MercadoPago */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Configuración de MercadoPago</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="mercadopago-api-key" className="dark:text-zinc-400">API Key</Label>
+            <Input
+              id="mercadopago-api-key"
+              type="password"
+              value={mercadopagoApiKey}
+              onChange={(e) => setMercadopagoApiKey(e.target.value)}
+              placeholder="Ingresa tu API Key"
+              disabled={isSavingApiKey}
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+            />
+            <p className="text-xs text-muted-foreground dark:text-zinc-500">Tu Access Token de producción (APP_USR-...) o pruebas (TEST-...).</p>
+          </div>
+          <div className="pt-2">
+            <Button 
+              onClick={handleSaveApiKey} 
+              disabled={isSavingApiKey}
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
+            >
+              {isSavingApiKey ? "Guardando..." : "Guardar API Key"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Configuración de Transferencia */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Configuración de Transferencia</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="bankHolder" className="dark:text-zinc-400">Nombre del Titular</Label>
+            <Input 
+              id="bankHolder" 
+              value={bankAccountHolder} 
+              onChange={(e) => setBankAccountHolder(e.target.value)} 
+              disabled={isSavingTransfer} 
+              placeholder="Nombre completo" 
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bankCbu" className="dark:text-zinc-400">CBU / CVU</Label>
+            <Input 
+              id="bankCbu" 
+              value={bankAccountCbu} 
+              onChange={(e) => setBankAccountCbu(e.target.value)} 
+              disabled={isSavingTransfer} 
+              placeholder="22 dígitos (CBU) o Alias.CVU" 
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bankAlias" className="dark:text-zinc-400">Alias</Label>
+            <Input 
+              id="bankAlias" 
+              value={bankAccountAlias} 
+              onChange={(e) => setBankAccountAlias(e.target.value)} 
+              disabled={isSavingTransfer} 
+              placeholder="tu.alias.mp" 
+              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100" 
+            />
+            </div>
+          <div className="pt-4">
+            <Button 
+              onClick={handleSaveTransferDetails} 
+              disabled={isSavingTransfer}
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
+            >
+              {isSavingTransfer ? "Guardando..." : "Guardar Datos Transferencia"}
+            </Button>
+            </div>
+      </CardContent>
+    </Card>
+
+      {/* Historial de tarifas */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Historial de Tarifas</CardTitle>
         </CardHeader>
@@ -316,6 +545,47 @@ export default function TariffsManagerPage() {
           <AlertDialogFooter>
             <AlertDialogCancel className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={doSave} className="bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-white dark:text-black dark:hover:bg-gray-200">Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo de éxito */}
+      <AlertDialog open={successDialogOpen} onOpenChange={setSuccessDialogOpen}>
+        <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="dark:text-zinc-100 text-center text-green-600">
+              ¡Tarifas Actualizadas Exitosamente! ✅
+            </AlertDialogTitle>
+            <AlertDialogDescription className="dark:text-zinc-400 text-center">
+              Se han guardado las nuevas tarifas para <strong>{savedRates?.modalidad}</strong> en plazas <strong>{savedRates?.plaTipo}</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="py-4">
+            <h4 className="text-sm font-medium dark:text-zinc-300 mb-3 text-center">Precios actualizados:</h4>
+            <div className="space-y-3">
+              {savedRates && (["Auto","Moto","Camioneta"] as VehicleType[]).map(vehicleType => (
+                <div key={vehicleType} className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <span className="font-medium dark:text-zinc-200">{vehicleType}</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                    ${Number(savedRates.rates[vehicleType] || 0).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-center text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+            Las nuevas tarifas ya están disponibles para los cálculos de estacionamiento
+          </div>
+
+          <AlertDialogFooter className="justify-center">
+            <AlertDialogAction 
+              onClick={() => setSuccessDialogOpen(false)} 
+              className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:text-white dark:hover:bg-green-700 min-w-[120px]"
+            >
+              ¡Perfecto!
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

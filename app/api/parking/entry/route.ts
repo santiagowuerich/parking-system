@@ -45,22 +45,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Error al registrar vehículo" }, { status: 500 });
     }
 
-    // Buscar una plaza libre por segmento en el estacionamiento:
-    const seg = mapTypeToSegment(type)
-    const { data: freePlaza, error: plazaErr } = await supabase
-      .from('plazas')
-      .select('pla_numero')
-      .eq('est_id', estId)
-      .eq('catv_segmento', seg)
-      .order('pla_numero', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
-    if (plazaErr) {
-      console.error('❌ Error buscando plaza:', plazaErr)
+    // Determinar plaza a asignar:
+    // - Si se especifica pla_numero explícitamente, usarlo
+    // - Si NO se especifica, usar NULL para representar "sin plaza asignada"
+    let plazaNumero = null; // null = sin plaza asignada
+    
+    if (pla_numero && !isNaN(Number(pla_numero)) && Number(pla_numero) > 0) {
+      plazaNumero = Number(pla_numero);
+      console.log(`🏁 Plaza especificada: ${plazaNumero}`);
+    } else {
+      console.log(`🚗 Vehículo sin plaza asignada (entrada libre)`);
     }
-
-    const plazaNumero = Number(pla_numero) || freePlaza?.pla_numero || 1
 
     // Registrar entrada en `ocupacion`
     const { data, error } = await supabase

@@ -71,7 +71,8 @@ export default function OperatorPanel({
   )
   const { estId } = useAuth()
   const [plaNumero, setPlaNumero] = useState<string>("")
-  const [plazasStatus, setPlazasStatus] = useState<{ pla_numero: number, occupied: boolean }[]>([])
+  const [plazasStatus, setPlazasStatus] = useState<{ [seg: string]: { total: number, occupied: number, free: number, plazas: { pla_numero: number, occupied: boolean }[] } } | null>(null)
+  const [selectedPlazasType, setSelectedPlazasType] = useState<{ pla_numero: number, occupied: boolean }[]>([])
 
   const [licensePlate, setLicensePlate] = useState("")
   const [selectedType, setSelectedType] = useState<VehicleType>("Auto")
@@ -97,8 +98,10 @@ export default function OperatorPanel({
         const res = await fetch(`/api/plazas/status?est_id=${estId}`)
         if (res.ok) {
           const js = await res.json()
+          setPlazasStatus(js.byType)
+          // También mantener el estado para el selector de plazas
           const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
-          setPlazasStatus(js.byType?.[seg]?.plazas || [])
+          setSelectedPlazasType(js.byType?.[seg]?.plazas || [])
         }
       } catch {}
     }
@@ -181,15 +184,30 @@ export default function OperatorPanel({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
-              <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
-                <p className="text-sm text-gray-500 dark:text-zinc-400">{type}s</p>
-                <p className="text-lg font-medium dark:text-zinc-100">
-                  {parking.capacity[type] - availableSpaces[type]} ocupados de {parking.capacity[type]}
-                </p>
-                <p className="text-sm text-green-600 dark:text-green-400">Libres: {availableSpaces[type]}</p>
-              </div>
-            ))}
+            {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => {
+              const seg = type === 'Moto' ? 'MOT' : type === 'Camioneta' ? 'CAM' : 'AUT'
+              const st = plazasStatus?.[seg]
+              return (
+                <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+                  <p className="text-sm text-gray-500 dark:text-zinc-400">{type}s</p>
+                  <p className="text-lg font-medium dark:text-zinc-100">
+                    {parking.capacity[type] - availableSpaces[type]} ocupados de {parking.capacity[type]}
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    Libres: {availableSpaces[type]}
+                  </p>
+                  {st && (
+                    <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
+                      {st.plazas.map(p => (
+                        <span key={p.pla_numero} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+                          {p.pla_numero}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
           <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
             <p className="text-center font-medium dark:text-zinc-100">
@@ -247,10 +265,10 @@ export default function OperatorPanel({
                 <Label className="dark:text-zinc-400">Plaza (opcional)</Label>
                 <Select value={plaNumero} onValueChange={(v)=> setPlaNumero(v)}>
                   <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder={plazasStatus.filter(p=>!p.occupied).length > 0 ? `Elegir plaza libre (${plazasStatus.filter(p=>!p.occupied).length} libres)` : 'Sin plazas libres'} />
+                    <SelectValue placeholder={selectedPlazasType.filter(p=>!p.occupied).length > 0 ? `Elegir plaza libre (${selectedPlazasType.filter(p=>!p.occupied).length} libres)` : 'Sin plazas libres'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {plazasStatus.filter(p=> !p.occupied).map(p => (
+                    {selectedPlazasType.filter(p=> !p.occupied).map(p => (
                       <SelectItem key={p.pla_numero} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
                     ))}
                   </SelectContent>
@@ -313,6 +331,7 @@ export default function OperatorPanel({
                 <TableRow className="dark:border-zinc-800">
                   <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
                   <TableHead className="dark:text-zinc-400">Tipo</TableHead>
+                  <TableHead className="dark:text-zinc-400">Plaza</TableHead>
                   <TableHead className="dark:text-zinc-400">Hora de Entrada</TableHead>
                   <TableHead className="text-right dark:text-zinc-400">Acción</TableHead>
                 </TableRow>
@@ -325,6 +344,17 @@ export default function OperatorPanel({
                     <TableRow key={vehicle.license_plate + vehicle.entry_time} className="dark:border-zinc-800">
                       <TableCell className="dark:text-zinc-100">{vehicle.license_plate}</TableCell>
                       <TableCell className="dark:text-zinc-100">{vehicle.type}</TableCell>
+                      <TableCell className="dark:text-zinc-100">
+                        {vehicle.plaza_number ? (
+                          <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                            Plaza {vehicle.plaza_number}
+                          </span>
+                        ) : (
+                          <span className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                            Sin plaza asignada
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
                       <TableCell className="text-right">
                         <Button
