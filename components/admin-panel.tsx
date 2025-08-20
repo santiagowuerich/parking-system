@@ -156,9 +156,21 @@ export default function AdminPanel({
 
       const currentUserId = session?.user?.id; 
 
+      // Verificar que estId no sea null/undefined
+      if (!estId || estId <= 0) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "ID de estacionamiento no válido"
+        });
+        return;
+      }
+
       console.log('Enviando capacidad:', {
         userId: currentUserId,
-        capacity: tempCapacities
+        estId: estId,
+        capacity: tempCapacities,
+        sessionValid: !!session
       });
 
       // 1) Actualizar total en estacionamientos
@@ -179,6 +191,7 @@ export default function AdminPanel({
       }
 
       // 2) Sincronizar plazas por tipo (AUT/MOT/CAM)
+      console.log('Sincronizando plazas con:', { estId, tempCapacities });
       const syncRes = await fetch(`/api/capacity/plazas/sync?est_id=${estId}`, {
         method: 'POST',
         headers: {
@@ -188,8 +201,20 @@ export default function AdminPanel({
         body: JSON.stringify(tempCapacities)
       })
       if (!syncRes.ok) {
-        const e = await syncRes.json().catch(()=>({}))
-        throw new Error(e.error || 'Error al sincronizar plazas')
+        console.error('❌ Respuesta de sincronización no OK:', syncRes.status, syncRes.statusText);
+        const responseText = await syncRes.text();
+        console.error('❌ Respuesta cruda:', responseText);
+        
+        let e: any = {};
+        try {
+          e = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('❌ Error parseando respuesta JSON:', parseError);
+          e = { error: `Error del servidor (${syncRes.status}): ${responseText}` };
+        }
+        
+        console.error('Error en sincronización de plazas:', e);
+        throw new Error(e.error || `Error al sincronizar plazas (HTTP ${syncRes.status})`)
       }
 
       // Actualizar estado local y refrescar contexto

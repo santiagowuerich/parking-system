@@ -198,9 +198,9 @@ export default function OperatorPanel({
                   </p>
                   {st && (
                     <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
-                      {st.plazas.map(p => (
-                        <span key={p.pla_numero} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-                          {p.pla_numero}
+                      {st.plazas.map((p, index) => (
+                        <span key={p.pla_numero} className={`w-8 h-8 flex items-center justify-center rounded ${p.occupied ? 'bg-red-600' : 'bg-green-600'}`}>
+                          {/* Número oculto temporalmente debido a errores de renumeración */}
                         </span>
                       ))}
                     </div>
