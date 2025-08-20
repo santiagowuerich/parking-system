@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const acceptedSet = new Set(acceptedMethods?.map(am => am.mepa_metodo) || []);
     
-    // Agregar QR como método adicional (basado en MercadoPago)
+    // Crear lista de métodos regulares
     const methods = [
       ...(allMethods || []).map(method => ({
         method: method.mepa_metodo,
@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
       {
         method: 'QR',
         description: 'Código QR de MercadoPago',
-        enabled: acceptedMethods?.length === 0 ? true : acceptedSet.has('QR')
+        // QR está habilitado si MercadoPago está habilitado
+        enabled: acceptedMethods?.length === 0 ? true : acceptedSet.has('MercadoPago')
       }
     ];
 
@@ -66,32 +67,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Método de pago requerido" }, { status: 400 });
     }
 
-    if (enabled) {
-      // Habilitar método: insertar en est_acepta_metodospago
-      const { error: insertError } = await supabase
-        .from("est_acepta_metodospago")
-        .upsert({
-          est_id: estId,
-          mepa_metodo: method
-        }, {
-          onConflict: 'est_id,mepa_metodo'
-        });
+    // Manejar QR como método especial (es equivalente a MercadoPago)
+    if (method === 'QR') {
+      if (enabled) {
+        // Para QR, habilitamos MercadoPago en la base de datos
+        const { error: insertError } = await supabase
+          .from("est_acepta_metodospago")
+          .upsert({
+            est_id: estId,
+            mepa_metodo: 'MercadoPago'
+          }, {
+            onConflict: 'est_id,mepa_metodo'
+          });
 
-      if (insertError) {
-        console.error("Error habilitando método:", insertError);
-        return NextResponse.json({ error: insertError.message }, { status: 500 });
+        if (insertError) {
+          console.error("Error habilitando MercadoPago para QR:", insertError);
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+      } else {
+        // Para deshabilitar QR, deshabilitamos MercadoPago
+        const { error: deleteError } = await supabase
+          .from("est_acepta_metodospago")
+          .delete()
+          .eq("est_id", estId)
+          .eq("mepa_metodo", 'MercadoPago');
+
+        if (deleteError) {
+          console.error("Error deshabilitando MercadoPago para QR:", deleteError);
+          return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        }
       }
     } else {
-      // Deshabilitar método: eliminar de est_acepta_metodospago
-      const { error: deleteError } = await supabase
-        .from("est_acepta_metodospago")
-        .delete()
-        .eq("est_id", estId)
-        .eq("mepa_metodo", method);
+      // Método normal (Efectivo, Transferencia, MercadoPago)
+      if (enabled) {
+        // Habilitar método: insertar en est_acepta_metodospago
+        const { error: insertError } = await supabase
+          .from("est_acepta_metodospago")
+          .upsert({
+            est_id: estId,
+            mepa_metodo: method
+          }, {
+            onConflict: 'est_id,mepa_metodo'
+          });
 
-      if (deleteError) {
-        console.error("Error deshabilitando método:", deleteError);
-        return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        if (insertError) {
+          console.error("Error habilitando método:", insertError);
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+      } else {
+        // Deshabilitar método: eliminar de est_acepta_metodospago
+        const { error: deleteError } = await supabase
+          .from("est_acepta_metodospago")
+          .delete()
+          .eq("est_id", estId)
+          .eq("mepa_metodo", method);
+
+        if (deleteError) {
+          console.error("Error deshabilitando método:", deleteError);
+          return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        }
       }
     }
 

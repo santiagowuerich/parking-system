@@ -337,7 +337,9 @@ export default function OperatorPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parking.parkedVehicles.map((vehicle) => {
+                {parking.parkedVehicles
+                  .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime())
+                  .map((vehicle) => {
                   let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
                   
                   return (
@@ -398,7 +400,7 @@ export default function OperatorPanel({
         </CardContent>
       </Card>
       */}
-      <OperatorChat />
+      {/* <OperatorChat /> */}
     </div>
   )
 }

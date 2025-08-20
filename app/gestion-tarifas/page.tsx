@@ -397,6 +397,45 @@ export default function TariffsManagerPage() {
         </CardContent>
       </Card>
 
+
+
+
+      {/* Historial de tarifas */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Historial de Tarifas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(['AUT','MOT','CAM'] as const).map(seg => (
+            <div key={seg} className="mb-4">
+              <h3 className="font-semibold mb-2 dark:text-zinc-200">{segToName(seg)}</h3>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="dark:border-zinc-800">
+                      <TableHead className="dark:text-zinc-400">Fecha desde</TableHead>
+                      <TableHead className="dark:text-zinc-400">Precio</TableHead>
+                      <TableHead className="dark:text-zinc-400">Modalidad</TableHead>
+                      <TableHead className="dark:text-zinc-400">Plaza</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(versionsBySeg[seg] || []).map((v:any, i:number) => (
+                      <TableRow key={`${seg}-${i}`} className="dark:border-zinc-800">
+                        <TableCell className="dark:text-zinc-200">{new Date(v.tar_f_desde).toLocaleString('es-AR')}</TableCell>
+                        <TableCell className="dark:text-zinc-200">${Number(v.tar_precio).toFixed(2)}</TableCell>
+                        <TableCell className="dark:text-zinc-200">{v.tiptar_nro === 1 ? 'Hora' : v.tiptar_nro === 2 ? 'Diaria' : 'Mensual'}</TableCell>
+                        <TableCell className="dark:text-zinc-200">{v.pla_tipo}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* Configuración de MercadoPago */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
@@ -478,42 +517,6 @@ export default function TariffsManagerPage() {
             </div>
       </CardContent>
     </Card>
-
-      {/* Historial de tarifas */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Historial de Tarifas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(['AUT','MOT','CAM'] as const).map(seg => (
-            <div key={seg} className="mb-4">
-              <h3 className="font-semibold mb-2 dark:text-zinc-200">{segToName(seg)}</h3>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="dark:border-zinc-800">
-                      <TableHead className="dark:text-zinc-400">Fecha desde</TableHead>
-                      <TableHead className="dark:text-zinc-400">Precio</TableHead>
-                      <TableHead className="dark:text-zinc-400">Modalidad</TableHead>
-                      <TableHead className="dark:text-zinc-400">Plaza</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(versionsBySeg[seg] || []).map((v:any, i:number) => (
-                      <TableRow key={`${seg}-${i}`} className="dark:border-zinc-800">
-                        <TableCell className="dark:text-zinc-200">{new Date(v.tar_f_desde).toLocaleString('es-AR')}</TableCell>
-                        <TableCell className="dark:text-zinc-200">${Number(v.tar_precio).toFixed(2)}</TableCell>
-                        <TableCell className="dark:text-zinc-200">{v.tiptar_nro === 1 ? 'Hora' : v.tiptar_nro === 2 ? 'Diaria' : 'Mensual'}</TableCell>
-                        <TableCell className="dark:text-zinc-200">{v.pla_tipo}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
 
       {/* Confirmación guardar */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

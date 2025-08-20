@@ -504,7 +504,7 @@ export default function AdminPanel({
               variant="outline"
               size="sm"
               onClick={() => setShowFilters(true)}
-              className="flex items-center gap-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              className="hidden flex items-center gap-2 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
               <Filter className="h-4 w-4" />
               Filtros
@@ -760,7 +760,7 @@ export default function AdminPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Chatbot />
+      {/* <Chatbot /> */}
     </div>
   )
 }

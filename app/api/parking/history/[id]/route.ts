@@ -43,11 +43,50 @@ export async function DELETE(
 
     // En el nuevo esquema, el historial proviene de 'ocupacion' con salida y su pago en 'pagos'.
     // Para borrar un historial, eliminamos la ocupación y su pago enlazado.
-    const { data: ocu, error: fetchOcuError } = await supabase
-      .from('ocupacion')
-      .select('ocu_id, pag_nro')
-      .eq('ocu_id', id)
-      .single();
+    
+    let ocu: any = null;
+    let fetchOcuError: any = null;
+    
+    // Verificar si el ID es un entero (nuevo formato) o UUID (formato actual)
+    const isNumericId = /^\d+$/.test(id);
+    
+    if (isNumericId) {
+      // Nuevo formato: buscar directamente por ocu_id
+      const result = await supabase
+        .from('ocupacion')
+        .select('ocu_id, pag_nro')
+        .eq('ocu_id', parseInt(id))
+        .single();
+      ocu = result.data;
+      fetchOcuError = result.error;
+    } else {
+      // Formato actual (UUID): buscar usando la vista para obtener el ocu_id correspondiente
+      const { data: historyEntry, error: historyError } = await supabase
+        .from('vw_historial_estacionamiento')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (historyError) {
+        console.error('Error obteniendo entrada del historial:', historyError);
+        return NextResponse.json({ error: historyError.message }, { status: 500 });
+      }
+      
+      if (!historyEntry) {
+        return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
+      }
+      
+      // Buscar la ocupación usando los datos del historial
+      const result = await supabase
+        .from('ocupacion')
+        .select('ocu_id, pag_nro')
+        .eq('veh_patente', historyEntry.license_plate)
+        .eq('ocu_fh_entrada', historyEntry.entry_time)
+        .eq('ocu_fh_salida', historyEntry.exit_time)
+        .single();
+      ocu = result.data;
+      fetchOcuError = result.error;
+    }
 
     if (fetchOcuError) {
       console.error('Error obteniendo ocupación para borrar:', fetchOcuError);
@@ -57,7 +96,7 @@ export async function DELETE(
     const { error: delOcuError } = await supabase
       .from('ocupacion')
       .delete()
-      .eq('ocu_id', id);
+      .eq('ocu_id', ocu.ocu_id);
     if (delOcuError) {
       console.error('Error eliminando ocupación:', delOcuError);
       return NextResponse.json({ error: delOcuError.message }, { status: 500 });
@@ -132,6 +171,46 @@ export async function PATCH(
 
     console.log("Actualizando registro con datos:", updates);
 
+    // Obtener el ocu_id real (mismo lógica que en DELETE)
+    let targetOcuId: number;
+    const isNumericId = /^\d+$/.test(historyId);
+    
+    if (isNumericId) {
+      targetOcuId = parseInt(historyId);
+    } else {
+      // Formato UUID: buscar usando la vista
+      const { data: historyEntry, error: historyError } = await supabase
+        .from('vw_historial_estacionamiento')
+        .select('*')
+        .eq('id', historyId)
+        .single();
+        
+      if (historyError) {
+        console.error('Error obteniendo entrada del historial para actualizar:', historyError);
+        return NextResponse.json({ error: historyError.message }, { status: 500 });
+      }
+      
+      if (!historyEntry) {
+        return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
+      }
+      
+      // Buscar la ocupación usando los datos del historial
+      const { data: ocuData, error: ocuError } = await supabase
+        .from('ocupacion')
+        .select('ocu_id')
+        .eq('veh_patente', historyEntry.license_plate)
+        .eq('ocu_fh_entrada', historyEntry.entry_time)
+        .eq('ocu_fh_salida', historyEntry.exit_time)
+        .single();
+        
+      if (ocuError || !ocuData) {
+        console.error('Error obteniendo ocu_id para actualizar:', ocuError);
+        return NextResponse.json({ error: 'No se pudo encontrar el registro de ocupación' }, { status: 500 });
+      }
+      
+      targetOcuId = ocuData.ocu_id;
+    }
+
     // En el nuevo esquema, solo permitimos actualizar ciertos campos en 'ocupacion' y 'pagos'
     let ocuUpdates: any = {};
     let pagoUpdates: any = {};
@@ -146,7 +225,7 @@ export async function PATCH(
       const { data: dO, error: eO } = await supabase
         .from('ocupacion')
         .update(ocuUpdates)
-        .eq('ocu_id', historyId)
+        .eq('ocu_id', targetOcuId)
         .select()
         .single();
       if (eO) {
@@ -169,7 +248,7 @@ export async function PATCH(
       const { data: ocuRow, error: ocuErr } = await supabase
         .from('ocupacion')
         .select('pag_nro')
-        .eq('ocu_id', historyId)
+        .eq('ocu_id', targetOcuId)
         .single();
       if (ocuErr) {
         console.error('Error obteniendo pag_nro asociado:', ocuErr);
