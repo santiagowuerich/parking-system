@@ -51,7 +51,7 @@ interface OperatorPanelProps {
       occupied: number
     }
   }
-  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time">) => void
+  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number }) => void
   onRegisterExit: (licensePlate: string) => Promise<void>
   exitInfo: ExitInfo | null
   setExitInfo: (info: ExitInfo | null) => void
