@@ -396,8 +396,8 @@ export default function AdminPanel({
 
   return (
     <div className="space-y-6">
-      {/* Capacidad por tipo (plazas) */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+      {/* Capacidad por tipo (plazas) - OCULTO */}
+      {/* <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Capacidad por Tipo (Plazas)</CardTitle>
         </CardHeader>
@@ -424,7 +424,7 @@ export default function AdminPanel({
             })}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
       {/* Ingresos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
