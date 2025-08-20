@@ -133,7 +133,7 @@ export default function OperatorPanel({
     }
 
     // Elegir plaza: si se seleccionó, usarla; si no, tomar la primera libre si existe
-    const freePlazas = plazasStatus.filter(p=> !p.occupied)
+    const freePlazas = selectedPlazasType.filter(p=> !p.occupied)
     const chosen = plaNumero ? Number(plaNumero) : (freePlazas[0]?.pla_numero)
 
     onRegisterEntry({
