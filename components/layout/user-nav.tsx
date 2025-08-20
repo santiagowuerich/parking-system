@@ -42,13 +42,14 @@ export function UserNav() {
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={String(estId)} onValueChange={(v)=> setEstId(parseInt(v))}>
+      {/* Selector de estación oculto visualmente */}
+      {/* <Select value={String(estId)} onValueChange={(v)=> setEstId(parseInt(v))}>
         <SelectTrigger className="w-[120px]"><SelectValue placeholder="Est." /></SelectTrigger>
         <SelectContent>
           <SelectItem value="1">Est. 1</SelectItem>
           <SelectItem value="2">Est. 2</SelectItem>
         </SelectContent>
-      </Select>
+      </Select> */}
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
