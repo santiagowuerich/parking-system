@@ -170,22 +170,62 @@ export default function TariffsManagerPage() {
   const doSave = async () => {
     try {
       setLoading(true)
+      console.log('🔄 Guardando tarifas:', { rates, modalidad, plaTipo, estId })
+      
       const res = await fetch(`/api/rates?est_id=${estId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rates, modalidad, tipoPlaza: plaTipo })
       })
+      
       if (!res.ok) {
         const e = await res.json().catch(()=>({}))
+        console.error('❌ Error en respuesta del servidor:', e)
         throw new Error(e.error || 'Error al guardar tarifas')
       }
+      
+      const result = await res.json()
+      console.log('✅ Tarifas guardadas exitosamente:', result)
       
       // Guardar los datos para mostrar en el diálogo de éxito
       setSavedRates({ rates: { ...rates }, modalidad, plaTipo })
       setConfirmOpen(false)
       setSuccessDialogOpen(true)
+      
+      // Recargar las versiones para mostrar la nueva tarifa en la tabla
+      console.log('🔄 Recargando versiones de tarifas...')
+      const tiptar = modalidad === 'Hora' ? 1 : modalidad === 'Diaria' ? 2 : 3
+      const versionsRes = await fetch(`/api/rates/versions?tiptar=${tiptar}&pla=${plaTipo}&est_id=${estId}`)
+      if (versionsRes.ok) {
+        const versionsData = await versionsRes.json()
+        const list = Array.isArray(versionsData.tarifas) ? versionsData.tarifas : []
+        setVersions(list)
+        console.log('✅ Versiones recargadas:', list.length, 'entradas')
+        
+        // Actualizar los inputs con las nuevas tarifas guardadas
+        const currentLatest = { Auto: 0, Moto: 0, Camioneta: 0 } as Record<VehicleType, number>
+        const currentSeen: Record<string, boolean> = {}
+        for (const row of list) {
+          if (!currentSeen[row.catv_segmento]) {
+            currentSeen[row.catv_segmento] = true
+            const vehicleType = row.catv_segmento === 'MOT' ? 'Moto' : row.catv_segmento === 'CAM' ? 'Camioneta' : 'Auto'
+            currentLatest[vehicleType] = Number(row.tar_precio)
+          }
+        }
+        setRates(currentLatest)
+        console.log('✅ Tarifas actualizadas en inputs:', currentLatest)
+        
+        // También actualizar baselineNormalHora si corresponde
+        if (modalidad === 'Hora' && plaTipo === 'Normal') {
+          setBaselineNormalHora(currentLatest)
+          console.log('✅ Baseline actualizado:', currentLatest)
+        }
+      } else {
+        console.warn('⚠️ No se pudieron recargar las versiones')
+      }
+      
     } catch (e: any) {
-      console.error(e)
+      console.error('❌ Error guardando tarifas:', e)
       toast({ variant: 'destructive', title: 'Error', description: e.message || 'No se pudieron guardar las tarifas' })
     } finally {
       setLoading(false)

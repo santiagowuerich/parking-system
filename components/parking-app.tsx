@@ -96,7 +96,7 @@ export default function ParkingApp() {
     }
   }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory]);
 
-  const registerEntry = async (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number }) => {
+  const registerEntry = async (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => {
     if (!user?.id) {
       toast({
         variant: "destructive",
@@ -208,17 +208,41 @@ export default function ParkingApp() {
       const entryTime = entryTimeDayjs.toDate();
       const exitTime = new Date(); // Hora actual para cálculo inicial
 
-      const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
-      const durationHours = Math.max(diffInMinutes / 60, 1);
-      const rate = parking.rates[vehicle.type] || 0;
-      const fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
-      if (!fee || fee <= 0) {
-          console.warn("Tarifa calculada es 0 o negativa en handleExit", { durationHours, rate, fee });
-          // Podrías lanzar error o asignar una tarifa mínima si esto no debería pasar
-          throw new Error("La tarifa calculada inicialmente es inválida");
+      // USAR SIEMPRE EL ENDPOINT DE API PARA OBTENER TARIFAS ACTUALIZADAS
+      console.log('🔄 Calculando tarifa usando API para obtener tarifas actualizadas...');
+      const calcRes = await fetch(`/api/pricing/calculate?est_id=${estId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicleType: vehicle.type,
+          entry_time: entryTime.toISOString(),
+          exit_time: exitTime.toISOString(),
+          pla_tipo: 'Normal',
+          modalidad: 'Hora'
+        })
+      });
+
+      let fee = 0;
+      if (calcRes.ok) {
+        const calc = await calcRes.json();
+        fee = Number(calc.fee || 0);
+        console.log('✅ Tarifa calculada vía API:', { fee, calc });
+      } else {
+        console.warn('⚠️ Error en API, usando fallback con estado local');
+        // Fallback: usar estado local solo si la API falla
+        const diffInMinutes = Math.abs(exitTime.getTime() - entryTime.getTime()) / (1000 * 60);
+        const durationHours = Math.max(diffInMinutes / 60, 1);
+        const rate = parking.rates[vehicle.type] || 0;
+        fee = Math.round(calculateFee(durationHours, rate) * 100) / 100;
+        console.log('⚠️ Tarifa calculada con fallback:', { fee, durationHours, rate });
       }
       
-      console.log('Tarifa inicial calculada en handleExit:', { fee, durationHours });
+      if (!fee || fee <= 0) {
+          console.error("❌ Tarifa calculada es 0 o negativa:", { fee });
+          throw new Error("La tarifa calculada es inválida. Verifique la configuración de tarifas.");
+      }
+      
+      console.log('✅ Tarifa final para salida:', { fee });
 
       // Guardar vehículo y tarifa calculada en el estado ANTES de abrir el diálogo
       setExitingVehicle(vehicle);

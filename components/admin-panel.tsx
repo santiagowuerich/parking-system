@@ -126,6 +126,56 @@ export default function AdminPanel({
     setTempCapacities((prev) => ({ ...prev, [type]: value }))
   }
 
+  const handleRegeneratePlazas = async () => {
+    if (!estId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "ID de estacionamiento no válido"
+      });
+      return;
+    }
+
+    try {
+      console.log('🔄 Regenerando plazas...');
+      
+      const response = await fetch('/api/capacity/plazas/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          estId: estId,
+          target: tempCapacities
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error regenerando plazas');
+      }
+
+      const result = await response.json();
+      console.log('✅ Plazas regeneradas:', result);
+
+      toast({
+        title: "Éxito",
+        description: `Plazas regeneradas exitosamente. Total: ${result.plazas?.length || 0} plazas.`
+      });
+
+      // Refrescar la página para ver los cambios
+      window.location.reload();
+
+    } catch (error: any) {
+      console.error('❌ Error regenerando plazas:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || 'Error regenerando las plazas'
+      });
+    }
+  };
+
   const handleSave = async () => {
     try {
       if (!user?.id) {
@@ -499,7 +549,14 @@ export default function AdminPanel({
                   </div>
                 ))}
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex justify-between">
+                <Button 
+                  onClick={handleRegeneratePlazas} 
+                  variant="outline"
+                  className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Regenerar Plazas
+                </Button>
                 <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
               </DialogFooter>
             </DialogContent>

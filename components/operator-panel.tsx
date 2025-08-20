@@ -51,7 +51,7 @@ interface OperatorPanelProps {
       occupied: number
     }
   }
-  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number }) => void
+  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => void
   onRegisterExit: (licensePlate: string) => Promise<void>
   exitInfo: ExitInfo | null
   setExitInfo: (info: ExitInfo | null) => void
@@ -132,9 +132,15 @@ export default function OperatorPanel({
       return
     }
 
-    // Elegir plaza: si se seleccionó, usarla; si no, tomar la primera libre si existe
-    const freePlazas = selectedPlazasType.filter(p=> !p.occupied)
-    const chosen = plaNumero ? Number(plaNumero) : (freePlazas[0]?.pla_numero)
+    // Elegir plaza: solo si se seleccionó explícitamente, sino NULL (sin plaza asignada)
+    const chosen = plaNumero ? Number(plaNumero) : null;
+    
+    console.log('🏁 Registrando entrada:', {
+      license_plate: licensePlate,
+      type: selectedType,
+      pla_numero: chosen,
+      plaNumeroSelected: plaNumero
+    });
 
     onRegisterEntry({
       license_plate: licensePlate,
@@ -144,6 +150,7 @@ export default function OperatorPanel({
 
     setLicensePlate("")
     setSelectedType("Auto")
+    setPlaNumero("") // Limpiar selección de plaza
   }
 
   const handleExit = async (vehicle: Vehicle) => {
