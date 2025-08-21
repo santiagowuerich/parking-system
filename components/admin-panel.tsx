@@ -274,6 +274,10 @@ export default function AdminPanel({
         let e: any = {};
         try { e = JSON.parse(responseText) } catch { e = { error: responseText } }
         console.error('❌ Error en reset de plazas desde Guardar:', e);
+        // Mensaje claro si hay plazas ocupadas que bloquean
+        if (e.occupiedPlazas && e.occupiedPlazas.length > 0) {
+          throw new Error(`${e.error}\n\nPlazas ocupadas: ${e.occupiedPlazas.join(', ')}`);
+        }
         throw new Error(e.error || `Error al regenerar plazas (HTTP ${resetRes.status})`);
       }
 
@@ -596,257 +600,209 @@ export default function AdminPanel({
               Filtros
             </Button>
           </div>
-          {selectedEntries.length > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDeleteSelected}
-              className="ml-2 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
-            >
-              Eliminar seleccionados ({selectedEntries.length})
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Dialog open={showFilters} onOpenChange={setShowFilters}>
-            <DialogContent className="max-w-3xl dark:bg-zinc-950 dark:border-zinc-800">
-              <DialogHeader>
-                <DialogTitle className="dark:text-zinc-100">Filtros de Búsqueda</DialogTitle>
-                <DialogDescription className="dark:text-zinc-400">
-                  Ajusta los filtros para encontrar registros específicos en el historial.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <HistoryFilters
-                  history={history}
-                  onFilteredDataChange={handleFilteredDataChange}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowFilters(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                  Cerrar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          
-          {filteredHistory.length === 0 ? (
-            <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay operaciones registradas</p>
-          ) : (
-            <div className="overflow-x-auto mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow className="dark:border-zinc-800">
-                    <TableHead className="w-[50px]">
-                      <Checkbox
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedEntries(filteredHistory.map(entry => entry.id).filter(Boolean) as string[]);
-                          } else {
-                            setSelectedEntries([]);
-                          }
-                        }}
-                        checked={selectedEntries.length === filteredHistory.map(e=>e.id).filter(Boolean).length && filteredHistory.length > 0}
-                        aria-label="Seleccionar todo"
-                        className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
-                      />
-                    </TableHead>
-                    <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
-                    <TableHead className="dark:text-zinc-400">Tipo</TableHead>
-                    <TableHead className="dark:text-zinc-400">Entrada</TableHead>
-                    <TableHead className="dark:text-zinc-400">Salida</TableHead>
-                    <TableHead className="dark:text-zinc-400">Duración</TableHead>
-                    <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
-                    <TableHead className="dark:text-zinc-400">Método de Pago</TableHead>
-                    <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredHistory.length > 0 ? (
-                    filteredHistory.map((entry, index) => (
-                      <TableRow key={String(entry.id ?? `entry-${index}`)} className="dark:border-zinc-800">
-                        <TableCell>
-                          <Checkbox
-                            onCheckedChange={(checked) => {
-                              if (!entry.id) return;
-                              setSelectedEntries(prev => (
-                                checked ? [...prev, entry.id] : prev.filter(id => id !== entry.id)
-                              ));
-                            }}
-                            disabled={!entry.id}
-                            checked={entry.id ? selectedEntries.includes(entry.id) : false}
-                            aria-label="Seleccionar fila"
-                            className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
-                          />
-                        </TableCell>
-                        <TableCell className="dark:text-zinc-100">{entry.license_plate}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{entry.type}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatDuration(entry.duration)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatCurrency(entry.fee)}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-black text-white hover:bg-gray-800 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600">
-                            {entry.payment_method || "N/A"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(entry)}
-                              className="dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(entry)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 dark:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleReenter(entry)}
-                              className="text-primary hover:text-primary hover:bg-primary/10 dark:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                              title="Reingresar vehículo"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                            </Button>
-                          </div>
+          {/* Botón de eliminar seleccionados oculto por requerimiento */}
+          </CardHeader>
+          <CardContent>
+            <Dialog open={showFilters} onOpenChange={setShowFilters}>
+              <DialogContent className="max-w-3xl dark:bg-zinc-950 dark:border-zinc-800">
+                <DialogHeader>
+                  <DialogTitle className="dark:text-zinc-100">Filtros de Búsqueda</DialogTitle>
+                  <DialogDescription className="dark:text-zinc-400">
+                    Ajusta los filtros para encontrar registros específicos en el historial.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <HistoryFilters
+                    history={history}
+                    onFilteredDataChange={handleFilteredDataChange}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowFilters(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {filteredHistory.length === 0 ? (
+              <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay operaciones registradas</p>
+            ) : (
+              <div className="overflow-x-auto mt-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="dark:border-zinc-800">
+                      {/* Columna de selección oculta */}
+                      <TableHead className="w-[50px] hidden" />
+                      <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
+                      <TableHead className="dark:text-zinc-400">Tipo</TableHead>
+                      <TableHead className="dark:text-zinc-400">Entrada</TableHead>
+                      <TableHead className="dark:text-zinc-400">Salida</TableHead>
+                      <TableHead className="dark:text-zinc-400">Duración</TableHead>
+                      <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
+                      <TableHead className="dark:text-zinc-400">Método de Pago</TableHead>
+                      <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredHistory.length > 0 ? (
+                      filteredHistory.map((entry, index) => (
+                        <TableRow key={String(entry.id ?? `entry-${index}`)} className="dark:border-zinc-800">
+                          {/* celda de selección oculta */}
+                          <TableCell className="hidden" />
+                          <TableCell className="dark:text-zinc-100">{entry.license_plate}</TableCell>
+                          <TableCell className="dark:text-zinc-100">{entry.type}</TableCell>
+                          <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
+                          <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
+                          <TableCell className="dark:text-zinc-100">{formatDuration(entry.duration)}</TableCell>
+                          <TableCell className="dark:text-zinc-100">{formatCurrency(entry.fee)}</TableCell>
+                          <TableCell>
+                            <Badge className="bg-black text-white hover:bg-gray-800 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600">
+                              {entry.payment_method || "N/A"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              {/* Editar y Eliminar removidos por requerimiento */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleReenter(entry)}
+                                className="text-primary hover:text-primary hover:bg-primary/10 dark:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                                title="Reingresar vehículo"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow className="dark:border-zinc-800">
+                        <TableCell colSpan={9} className="h-24 text-center dark:text-zinc-500">
+                          No hay resultados.
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow className="dark:border-zinc-800">
-                      <TableCell colSpan={9} className="h-24 text-center dark:text-zinc-500">
-                        No hay resultados.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Diálogo de confirmación para eliminar un registro */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="dark:text-zinc-100">¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription className="dark:text-zinc-400">
-              {multipleDelete 
-                ? `Esta acción eliminará ${selectedEntries.length} registros del historial.`
-                : "Esta acción eliminará el registro del historial."}
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={multipleDelete ? confirmMultipleDelete : confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog para editar entrada */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
-          <DialogHeader>
-            <DialogTitle className="dark:text-zinc-100">Editar Registro</DialogTitle>
-            <DialogDescription className="dark:text-zinc-400">
-              Modifica los detalles del registro seleccionado.
-            </DialogDescription>
-          </DialogHeader>
-          {editingEntry && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="matricula" className="text-right dark:text-zinc-400">
-                  Matrícula
-                </Label>
-                <Input
-                  id="matricula"
-                  value={editingEntry.license_plate}
-                  onChange={(e) => setEditingEntry({ ...editingEntry, license_plate: e.target.value })}
-                  className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                />
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                 <Label htmlFor="tarifa" className="text-right dark:text-zinc-400">
-                   Tarifa
-                 </Label>
-                 <Input
-                   id="tarifa"
-                   type="number"
-                   value={editingEntry.fee}
-                   onChange={(e) => setEditingEntry({ ...editingEntry, fee: parseFloat(e.target.value) || 0 })}
-                   className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                 />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="payment_method" className="text-right dark:text-zinc-400">
-                  Método de Pago
-                </Label>
-                <Select
-                  value={editingEntry.payment_method || 'No especificado'}
-                  onValueChange={(value) => setEditingEntry({ ...editingEntry, payment_method: value })}
-                >
-                  <SelectTrigger className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder="Seleccionar método" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="efectivo">Efectivo</SelectItem>
-                    <SelectItem value="transferencia">Transferencia</SelectItem>
-                    <SelectItem value="MercadoPago QR">Código QR</SelectItem>
-                    <SelectItem value="mercadopago">Mercado Pago</SelectItem>
-                    <SelectItem value="No especificado">No especificado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</Button>
-            <Button onClick={handleUpdateEntry} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar Cambios</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Diálogo de confirmación para reingresar un vehículo */}
-      <AlertDialog open={reenterDialogOpen} onOpenChange={setReenterDialogOpen}>
-        <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="dark:text-zinc-100">¿Reingresar vehículo?</AlertDialogTitle>
-            <AlertDialogDescription className="dark:text-zinc-400">
-              {entryToReenter && (
-                <>
-                  ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.license_plate}?
-                  Esta acción eliminará el registro de salida y creará una nueva entrada.
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setReenterDialogOpen(false)} className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={confirmReenter} className="bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-white dark:text-black dark:hover:bg-gray-200">
-              Reingresar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      {/* <Chatbot /> */}
-    </div>
-  )
-}
+        {/* Diálogo de confirmación para eliminar un registro */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="dark:text-zinc-100">¿Estás seguro?</AlertDialogTitle>
+              <AlertDialogDescription className="dark:text-zinc-400">
+                {multipleDelete 
+                  ? `Esta acción eliminará ${selectedEntries.length} registros del historial.`
+                  : "Esta acción eliminará el registro del historial."}
+                Esta acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={multipleDelete ? confirmMultipleDelete : confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog para editar entrada */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
+            <DialogHeader>
+              <DialogTitle className="dark:text-zinc-100">Editar Registro</DialogTitle>
+              <DialogDescription className="dark:text-zinc-400">
+                Modifica los detalles del registro seleccionado.
+              </DialogDescription>
+            </DialogHeader>
+            {editingEntry && (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="matricula" className="text-right dark:text-zinc-400">
+                    Matrícula
+                  </Label>
+                  <Input
+                    id="matricula"
+                    value={editingEntry.license_plate}
+                    onChange={(e) => setEditingEntry({ ...editingEntry, license_plate: e.target.value })}
+                    className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                   <Label htmlFor="tarifa" className="text-right dark:text-zinc-400">
+                     Tarifa
+                   </Label>
+                   <Input
+                     id="tarifa"
+                     type="number"
+                     value={editingEntry.fee}
+                     onChange={(e) => setEditingEntry({ ...editingEntry, fee: parseFloat(e.target.value) || 0 })}
+                     className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="payment_method" className="text-right dark:text-zinc-400">
+                    Método de Pago
+                  </Label>
+                  <Select
+                    value={editingEntry.payment_method || 'No especificado'}
+                    onValueChange={(value) => setEditingEntry({ ...editingEntry, payment_method: value })}
+                  >
+                    <SelectTrigger className="col-span-3 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
+                      <SelectValue placeholder="Seleccionar método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="efectivo">Efectivo</SelectItem>
+                      <SelectItem value="transferencia">Transferencia</SelectItem>
+                      <SelectItem value="MercadoPago QR">Código QR</SelectItem>
+                      <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+                      <SelectItem value="No especificado">No especificado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">Cancelar</Button>
+              <Button onClick={handleUpdateEntry} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar Cambios</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo de confirmación para reingresar un vehículo */}
+        <AlertDialog open={reenterDialogOpen} onOpenChange={setReenterDialogOpen}>
+          <AlertDialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="dark:text-zinc-100">¿Reingresar vehículo?</AlertDialogTitle>
+              <AlertDialogDescription className="dark:text-zinc-400">
+                {entryToReenter && (
+                  <>
+                    ¿Está seguro que desea reingresar el vehículo con matrícula {entryToReenter.license_plate}?
+                    Esta acción eliminará el registro de salida y creará una nueva entrada.
+                  </>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setReenterDialogOpen(false)} className="dark:bg-transparent dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={confirmReenter} className="bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                Reingresar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        {/* <Chatbot /> */}
+      </div>
+    )
+  }

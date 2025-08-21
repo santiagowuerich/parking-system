@@ -80,6 +80,10 @@ export default function OperatorPanel({
   const [processingExit, setProcessingExit] = useState<string | null>(null)
   const [showExitConfirmation, setShowExitConfirmation] = useState(false)
 
+  // Filtros para la tabla de vehículos estacionados
+  const [filterPlate, setFilterPlate] = useState<string>("")
+  const [filterVehicleType, setFilterVehicleType] = useState<VehicleType | 'Todos'>("Todos")
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT") {
@@ -92,21 +96,25 @@ export default function OperatorPanel({
     }
   }, [supabase])
 
-  useEffect(() => {
-    const loadPlazas = async () => {
-      try {
-        const res = await fetch(`/api/plazas/status?est_id=${estId}`)
-        if (res.ok) {
-          const js = await res.json()
-          setPlazasStatus(js.byType)
-          // También mantener el estado para el selector de plazas
-          const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
-          setSelectedPlazasType(js.byType?.[seg]?.plazas || [])
-        }
-      } catch {}
-    }
-    loadPlazas()
-  }, [estId, selectedType])
+  // Función reutilizable para recargar el estado de plazas
+  const reloadPlazas = async () => {
+    try {
+      const res = await fetch(`/api/plazas/status?est_id=${estId}`)
+      if (res.ok) {
+        const js = await res.json()
+        setPlazasStatus(js.byType)
+        // También mantener el estado para el selector de plazas
+        const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
+        setSelectedPlazasType(js.byType?.[seg]?.plazas || [])
+      }
+    } catch {}
+  }
+
+  // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
+  useEffect(() => { reloadPlazas() }, [estId, selectedType])
+
+  // Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
+  useEffect(() => { reloadPlazas() }, [parking.parkedVehicles.length])
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,6 +155,9 @@ export default function OperatorPanel({
       type: selectedType,
       pla_numero: chosen,
     })
+
+    // Intentar actualizar visual de plazas inmediatamente
+    reloadPlazas()
 
     setLicensePlate("")
     setSelectedType("Auto")
@@ -298,6 +309,33 @@ export default function OperatorPanel({
           <CardTitle className="dark:text-zinc-100">Vehículos Estacionados</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Controles de búsqueda y filtros */}
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="dark:text-zinc-400">Buscar patente</Label>
+              <Input
+                value={filterPlate}
+                onChange={(e)=> setFilterPlate(e.target.value)}
+                placeholder="Ej: ABC123"
+                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="dark:text-zinc-400">Filtrar por tipo</Label>
+              <Select value={filterVehicleType} onValueChange={(v)=> setFilterVehicleType(v as any)}>
+                <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
+                  <SelectValue placeholder="Tipo de vehículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                  <SelectItem value="Auto">Auto</SelectItem>
+                  <SelectItem value="Moto">Moto</SelectItem>
+                  <SelectItem value="Camioneta">Camioneta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {parking.parkedVehicles.length === 0 ? (
             <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay vehículos estacionados actualmente</p>
           ) : (
@@ -313,6 +351,8 @@ export default function OperatorPanel({
               </TableHeader>
               <TableBody>
                 {parking.parkedVehicles
+                  .filter(v => (filterVehicleType === 'Todos' || v.type === filterVehicleType) &&
+                               (!filterPlate || v.license_plate.toLowerCase().includes(filterPlate.toLowerCase())))
                   .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime())
                   .map((vehicle) => {
                   let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);

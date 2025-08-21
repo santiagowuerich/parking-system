@@ -18,6 +18,60 @@ export async function POST(request: NextRequest) {
 
     console.log('📋 Reset para estacionamiento:', estId, 'con capacidades:', target);
 
+    // Validación: no permitir reducir por debajo de plazas ocupadas de números altos
+    // 1) Traer plazas actuales
+    const { data: plazasActuales, error: plazasErr } = await supabase
+      .from('plazas')
+      .select('pla_numero, catv_segmento')
+      .eq('est_id', estId);
+    if (plazasErr) {
+      console.error('❌ Error obteniendo plazas existentes para validación:', plazasErr);
+      return NextResponse.json({ error: 'Error obteniendo plazas existentes' }, { status: 500 });
+    }
+
+    // 2) Traer ocupaciones activas
+    const { data: ocupActivas, error: occErr } = await supabase
+      .from('ocupacion')
+      .select('pla_numero')
+      .eq('est_id', estId)
+      .is('ocu_fh_salida', null);
+    if (occErr) {
+      console.error('❌ Error obteniendo ocupaciones activas para validación:', occErr);
+      return NextResponse.json({ error: 'Error obteniendo ocupaciones' }, { status: 500 });
+    }
+    const occupiedSet = new Set((ocupActivas || []).map(o => o.pla_numero).filter(n => n != null) as number[]);
+
+    // 3) Calcular conteo actual por segmento y validar reducciones
+    const currentCounts: Record<string, number> = { AUT: 0, MOT: 0, CAM: 0 };
+    for (const p of plazasActuales || []) currentCounts[p.catv_segmento] = (currentCounts[p.catv_segmento] || 0) + 1;
+
+    const targetCounts = {
+      AUT: Number(target.AUT || 0),
+      MOT: Number(target.MOT || 0),
+      CAM: Number(target.CAM || 0)
+    };
+
+    for (const seg of ['AUT','MOT','CAM'] as const) {
+      const current = currentCounts[seg] || 0;
+      const desired = targetCounts[seg];
+      if (desired < current) {
+        // Plazas del segmento, ordenadas desc
+        const segPlazas = (plazasActuales || [])
+          .filter(p => p.catv_segmento === seg)
+          .map(p => p.pla_numero)
+          .sort((a,b) => b - a);
+        const plazasAEliminar = segPlazas.slice(0, current - desired);
+        const ocupadasBloqueantes = plazasAEliminar.filter(n => occupiedSet.has(n));
+        if (ocupadasBloqueantes.length > 0) {
+          const nombre = seg === 'AUT' ? 'Autos' : seg === 'MOT' ? 'Motos' : 'Camionetas';
+          return NextResponse.json({
+            error: `No se puede reducir ${nombre} a ${desired}. Plazas ocupadas que quedarían fuera: ${ocupadasBloqueantes.join(', ')}`,
+            occupiedPlazas: ocupadasBloqueantes
+          }, { status: 400 });
+        }
+      }
+    }
+
     // 1. Liberar todas las ocupaciones de plazas específicas (ponerlas en null)
     console.log('🔓 Liberando todas las ocupaciones...');
     const { error: freeOccupationsErr } = await supabase
