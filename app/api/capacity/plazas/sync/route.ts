@@ -86,6 +86,32 @@ export async function POST(request: NextRequest) {
     console.log(`📈 Conteo actual:`, currentCounts);
     console.log(`🎯 Objetivo:`, target);
 
+    // VALIDACIÓN: Verificar que no se esté reduciendo capacidad si hay vehículos en plazas con números altos
+    for (const [seg, targetCount] of Object.entries(target)) {
+      const currentCount = currentCounts[seg] || 0;
+      
+      if (targetCount < currentCount) {
+        // Se está reduciendo la capacidad, verificar plazas ocupadas
+        const segmentPlazas = (plazas || [])
+          .filter(p => p.catv_segmento === seg)
+          .map(p => p.pla_numero as number)
+          .sort((a, b) => b - a); // Ordenar de mayor a menor
+        
+        // Verificar si hay vehículos en plazas que quedarían fuera del nuevo límite
+        const plazasToRemove = segmentPlazas.slice(0, currentCount - targetCount);
+        const occupiedPlazasToRemove = plazasToRemove.filter(pla => occupiedSet.has(pla));
+        
+        if (occupiedPlazasToRemove.length > 0) {
+          const vehicleTypeSpanish = seg === 'AUT' ? 'Autos' : seg === 'MOT' ? 'Motos' : 'Camionetas';
+          console.error(`❌ No se puede reducir capacidad de ${vehicleTypeSpanish}: hay vehículos en plazas ${occupiedPlazasToRemove.join(', ')}`);
+          return NextResponse.json({ 
+            error: `No se puede reducir la capacidad de ${vehicleTypeSpanish} a ${targetCount}. Hay vehículos estacionados en las plazas: ${occupiedPlazasToRemove.join(', ')}. Debe retirar estos vehículos antes de reducir la capacidad.`,
+            occupiedPlazas: occupiedPlazasToRemove
+          }, { status: 400 });
+        }
+      }
+    }
+
     // Determinar diferencias y aplicar
     // Calcular un contador global de pla_numero para evitar colisiones entre segmentos
     let nextNumber = 1;

@@ -206,8 +206,8 @@ export default function OperatorPanel({
                   {st && (
                     <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
                       {st.plazas.map((p, index) => (
-                        <span key={p.pla_numero} className={`w-8 h-8 flex items-center justify-center rounded ${p.occupied ? 'bg-red-600' : 'bg-green-600'}`}>
-                          {/* Número oculto temporalmente debido a errores de renumeración */}
+                        <span key={`${type}-${p.pla_numero || index}`} className={`w-8 h-8 flex items-center justify-center rounded text-white font-bold text-xs ${p.occupied ? 'bg-red-600' : 'bg-green-600'}`}>
+                          {p.pla_numero || 'N/A'}
                         </span>
                       ))}
                     </div>
@@ -275,8 +275,8 @@ export default function OperatorPanel({
                     <SelectValue placeholder={selectedPlazasType.filter(p=>!p.occupied).length > 0 ? `Elegir plaza libre (${selectedPlazasType.filter(p=>!p.occupied).length} libres)` : 'Sin plazas libres'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedPlazasType.filter(p=> !p.occupied).map(p => (
-                      <SelectItem key={p.pla_numero} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
+                    {selectedPlazasType.filter(p=> !p.occupied && p.pla_numero != null).map(p => (
+                      <SelectItem key={`plaza-${p.pla_numero}`} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -290,39 +290,7 @@ export default function OperatorPanel({
         </CardContent>
       </Card>
 
-      {/* Salida */}
-      {exitInfo && (
-        <Card className="dark:bg-zinc-900 dark:border-green-700">
-          <CardHeader>
-            <CardTitle className="flex items-center dark:text-green-400">
-              <CheckCircle2 className="mr-2 h-5 w-5 text-green-600 dark:text-green-400" />
-              Salida Registrada
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="dark:text-zinc-300">
-            <div className="space-y-2">
-              {exitInfo.vehicle ? (
-                <>
-                  <p><strong className="dark:text-zinc-100">Matrícula:</strong> {exitInfo.vehicle.license_plate}</p>
-                  <p><strong className="dark:text-zinc-100">Tipo:</strong> {exitInfo.vehicle.type}</p>
-                  <p><strong className="dark:text-zinc-100">Entrada:</strong> {formatArgentineTimeWithDayjs(exitInfo.vehicle.entry_time)}</p>
-                  <p><strong className="dark:text-zinc-100">Salida:</strong> {formatArgentineTimeWithDayjs(exitInfo.exitTime)}</p>
-                  <p><strong className="dark:text-zinc-100">Tiempo estacionado:</strong> {exitInfo.duration}</p>
-                  <p className="text-lg font-bold dark:text-white">Total a cobrar: {formatCurrency(exitInfo.fee)}</p>
-                  {exitInfo.duration.includes("min") && !exitInfo.duration.includes("h") && (
-                    <p className="text-sm text-amber-600 dark:text-amber-400">Nota: Se cobra mínimo 1 hora de estacionamiento.</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-gray-500 dark:text-zinc-500">No hay información del vehículo.</p>
-              )}
-              <Button variant="outline" className="mt-4 w-full dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" onClick={() => setExitInfo(null)}>
-                Cerrar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Panel de "Salida Registrada" eliminado: usamos solo notificación (toast) */}
 
       {/* Vehículos estacionados */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">

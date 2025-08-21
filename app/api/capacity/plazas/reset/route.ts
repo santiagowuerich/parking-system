@@ -58,12 +58,14 @@ export async function POST(request: NextRequest) {
       if (segment.count > 0) {
         console.log(`🔢 Creando ${segment.count} plazas ${segment.key} desde el número ${currentNumber}`);
         
-        const plazasToCreate = [];
+        const plazasToCreate = [] as any[];
         for (let i = 0; i < segment.count; i++) {
           plazasToCreate.push({
             est_id: estId,
             pla_numero: currentNumber + i,
-            catv_segmento: segment.key
+            catv_segmento: segment.key,
+            pla_estado: 'Libre',
+            pla_zona: null
           });
         }
 

@@ -177,17 +177,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
     
     try {
+      console.log('🔄 Cargando historial de estacionamiento para estId:', estId);
       const historyResponse = await fetch(`/api/parking/history?est_id=${estId}`);
       
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
+        console.log('✅ Datos del historial recibidos:', {
+          count: historyData.history?.length || 0,
+          data: historyData.history?.slice(0, 3) // Mostrar primeros 3 para debug
+        });
         setParkingHistory(Array.isArray(historyData.history) ? historyData.history : []);
       } else {
-        console.error("Error al cargar historial de estacionamiento");
+        const errorText = await historyResponse.text();
+        console.error("❌ Error al cargar historial de estacionamiento:", {
+          status: historyResponse.status,
+          statusText: historyResponse.statusText,
+          body: errorText
+        });
         setParkingHistory([]);
       }
     } catch (error) {
-      console.error("Error general al cargar historial de estacionamiento:", error);
+      console.error("❌ Error general al cargar historial de estacionamiento:", error);
       setParkingHistory([]);
     }
   };
@@ -364,9 +374,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
+        console.log('✅ Datos del historial recibidos en fetchUserData:', {
+          count: historyData.history?.length || 0,
+          data: historyData.history?.slice(0, 2) // Mostrar primeros 2 para debug
+        });
         setParkingHistory(Array.isArray(historyData.history) ? historyData.history : []);
       } else {
-        console.error("Error al cargar historial de estacionamiento");
+        console.error("❌ Error al cargar historial de estacionamiento en fetchUserData");
         setParkingHistory([]);
       }
     } catch (error) {

@@ -54,15 +54,21 @@ export async function GET(request: NextRequest) {
       // @ts-ignore
       query = query.eq('est_id', estId)
     }
+    console.log('🔍 Ejecutando query del historial para est_id:', estId);
     const { data, error } = await query
 
     if (error) {
-      console.error("Error fetching history:", error);
+      console.error("❌ Error fetching history:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     // Asegurarse de que data sea un arreglo
     const historyData = Array.isArray(data) ? data : [];
+    console.log('📊 Datos del historial encontrados:', {
+      count: historyData.length,
+      estId,
+      firstItems: historyData.slice(0, 3)
+    });
     
     const jsonResponse = NextResponse.json({ history: historyData });
 

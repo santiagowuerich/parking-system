@@ -16,34 +16,71 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url)
     const reqEstId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || undefined
 
-    // 1) Cerrar ocupación activa del vehículo
-    let closeQuery = supabase
-      .from("ocupacion")
-      .update({
-        ocu_fh_salida: exit_time,
-      })
-      .eq("veh_patente", license_plate)
-      .eq("ocu_fh_entrada", entry_time)
-      .is("ocu_fh_salida", null)
-    if (reqEstId) {
-      // @ts-ignore
-      closeQuery = closeQuery.eq('est_id', reqEstId)
+    // 1) Localizar UNA sola ocupación abierta y cerrarla de forma segura
+    // Primero buscamos la ocupación abierta más reciente que coincida con matrícula y hora de entrada
+    let targetOcuId: number | null = null;
+    {
+      let findOpen = supabase
+        .from('ocupacion')
+        .select('ocu_id')
+        .eq('veh_patente', license_plate)
+        .eq('ocu_fh_entrada', entry_time)
+        .is('ocu_fh_salida', null)
+        .order('ocu_id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (reqEstId) {
+        // @ts-ignore
+        findOpen = findOpen.eq('est_id', reqEstId)
+      }
+      const { data: openByExact, error: openExactErr } = await findOpen;
+
+      if (openExactErr && openExactErr.code !== 'PGRST116') {
+        console.warn('No se pudo encontrar ocupación exacta por entrada; intentando por última abierta de esa patente', openExactErr);
+      }
+
+      if (openByExact?.ocu_id) {
+        targetOcuId = openByExact.ocu_id as unknown as number;
+      } else {
+        // fallback: última ocupación abierta por esa patente
+        let findAny = supabase
+          .from('ocupacion')
+          .select('ocu_id')
+          .eq('veh_patente', license_plate)
+          .is('ocu_fh_salida', null)
+          .order('ocu_id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (reqEstId) {
+          // @ts-ignore
+          findAny = findAny.eq('est_id', reqEstId)
+        }
+        const { data: anyOpen } = await findAny;
+        if (anyOpen?.ocu_id) targetOcuId = anyOpen.ocu_id as unknown as number;
+      }
     }
-    const { error: closeError } = await closeQuery
+
+    if (!targetOcuId) {
+      console.error('No se encontró ocupación abierta para cerrar', { license_plate, entry_time, est_id: reqEstId });
+      return NextResponse.json({ error: 'Ocupación no encontrada para registrar pago' }, { status: 500 });
+    }
+
+    const { error: closeError } = await supabase
+      .from('ocupacion')
+      .update({ ocu_fh_salida: exit_time })
+      .eq('ocu_id', targetOcuId);
 
     if (closeError) {
       console.error("Error al cerrar ocupación:", closeError);
       return NextResponse.json({ error: closeError.message }, { status: 500 });
     }
 
-    // 2) Obtener datos de la ocupación para armar el pago (est_id y veh_patente)
-    let fetchQuery = supabase
-      .from("ocupacion")
-      .select("est_id, veh_patente, pla_numero, ocu_fh_entrada")
-      .eq("veh_patente", license_plate)
-      .eq("ocu_fh_entrada", entry_time)
-    if (reqEstId) fetchQuery = fetchQuery.eq('est_id', reqEstId)
-    const { data: ocupacionRow, error: fetchOcuError } = await fetchQuery.single();
+    // 2) Obtener datos de ESA ocupación ya cerrada (usamos ocu_id)
+    const { data: ocupacionRow, error: fetchOcuError } = await supabase
+      .from('ocupacion')
+      .select('est_id, veh_patente, pla_numero, ocu_fh_entrada, ocu_id')
+      .eq('ocu_id', targetOcuId)
+      .maybeSingle();
 
     if (fetchOcuError || !ocupacionRow) {
       console.error("No se pudo obtener ocupación para pago:", fetchOcuError);
@@ -81,13 +118,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: pagoError.message }, { status: 500 });
     }
 
-    // 5) Enlazar pago a la ocupación cerrada
+    // 5) Enlazar pago a la ocupación cerrada usando ocu_id (más confiable que pla_numero)
     const { error: linkError } = await supabase
-      .from("ocupacion")
+      .from('ocupacion')
       .update({ pag_nro: pago.pag_nro })
-      .eq("est_id", ocupacionRow.est_id)
-      .eq("pla_numero", ocupacionRow.pla_numero)
-      .eq("ocu_fh_entrada", ocupacionRow.ocu_fh_entrada);
+      .eq('ocu_id', ocupacionRow.ocu_id);
 
     if (linkError) {
       console.error("Error al enlazar pago a ocupación:", linkError);

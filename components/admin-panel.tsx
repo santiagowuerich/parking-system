@@ -92,9 +92,20 @@ export default function AdminPanel({
   onUpdateHistoryEntry,
   onReenterVehicle,
 }: AdminPanelProps) {
+  
+  // Debug log para verificar los datos del historial
+  useEffect(() => {
+    console.log('📊 AdminPanel - Datos del historial recibidos:', {
+      historyLength: history?.length || 0,
+      historyData: history?.slice(0, 3), // Primeros 3 registros para debug
+      isArray: Array.isArray(history)
+    });
+    // Actualizar el historial filtrado cuando cambien los props
+    setFilteredHistory(history || []);
+  }, [history]);
   const { user, refreshCapacity, estId } = useAuth();
   const [plazasStatus, setPlazasStatus] = useState<{ [seg: string]: { total: number, occupied: number, free: number, plazas: { pla_numero: number, occupied: boolean }[] } } | null>(null)
-  const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history);
+  const [filteredHistory, setFilteredHistory] = useState<ParkingHistory[]>(history || []);
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [tempCapacities, setTempCapacities] = useState(capacity);
@@ -240,38 +251,37 @@ export default function AdminPanel({
         throw new Error(errorData.error || "Error al actualizar la capacidad");
       }
 
-      // 2) Sincronizar plazas por tipo (AUT/MOT/CAM)
-      console.log('Sincronizando plazas con:', { estId, tempCapacities });
-      const syncRes = await fetch(`/api/capacity/plazas/sync?est_id=${estId}`, {
+      // 2) Regenerar plazas (liberar ocupaciones, borrar y recrear con numeración consecutiva)
+      //    El botón Guardar ahora realiza el flujo completo de reset para evitar inconsistencias
+      const targetForReset = {
+        AUT: Number(tempCapacities.Auto || 0),
+        MOT: Number(tempCapacities.Moto || 0),
+        CAM: Number(tempCapacities.Camioneta || 0),
+      };
+
+      console.log('🔄 Regenerando plazas como parte de Guardar:', { estId, targetForReset });
+      const resetRes = await fetch('/api/capacity/plazas/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(tempCapacities)
-      })
-      if (!syncRes.ok) {
-        console.error('❌ Respuesta de sincronización no OK:', syncRes.status, syncRes.statusText);
-        const responseText = await syncRes.text();
-        console.error('❌ Respuesta cruda:', responseText);
-        
+        body: JSON.stringify({ estId, target: targetForReset })
+      });
+
+      if (!resetRes.ok) {
+        const responseText = await resetRes.text();
         let e: any = {};
-        try {
-          e = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('❌ Error parseando respuesta JSON:', parseError);
-          e = { error: `Error del servidor (${syncRes.status}): ${responseText}` };
-        }
-        
-        console.error('Error en sincronización de plazas:', e);
-        throw new Error(e.error || `Error al sincronizar plazas (HTTP ${syncRes.status})`)
+        try { e = JSON.parse(responseText) } catch { e = { error: responseText } }
+        console.error('❌ Error en reset de plazas desde Guardar:', e);
+        throw new Error(e.error || `Error al regenerar plazas (HTTP ${resetRes.status})`);
       }
 
       // Actualizar estado local y refrescar contexto
       Object.entries(tempCapacities).forEach(([type, value]) => onUpdateCapacity(type as VehicleType, value));
       await refreshCapacity();
 
-      toast({ title: "Capacidad actualizada", description: "La capacidad y las plazas se han sincronizado." });
+      toast({ title: "Capacidad actualizada", description: "Capacidad y plazas regeneradas correctamente." });
       setOpen(false);
     } catch (error) {
       console.error("Error al guardar capacidad:", error);
@@ -382,7 +392,7 @@ export default function AdminPanel({
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const allIds = filteredHistory.map(entry => entry.id);
+      const allIds = filteredHistory.filter(entry => entry.id != null).map(entry => entry.id);
       setSelectedEntries(allIds);
     } else {
       setSelectedEntries([]);
@@ -487,9 +497,9 @@ export default function AdminPanel({
                   <p className="text-lg font-medium dark:text-zinc-100">{st ? `${st.free} libres de ${st.total}` : `${availableSpaces[t]} libres de ${capacity[t]}`}</p>
                   {st && (
                     <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
-                      {st.plazas.map(p => (
-                        <span key={p.pla_numero} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-                          {p.pla_numero}
+                      {st.plazas.map((p, index) => (
+                        <span key={`${seg}-${p.pla_numero || index}`} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+                          {p.pla_numero || 'N/A'}
                         </span>
                       ))}
                     </div>
@@ -549,14 +559,8 @@ export default function AdminPanel({
                   </div>
                 ))}
               </div>
-              <DialogFooter className="flex justify-between">
-                <Button 
-                  onClick={handleRegeneratePlazas} 
-                  variant="outline"
-                  className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  Regenerar Plazas
-                </Button>
+              <DialogFooter className="flex justify-end gap-2">
+                {/* Botón de regenerar plazas se elimina porque Guardar ahora incluye esa operación */}
                 <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
               </DialogFooter>
             </DialogContent>
@@ -637,12 +641,12 @@ export default function AdminPanel({
                       <Checkbox
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedEntries(filteredHistory.map(entry => entry.id));
+                            setSelectedEntries(filteredHistory.map(entry => entry.id).filter(Boolean) as string[]);
                           } else {
                             setSelectedEntries([]);
                           }
                         }}
-                        checked={selectedEntries.length === filteredHistory.length && filteredHistory.length > 0}
+                        checked={selectedEntries.length === filteredHistory.map(e=>e.id).filter(Boolean).length && filteredHistory.length > 0}
                         aria-label="Seleccionar todo"
                         className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
                       />
@@ -659,18 +663,18 @@ export default function AdminPanel({
                 </TableHeader>
                 <TableBody>
                   {filteredHistory.length > 0 ? (
-                    filteredHistory.map((entry) => (
-                      <TableRow key={entry.id} className="dark:border-zinc-800">
+                    filteredHistory.map((entry, index) => (
+                      <TableRow key={String(entry.id ?? `entry-${index}`)} className="dark:border-zinc-800">
                         <TableCell>
                           <Checkbox
                             onCheckedChange={(checked) => {
-                              setSelectedEntries(prev => 
-                                checked 
-                                  ? [...prev, entry.id] 
-                                  : prev.filter(id => id !== entry.id)
-                              );
+                              if (!entry.id) return;
+                              setSelectedEntries(prev => (
+                                checked ? [...prev, entry.id] : prev.filter(id => id !== entry.id)
+                              ));
                             }}
-                            checked={selectedEntries.includes(entry.id)}
+                            disabled={!entry.id}
+                            checked={entry.id ? selectedEntries.includes(entry.id) : false}
                             aria-label="Seleccionar fila"
                             className="dark:border-zinc-600 dark:data-[state=checked]:bg-zinc-100 dark:data-[state=checked]:text-zinc-900"
                           />

@@ -1,11 +1,35 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Valores por defecto para las tarifas si no existen
+// Valores por defecto para las tarifas si no existen (esquema español)
 const DEFAULT_RATES = [
-  { vehicle_type: 'Car', price_per_hour: 2000 },
-  { vehicle_type: 'Motorcycle', price_per_hour: 1000 },
-  { vehicle_type: 'Van', price_per_hour: 3000 }
+  { 
+    est_id: 1,
+    tiptar_nro: 1, // Tarifa por hora
+    catv_segmento: 'AUT',
+    tar_f_desde: new Date().toISOString(),
+    tar_precio: 2000,
+    tar_fraccion: 1,
+    pla_tipo: 'Normal'
+  },
+  { 
+    est_id: 1,
+    tiptar_nro: 1, // Tarifa por hora
+    catv_segmento: 'MOT',
+    tar_f_desde: new Date().toISOString(),
+    tar_precio: 1000,
+    tar_fraccion: 1,
+    pla_tipo: 'Normal'
+  },
+  { 
+    est_id: 1,
+    tiptar_nro: 1, // Tarifa por hora
+    catv_segmento: 'CAM',
+    tar_f_desde: new Date().toISOString(),
+    tar_precio: 3000,
+    tar_fraccion: 1,
+    pla_tipo: 'Normal'
+  }
 ];
 
 export async function GET() {
@@ -16,10 +40,13 @@ export async function GET() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    // 1. Verificar si ya existen tarifas
+    // 1. Verificar si ya existen tarifas en el esquema español
     const { data: existingRates, error: checkError } = await supabase
-      .from('tariffs')
-      .select('*');
+      .from('tarifas')
+      .select('*')
+      .eq('est_id', 1)
+      .eq('tiptar_nro', 1)
+      .eq('pla_tipo', 'Normal');
 
     if (checkError) {
       console.error('Error al verificar tarifas existentes:', checkError);
@@ -36,9 +63,9 @@ export async function GET() {
       });
     }
 
-    // 2. Inicializar con valores por defecto
+    // 2. Inicializar con valores por defecto en el esquema español
     const { data: insertedRates, error: insertError } = await supabase
-      .from('tariffs')
+      .from('tarifas')
       .insert(DEFAULT_RATES)
       .select();
 

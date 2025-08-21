@@ -38,10 +38,8 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Error obteniendo tarifas:', error);
-      // Fallback a user_rates si falla
-      const { data: ur } = await supabase.from('user_rates').select('vehicle_type, rate').limit(3);
-      const fallback = ur?.reduce((acc: any, r: any) => { acc[r.vehicle_type] = r.rate; return acc; }, {}) || {};
-      const jsonResponse = NextResponse.json({ rates: { Auto: fallback.Auto || defaultRates.Auto, Moto: fallback.Moto || defaultRates.Moto, Camioneta: fallback.Camioneta || defaultRates.Camioneta } });
+      // Devolver tarifas por defecto si hay error (ya no hay fallback a tablas en inglés)
+      const jsonResponse = NextResponse.json({ rates: defaultRates });
       response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
       return jsonResponse;
     }
