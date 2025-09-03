@@ -2,7 +2,7 @@
 
 import { createBrowserClient } from "@supabase/ssr"
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,12 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { OperatorChat } from './operator-chat'
 import { ThemeToggle } from "./theme-toggle"
 import { useAuth } from "@/lib/auth-context"
+import { ZonaEstacionamiento } from "./ZonaEstacionamiento"
+import { SimpleVehicleList } from "./SimpleVehicleList"
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -55,6 +57,11 @@ interface OperatorPanelProps {
   onRegisterExit: (licensePlate: string) => Promise<void>
   exitInfo: ExitInfo | null
   setExitInfo: (info: ExitInfo | null) => void
+  // Datos del sistema híbrido
+  plazasData: any // Datos de la API híbrida
+  loadingPlazas: boolean
+  fetchPlazasStatus: () => void
+  onConfigureZones?: () => void
 }
 
 export default function OperatorPanel({
@@ -64,6 +71,10 @@ export default function OperatorPanel({
   onRegisterExit,
   exitInfo,
   setExitInfo,
+  plazasData,
+  loadingPlazas,
+  fetchPlazasStatus,
+  onConfigureZones,
 }: OperatorPanelProps) {
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -107,7 +118,7 @@ export default function OperatorPanel({
         const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
         setSelectedPlazasType(js.byType?.[seg]?.plazas || [])
       }
-    } catch {}
+    } catch { }
   }
 
   // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
@@ -142,7 +153,7 @@ export default function OperatorPanel({
 
     // Elegir plaza: solo si se seleccionó explícitamente, sino NULL (sin plaza asignada)
     const chosen = plaNumero ? Number(plaNumero) : null;
-    
+
     console.log('🏁 Registrando entrada:', {
       license_plate: licensePlate,
       type: selectedType,
@@ -195,46 +206,82 @@ export default function OperatorPanel({
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
-      {/* Disponibilidad */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Disponibilidad de Espacios</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => {
-              const seg = type === 'Moto' ? 'MOT' : type === 'Camioneta' ? 'CAM' : 'AUT'
-              const st = plazasStatus?.[seg]
-              return (
-                <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
-                  <p className="text-sm text-gray-500 dark:text-zinc-400">{type}s</p>
-                  <p className="text-lg font-medium dark:text-zinc-100">
-                    {parking.capacity[type] - availableSpaces[type]} ocupados de {parking.capacity[type]}
-                  </p>
-                  <p className="text-sm text-green-600 dark:text-green-400">
-                    Libres: {availableSpaces[type]}
-                  </p>
-                  {st && (
-                    <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
-                      {st.plazas.map((p, index) => (
-                        <span key={`${type}-${p.pla_numero || index}`} className={`w-8 h-8 flex items-center justify-center rounded text-white font-bold text-xs ${p.occupied ? 'bg-red-600' : 'bg-green-600'}`}>
-                          {p.pla_numero || 'N/A'}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+      {/* Sistema Híbrido: Vista Simple vs Zonas */}
+      {loadingPlazas ? (
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Cargando...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center items-center h-48">
+              <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : plazasData?.mode === 'simple' ? (
+        // VISTA SIMPLE: Sin zonas configuradas
+        <SimpleVehicleList
+          stats={plazasData.stats}
+          plazas={plazasData.plazas || []}
+          vehiculos={plazasData.vehiculos || []}
+          onPlazaClick={(plaza) => {
+            if (!plaza.ocupado) {
+              setPlaNumero(String(plaza.numero));
+              toast.success(`Plaza ${plaza.numero} seleccionada`, {
+                description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
+              });
+            }
+          }}
+          onConfigureZones={onConfigureZones}
+          showConfigureButton={true}
+        />
+      ) : (
+        // VISTA POR ZONAS: Zonas configuradas
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Disponibilidad por Zonas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+                  </span>
                 </div>
-              )
-            })}
-          </div>
-          <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
-            <p className="text-center font-medium dark:text-zinc-100">
-              Total: {parking.parkedVehicles.length} vehículos ocupando {availableSpaces.total.capacity} espacios (
-              {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+                <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
+                  Actualizar
+                </Button>
+              </div>
+              {plazasData?.zonas?.length > 0 ? plazasData.zonas.map((zona: any) => (
+                <ZonaEstacionamiento
+                  key={zona.nombre}
+                  zona={zona}
+                  onPlazaClick={(plaza) => {
+                    if (plaza.ocupado) {
+                      toast.info(`Plaza ${plaza.numero} está ocupada`, {
+                        description: "Busca el vehículo en la tabla de abajo para darle salida.",
+                      });
+                    } else {
+                      setPlaNumero(String(plaza.numero));
+                      toast.success(`Plaza ${plaza.numero} seleccionada`, {
+                        description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
+                      });
+                    }
+                  }}
+                />
+              )) : (
+                <p className="text-center text-zinc-500 py-8">
+                  No hay zonas o plazas configuradas para este estacionamiento.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Formulario de entrada */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
@@ -281,12 +328,12 @@ export default function OperatorPanel({
               </div>
               <div className="space-y-2">
                 <Label className="dark:text-zinc-400">Plaza (opcional)</Label>
-                <Select value={plaNumero} onValueChange={(v)=> setPlaNumero(v)}>
+                <Select value={plaNumero} onValueChange={(v) => setPlaNumero(v)}>
                   <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder={selectedPlazasType.filter(p=>!p.occupied).length > 0 ? `Elegir plaza libre (${selectedPlazasType.filter(p=>!p.occupied).length} libres)` : 'Sin plazas libres'} />
+                    <SelectValue placeholder={selectedPlazasType.filter(p => !p.occupied).length > 0 ? `Elegir plaza libre (${selectedPlazasType.filter(p => !p.occupied).length} libres)` : 'Sin plazas libres'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedPlazasType.filter(p=> !p.occupied && p.pla_numero != null).map(p => (
+                    {selectedPlazasType.filter(p => !p.occupied && p.pla_numero != null).map(p => (
                       <SelectItem key={`plaza-${p.pla_numero}`} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
                     ))}
                   </SelectContent>
@@ -315,14 +362,14 @@ export default function OperatorPanel({
               <Label className="dark:text-zinc-400">Buscar patente</Label>
               <Input
                 value={filterPlate}
-                onChange={(e)=> setFilterPlate(e.target.value)}
+                onChange={(e) => setFilterPlate(e.target.value)}
                 placeholder="Ej: ABC123"
                 className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
               />
             </div>
             <div className="space-y-1">
               <Label className="dark:text-zinc-400">Filtrar por tipo</Label>
-              <Select value={filterVehicleType} onValueChange={(v)=> setFilterVehicleType(v as any)}>
+              <Select value={filterVehicleType} onValueChange={(v) => setFilterVehicleType(v as any)}>
                 <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
                   <SelectValue placeholder="Tipo de vehículo" />
                 </SelectTrigger>
@@ -352,41 +399,41 @@ export default function OperatorPanel({
               <TableBody>
                 {parking.parkedVehicles
                   .filter(v => (filterVehicleType === 'Todos' || v.type === filterVehicleType) &&
-                               (!filterPlate || v.license_plate.toLowerCase().includes(filterPlate.toLowerCase())))
+                    (!filterPlate || v.license_plate.toLowerCase().includes(filterPlate.toLowerCase())))
                   .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime())
                   .map((vehicle) => {
-                  let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
-                  
-                  return (
-                    <TableRow key={vehicle.license_plate + vehicle.entry_time} className="dark:border-zinc-800">
-                      <TableCell className="dark:text-zinc-100">{vehicle.license_plate}</TableCell>
-                      <TableCell className="dark:text-zinc-100">{vehicle.type}</TableCell>
-                      <TableCell className="dark:text-zinc-100">
-                        {vehicle.plaza_number ? (
-                          <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
-                            Plaza {vehicle.plaza_number}
-                          </span>
-                        ) : (
-                          <span className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                            Sin plaza asignada
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleExit(vehicle)}
-                          disabled={processingExit === vehicle.license_plate}
-                          className="dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
-                        >
-                          {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                    let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
+
+                    return (
+                      <TableRow key={vehicle.license_plate + vehicle.entry_time} className="dark:border-zinc-800">
+                        <TableCell className="dark:text-zinc-100">{vehicle.license_plate}</TableCell>
+                        <TableCell className="dark:text-zinc-100">{vehicle.type}</TableCell>
+                        <TableCell className="dark:text-zinc-100">
+                          {vehicle.plaza_number ? (
+                            <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                              Plaza {vehicle.plaza_number}
+                            </span>
+                          ) : (
+                            <span className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                              Sin plaza asignada
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleExit(vehicle)}
+                            disabled={processingExit === vehicle.license_plate}
+                            className="dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
+                          >
+                            {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           )}
