@@ -38,3 +38,4 @@ FROM pg_policies
 WHERE tablename = 'usuario'
 AND schemaname = 'public'
 ORDER BY policyname;
+

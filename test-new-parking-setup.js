@@ -118,3 +118,4 @@ console.log('   • GOOGLE_MAPS_README.md - Documentación completa');
 console.log('   • supabase/migrations/ - Migraciones aplicadas\n');
 
 console.log('✨ ¡Gracias por actualizar el flujo de configuración! 🚀');
+

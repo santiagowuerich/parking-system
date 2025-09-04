@@ -21,3 +21,4 @@ export function Plaza({ numero, ocupado, onClick }: PlazaProps) {
         </button>
     );
 }
+

@@ -155,3 +155,4 @@ console.log('   • app/api/auth/create-new-parking/route.ts - Endpoint de creac
 console.log('');
 
 console.log('✨ ¡Sistema de múltiples estacionamientos listo para usar! 🚀');
+

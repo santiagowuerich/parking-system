@@ -42,3 +42,4 @@ JOIN vehiculos v ON v.veh_patente = o.veh_patente
 WHERE o.ocu_fh_salida IS NULL;
 
 COMMIT;
+

@@ -45,3 +45,4 @@ try {
     console.log('💡 Puedes crear el archivo manualmente con este contenido:');
     console.log(envContent);
 }
+

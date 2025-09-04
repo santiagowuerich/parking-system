@@ -90,3 +90,4 @@ FROM pg_policies
 WHERE schemaname = 'public'
 AND tablename IN ('usuario', 'dueno', 'estacionamientos', 'plazas', 'tarifas', 'est_acepta_metodospago', 'user_settings')
 ORDER BY tablename, policyname;
+

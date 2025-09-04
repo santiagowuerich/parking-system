@@ -260,3 +260,4 @@ TABLAS OPTIMIZADAS:
 - user_settings: 12 políticas → 3 políticas consolidadas
 - admins, rates, tariffs, user_roles, vehicles: 2 políticas → 1 política cada una
 */
+
