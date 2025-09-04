@@ -35,26 +35,26 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Obtener la sesión del usuario
-  const { data: { session } } = await supabase.auth.getSession();
+  // Obtener el usuario autenticado (más seguro que getSession)
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Obtener la URL actual
   const url = request.nextUrl.clone();
 
-  // Si no hay sesión y el usuario intenta acceder a la ruta raíz ('/')
-  if (!session && url.pathname === '/') {
+  // Si no hay usuario autenticado y el usuario intenta acceder a la ruta raíz ('/')
+  if (!user && url.pathname === '/') {
     // Redirigir a la página de autenticación ESPECÍFICA
     url.pathname = '/auth/login'; // <-- Cambiar '/auth' por '/auth/login'
-    console.log('Middleware: No session, redirecting to /auth/login'); // Actualizar log
+    console.log('Middleware: No authenticated user, redirecting to /auth/login'); // Actualizar log
     return NextResponse.redirect(url);
   }
 
-  // Si hay sesión y el usuario está en una página de autenticación
+  // Si hay usuario autenticado y el usuario está en una página de autenticación
   // Permitimos /auth/reset-password aunque haya sesión, para que pueda actualizarse
-  if (session && url.pathname.startsWith('/auth') && url.pathname !== '/auth/reset-password') {
+  if (user && url.pathname.startsWith('/auth') && url.pathname !== '/auth/reset-password') {
     // Redirigir a la página principal
     url.pathname = '/';
-    console.log('Middleware: Session found, redirecting from /auth page to /');
+    console.log('Middleware: Authenticated user found, redirecting from /auth page to /');
     return NextResponse.redirect(url);
   }
 

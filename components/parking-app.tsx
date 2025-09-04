@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import OperatorPanel from "@/components/operator-panel";
 import AdminPanel from "@/components/admin-panel";
 
@@ -18,6 +19,7 @@ import { PaymentConfirmationDialog } from "./payment-confirmation-dialog";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
 import { TransferInfoDialog } from "./ui/transfer-info-dialog";
+import UserParkings from "./user-parkings";
 
 type ExitInfo = {
   vehicle: Vehicle;
@@ -38,11 +40,12 @@ export default function ParkingApp() {
     refreshParkedVehicles,
     refreshParkingHistory,
     refreshCapacity,
-    estId
+    estId,
+    setEstId
   } = useAuth();
 
+  // TODOS LOS HOOKS DEBEN ESTAR AL PRINCIPIO
   const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
-
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [qrData, setQrData] = useState<{
@@ -50,7 +53,6 @@ export default function ParkingApp() {
     fee: number;
     qrCodeBase64?: string;
   } | null>(null);
-
   const [paymentMethodDialogOpen, setPaymentMethodDialogOpen] = useState(false);
   const [calcParams, setCalcParams] = useState<{ modalidad: 'Hora' | 'Diaria' | 'Mensual'; pla_tipo: 'Normal' | 'VIP' | 'Reservada' }>({ modalidad: 'Hora', pla_tipo: 'Normal' })
   const [exitingVehicle, setExitingVehicle] = useState<Vehicle | null>(null);
@@ -58,10 +60,12 @@ export default function ParkingApp() {
   const [lastCalculatedFee, setLastCalculatedFee] = useState(0);
   const [paymentDetails, setPaymentDetails] = useState<any>(null);
   const [showTransferInfoDialog, setShowTransferInfoDialog] = useState(false);
-
-  // Estados para el sistema híbrido de plazas
   const [plazasData, setPlazasData] = useState<any>(null);
   const [loadingPlazas, setLoadingPlazas] = useState(true);
+
+  // Estados para manejar el cambio de estacionamiento
+  const [isChangingParking, setIsChangingParking] = useState(false);
+  const [currentParkingId, setCurrentParkingId] = useState<number | null>(estId);
 
   // Usar los datos del contexto para inicializar el estado local
   const [parking, setParking] = useState<Parking>({
@@ -71,45 +75,83 @@ export default function ParkingApp() {
     history: contextParkingHistory || [],
   });
 
+  // Detectar cambio de estacionamiento y limpiar estado
+  useEffect(() => {
+    if (estId !== currentParkingId) {
+      console.log('🔄 Cambiando estacionamiento:', { from: currentParkingId, to: estId });
+
+      // Activar estado de carga
+      setIsChangingParking(true);
+
+      // Limpiar estado local inmediatamente para evitar flash de datos antiguos
+      setParking({
+        capacity: { Auto: 0, Moto: 0, Camioneta: 0 },
+        rates: { Auto: 0, Moto: 0, Camioneta: 0 },
+        parkedVehicles: [],
+        history: [],
+      });
+
+      // Actualizar el ID actual
+      setCurrentParkingId(estId);
+    }
+  }, [estId, currentParkingId]);
+
   // Actualizar el estado local cuando cambien los datos en el contexto
   useEffect(() => {
-    console.log('Context data changed:', {
-      contextCapacity,
-      contextRates,
-      contextParkedVehicles: contextParkedVehicles?.length,
-      contextParkingHistory: contextParkingHistory?.length
-    });
+    // Solo actualizar si no estamos cambiando de estacionamiento
+    if (!isChangingParking && estId) {
+      console.log('Context data changed:', {
+        estId,
+        contextCapacity,
+        contextRates,
+        contextParkedVehicles: contextParkedVehicles?.length,
+        contextParkingHistory: contextParkingHistory?.length
+      });
 
-    setParking(prev => {
-      // Solo actualizar si realmente hay nuevos datos
-      const newParking = {
-        capacity: contextCapacity || prev.capacity,
-        rates: contextRates || prev.rates,
-        parkedVehicles: contextParkedVehicles || prev.parkedVehicles,
-        history: contextParkingHistory || prev.history,
-      };
+      setParking(prev => {
+        // Solo actualizar si realmente hay nuevos datos válidos
+        const newParking = {
+          capacity: contextCapacity || prev.capacity,
+          rates: contextRates || prev.rates,
+          parkedVehicles: contextParkedVehicles || prev.parkedVehicles,
+          history: contextParkingHistory || prev.history,
+        };
 
-      // Verificar si realmente hay cambios antes de actualizar
-      const hasCapacityChange = contextCapacity && JSON.stringify(contextCapacity) !== JSON.stringify(prev.capacity);
-      const hasRatesChange = contextRates && JSON.stringify(contextRates) !== JSON.stringify(prev.rates);
-      const hasVehiclesChange = contextParkedVehicles && contextParkedVehicles.length !== prev.parkedVehicles.length;
-      const hasHistoryChange = contextParkingHistory && contextParkingHistory.length !== prev.history.length;
+        // Verificar si realmente hay cambios antes de actualizar
+        const hasCapacityChange = contextCapacity && JSON.stringify(contextCapacity) !== JSON.stringify(prev.capacity);
+        const hasRatesChange = contextRates && JSON.stringify(contextRates) !== JSON.stringify(prev.rates);
+        const hasVehiclesChange = contextParkedVehicles && contextParkedVehicles.length !== prev.parkedVehicles.length;
+        const hasHistoryChange = contextParkingHistory && contextParkingHistory.length !== prev.history.length;
 
-      if (hasCapacityChange || hasRatesChange || hasVehiclesChange || hasHistoryChange) {
-        console.log('Updating parking state:', {
-          prevCapacity: prev.capacity,
-          newCapacity: newParking.capacity,
-          hasCapacityChange,
-          hasRatesChange,
-          hasVehiclesChange,
-          hasHistoryChange
-        });
-        return newParking;
-      }
+        if (hasCapacityChange || hasRatesChange || hasVehiclesChange || hasHistoryChange) {
+          console.log('Updating parking state:', {
+            prevCapacity: prev.capacity,
+            newCapacity: newParking.capacity,
+            hasCapacityChange,
+            hasRatesChange,
+            hasVehiclesChange,
+            hasHistoryChange
+          });
 
-      return prev; // No hay cambios, mantener estado anterior
-    });
-  }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory]);
+          return newParking;
+        }
+
+        return prev; // No hay cambios, mantener estado anterior
+      });
+    }
+  }, [contextCapacity, contextRates, contextParkedVehicles, contextParkingHistory, isChangingParking, estId]);
+
+  // Desactivar estado de carga después de un tiempo si no se actualizó automáticamente
+  useEffect(() => {
+    if (isChangingParking) {
+      const timeout = setTimeout(() => {
+        console.log('⚠️ Timeout: Forzando desactivación del estado de carga');
+        setIsChangingParking(false);
+      }, 3000); // 3 segundos máximo
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isChangingParking]);
 
   const registerEntry = async (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => {
     if (!user?.id) {
@@ -1000,6 +1042,18 @@ export default function ParkingApp() {
     loadInitialData();
   }, [user, contextParkedVehicles, contextParkingHistory, contextRates, contextCapacity, estId]);
 
+  // Mostrar pantalla de carga si no hay estId asignado aún
+  if (user && estId === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-zinc-400" />
+          <p className="text-zinc-400">Configurando tu estacionamiento...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (authLoading || loadingUserData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1035,47 +1089,120 @@ export default function ParkingApp() {
         if (value === "rates") {
           window.location.href = "/gestion-tarifas";
         }
+        if (value === "google-maps") {
+          window.location.href = "/google-maps-setup";
+        }
       }}>
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-5 mb-8">
           <TabsTrigger value="operator">Panel de Operador</TabsTrigger>
           <TabsTrigger value="admin">Panel de Administrador</TabsTrigger>
+          <TabsTrigger value="estacionamientos">Mis Estacionamientos</TabsTrigger>
           <TabsTrigger value="rates">Gestión de Tarifas</TabsTrigger>
+          <TabsTrigger value="google-maps">Google Maps</TabsTrigger>
         </TabsList>
 
         <TabsContent value="operator">
-          <OperatorPanel
-            parking={parking}
-            availableSpaces={getAvailableSpaces()}
-            onRegisterEntry={registerEntry}
-            onRegisterExit={handleExit}
-            exitInfo={exitInfo}
-            setExitInfo={setExitInfo}
-            plazasData={plazasData}
-            loadingPlazas={loadingPlazas}
-            fetchPlazasStatus={fetchPlazasStatus}
-            onConfigureZones={() => {
-              // Cambiar a la pestaña de admin
-              document.querySelector('[value="admin"]')?.click?.();
-              toast({
-                title: "Configurar Zonas",
-                description: "Ve al Panel de Administrador para configurar las zonas del estacionamiento"
-              });
-            }}
-          />
+          {isChangingParking ? (
+            <Card className="w-full">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center space-y-4">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-zinc-400" />
+                    <p className="text-zinc-400">Cambiando de estacionamiento...</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <OperatorPanel
+              parking={parking}
+              availableSpaces={getAvailableSpaces()}
+              onRegisterEntry={registerEntry}
+              onRegisterExit={handleExit}
+              exitInfo={exitInfo}
+              setExitInfo={setExitInfo}
+              plazasData={plazasData}
+              loadingPlazas={loadingPlazas}
+              fetchPlazasStatus={fetchPlazasStatus}
+              onConfigureZones={() => {
+                // Cambiar a la pestaña de admin
+                const adminTab = document.querySelector('[value="admin"]') as HTMLButtonElement;
+                adminTab?.click();
+                toast({
+                  title: "Configurar Zonas",
+                  description: "Ve al Panel de Administrador para configurar las zonas del estacionamiento"
+                });
+              }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="admin">
-          <AdminPanel
-            history={parking.history}
-            availableSpaces={getAvailableSpaces()}
-            capacity={parking.capacity}
-            onUpdateCapacity={updateCapacity}
-            onDeleteHistoryEntry={handleDeleteHistoryEntry}
-            onUpdateHistoryEntry={handleUpdateHistoryEntry}
-            onReenterVehicle={handleReenterVehicle}
-          />
+          {isChangingParking ? (
+            <Card className="w-full">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center space-y-4">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-zinc-400" />
+                    <p className="text-zinc-400">Cambiando de estacionamiento...</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <AdminPanel
+              history={parking.history}
+              availableSpaces={getAvailableSpaces()}
+              capacity={parking.capacity}
+              onUpdateCapacity={updateCapacity}
+              onDeleteHistoryEntry={handleDeleteHistoryEntry}
+              onUpdateHistoryEntry={handleUpdateHistoryEntry}
+              onReenterVehicle={handleReenterVehicle}
+            />
+          )}
         </TabsContent>
 
+        <TabsContent value="estacionamientos">
+          <UserParkings
+            onSelectParking={async (newEstId) => {
+              console.log('🔄 Iniciando cambio de estacionamiento a:', newEstId);
+
+              // Cambiar el estacionamiento en el contexto
+              setEstId(newEstId);
+
+              // Mostrar toast inmediatamente
+              toast({
+                title: "Cambiando estacionamiento...",
+                description: `Cargando datos del estacionamiento ID: ${newEstId}`
+              });
+
+              // Pequeño delay para asegurar que el estado se actualice completamente
+              setTimeout(async () => {
+                try {
+                  // Refrescar datos del nuevo estacionamiento
+                  await Promise.all([
+                    refreshParkedVehicles(),
+                    refreshParkingHistory(),
+                    refreshCapacity()
+                  ]);
+
+                  toast({
+                    title: "Estacionamiento cambiado",
+                    description: `Ahora estás gestionando el estacionamiento ID: ${newEstId}`
+                  });
+                } catch (error) {
+                  console.error('Error al cambiar estacionamiento:', error);
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Error al cargar los datos del nuevo estacionamiento"
+                  });
+                }
+              }, 100);
+            }}
+            currentEstId={estId || undefined}
+          />
+        </TabsContent>
 
       </Tabs>
 

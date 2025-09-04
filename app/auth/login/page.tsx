@@ -21,13 +21,18 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn({ email, password });
-      // El AuthContext se encargará de la redirección en el useEffect
-      // No necesitamos empujar la ruta aquí explícitamente
-       console.log("Inicio de sesión exitoso, esperando redirección...");
-      // router.push('/'); // Eliminado para dejar que el contexto maneje la redirección
+      // El AuthContext maneja automáticamente la redirección
+      console.log("Inicio de sesión exitoso");
     } catch (err: any) {
       console.error("Error en el inicio de sesión:", err);
-      setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.");
+      // Mejorar mensaje de error según el tipo
+      if (err.message?.includes("Invalid login credentials")) {
+        setError("Email o contraseña incorrectos.");
+      } else if (err.message?.includes("Email not confirmed")) {
+        setError("Necesitás confirmar tu email antes de iniciar sesión. Revisá tu correo.");
+      } else {
+        setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.");
+      }
     } finally {
       setLoading(false);
     }
@@ -90,18 +95,18 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
-         <p className="text-sm text-center text-zinc-400">
-           ¿No tienes cuenta?{" "}
-           <Link href="/auth/register" className="font-medium text-zinc-100 hover:text-zinc-300">
-             Regístrate
-           </Link>
-         </p>
-         <p className="text-sm text-center text-zinc-400 mt-2">
-           ¿Olvidaste tu contraseña?{" "}
-           <Link href="/auth/forgot-password" className="font-medium text-zinc-100 hover:text-zinc-300">
-             Recuperarla
-           </Link>
-         </p>
+        <p className="text-sm text-center text-zinc-400">
+          ¿No tienes cuenta?{" "}
+          <Link href="/auth/register" className="font-medium text-zinc-100 hover:text-zinc-300">
+            Regístrate
+          </Link>
+        </p>
+        <p className="text-sm text-center text-zinc-400 mt-2">
+          ¿Olvidaste tu contraseña?{" "}
+          <Link href="/auth/forgot-password" className="font-medium text-zinc-100 hover:text-zinc-300">
+            Recuperarla
+          </Link>
+        </p>
       </div>
     </div>
   );

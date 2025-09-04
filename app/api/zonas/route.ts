@@ -1,21 +1,10 @@
 // app/api/zonas/route.ts - Sistema simplificado usando pla_zona
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from "@/lib/supabase/client";
 import { NextResponse, type NextRequest } from 'next/server'
 
 // GET: Obtener todas las zonas únicas de un estacionamiento
 export async function GET(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get: (name) => request.cookies.get(name)?.value,
-                set: (name, value, options) => response.cookies.set({ name, value, ...options }),
-                remove: (name, options) => response.cookies.set({ name, value: '', ...options })
-            }
-        }
-    )
+    const { supabase, response } = createClient(request);
 
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || 1
@@ -61,18 +50,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Crear zona nueva con generación automática de plazas
 export async function POST(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get: (name) => request.cookies.get(name)?.value,
-                set: (name, value, options) => response.cookies.set({ name, value, ...options }),
-                remove: (name, options) => response.cookies.set({ name, value: '', ...options })
-            }
-        }
-    )
+    const { supabase, response } = createClient(request);
 
     try {
         const body = await request.json();
@@ -205,18 +183,7 @@ export async function POST(request: NextRequest) {
 
 // PUT: Renombrar una zona
 export async function PUT(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get: (name) => request.cookies.get(name)?.value,
-                set: (name, value, options) => response.cookies.set({ name, value, ...options }),
-                remove: (name, options) => response.cookies.set({ name, value: '', ...options })
-            }
-        }
-    )
+    const { supabase, response } = createClient(request);
 
     try {
         const { zona_antigua, zona_nueva, est_id } = await request.json();
@@ -254,18 +221,7 @@ export async function PUT(request: NextRequest) {
 
 // DELETE: Eliminar una zona (poner plazas en null)
 export async function DELETE(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get: (name) => request.cookies.get(name)?.value,
-                set: (name, value, options) => response.cookies.set({ name, value: '', ...options }),
-                remove: (name, options) => response.cookies.set({ name, value: '', ...options })
-            }
-        }
-    )
+    const { supabase, response } = createClient(request);
 
     try {
         const { zona_nombre, est_id } = await request.json();

@@ -26,6 +26,15 @@ export function ZoneManager() {
     const { estId } = useAuth();
     const [zonas, setZonas] = useState<Zona[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Si no hay estId, no cargar las zonas
+    if (estId === null) {
+        return (
+            <div className="text-center py-8">
+                <p className="text-zinc-400">Configurando estacionamiento...</p>
+            </div>
+        );
+    }
     const [newZoneName, setNewZoneName] = useState('');
     const [editingZone, setEditingZone] = useState<Zona | null>(null);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -40,6 +49,7 @@ export function ZoneManager() {
     });
 
     const fetchZonas = async () => {
+        if (estId === null) return;
         setLoading(true);
         try {
             const response = await fetch(`/api/zonas?est_id=${estId}`);

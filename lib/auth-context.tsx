@@ -56,7 +56,7 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 export const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
-  estId: number;
+  estId: number | null;
   rates: Record<VehicleType, number> | null;
   userSettings: UserSettings | null;
   parkedVehicles: Vehicle[] | null;
@@ -74,11 +74,12 @@ export const AuthContext = createContext<{
   refreshParkingHistory: () => Promise<void>;
   initializeRates: () => Promise<void>;
   refreshCapacity: () => Promise<void>;
-  setEstId: (id: number) => void;
+  setEstId: (id: number | null) => void;
+  ensureParkingSetup: () => Promise<void>;
 }>({
   user: null,
   loading: true,
-  estId: 1,
+  estId: null,
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -86,17 +87,18 @@ export const AuthContext = createContext<{
   parkingCapacity: null,
   loadingUserData: false,
   initRatesDone: false,
-  signUp: async () => {},
-  signIn: async () => {},
-  signOut: async () => {},
-  requestPasswordReset: async () => {},
-  updatePassword: async () => {},
-  fetchUserData: async () => {},
-  refreshParkedVehicles: async () => {},
-  refreshParkingHistory: async () => {},
-  initializeRates: async () => {},
-  refreshCapacity: async () => {},
-  setEstId: () => {},
+  signUp: async () => { },
+  signIn: async () => { },
+  signOut: async () => { },
+  requestPasswordReset: async () => { },
+  updatePassword: async () => { },
+  fetchUserData: async () => { },
+  refreshParkedVehicles: async () => { },
+  refreshParkingHistory: async () => { },
+  initializeRates: async () => { },
+  refreshCapacity: async () => { },
+  setEstId: () => { },
+  ensureParkingSetup: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -109,12 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [parkingCapacity, setParkingCapacity] = useState<Record<VehicleType, number> | null>(null);
   const [loadingUserData, setLoadingUserData] = useState(false);
   const [initRatesDone, setInitRatesDone] = useState(false);
-  const [estId, setEstId] = useState<number>(() => {
-    if (typeof window === 'undefined') return 1;
-    const raw = localStorage.getItem('parking_est_id');
-    const n = raw ? parseInt(raw) : 1;
-    return Number.isFinite(n) && n > 0 ? n : 1;
-  });
+  const [estId, setEstId] = useState<number | null>(null); // No asignar por defecto hasta verificar
   const router = useRouter();
   const pathname = usePathname();
 
@@ -138,9 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/parking/init-rates');
       const data = await response.json();
-      
+
       console.log('Inicialización de tarifas:', data);
-      
+
       // Marcar como inicializado en el estado y en localStorage
       setInitRatesDone(true);
       localStorage.setItem(STORAGE_KEYS.INIT_RATES_DONE, 'true');
@@ -154,11 +151,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener solo los vehículos estacionados
   const refreshParkedVehicles = async () => {
-    if (!user?.id) return;
-    
+    if (!user?.id || estId === null) return;
+
     try {
       const parkedResponse = await fetch(`/api/parking/parked?est_id=${estId}`);
-      
+
       if (parkedResponse.ok) {
         const parkedData = await parkedResponse.json();
         setParkedVehicles(Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : []);
@@ -174,12 +171,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener solo el historial de estacionamiento
   const refreshParkingHistory = async () => {
-    if (!user?.id) return;
-    
+    if (!user?.id || estId === null) return;
+
     try {
       console.log('🔄 Cargando historial de estacionamiento para estId:', estId);
       const historyResponse = await fetch(`/api/parking/history?est_id=${estId}`);
-      
+
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         console.log('✅ Datos del historial recibidos:', {
@@ -204,28 +201,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos de tarifas
   const fetchRates = async () => {
-    if (!user?.id) return null;
-    
+    if (!user?.id || estId === null) return null;
+
     // Verificar si hay datos en localStorage y si son recientes
     const cachedRates = localStorage.getItem(STORAGE_KEYS.RATES);
     const cachedTimestamp = localStorage.getItem(STORAGE_KEYS.RATES_TIMESTAMP);
-    
+
     if (cachedRates && cachedTimestamp && (Date.now() - parseInt(cachedTimestamp)) < CACHE_MAX_AGE) {
       console.log('Usando tarifas desde localStorage');
       return JSON.parse(cachedRates);
     }
-    
+
     try {
       const ratesResponse = await fetch(`/api/rates?est_id=${estId}`);
-      
+
       if (ratesResponse.ok) {
         const ratesData = await ratesResponse.json();
         const rates = ratesData.rates || { Auto: 0, Moto: 0, Camioneta: 0 };
-        
+
         // Guardar en localStorage
         localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify(rates));
         localStorage.setItem(STORAGE_KEYS.RATES_TIMESTAMP, Date.now().toString());
-        
+
         return rates;
       } else {
         console.error("Error al cargar tarifas");
@@ -240,19 +237,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Función para obtener los datos de configuración del usuario
   const fetchUserSettings = async () => {
     if (!user?.id) return null;
-    
+
     // Verificar si hay datos en localStorage y si son recientes
     const cachedSettings = localStorage.getItem(STORAGE_KEYS.USER_SETTINGS);
     const cachedTimestamp = localStorage.getItem(STORAGE_KEYS.USER_SETTINGS_TIMESTAMP);
-    
+
     if (cachedSettings && cachedTimestamp && (Date.now() - parseInt(cachedTimestamp)) < CACHE_MAX_AGE) {
       console.log('Usando configuración desde localStorage');
       return JSON.parse(cachedSettings);
     }
-    
+
     try {
       const settingsResponse = await fetch(`/api/user/settings`);
-      
+
       if (settingsResponse.ok) {
         const settingsData = await settingsResponse.json();
         const settings = {
@@ -261,11 +258,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           bankAccountCbu: settingsData.bankAccountCbu || "",
           bankAccountAlias: settingsData.bankAccountAlias || "",
         };
-        
+
         // Guardar en localStorage
         localStorage.setItem(STORAGE_KEYS.USER_SETTINGS, JSON.stringify(settings));
         localStorage.setItem(STORAGE_KEYS.USER_SETTINGS_TIMESTAMP, Date.now().toString());
-        
+
         return settings;
       } else {
         console.error("Error al cargar configuración del usuario");
@@ -289,31 +286,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos de capacidad
   const fetchCapacity = async () => {
-    if (!user?.id) return null;
-    
+    if (!user?.id || estId === null) return null;
+
     // Verificar si hay datos en localStorage y si son recientes
     const cachedCapacity = localStorage.getItem(STORAGE_KEYS.CAPACITY);
     const cachedTimestamp = localStorage.getItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
-    
+
     if (cachedCapacity && cachedTimestamp && (Date.now() - parseInt(cachedTimestamp)) < CACHE_MAX_AGE) {
       console.log('Usando capacidad desde localStorage:', JSON.parse(cachedCapacity));
       return JSON.parse(cachedCapacity);
     }
-    
+
     try {
       console.log('Fetching capacity from API');
       const capacityResponse = await fetch(`/api/capacity?est_id=${estId}`);
-      
+
       if (capacityResponse.ok) {
         const capacityData = await capacityResponse.json();
         const capacity = capacityData.capacity || { Auto: 0, Moto: 0, Camioneta: 0 };
-        
+
         console.log('Capacity fetched from API:', capacity);
-        
+
         // Guardar en localStorage
         localStorage.setItem(STORAGE_KEYS.CAPACITY, JSON.stringify(capacity));
         localStorage.setItem(STORAGE_KEYS.CAPACITY_TIMESTAMP, Date.now().toString());
-        
+
         return capacity;
       } else {
         const errorData = await capacityResponse.json();
@@ -328,22 +325,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para refrescar solo la capacidad
   const refreshCapacity = async () => {
-    if (!user?.id) return;
-    
+    if (!user?.id || estId === null) return;
+
     // Limpiar caché para forzar nueva consulta
     localStorage.removeItem(STORAGE_KEYS.CAPACITY);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
-    
+
     const capacity = await fetchCapacity();
     setParkingCapacity(capacity);
-    
+
     console.log('Capacity refreshed:', capacity);
   };
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
   const fetchUserData = async () => {
-    if (!user?.id) return;
-    
+    if (!user?.id || estId === null) return;
+
     setLoadingUserData(true);
     try {
       // Obtener datos que pueden venir de caché
@@ -352,13 +349,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchUserSettings(),
         fetchCapacity()
       ]);
-      
+
       // Obtener datos que siempre se refrescan
       const [parkedResponse, historyResponse] = await Promise.all([
         fetch(`/api/parking/parked?est_id=${estId}`),
         fetch(`/api/parking/history?est_id=${estId}`)
       ]);
-      
+
       // Actualizar el estado con los datos obtenidos
       setRates(ratesData);
       setUserSettings(settingsData);
@@ -409,7 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEYS.USER_SETTINGS_TIMESTAMP);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
-    
+
     // Limpiar cualquier otro dato de autenticación
     if (typeof window !== 'undefined') {
       // Buscar y eliminar cualquier clave relacionada con supabase
@@ -419,7 +416,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
     }
-    
+
     // No eliminamos INIT_RATES_DONE, ya que es independiente del usuario
   };
 
@@ -442,17 +439,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && estId !== null) {
       localStorage.setItem('parking_est_id', String(estId));
     }
   }, [estId]);
 
+  // Función para verificar y configurar estacionamiento si es necesario
+  const ensureParkingSetup = async () => {
+    if (!user?.email) return;
+
+    try {
+      console.log(`🔍 Verificando estacionamiento para usuario: ${user.email}`);
+      // Verificar si el usuario ya tiene un estacionamiento
+      const checkResponse = await fetch('/api/auth/get-parking-id');
+
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+
+        if (!checkData.has_parking) {
+          console.log("🏗️ Usuario sin estacionamiento, creando...");
+
+          // Crear el estacionamiento
+          const setupResponse = await fetch('/api/auth/setup-parking', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.user_metadata?.name || 'Usuario'
+            }),
+          });
+
+          if (setupResponse.ok) {
+            const setupData = await setupResponse.json();
+            console.log("✅ Estacionamiento creado:", setupData);
+
+            // Actualizar el estId con el nuevo estacionamiento
+            setEstId(setupData.estacionamiento_id);
+
+            // Limpiar localStorage anterior
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('parking_est_id'); // Limpiar valor anterior
+              localStorage.setItem('parking_est_id', String(setupData.estacionamiento_id));
+            }
+          } else {
+            const errorText = await setupResponse.text();
+            console.error("❌ Error configurando estacionamiento:", errorText);
+          }
+        } else {
+          console.log(`✅ Usuario ya tiene estacionamiento: ${checkData.est_id}`);
+          // Actualizar el estId con el estacionamiento existente
+          setEstId(checkData.est_id);
+
+          // También verificar desde localStorage como fallback
+          if (typeof window !== 'undefined') {
+            const savedEstId = localStorage.getItem('parking_est_id');
+            if (savedEstId && parseInt(savedEstId) !== checkData.est_id) {
+              console.log(`🔄 Actualizando localStorage de est_id ${savedEstId} a ${checkData.est_id}`);
+              localStorage.setItem('parking_est_id', String(checkData.est_id));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error verificando configuración de estacionamiento:", error);
+    }
+  };
+
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
     if (user?.id) {
-      fetchUserData();
+      // Primero verificar y configurar estacionamiento si es necesario
+      ensureParkingSetup();
     } else {
       // Resetear los datos cuando no hay usuario
+      setEstId(null);
       setRates(null);
       setUserSettings(null);
       setParkedVehicles(null);
@@ -460,6 +522,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingCapacity(null);
     }
   }, [user?.id]);
+
+  // Efecto separado para cargar datos cuando estId esté disponible
+  useEffect(() => {
+    if (user?.id && estId !== null) {
+      fetchUserData();
+    }
+  }, [user?.id, estId]);
 
   useEffect(() => {
     let mounted = true;
@@ -507,7 +576,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async ({ email, password, name }: SignUpParams) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -518,6 +587,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) throw error;
+
+      // Si el usuario fue creado pero necesita confirmación
+      if (data.user && !data.session) {
+        console.log("Usuario creado, esperando confirmación de email");
+        // El estacionamiento se creará cuando el usuario inicie sesión por primera vez
+      }
     } finally {
       setLoading(false);
     }
@@ -572,7 +647,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Primero limpiar el estado local y caché
       setUser(null);
       clearCache();
-      
+
       // Limpiar cualquier dato adicional que pueda quedar
       if (typeof window !== 'undefined') {
         // Limpiar todo el localStorage relacionado con la app
@@ -581,20 +656,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem(key);
           }
         });
-        
+
         // Limpiar sessionStorage también
         sessionStorage.clear();
       }
-      
+
       // Intentar cerrar sesión en Supabase con scope global
       const { error } = await supabase.auth.signOut({ scope: 'global' });
-      
+
       // Si hay un error de sesión faltante, no es crítico
       // ya que significa que no había sesión activa para cerrar
       if (error && !error.message.includes("Auth session missing")) {
         console.error("Error al cerrar sesión:", error);
       }
-      
+
       // Forzar recarga completa de la página para limpiar cualquier estado residual
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/login';
@@ -603,11 +678,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error("Error durante el cierre de sesión:", error);
-      
+
       // Incluso si hay error, limpiar el estado local completamente
       setUser(null);
       clearCache();
-      
+
       // Limpiar localStorage y sessionStorage
       if (typeof window !== 'undefined') {
         Object.keys(localStorage).forEach(key => {
@@ -653,6 +728,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         initializeRates,
         refreshCapacity,
         setEstId,
+        ensureParkingSetup,
       }}
     >
       {children}

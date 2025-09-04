@@ -18,14 +18,29 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    // Validación básica de contraseña
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres");
+      setLoading(false);
+      return;
+    }
+
     try {
       await signUp({ name, email, password });
-       // Después de un registro exitoso, redirigir a login
-       console.log("Registro exitoso, redirigiendo a login...");
-      router.push("/auth/login"); 
+      console.log("Registro exitoso, revisar email para confirmar cuenta");
+      // Mostrar mensaje de éxito - el usuario debe confirmar email antes de iniciar sesión
+      setError("✅ Cuenta creada exitosamente. Revisá tu correo y seguí el enlace de confirmación antes de iniciar sesión.");
     } catch (err: any) {
       console.error("Error en el registro:", err);
-      setError(err.message || "Error al registrar el usuario.");
+      // Mejorar mensajes de error
+      if (err.message?.includes("User already registered")) {
+        setError("Este email ya está registrado. Intentá iniciar sesión o usar otro email.");
+      } else if (err.message?.includes("Password should be at least 6 characters")) {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+      } else {
+        setError(err.message || "Error al registrar el usuario.");
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +106,7 @@ export default function RegisterPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className={`text-sm ${error.startsWith('✅') ? 'text-green-300' : 'text-red-300'}`}>{error}</p>}
 
           <div>
             <button

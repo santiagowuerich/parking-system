@@ -150,7 +150,7 @@ export function SimpleVehicleList({
 
                                     <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                                         <Clock className="w-4 h-4" />
-                                        <span>{formatTime(vehiculo.entry_time)}</span>
+                                        <span>{formatTime(new Date(vehiculo.entry_time))}</span>
                                         <span>({formatDuration(vehiculo.entry_time)})</span>
                                     </div>
                                 </div>

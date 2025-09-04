@@ -20,7 +20,12 @@ export default function ForgotPasswordPage() {
       await requestPasswordReset({ email });
       setMessage("Revisá tu correo y seguí el enlace para restablecer tu contraseña.");
     } catch (err: any) {
-      setError(err.message || "No se pudo enviar el correo de recuperación");
+      console.error("Error en recuperación de contraseña:", err);
+      if (err.message?.includes("User not found")) {
+        setError("No encontramos una cuenta con ese email.");
+      } else {
+        setError(err.message || "No se pudo enviar el correo de recuperación. Verificá que el email sea correcto.");
+      }
     } finally {
       setLoading(false);
     }
