@@ -10,22 +10,20 @@ export async function GET(request: NextRequest) {
     const estId = Number(url.searchParams.get('est_id')) || 1
 
     try {
-        // Obtener zonas únicas del campo pla_zona
+        // Obtener zonas únicas del campo pla_zona (todas las plazas tienen zona obligatoria)
         const { data, error } = await supabase
             .from('plazas')
             .select('pla_zona')
-            .eq('est_id', estId)
-            .not('pla_zona', 'is', null);
+            .eq('est_id', estId);
 
         if (error) {
             console.error('❌ Error consultando plazas:', error);
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        // Obtener zonas únicas y filtrar valores válidos
+        // Obtener zonas únicas (todas son válidas ya que pla_zona es NOT NULL)
         const plazasData = data || [];
-        const zonasUnicas = [...new Set(plazasData.map(p => p.pla_zona))]
-            .filter(zona => zona && zona.trim() !== '');
+        const zonasUnicas = [...new Set(plazasData.map(p => p.pla_zona))];
 
         const zonas = zonasUnicas.map((nombre, index) => ({
             id: index + 1,
@@ -33,7 +31,7 @@ export async function GET(request: NextRequest) {
             est_id: estId
         }));
 
-        console.log('📊 Zonas encontradas:', { plazasData: plazasData.length, zonasUnicas, zonas });
+        console.log('📊 Zonas encontradas (sistema zonal obligatorio):', { plazasData: plazasData.length, zonasUnicas, zonas });
 
         const json = NextResponse.json({ zonas });
         response.cookies.getAll().forEach(c => {
@@ -219,7 +217,7 @@ export async function PUT(request: NextRequest) {
     }
 }
 
-// DELETE: Eliminar una zona (poner plazas en null)
+// DELETE: Eliminar una zona (reasignar plazas a GENERAL)
 export async function DELETE(request: NextRequest) {
     const { supabase, response } = createClient(request);
 
@@ -232,10 +230,24 @@ export async function DELETE(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Poner las plazas de esa zona en null (sin zona)
+        // Verificar si hay más de una zona
+        const { data: allZones } = await supabase
+            .from('plazas')
+            .select('pla_zona')
+            .eq('est_id', est_id);
+
+        const uniqueZones = [...new Set(allZones?.map(p => p.pla_zona) || [])];
+
+        if (uniqueZones.length <= 1) {
+            return NextResponse.json({
+                error: 'No se puede eliminar la última zona. Todos los estacionamientos deben tener al menos una zona.'
+            }, { status: 400 });
+        }
+
+        // Reasignar las plazas a zona "GENERAL" (zona por defecto)
         const { error } = await supabase
             .from('plazas')
-            .update({ pla_zona: null })
+            .update({ pla_zona: 'GENERAL' })
             .eq('est_id', est_id)
             .eq('pla_zona', zona_nombre);
 
@@ -243,7 +255,7 @@ export async function DELETE(request: NextRequest) {
 
         const json = NextResponse.json({
             success: true,
-            message: `Zona "${zona_nombre}" eliminada. Las plazas quedaron sin zona asignada.`
+            message: `Zona "${zona_nombre}" eliminada. Las plazas fueron reasignadas a zona "GENERAL".`
         });
         response.cookies.getAll().forEach(c => {
             const { name, value, ...opt } = c;

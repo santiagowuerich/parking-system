@@ -94,3 +94,6 @@ console.log('3. Las advertencias sobre getSession() deberían desaparecer');
 
 console.log('\n📚 Para más información, lee: GOOGLE_MAPS_README.md');
 
+
+
+

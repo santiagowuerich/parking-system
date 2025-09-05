@@ -1086,6 +1086,9 @@ export default function ParkingApp() {
       </div>
 
       <Tabs defaultValue="operator" className="w-full" onValueChange={(value) => {
+        if (value === "plantillas") {
+          window.location.href = "/gestion-plantillas";
+        }
         if (value === "rates") {
           window.location.href = "/gestion-tarifas";
         }
@@ -1093,10 +1096,11 @@ export default function ParkingApp() {
           window.location.href = "/google-maps-setup";
         }
       }}>
-        <TabsList className="grid w-full grid-cols-5 mb-8">
+        <TabsList className="grid w-full grid-cols-6 mb-8">
           <TabsTrigger value="operator">Panel de Operador</TabsTrigger>
           <TabsTrigger value="admin">Panel de Administrador</TabsTrigger>
           <TabsTrigger value="estacionamientos">Mis Estacionamientos</TabsTrigger>
+          <TabsTrigger value="plantillas">Plantillas y Tarifas</TabsTrigger>
           <TabsTrigger value="rates">Gestión de Tarifas</TabsTrigger>
           <TabsTrigger value="google-maps">Google Maps</TabsTrigger>
         </TabsList>
@@ -1202,6 +1206,10 @@ export default function ParkingApp() {
             }}
             currentEstId={estId || undefined}
           />
+        </TabsContent>
+
+        <TabsContent value="plantillas">
+          {/* La navegación redirige a /gestion-plantillas, así que este TabsContent nunca se renderiza */}
         </TabsContent>
 
       </Tabs>

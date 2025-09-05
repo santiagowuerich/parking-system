@@ -119,3 +119,6 @@ console.log('   • supabase/migrations/ - Migraciones aplicadas\n');
 
 console.log('✨ ¡Gracias por actualizar el flujo de configuración! 🚀');
 
+
+
+

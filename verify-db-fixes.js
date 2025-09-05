@@ -59,3 +59,6 @@ console.log('   -- Deberían aparecer las vistas sin SECURITY DEFINER');
 
 console.log('\n📚 Para más información, lee: GOOGLE_MAPS_README.md');
 
+
+
+

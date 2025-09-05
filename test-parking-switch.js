@@ -49,3 +49,6 @@ console.log('4. Confirma que no hay flash de datos antiguos');
 
 console.log('\n📚 Para más información, lee: GOOGLE_MAPS_README.md');
 
+
+
+

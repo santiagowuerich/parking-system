@@ -261,3 +261,6 @@ TABLAS OPTIMIZADAS:
 - admins, rates, tariffs, user_roles, vehicles: 2 políticas → 1 política cada una
 */
 
+
+
+

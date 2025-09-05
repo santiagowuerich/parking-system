@@ -65,3 +65,6 @@ console.log('4. Confirma que se crea el estacionamiento correctamente');
 
 console.log('\n📚 Para más información, lee: GOOGLE_MAPS_README.md');
 
+
+
+

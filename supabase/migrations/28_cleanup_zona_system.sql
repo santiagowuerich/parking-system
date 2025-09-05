@@ -43,3 +43,6 @@ WHERE o.ocu_fh_salida IS NULL;
 
 COMMIT;
 
+
+
+

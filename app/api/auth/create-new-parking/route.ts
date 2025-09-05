@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email } = await request.json();
+        const { name, email, direccion } = await request.json();
 
         if (!name || !email) {
             return NextResponse.json(
@@ -91,6 +91,69 @@ export async function POST(request: NextRequest) {
         const usuarioId = usuarioData.usu_id;
         console.log(`👤 Usuario encontrado con usu_id: ${usuarioId}`);
 
+        // 2.5. Validar dirección única (se debe proporcionar)
+        if (!direccion || direccion.trim() === '') {
+            return NextResponse.json({
+                error: "La dirección es obligatoria y debe ser única",
+                details: "Ingresa una dirección válida para el estacionamiento"
+            }, { status: 400 });
+        }
+
+        const direccionLimpia = direccion.trim();
+
+        // Verificar que la dirección no exista en ningún estacionamiento (única en toda la BD)
+        const { data: existingDireccion, error: direccionError } = await supabase
+            .from('estacionamientos')
+            .select('est_id, est_nombre, est_direc')
+            .eq('est_direc', direccionLimpia)
+            .single();
+
+        if (existingDireccion && !direccionError) {
+            console.error(`❌ DIRECCIÓN DUPLICADA: La dirección "${direccionLimpia}" ya existe en estacionamiento ID: ${existingDireccion.est_id} (${existingDireccion.est_nombre})`);
+            return NextResponse.json({
+                error: `La dirección "${direccionLimpia}" ya está registrada`,
+                details: `Esta dirección ya pertenece al estacionamiento "${existingDireccion.est_nombre}". Cada dirección debe ser única en el sistema.`,
+                estacionamiento_existente: {
+                    id: existingDireccion.est_id,
+                    nombre: existingDireccion.est_nombre
+                }
+            }, { status: 409 });
+        }
+
+        if (direccionError && direccionError.code !== 'PGRST116') {
+            // PGRST116 es cuando no encuentra registro (lo cual es bueno)
+            console.error("❌ Error verificando dirección duplicada:", direccionError);
+            return NextResponse.json({ error: "Error verificando disponibilidad de la dirección" }, { status: 500 });
+        }
+
+        console.log(`✅ Dirección "${direccionLimpia}" disponible en el sistema`);
+
+        // 2.6. Verificar límite de estacionamientos por usuario (máximo 5)
+        const { data: userParkingCount, error: countError } = await supabase
+            .from('estacionamientos')
+            .select('est_id', { count: 'exact', head: true })
+            .eq('due_id', usuarioId);
+
+        if (countError) {
+            console.error("❌ Error verificando límite de estacionamientos:", countError);
+            return NextResponse.json({ error: "Error verificando límites de usuario" }, { status: 500 });
+        }
+
+        const currentParkingCount = userParkingCount || 0;
+        const MAX_PARKINGS_PER_USER = 5;
+
+        if (currentParkingCount >= MAX_PARKINGS_PER_USER) {
+            console.error(`❌ LÍMITE EXCEDIDO: Usuario ${email} tiene ${currentParkingCount} estacionamientos (máx: ${MAX_PARKINGS_PER_USER})`);
+            return NextResponse.json({
+                error: `Has alcanzado el límite máximo de estacionamientos (${MAX_PARKINGS_PER_USER})`,
+                details: `Actualmente tienes ${currentParkingCount} estacionamientos. Para crear más, contacta al soporte.`,
+                current_count: currentParkingCount,
+                max_allowed: MAX_PARKINGS_PER_USER
+            }, { status: 429 }); // 429 Too Many Requests
+        }
+
+        console.log(`✅ Usuario puede crear estacionamiento (${currentParkingCount}/${MAX_PARKINGS_PER_USER})`);
+
         // 3. Verificar que el usuario sea dueño (debe existir de setup inicial)
         const { data: duenoData, error: duenoError } = await supabase
             .from('dueno')
@@ -117,7 +180,7 @@ export async function POST(request: NextRequest) {
                 est_id: nextEstId,
                 est_prov: 'Por configurar',
                 est_locali: 'Por configurar',
-                est_direc: 'Dirección por configurar',
+                est_direc: direccionLimpia, // Usar la dirección proporcionada
                 est_nombre: name,
                 est_capacidad: 0, // Sin capacidad inicial
                 due_id: usuarioId,

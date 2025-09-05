@@ -415,8 +415,8 @@ export default function ParkingConfig() {
         return (
             <div className="flex items-center justify-center py-8">
                 <div className="text-center space-y-4">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-zinc-400" />
-                    <p className="text-zinc-400">Cargando configuración...</p>
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                    <p className="text-gray-500">Cargando configuración...</p>
                 </div>
             </div>
         );
@@ -425,8 +425,8 @@ export default function ParkingConfig() {
     if (!config) {
         return (
             <div className="text-center py-8">
-                <Building2 className="h-16 w-16 mx-auto text-zinc-600 mb-4" />
-                <h3 className="text-lg font-medium text-zinc-300 mb-2">
+                <Building2 className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-700 mb-2">
                     Error cargando configuración
                 </h3>
                 <Button onClick={fetchConfig} variant="outline">
@@ -441,58 +441,57 @@ export default function ParkingConfig() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-2xl font-bold text-gray-900">
                         Configuración del Estacionamiento
                     </h2>
-                    <p className="text-zinc-400">
+                    <p className="text-gray-500">
                         ID: {config.est_id} • Configura los datos específicos de tu estacionamiento
                     </p>
                 </div>
-                <Badge variant="outline" className="bg-zinc-800">
+                <Badge variant="outline">
                     {config.est_capacidad} plazas totales
                 </Badge>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Información Básica */}
-                <Card className="bg-zinc-900/50 border-zinc-700">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
+                        <CardTitle className="text-gray-900 flex items-center gap-2">
                             <Building2 className="h-5 w-5" />
                             Información Básica
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="nombre" className="text-zinc-300">Nombre del Estacionamiento</Label>
+                            <Label htmlFor="nombre" className="text-gray-700">Nombre del Estacionamiento</Label>
                             <Input
                                 id="nombre"
                                 value={config.est_nombre}
                                 onChange={(e) => updateConfig('est_nombre', e.target.value)}
                                 placeholder="Ej: Estacionamiento Centro"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="descripcion" className="text-zinc-300">Descripción</Label>
+                            <Label htmlFor="descripcion" className="text-gray-700">Descripción</Label>
                             <Textarea
                                 id="descripcion"
                                 value={config.est_descripcion || ''}
                                 onChange={(e) => updateConfig('est_descripcion', e.target.value)}
                                 placeholder="Descripción del estacionamiento, características especiales..."
-                                className="bg-zinc-800 border-zinc-600 min-h-20"
+                                className="min-h-20"
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="horario" className="text-zinc-300 flex items-center gap-1">
+                                <Label htmlFor="horario" className="text-gray-700 flex items-center gap-1">
                                     <Clock className="h-4 w-4" />
                                     Horario (horas)
                                 </Label>
                                 <Select value={String(config.est_horario_funcionamiento)} onValueChange={(value) => updateConfig('est_horario_funcionamiento', Number(value))}>
-                                    <SelectTrigger className="bg-zinc-800 border-zinc-600">
+                                    <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -505,12 +504,12 @@ export default function ParkingConfig() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="tolerancia" className="text-zinc-300 flex items-center gap-1">
+                                <Label htmlFor="tolerancia" className="text-gray-700 flex items-center gap-1">
                                     <Timer className="h-4 w-4" />
                                     Tolerancia (min)
                                 </Label>
                                 <Select value={String(config.est_tolerancia_min)} onValueChange={(value) => updateConfig('est_tolerancia_min', Number(value))}>
-                                    <SelectTrigger className="bg-zinc-800 border-zinc-600">
+                                    <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -526,27 +525,26 @@ export default function ParkingConfig() {
                 </Card>
 
                 {/* Contacto */}
-                <Card className="bg-zinc-900/50 border-zinc-700">
+                <Card>
                     <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
+                        <CardTitle className="text-gray-900 flex items-center gap-2">
                             <Phone className="h-5 w-5" />
                             Información de Contacto
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="telefono" className="text-zinc-300">Teléfono</Label>
+                            <Label htmlFor="telefono" className="text-gray-700">Teléfono</Label>
                             <Input
                                 id="telefono"
                                 value={config.est_telefono || ''}
                                 onChange={(e) => updateConfig('est_telefono', e.target.value)}
                                 placeholder="Ej: +54 11 1234-5678"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-zinc-300 flex items-center gap-1">
+                            <Label htmlFor="email" className="text-gray-700 flex items-center gap-1">
                                 <Mail className="h-4 w-4" />
                                 Email de Contacto
                             </Label>
@@ -556,7 +554,6 @@ export default function ParkingConfig() {
                                 value={config.est_email || ''}
                                 onChange={(e) => updateConfig('est_email', e.target.value)}
                                 placeholder="contacto@miestacionamiento.com"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
                     </CardContent>
@@ -564,9 +561,9 @@ export default function ParkingConfig() {
             </div>
 
             {/* Ubicación y Google Maps */}
-            <Card className="bg-zinc-900/50 border-zinc-700">
+            <Card>
                 <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
+                    <CardTitle className="text-gray-900 flex items-center gap-2">
                         <MapPin className="h-5 w-5" />
                         Ubicación y Dirección
                     </CardTitle>
@@ -574,7 +571,7 @@ export default function ParkingConfig() {
                 <CardContent className="space-y-4">
                     {/* Búsqueda de Dirección con Autocompletado */}
                     <div className="space-y-2 relative" data-search-container>
-                        <Label htmlFor="address-search" className="text-zinc-300">
+                        <Label htmlFor="address-search" className="text-gray-700">
                             Buscar Dirección (Argentina)
                         </Label>
                         <div className="flex gap-2">
@@ -585,12 +582,12 @@ export default function ParkingConfig() {
                                     onChange={(e) => handleAddressInputChange(e.target.value)}
                                     onKeyDown={handleAddressKeyDown}
                                     placeholder="Ej: Av. Corrientes 1234, CABA"
-                                    className="bg-zinc-800 border-zinc-600 pr-10"
+                                    className="pr-10"
                                     autoComplete="off"
                                 />
                                 {loadingAutocomplete && (
                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                        <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                                     </div>
                                 )}
                             </div>
@@ -612,14 +609,14 @@ export default function ParkingConfig() {
 
                         {/* Lista desplegable de sugerencias de autocompletado */}
                         {showAutocomplete && autocompleteSuggestions.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-zinc-800 border border-zinc-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                 {autocompleteSuggestions.map((suggestion, index) => (
                                     <div
                                         key={suggestion.place_id}
                                         onClick={() => selectAutocompleteSuggestion(suggestion)}
                                         className={`px-4 py-3 cursor-pointer transition-colors ${index === selectedSuggestionIndex
                                             ? 'bg-blue-600 text-white'
-                                            : 'hover:bg-zinc-700 text-zinc-300'
+                                            : 'hover:bg-gray-100 text-gray-700'
                                             }`}
                                     >
                                         <div className="font-medium">
@@ -628,7 +625,7 @@ export default function ParkingConfig() {
                                         {suggestion.structured_formatting?.secondary_text && (
                                             <div className={`text-sm ${index === selectedSuggestionIndex
                                                 ? 'text-blue-100'
-                                                : 'text-zinc-400'
+                                                : 'text-gray-500'
                                                 }`}>
                                                 {suggestion.structured_formatting.secondary_text}
                                             </div>
@@ -640,7 +637,7 @@ export default function ParkingConfig() {
 
                         {/* Mensaje cuando no hay sugerencias pero hay búsqueda */}
                         {showAutocomplete && autocompleteSuggestions.length === 0 && addressSearch.length >= 2 && !loadingAutocomplete && (
-                            <div className="absolute z-50 w-full mt-1 bg-zinc-800 border border-zinc-600 rounded-md shadow-lg p-4 text-center text-zinc-400">
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg p-4 text-center text-gray-500">
                                 <MapPin className="h-5 w-5 mx-auto mb-2 opacity-50" />
                                 No se encontraron direcciones
                             </div>
@@ -650,18 +647,18 @@ export default function ParkingConfig() {
                     {/* Sugerencias de Direcciones */}
                     {addressSuggestions.length > 0 && (
                         <div className="space-y-2">
-                            <Label className="text-zinc-300">Selecciona una dirección:</Label>
+                            <Label className="text-gray-700">Selecciona una dirección:</Label>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
                                 {addressSuggestions.map((suggestion, index) => (
                                     <div
                                         key={suggestion.place_id}
                                         onClick={() => selectAddress(suggestion)}
-                                        className="p-3 bg-zinc-800 hover:bg-zinc-750 border border-zinc-600 rounded cursor-pointer transition-colors"
+                                        className="p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded cursor-pointer transition-colors"
                                     >
-                                        <div className="font-medium text-white">
+                                        <div className="font-medium text-gray-900">
                                             {suggestion.formatted_address}
                                         </div>
-                                        <div className="text-sm text-zinc-400 mt-1">
+                                        <div className="text-sm text-gray-500 mt-1">
                                             {suggestion.components.locality}, {suggestion.components.state}
                                         </div>
                                     </div>
@@ -673,9 +670,9 @@ export default function ParkingConfig() {
                     {/* Campos de Dirección Manual */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="provincia" className="text-zinc-300">Provincia</Label>
+                            <Label htmlFor="provincia" className="text-gray-700">Provincia</Label>
                             <Select value={config.est_prov} onValueChange={(value) => updateConfig('est_prov', value)}>
-                                <SelectTrigger className="bg-zinc-800 border-zinc-600">
+                                <SelectTrigger>
                                     <SelectValue placeholder="Seleccionar provincia" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60">
@@ -689,35 +686,32 @@ export default function ParkingConfig() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="localidad" className="text-zinc-300">Localidad/Ciudad</Label>
+                            <Label htmlFor="localidad" className="text-gray-700">Localidad/Ciudad</Label>
                             <Input
                                 id="localidad"
                                 value={config.est_locali}
                                 onChange={(e) => updateConfig('est_locali', e.target.value)}
                                 placeholder="Ej: Capital Federal"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="direccion" className="text-zinc-300">Dirección</Label>
+                            <Label htmlFor="direccion" className="text-gray-700">Dirección</Label>
                             <Input
                                 id="direccion"
                                 value={config.est_direc}
                                 onChange={(e) => updateConfig('est_direc', e.target.value)}
                                 placeholder="Ej: Av. Corrientes 1234"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="cp" className="text-zinc-300">Código Postal</Label>
+                            <Label htmlFor="cp" className="text-gray-700">Código Postal</Label>
                             <Input
                                 id="cp"
                                 value={config.est_codigo_postal || ''}
                                 onChange={(e) => updateConfig('est_codigo_postal', e.target.value)}
                                 placeholder="Ej: 1043"
-                                className="bg-zinc-800 border-zinc-600"
                             />
                         </div>
                     </div>
@@ -727,7 +721,7 @@ export default function ParkingConfig() {
 
                     {/* Mapa de Google */}
                     <div className="space-y-2">
-                        <Label className="text-zinc-300">Ubicación en el Mapa</Label>
+                        <Label className="text-gray-700">Ubicación en el Mapa</Label>
                         <GoogleMap
                             latitude={config.est_latitud}
                             longitude={config.est_longitud}

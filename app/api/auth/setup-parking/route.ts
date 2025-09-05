@@ -120,8 +120,33 @@ export async function POST(request: NextRequest) {
             console.log(`🏢 Usuario ya es dueño: ${usuarioId}`);
         }
 
+        // Verificar si el usuario ya tiene estacionamientos
+        const { data: existingEstacionamientos, error: checkExistingError } = await supabase
+            .from('estacionamientos')
+            .select('est_id, est_nombre')
+            .eq('due_id', usuarioId);
+
+        if (checkExistingError) {
+            console.error("❌ Error verificando estacionamientos existentes:", checkExistingError);
+            return NextResponse.json({ error: "Error verificando estacionamientos existentes" }, { status: 500 });
+        }
+
+        // Si el usuario ya tiene estacionamientos, no crear uno nuevo automáticamente
+        if (existingEstacionamientos && existingEstacionamientos.length > 0) {
+            console.log(`ℹ️ Usuario ${email} ya tiene ${existingEstacionamientos.length} estacionamiento(s), no se crea uno nuevo automáticamente`);
+            return NextResponse.json({
+                success: true,
+                message: `Usuario ya tiene estacionamientos configurados`,
+                estacionamientos_existentes: existingEstacionamientos.length,
+                estacionamiento_ids: existingEstacionamientos.map(e => e.est_id)
+            });
+        }
+
         // Obtener el nombre para el estacionamiento
         const userName = name.split(' ')[0] || 'Usuario';
+
+        // Generar dirección única para evitar conflictos
+        const uniqueDireccion = `Dirección por configurar - Usuario: ${email} - ${new Date().toISOString().split('T')[0]}`;
 
         // 4. Crear estacionamiento con configuración mínima (SIN plazas predeterminadas)
         const { error: estacionamientoError } = await supabase
@@ -130,7 +155,7 @@ export async function POST(request: NextRequest) {
                 est_id: nextEstId,
                 est_prov: 'Por configurar',
                 est_locali: 'Por configurar',
-                est_direc: 'Dirección por configurar',
+                est_direc: uniqueDireccion, // Dirección única para evitar conflictos
                 est_nombre: `Estacionamiento de ${userName}`,
                 est_capacidad: 0, // Sin capacidad inicial - usuario debe crear plazas
                 due_id: usuarioId,

@@ -112,3 +112,6 @@ Esta migración NO elimina las plazas existentes por seguridad.
 Si quieres eliminarlas completamente, descomenta las líneas correspondientes.
 */
 
+
+
+

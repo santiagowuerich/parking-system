@@ -23,3 +23,28 @@ export interface Parking {
   history: ParkingHistory[]
 }
 
+// Tipos para el sistema de plantillas
+export interface Caracteristica {
+  caracteristica_id: number
+  valor: string
+  tipo_id: number
+  caracteristica_tipos: {
+    nombre_tipo: string
+  }
+}
+
+export interface Plantilla {
+  plantilla_id?: number
+  nombre_plantilla: string
+  catv_segmento: 'AUT' | 'MOT' | 'CAM'
+  est_id: number
+  caracteristicas: Record<string, string[]> // Agrupadas por tipo
+}
+
+export interface PlantillaForm {
+  plantilla_id?: number
+  nombre_plantilla: string
+  catv_segmento: 'AUT' | 'MOT' | 'CAM'
+  caracteristica_ids: number[]
+}
+

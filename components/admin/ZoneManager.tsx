@@ -101,7 +101,7 @@ export function ZoneManager() {
     };
 
     const handleDeleteZone = async (zonaNombre: string) => {
-        if (!confirm(`¿Seguro que quieres eliminar la zona "${zonaNombre}"? Las plazas quedarán sin zona asignada.`)) return;
+        if (!confirm(`¿Seguro que quieres eliminar la zona "${zonaNombre}"? Las plazas serán reasignadas a la zona "GENERAL".`)) return;
 
         try {
             const response = await fetch('/api/zonas', {
@@ -113,7 +113,7 @@ export function ZoneManager() {
             if (!response.ok) throw new Error('No se pudo eliminar la zona');
 
             fetchZonas();
-            toast.success('Zona eliminada');
+            toast.success('Zona eliminada', { description: 'Las plazas fueron reasignadas a GENERAL' });
         } catch (error: any) {
             toast.error('Error al eliminar', { description: error.message });
         }
@@ -190,7 +190,7 @@ export function ZoneManager() {
     return (
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
             <CardHeader>
-                <CardTitle className="dark:text-zinc-100">Gestión de Zonas (Sistema Simplificado)</CardTitle>
+                <CardTitle className="dark:text-zinc-100">Gestión de Zonas (Obligatorio)</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="space-y-4 mb-6">
@@ -224,7 +224,7 @@ export function ZoneManager() {
                     <div>
                         <h4 className="font-semibold mb-2">Zonas Existentes:</h4>
                         {zonas.length === 0 ? (
-                            <p className="text-zinc-500 text-sm">No hay zonas definidas aún</p>
+                            <p className="text-zinc-500 text-sm">Cargando zonas...</p>
                         ) : (
                             <ul className="space-y-2">
                                 {(zonas || []).map((zona) => zona ? (

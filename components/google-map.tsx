@@ -273,18 +273,18 @@ export default function GoogleMap({
         process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY === 'TU_API_KEY_AQUI' ||
         process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY === 'TU_API_KEY_REAL') {
         return (
-            <Card className="bg-zinc-900/50 border-zinc-700">
+            <Card>
                 <CardContent className="p-6 text-center">
                     <AlertCircle className="h-8 w-8 mx-auto text-amber-500 mb-2" />
-                    <h3 className="text-lg font-medium text-white mb-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
                         Configuración Requerida
                     </h3>
-                    <p className="text-zinc-400 text-sm mb-4">
+                    <p className="text-gray-500 text-sm mb-4">
                         Para usar Google Maps, necesitas configurar tu API key.
                         Ve a la página de configuración para obtener instrucciones.
                     </p>
-                    <div className="bg-zinc-800 p-3 rounded text-left text-xs text-zinc-300 mb-4">
-                        <p>Crea un archivo <code className="bg-zinc-700 px-1 rounded">.env.local</code> en la raíz del proyecto:</p>
+                    <div className="bg-gray-50 p-3 rounded text-left text-xs text-gray-700 mb-4">
+                        <p>Crea un archivo <code className="bg-gray-200 px-1 rounded">.env.local</code> en la raíz del proyecto:</p>
                         <br />
                         <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=tu_api_key_aqui</code>
                         <br />
@@ -313,10 +313,10 @@ export default function GoogleMap({
 
     if (error) {
         return (
-            <Card className="bg-zinc-900/50 border-zinc-700">
+            <Card>
                 <CardContent className="p-6 text-center">
                     <AlertCircle className="h-8 w-8 mx-auto text-red-500 mb-2" />
-                    <h3 className="text-lg font-medium text-white mb-2">
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
                         Error en Google Maps
                     </h3>
                     <p className="text-red-400 text-sm mb-4">{error}</p>
@@ -331,7 +331,7 @@ export default function GoogleMap({
                                 <RefreshCw className="h-4 w-4" />
                                 Reintentar ({retryCount}/{maxRetries})
                             </Button>
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-gray-500">
                                 También puedes recargar la página completa
                             </p>
                         </div>
@@ -342,9 +342,9 @@ export default function GoogleMap({
     }
 
     return (
-        <Card className="bg-zinc-900/50 border-zinc-700">
+        <Card>
             <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-gray-900 flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
                     Ubicación del Estacionamiento
                 </CardTitle>
@@ -353,20 +353,20 @@ export default function GoogleMap({
                 <div className="relative">
                     <div
                         ref={mapRef}
-                        className={className + " rounded-lg border border-zinc-600"}
+                        className={className + " rounded-lg border border-gray-200"}
                         style={{ minHeight: '250px' }}
                     />
                     {!isLoaded && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800 rounded-lg">
+                        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg">
                             <div className="text-center">
-                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-zinc-400 mb-2" />
-                                <p className="text-zinc-400 text-sm">Cargando mapa...</p>
+                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" />
+                                <p className="text-gray-500 text-sm">Cargando mapa...</p>
                             </div>
                         </div>
                     )}
                 </div>
                 {address && (
-                    <div className="mt-3 text-sm text-zinc-400">
+                    <div className="mt-3 text-sm text-gray-500">
                         <MapPin className="h-4 w-4 inline mr-1" />
                         {address}
                     </div>

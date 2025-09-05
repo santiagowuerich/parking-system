@@ -31,29 +31,48 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Buscar el estacionamiento del usuario
-        const { data: estacionamientoData, error: estacionamientoError } = await supabase
+        // Buscar TODOS los estacionamientos del usuario (ahora permite múltiples)
+        const { data: estacionamientosData, error: estacionamientosError } = await supabase
             .from('estacionamientos')
             .select('est_id, est_nombre, due_id')
             .eq('due_id', usuarioData.usu_id)
-            .single();
+            .order('est_id');
 
-        if (estacionamientoError || !estacionamientoData) {
-            console.log(`🅿️ No se encontró estacionamiento para usuario ${userEmail}`);
+        if (estacionamientosError) {
+            console.error("❌ Error obteniendo estacionamientos:", estacionamientosError);
             return NextResponse.json({
                 has_parking: false,
                 usuario_id: usuarioData.usu_id,
-                message: "Usuario encontrado pero sin estacionamiento asignado"
+                message: "Error consultando estacionamientos"
             });
         }
 
-        console.log(`✅ Usuario ${userEmail} tiene estacionamiento est_id: ${estacionamientoData.est_id}`);
+        // Si no hay estacionamientos, devolver false
+        if (!estacionamientosData || estacionamientosData.length === 0) {
+            console.log(`🅿️ No se encontraron estacionamientos para usuario ${userEmail}`);
+            return NextResponse.json({
+                has_parking: false,
+                usuario_id: usuarioData.usu_id,
+                message: "Usuario encontrado pero sin estacionamientos asignados"
+            });
+        }
+
+        console.log(`✅ Usuario ${userEmail} tiene ${estacionamientosData.length} estacionamiento(s)`);
+
+        // Si hay múltiples estacionamientos, devolver el primero (el más antiguo)
+        // En el futuro se podría implementar selección de estacionamiento
+        const primerEstacionamiento = estacionamientosData[0];
 
         return NextResponse.json({
             has_parking: true,
-            est_id: estacionamientoData.est_id,
-            est_nombre: estacionamientoData.est_nombre,
-            usuario_id: usuarioData.usu_id
+            est_id: primerEstacionamiento.est_id,
+            est_nombre: primerEstacionamiento.est_nombre,
+            usuario_id: usuarioData.usu_id,
+            total_estacionamientos: estacionamientosData.length,
+            estacionamientos: estacionamientosData.map(e => ({
+                est_id: e.est_id,
+                est_nombre: e.est_nombre
+            }))
         });
 
     } catch (error) {

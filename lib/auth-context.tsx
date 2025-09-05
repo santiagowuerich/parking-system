@@ -439,8 +439,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    console.log(`🎯 estId cambió a: ${estId}`);
     if (typeof window !== 'undefined' && estId !== null) {
       localStorage.setItem('parking_est_id', String(estId));
+      console.log(`💾 Guardado en localStorage: ${estId}`);
     }
   }, [estId]);
 
@@ -455,6 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
+        console.log('📋 Respuesta de get-parking-id:', checkData);
 
         if (!checkData.has_parking) {
           console.log("🏗️ Usuario sin estacionamiento, creando...");
@@ -473,23 +476,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (setupResponse.ok) {
             const setupData = await setupResponse.json();
-            console.log("✅ Estacionamiento creado:", setupData);
+            console.log("✅ Configuración de estacionamiento completada:", setupData);
 
-            // Actualizar el estId con el nuevo estacionamiento
-            setEstId(setupData.estacionamiento_id);
-
-            // Limpiar localStorage anterior
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('parking_est_id'); // Limpiar valor anterior
-              localStorage.setItem('parking_est_id', String(setupData.estacionamiento_id));
+            // Si ya tiene estacionamientos, usar el primer estacionamiento existente
+            if (setupData.estacionamientos_existentes > 0) {
+              console.log(`ℹ️ Usuario ya tiene ${setupData.estacionamientos_existentes} estacionamiento(s)`);
+              // Usar el primer estacionamiento de la lista
+              if (setupData.estacionamiento_ids && setupData.estacionamiento_ids.length > 0) {
+                setEstId(setupData.estacionamiento_ids[0]);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('parking_est_id', String(setupData.estacionamiento_ids[0]));
+                }
+              }
+            } else {
+              // Nuevo estacionamiento creado
+              setEstId(setupData.estacionamiento_id);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('parking_est_id');
+                localStorage.setItem('parking_est_id', String(setupData.estacionamiento_id));
+              }
             }
           } else {
-            const errorText = await setupResponse.text();
-            console.error("❌ Error configurando estacionamiento:", errorText);
+            const errorData = await setupResponse.json().catch(() => ({ error: "Error desconocido" }));
+            console.error("❌ Error en configuración de estacionamiento:", errorData);
+
+            // Si el error es porque ya tiene estacionamientos, no es un error real
+            if (errorData.message && errorData.message.includes("ya tiene estacionamientos")) {
+              console.log("ℹ️ Usuario ya tiene estacionamientos configurados - esto es normal");
+            } else {
+              // Solo mostrar error si es un error real
+              console.error("❌ Error real en configuración:", errorData);
+            }
           }
         } else {
           console.log(`✅ Usuario ya tiene estacionamiento: ${checkData.est_id}`);
           // Actualizar el estId con el estacionamiento existente
+          console.log(`🔄 Asignando estId: ${checkData.est_id}`);
           setEstId(checkData.est_id);
 
           // También verificar desde localStorage como fallback
@@ -510,9 +532,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
     if (user?.id) {
-      // Primero verificar y configurar estacionamiento si es necesario
-      ensureParkingSetup();
+      console.log(`👤 Usuario autenticado: ${user.email}, verificando estacionamiento...`);
+
+      // Verificar si hay estId guardado en localStorage
+      if (typeof window !== 'undefined') {
+        const savedEstId = localStorage.getItem('parking_est_id');
+        if (savedEstId) {
+          console.log(`📦 estId encontrado en localStorage: ${savedEstId}`);
+          setEstId(parseInt(savedEstId));
+        } else {
+          console.log(`📦 No hay estId en localStorage`);
+        }
+      }
+
+      // Solo ejecutar ensureParkingSetup si no hay estId válido
+      if (estId === null) {
+        console.log(`🔍 No hay estId, ejecutando ensureParkingSetup`);
+        ensureParkingSetup();
+      } else {
+        console.log(`✅ Ya hay estId válido: ${estId}, omitiendo ensureParkingSetup`);
+      }
     } else {
+      console.log(`🚪 Usuario no autenticado, reseteando datos`);
       // Resetear los datos cuando no hay usuario
       setEstId(null);
       setRates(null);

@@ -62,3 +62,6 @@ export function ZonaEstacionamiento({ zona, onPlazaClick }: ZonaProps) {
     );
 }
 
+
+
+

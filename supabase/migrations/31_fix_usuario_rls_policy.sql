@@ -39,3 +39,6 @@ WHERE tablename = 'usuario'
 AND schemaname = 'public'
 ORDER BY policyname;
 
+
+
+
