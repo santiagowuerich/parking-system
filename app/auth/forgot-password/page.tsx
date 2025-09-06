@@ -4,82 +4,93 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 
-export default function ForgotPasswordPage() {
-  const { requestPasswordReset } = useAuth();
-  const [email, setEmail] = useState("");
+export default function ResetPasswordPage() {
+  const { resetPassword } = useAuth();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    if (password !== confirm) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
     setLoading(true);
     try {
-      await requestPasswordReset({ email });
-      setMessage("Revisá tu correo y seguí el enlace para restablecer tu contraseña.");
+      await resetPassword({ password });
+      setMessage("Contraseña actualizada correctamente.");
     } catch (err: any) {
-      console.error("Error en recuperación de contraseña:", err);
-      if (err.message?.includes("User not found")) {
-        setError("No encontramos una cuenta con ese email.");
-      } else {
-        setError(err.message || "No se pudo enviar el correo de recuperación. Verificá que el email sea correcto.");
-      }
+      setError(err.message || "No se pudo actualizar la contraseña.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black">
-      <div className="w-full max-w-md p-8 space-y-6 bg-zinc-900 border border-zinc-800 rounded shadow-md">
-        <h2 className="text-2xl font-bold text-center text-zinc-100">Recuperar contraseña</h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="min-h-screen bg-[#bfc3cb] flex flex-col items-center justify-center">
+      {/* Logo */}
+      <div className="absolute top-8 left-12">
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+      </div>
+      {/* Card */}
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
+        <div className="w-full flex justify-between items-center mb-2">
+          <h2 className="text-xl font-bold">Nueva contraseña</h2>
+          <Link href="/auth/login" className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</Link>
+        </div>
+        <p className="text-sm text-gray-500 mb-6">
+          Ingresá tu nueva contraseña y confirmala para actualizar tu acceso.
+        </p>
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-zinc-400">
-              Correo Electrónico
-            </label>
             <input
-              id="email"
-              name="email"
-              type="email"
+              id="password"
+              name="password"
+              type="password"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md"
+              placeholder="Nueva contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
             />
           </div>
-          {message && (
-            <p className="text-sm text-green-300">
-              {message} Si no lo ves, revisá la carpeta de spam.
-            </p>
-          )}
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 text-sm font-medium text-black bg-white rounded-md disabled:opacity-50"
-          >
-            {loading ? "Enviando..." : "Enviar enlace"}
-          </button>
-          {message && (
-            <div className="mt-4 text-center">
-              <Link href="/auth/reset-password" className="text-zinc-100 underline">
-                Ya tengo el enlace, ir a restablecer
-              </Link>
-            </div>
-          )}
+          <div>
+            <input
+              id="confirm"
+              name="confirm"
+              type="password"
+              required
+              placeholder="Confirmar contraseña"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {message && <p className="text-sm text-green-500">{message}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2 bg-[#2563eb] text-white font-semibold rounded-md hover:bg-[#174ea6] transition disabled:opacity-50"
+            >
+              {loading ? "Guardando..." : "Guardar contraseña"}
+            </button>
+            <Link
+              href="/auth/login"
+              className="w-full py-2 bg-gray-100 text-gray-700 font-semibold rounded-md text-center border border-gray-300 hover:bg-gray-200 transition"
+            >
+              Cancelar
+            </Link>
+          </div>
         </form>
-        <p className="text-sm text-center text-zinc-400">
-          <Link href="/auth/login" className="font-medium text-zinc-100 hover:text-zinc-300">
-            Volver al inicio de sesión
-          </Link>
-        </p>
       </div>
     </div>
   );
 }
-
-
-

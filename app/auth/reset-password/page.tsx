@@ -1,131 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
 
 export default function ResetPasswordPage() {
-  const { updatePassword } = useAuth();
-  const router = useRouter();
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const { resetPassword } = useAuth();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Mostrar aviso si no hay sesión de recuperación
-  const [recoveryReady, setRecoveryReady] = useState(false);
-  useEffect(() => {
-    const check = async () => {
-      try {
-        // Si el usuario navegó aquí desde el correo, Supabase abre una "recovery" session
-        // Podemos intentar obtener la sesión; si no hay, igualmente permitir cambiar contraseña si está autenticado
-        setRecoveryReady(true);
-      } catch {
-        setRecoveryReady(false);
-      }
-    };
-    check();
-  }, []);
+  const [message, setMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
 
-    if (newPassword.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    if (password !== confirm) {
+      setError("Las contraseñas no coinciden.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
-      return;
-    }
-
     setLoading(true);
     try {
-      await updatePassword({ newPassword });
-      setMessage("Tu contraseña fue actualizada. Ya podés iniciar sesión.");
-      // Cerrar sesión de forma silenciosa y redirigir al login (sin recargar la página)
-      try { await supabase.auth.signOut({ scope: 'global' }); } catch {}
-      setTimeout(() => {
-        router.replace('/auth/login?reset=ok');
-      }, 1500);
+      await resetPassword({ password });
+      setMessage("Contraseña actualizada correctamente.");
     } catch (err: any) {
-      setError(err.message || "No se pudo actualizar la contraseña");
+      setError(err.message || "No se pudo actualizar la contraseña.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black">
-      <div className="w-full max-w-md p-8 space-y-6 bg-zinc-900 border border-zinc-800 rounded shadow-md">
-        <h2 className="text-2xl font-bold text-center text-zinc-100">Restablecer contraseña</h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-zinc-400">
-              Nueva contraseña
-            </label>
-            <input
-              id="newPassword"
-              name="newPassword"
-              type="password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md"
-            />
-          </div>
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-400">
-              Confirmar contraseña
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md"
-            />
-          </div>
-          {message && <p className="text-sm text-green-300">{message}</p>}
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 text-sm font-medium text-black bg-white rounded-md disabled:opacity-50"
-          >
-            {loading ? "Actualizando..." : "Actualizar contraseña"}
-          </button>
-          {message && (
-            <p className="text-sm text-green-300 text-center mt-3">
-              {message} <Link href="/auth/login" className="underline">Ir al inicio de sesión</Link>
-            </p>
-          )}
-          {!recoveryReady && (
-            <p className="text-xs text-zinc-400 text-center mt-2">
-              Si llegaste aquí sin usar el enlace del correo, volvé a solicitar recuperación o iniciá sesión y cambiá tu contraseña desde Cuenta → Seguridad.
-            </p>
-          )}
-        </form>
-        <p className="text-sm text-center text-zinc-400">
-          <Link href="/auth/login" className="font-medium text-zinc-100 hover:text-zinc-300">
-            Volver al inicio de sesión
-          </Link>
+    <div className="min-h-screen bg-[#bfc3cb] flex flex-col items-center justify-center">
+      {/* Logo */}
+      <div className="absolute top-8 left-12">
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+      </div>
+      {/* Card */}
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
+        <div className="w-full flex justify-between items-center mb-2">
+          <h2 className="text-xl font-bold">Nueva contraseña</h2>
+          <Link href="/auth/login" className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</Link>
+        </div>
+        <p className="text-sm text-gray-500 mb-6">
+          Ingresá tu nueva contraseña y confirmala para actualizar tu acceso.
         </p>
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div>
+            <label htmlFor="password" className="block text-sm text-gray-600 mb-1">Nueva contraseña</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              placeholder="Nueva contraseña"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+            />
+          </div>
+          <div>
+            <label htmlFor="confirm" className="block text-sm text-gray-600 mb-1">Confirmar contraseña</label>
+            <input
+              id="confirm"
+              name="confirm"
+              type="password"
+              required
+              placeholder="Confirmar contraseña"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {message && <p className="text-sm text-green-500">{message}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2 bg-[#2563eb] text-white font-semibold rounded-md hover:bg-[#174ea6] transition disabled:opacity-50"
+            >
+              {loading ? "Guardando..." : "Guardar contraseña"}
+            </button>
+            <Link
+              href="/auth/login"
+              className="w-full py-2 bg-gray-100 text-gray-700 font-semibold rounded-md text-center border border-gray-300 hover:bg-gray-200 transition"
+            >
+              Cancelar
+            </Link>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
-
-
-
