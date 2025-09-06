@@ -76,6 +76,7 @@ export const AuthContext = createContext<{
   refreshCapacity: () => Promise<void>;
   setEstId: (id: number | null) => void;
   ensureParkingSetup: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
 }>({
   user: null,
   loading: true,
@@ -99,6 +100,7 @@ export const AuthContext = createContext<{
   refreshCapacity: async () => { },
   setEstId: () => { },
   ensureParkingSetup: async () => { },
+  signInWithGoogle: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -119,7 +121,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-
+  
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const baseUrl =
+        (typeof window !== 'undefined' ? window.location.origin : '') ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        '';
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${baseUrl}/`,
+        },
+      });
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
   // Función para inicializar tarifas base del sistema (sólo una vez)
   const initializeRates = async () => {
     // Verificar primero si ya se inicializó en esta sesión
@@ -770,6 +790,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshCapacity,
         setEstId,
         ensureParkingSetup,
+        signInWithGoogle,
       }}
     >
       {children}

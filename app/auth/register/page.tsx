@@ -2,129 +2,205 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function RegisterPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { signUp, signInWithGoogle } = useAuth();
+  const [form, setForm] = useState({
+    nombre: "",
+    apellido: "",
+    dni: "",
+    telefono: "",
+    email: "",
+    password: "",
+    confirm: "",
+    terms: false,
+  });
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
-  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    // Validación básica de contraseña
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
-      setLoading(false);
+    if (!form.terms) {
+      setError("Debes aceptar los Términos y la Política de Privacidad.");
       return;
     }
-
+    if (form.password !== form.confirm) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    setLoading(true);
     try {
-      await signUp({ name, email, password });
-      console.log("Registro exitoso, revisar email para confirmar cuenta");
-      // Mostrar mensaje de éxito - el usuario debe confirmar email antes de iniciar sesión
-      setError("✅ Cuenta creada exitosamente. Revisá tu correo y seguí el enlace de confirmación antes de iniciar sesión.");
+      await signUp({
+        nombre: form.nombre,
+        apellido: form.apellido,
+        dni: form.dni,
+        telefono: form.telefono,
+        email: form.email,
+        password: form.password,
+      });
+      // Redirige o muestra mensaje de éxito según tu lógica
     } catch (err: any) {
-      console.error("Error en el registro:", err);
-      // Mejorar mensajes de error
-      if (err.message?.includes("User already registered")) {
-        setError("Este email ya está registrado. Intentá iniciar sesión o usar otro email.");
-      } else if (err.message?.includes("Password should be at least 6 characters")) {
-        setError("La contraseña debe tener al menos 6 caracteres.");
-      } else {
-        setError(err.message || "Error al registrar el usuario.");
-      }
+      setError(err.message || "No se pudo crear la cuenta.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      setError("No se pudo iniciar con Google.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black">
-      <div className="w-full max-w-md p-8 space-y-6 bg-zinc-900 border border-zinc-800 rounded shadow-md">
-        <h2 className="text-2xl font-bold text-center text-zinc-100">Registrarse</h2>
-        <form onSubmit={handleRegister} className="space-y-6">
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-zinc-400"
-            >
-              Nombre Completo
-            </label>
+    <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
+      {/* Logo */}
+      <div className="absolute top-8 left-12">
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+      </div>
+      {/* Card */}
+      <div className="w-full max-w-xl bg-white rounded-xl shadow-lg p-10 flex flex-col items-center">
+        <h2 className="text-2xl font-bold mb-1">Registrarse</h2>
+        <p className="text-sm text-gray-500 mb-6 text-center">
+          Completa tus datos para registrarte en el sistema
+        </p>
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <input
-              id="name"
-              name="name"
+              name="nombre"
               type="text"
-              autoComplete="name"
+              placeholder="Tu nombre"
+              value={form.nombre}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm placeholder:text-zinc-400"
+            />
+            <input
+              name="apellido"
+              type="text"
+              placeholder="Tu apellido"
+              value={form.apellido}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+              required
             />
           </div>
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-zinc-400"
-            >
-              Correo Electrónico
-            </label>
+          <div className="grid grid-cols-2 gap-4">
             <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
+              name="dni"
+              type="text"
+              placeholder="00.000.000"
+              value={form.dni}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm placeholder:text-zinc-400"
+            />
+            <input
+              name="telefono"
+              type="text"
+              placeholder="+54 9 362 000 0000"
+              value={form.telefono}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+              required
             />
           </div>
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-zinc-400"
-            >
-              Contraseña
-            </label>
+          <input
+            name="email"
+            type="email"
+            placeholder="tu@correo.com"
+            value={form.email}
+            onChange={handleChange}
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+            required
+          />
+          <div className="grid grid-cols-2 gap-4">
             <input
-              id="password"
               name="password"
               type="password"
-              autoComplete="new-password"
+              placeholder="Contraseña"
+              value={form.password}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
               required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm placeholder:text-zinc-400"
+            />
+            <input
+              name="confirm"
+              type="password"
+              placeholder="Confirmar contraseña"
+              value={form.confirm}
+              onChange={handleChange}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+              required
             />
           </div>
-
-          {error && <p className={`text-sm ${error.startsWith('✅') ? 'text-green-300' : 'text-red-300'}`}>{error}</p>}
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 text-sm font-medium text-black bg-white border border-transparent rounded-md shadow-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              {loading ? "Registrando..." : "Registrarse"}
-            </button>
+          <div className="flex items-center mb-2">
+            <input
+              id="terms"
+              name="terms"
+              type="checkbox"
+              checked={form.terms}
+              onChange={handleChange}
+              className="mr-2"
+              required
+            />
+            <label htmlFor="terms" className="text-sm text-gray-700">
+              Acepto los Términos y la Política de Privacidad
+            </label>
           </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 bg-[#2563eb] text-white font-semibold rounded-md hover:bg-[#174ea6] transition disabled:opacity-50 mb-2"
+          >
+            {loading ? "Creando..." : "Crear cuenta"}
+          </button>
         </form>
-        <p className="text-sm text-center text-zinc-400">
+        <div className="flex items-center my-4 w-full">
+          <hr className="flex-grow border-gray-200" />
+          <span className="mx-2 text-gray-400 text-sm">O continúa con</span>
+          <hr className="flex-grow border-gray-200" />
+        </div>
+        <button
+          type="button"
+          onClick={handleGoogle}
+          disabled={loading}
+          className="w-full py-2 flex items-center justify-center border border-gray-300 rounded-md bg-white hover:bg-gray-100 transition mb-2"
+        >
+          <svg width="20" height="20" viewBox="0 0 48 48" className="mr-2">
+            <path fill="#4285F4" d="M24 9.5c3.54 0 6.73 1.22 9.23 3.22l6.9-6.9C36.53 2.36 30.64 0 24 0 14.86 0 6.7 5.74 2.69 14.09l8.06 6.27C12.53 13.13 17.81 9.5 24 9.5z"/>
+            <path fill="#34A853" d="M46.1 24.5c0-1.64-.15-3.22-.43-4.75H24v9.02h12.44c-.54 2.92-2.18 5.39-4.64 7.05l7.19 5.59C43.93 37.36 46.1 31.44 46.1 24.5z"/>
+            <path fill="#FBBC05" d="M10.75 28.36c-1.12-3.29-1.12-6.83 0-10.12l-8.06-6.27C.86 15.86 0 19.81 0 24c0 4.19.86 8.14 2.69 11.77l8.06-6.27z"/>
+            <path fill="#EA4335" d="M24 48c6.64 0 12.53-2.36 17.13-6.45l-7.19-5.59c-2.01 1.35-4.58 2.14-7.44 2.14-6.19 0-11.47-3.63-13.25-8.86l-8.06 6.27C6.7 42.26 14.86 48 24 48z"/>
+            <path fill="none" d="M0 0h48v48H0z"/>
+          </svg>
+          Google
+        </button>
+        <p className="text-sm text-center text-gray-500 mt-2">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/auth/login" className="font-medium text-zinc-100 hover:text-zinc-300">
+          <Link href="/auth/login" className="font-medium text-[#2563eb] hover:underline">
             Inicia sesión
           </Link>
         </p>
       </div>
     </div>
   );
-} 
+}
