@@ -1,0 +1,169 @@
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function GET(request: NextRequest) {
+    let response = NextResponse.next()
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name) { return request.cookies.get(name)?.value },
+                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
+                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
+            }
+        }
+    )
+
+    try {
+        // Obtener est_id de los parámetros de la URL
+        const { searchParams } = new URL(request.url)
+        const est_id = searchParams.get('est_id')
+
+        if (!est_id) {
+            return NextResponse.json({ error: 'est_id es requerido' }, { status: 400 })
+        }
+
+        // Consultar tarifas con información de plantillas
+        const { data: tarifas, error } = await supabase
+            .from('tarifas')
+            .select(`
+                plantilla_id,
+                tiptar_nro,
+                tar_precio,
+                plantillas!inner(
+                    nombre_plantilla,
+                    catv_segmento
+                )
+            `)
+            .eq('est_id', est_id)
+            .order('plantilla_id')
+            .order('tiptar_nro')
+
+        if (error) {
+            console.error('Error obteniendo tarifas:', error)
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        // Agrupar tarifas por plantilla_id para facilitar el consumo en el frontend
+        const tarifasPorPlantilla: Record<number, any> = {}
+
+        tarifas?.forEach((tarifa: any) => {
+            const plantillaId = tarifa.plantilla_id
+
+            if (!tarifasPorPlantilla[plantillaId]) {
+                tarifasPorPlantilla[plantillaId] = {
+                    plantilla_id: plantillaId,
+                    nombre_plantilla: tarifa.plantillas.nombre_plantilla,
+                    catv_segmento: tarifa.plantillas.catv_segmento,
+                    tarifas: {}
+                }
+            }
+
+            // Agregar el tipo de tarifa con su precio
+            tarifasPorPlantilla[plantillaId].tarifas[tarifa.tiptar_nro] = {
+                precio: tarifa.tar_precio,
+                tipo: tarifa.tiptar_nro
+            }
+        })
+
+        // Convertir el objeto a array para respuesta
+        const resultado = Object.values(tarifasPorPlantilla)
+
+        const jsonResponse = NextResponse.json({
+            success: true,
+            tarifas: resultado
+        })
+        response.cookies.getAll().forEach(c => {
+            const { name, value, ...opt } = c
+            jsonResponse.cookies.set({ name, value, ...opt })
+        })
+        return jsonResponse
+
+    } catch (err: any) {
+        console.error('Error inesperado obteniendo tarifas:', err)
+        return NextResponse.json({ error: err.message || 'Error interno del servidor' }, { status: 500 })
+    }
+}
+
+export async function POST(request: NextRequest) {
+    let response = NextResponse.next()
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name) { return request.cookies.get(name)?.value },
+                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
+                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
+            }
+        }
+    )
+
+    try {
+        // Obtener est_id de los parámetros de la URL
+        const { searchParams } = new URL(request.url)
+        const est_id = searchParams.get('est_id')
+
+        if (!est_id) {
+            return NextResponse.json({ error: 'est_id es requerido' }, { status: 400 })
+        }
+
+        // Leer el cuerpo de la solicitud
+        const body = await request.json()
+        const { tarifas } = body
+
+        if (!tarifas || !Array.isArray(tarifas)) {
+            return NextResponse.json({ error: 'Se requiere un array de tarifas' }, { status: 400 })
+        }
+
+        // Preparar los datos para el upsert
+        const tarifasParaUpsert = []
+
+        for (const tarifa of tarifas) {
+            const { plantilla_id, tiptar_nro, tar_precio } = tarifa
+
+            if (!plantilla_id || !tiptar_nro || tar_precio === undefined) {
+                return NextResponse.json({
+                    error: 'Cada tarifa debe tener plantilla_id, tiptar_nro y tar_precio'
+                }, { status: 400 })
+            }
+
+            tarifasParaUpsert.push({
+                est_id: parseInt(est_id),
+                plantilla_id: parseInt(plantilla_id),
+                tiptar_nro: parseInt(tiptar_nro),
+                tar_precio: parseFloat(tar_precio)
+            })
+        }
+
+        // Realizar el upsert
+        const { data, error } = await supabase
+            .from('tarifas')
+            .upsert(tarifasParaUpsert, {
+                onConflict: 'est_id,plantilla_id,tiptar_nro',
+                ignoreDuplicates: false
+            })
+
+        if (error) {
+            console.error('Error guardando tarifas:', error)
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        const jsonResponse = NextResponse.json({
+            success: true,
+            message: 'Tarifas guardadas correctamente',
+            tarifas_actualizadas: tarifasParaUpsert.length
+        })
+        response.cookies.getAll().forEach(c => {
+            const { name, value, ...opt } = c
+            jsonResponse.cookies.set({ name, value, ...opt })
+        })
+        return jsonResponse
+
+    } catch (err: any) {
+        console.error('Error inesperado guardando tarifas:', err)
+        return NextResponse.json({ error: err.message || 'Error interno del servidor' }, { status: 500 })
+    }
+}
+
