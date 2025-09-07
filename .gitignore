@@ -25,3 +25,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# archivos de configuración sensibles
+config/
+*.env
+.env*
+
+# archivos temporales (opcional - descomentar si se quiere ignorar)
+# temp/
+
+# archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# logs adicionales
+logs/
+*.log

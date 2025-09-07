@@ -32,6 +32,7 @@ interface TariffPrices {
     hora: string;
     dia: string;
     mes: string;
+    semana: string;
 }
 
 export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalProps) {
@@ -41,7 +42,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
     const [prices, setPrices] = useState<TariffPrices>({
         hora: '',
         dia: '',
-        mes: ''
+        mes: '',
+        semana: ''
     });
 
     // Cargar precios existentes cuando se abre el modal con una plantilla
@@ -69,7 +71,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 setPrices({
                     hora: plantillaData.tarifas['1']?.precio?.toString() || '',
                     dia: plantillaData.tarifas['2']?.precio?.toString() || '',
-                    mes: plantillaData.tarifas['3']?.precio?.toString() || ''
+                    mes: plantillaData.tarifas['3']?.precio?.toString() || '',
+                    semana: plantillaData.tarifas['4']?.precio?.toString() || ''
                 });
             }
         } catch (error: any) {
@@ -131,6 +134,15 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 });
             }
 
+            // Semana (tipo 4)
+            if (prices.semana) {
+                tarifas.push({
+                    plantilla_id: template.plantilla_id,
+                    tiptar_nro: 4,
+                    tar_precio: parseFloat(prices.semana)
+                });
+            }
+
             if (tarifas.length === 0) {
                 toast({
                     variant: "destructive",
@@ -170,7 +182,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
             setPrices({
                 hora: '',
                 dia: '',
-                mes: ''
+                mes: '',
+                semana: ''
             });
 
         } catch (error: any) {
@@ -215,7 +228,7 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                             <span className="text-gray-600">Cargando precios existentes...</span>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                             {/* Precio por Hora */}
                             <div className="space-y-2">
                                 <Label htmlFor="hora" className="text-gray-700 flex items-center gap-1">
@@ -262,6 +275,23 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                     placeholder="0.00"
                                     value={prices.mes}
                                     onChange={(e) => handlePriceChange('mes', e.target.value)}
+                                    className="text-right"
+                                    disabled={saving}
+                                />
+                            </div>
+
+                            {/* Precio por Semana */}
+                            <div className="space-y-2">
+                                <Label htmlFor="semana" className="text-gray-700 flex items-center gap-1">
+                                    <DollarSign className="h-4 w-4" />
+                                    Por semana
+                                </Label>
+                                <Input
+                                    id="semana"
+                                    type="text"
+                                    placeholder="0.00"
+                                    value={prices.semana}
+                                    onChange={(e) => handlePriceChange('semana', e.target.value)}
                                     className="text-right"
                                     disabled={saving}
                                 />

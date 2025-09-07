@@ -316,9 +316,11 @@ export default function GestionPlantillasPage() {
         );
     }
 
+    const isInDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
     return (
         <>
-            <div className="container mx-auto p-6 max-w-7xl bg-white min-h-screen">
+            <div className={`container mx-auto p-6 max-w-7xl min-h-screen ${isInDashboard ? '' : 'bg-white'}`}>
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-gray-900">Plantillas de Plazas</h1>
                     <p className="text-gray-600">Define y gestiona diferentes tipos de plazas de estacionamiento y sus características</p>
@@ -508,7 +510,7 @@ export default function GestionPlantillasPage() {
                 duplicateType={duplicateDialog.type}
                 existingTemplate={duplicateDialog.existingTemplate}
                 newTemplateName={duplicateDialog.newTemplateName}
-            />
+            />n
         </>
     );
 }

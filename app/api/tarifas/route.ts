@@ -117,6 +117,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Se requiere un array de tarifas' }, { status: 400 })
         }
 
+        // Obtener información de las plantillas para completar los campos requeridos
+        const plantillaIds = [...new Set(tarifas.map(t => t.plantilla_id))]
+        const { data: plantillasData, error: plantillasError } = await supabase
+            .from('plantillas')
+            .select('plantilla_id, catv_segmento')
+            .in('plantilla_id', plantillaIds)
+            .eq('est_id', est_id)
+
+        if (plantillasError) {
+            console.error('Error obteniendo plantillas:', plantillasError)
+            return NextResponse.json({ error: 'Error obteniendo información de plantillas' }, { status: 500 })
+        }
+
+        // Crear mapa de plantillas para acceso rápido
+        const plantillasMap = plantillasData?.reduce((acc, plantilla) => {
+            acc[plantilla.plantilla_id] = plantilla
+            return acc
+        }, {} as Record<number, any>) || {}
+
         // Preparar los datos para el upsert
         const tarifasParaUpsert = []
 
@@ -129,11 +148,21 @@ export async function POST(request: NextRequest) {
                 }, { status: 400 })
             }
 
+            const plantillaInfo = plantillasMap[plantilla_id]
+            if (!plantillaInfo) {
+                return NextResponse.json({
+                    error: `Plantilla con ID ${plantilla_id} no encontrada`
+                }, { status: 400 })
+            }
+
             tarifasParaUpsert.push({
                 est_id: parseInt(est_id),
                 plantilla_id: parseInt(plantilla_id),
                 tiptar_nro: parseInt(tiptar_nro),
-                tar_precio: parseFloat(tar_precio)
+                tar_precio: parseFloat(tar_precio),
+                catv_segmento: plantillaInfo.catv_segmento,
+                tar_fraccion: 1, // Valor por defecto
+                tar_f_desde: new Date().toISOString().split('T')[0] // Fecha actual
             })
         }
 

@@ -170,12 +170,14 @@ export default function GoogleMapsSetupPage() {
         );
     }
 
+    const isInDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
     return (
-        <div className="min-h-screen bg-zinc-950 p-6">
+        <div className={`min-h-screen p-6 ${isInDashboard ? 'bg-background' : 'bg-zinc-950'}`}>
             <div className="max-w-2xl mx-auto space-y-6">
-                <Card className="bg-zinc-900/50 border-zinc-700">
+                <Card className={`${isInDashboard ? 'bg-card border-border' : 'bg-zinc-900/50 border-zinc-700'}`}>
                     <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
+                        <CardTitle className={`${isInDashboard ? 'text-foreground' : 'text-white'} flex items-center gap-2`}>
                             <Settings className="h-6 w-6" />
                             Configuración de Google Maps
                         </CardTitle>
@@ -183,7 +185,7 @@ export default function GoogleMapsSetupPage() {
                     <CardContent className="space-y-6">
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="apiKey" className="text-zinc-300">
+                                <Label htmlFor="apiKey" className={`${isInDashboard ? 'text-foreground' : 'text-zinc-300'}`}>
                                     Google Maps API Key
                                 </Label>
                                 <Input
@@ -229,8 +231,8 @@ export default function GoogleMapsSetupPage() {
 
                             {testResult && (
                                 <div className={`p-4 rounded-lg border ${testResult.success
-                                        ? 'bg-green-900/20 border-green-700 text-green-300'
-                                        : 'bg-red-900/20 border-red-700 text-red-300'
+                                    ? 'bg-green-900/20 border-green-700 text-green-300'
+                                    : 'bg-red-900/20 border-red-700 text-red-300'
                                     }`}>
                                     <div className="flex items-center gap-2">
                                         {testResult.success ? (

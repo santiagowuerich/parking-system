@@ -85,8 +85,10 @@ export default function GestionTarifasPage() {
     );
   }
 
+  const isInDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className={`container mx-auto p-6 max-w-7xl ${isInDashboard ? '' : 'min-h-screen'}`}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Gestión de Tarifas y Plantillas</h1>
         <p className="text-gray-600 mt-2">

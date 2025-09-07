@@ -1078,31 +1078,40 @@ export default function ParkingApp() {
 
   return (
     <main className="container mx-auto p-4 max-w-6xl">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">Sistema de Gestión de Estacionamiento</h1>
-        <div className="flex items-center gap-4">
-          <UserNav />
+      {/* Solo mostrar header si no estamos en el dashboard */}
+      {typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard') && (
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold">Sistema de Gestión de Estacionamiento</h1>
+          <div className="flex items-center gap-4">
+            <UserNav />
+          </div>
         </div>
-      </div>
+      )}
 
       <Tabs defaultValue="operator" className="w-full" onValueChange={(value) => {
+        const isInDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
+
         if (value === "plantillas") {
-          window.location.href = "/gestion-plantillas";
+          window.location.href = isInDashboard ? "/dashboard/plantillas" : "/gestion-plantillas";
         }
         if (value === "rates") {
-          window.location.href = "/gestion-tarifas";
+          window.location.href = isInDashboard ? "/dashboard/tarifas" : "/gestion-tarifas";
         }
         if (value === "google-maps") {
-          window.location.href = "/google-maps-setup";
+          window.location.href = isInDashboard ? "/dashboard/google-maps" : "/google-maps-setup";
+        }
+        if (value === "empleados") {
+          window.location.href = isInDashboard ? "/dashboard/empleados" : "/gestion-usuarios";
         }
       }}>
-        <TabsList className="grid w-full grid-cols-6 mb-8">
+        <TabsList className="grid w-full grid-cols-7 mb-8">
           <TabsTrigger value="operator">Panel de Operador</TabsTrigger>
           <TabsTrigger value="admin">Panel de Administrador</TabsTrigger>
           <TabsTrigger value="estacionamientos">Mis Estacionamientos</TabsTrigger>
           <TabsTrigger value="plantillas">Plantillas y Tarifas</TabsTrigger>
           <TabsTrigger value="rates">Gestión de Tarifas</TabsTrigger>
           <TabsTrigger value="google-maps">Google Maps</TabsTrigger>
+          <TabsTrigger value="empleados">Empleados</TabsTrigger>
         </TabsList>
 
         <TabsContent value="operator">
@@ -1210,6 +1219,10 @@ export default function ParkingApp() {
 
         <TabsContent value="plantillas">
           {/* La navegación redirige a /gestion-plantillas, así que este TabsContent nunca se renderiza */}
+        </TabsContent>
+
+        <TabsContent value="empleados">
+          {/* La navegación redirige a /gestion-usuarios, así que este TabsContent nunca se renderiza */}
         </TabsContent>
 
       </Tabs>
