@@ -74,14 +74,14 @@ export default function DashboardPage() {
             title: "Configurar Zona",
             description: "Crear zonas y plazas",
             icon: Settings,
-            href: "/configuracion-zona",
+            href: "/dashboard/configuracion-zona",
             color: "bg-indigo-500"
         },
         {
             title: "Ver Plazas",
             description: "Visualizar estado de plazas",
             icon: Activity,
-            href: "/visualizacion-plazas",
+            href: "/dashboard/visualizacion-plazas",
             color: "bg-cyan-500"
         }
     ];

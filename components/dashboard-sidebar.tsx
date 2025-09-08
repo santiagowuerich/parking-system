@@ -90,13 +90,13 @@ const navigationItems = [
     },
     {
         title: "Configuración de Zona",
-        href: "/configuracion-zona",
+        href: "/dashboard/configuracion-zona",
         icon: Settings,
         description: "Crear zonas y plazas"
     },
     {
         title: "Visualización de Plazas",
-        href: "/visualizacion-plazas",
+        href: "/dashboard/visualizacion-plazas",
         icon: BarChart3,
         description: "Ver estado de todas las plazas"
     },

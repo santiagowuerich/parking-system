@@ -10,7 +10,6 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { DashboardLayout } from '@/components/dashboard-layout';
 
 // Tipos para la API
 interface Zona {
@@ -366,7 +365,7 @@ const ConfiguracionZonaPage: React.FC = () => {
     };
 
     return (
-        <DashboardLayout>
+        <div className="min-h-screen bg-gray-50">
             <div className="p-6 space-y-6">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold">
@@ -675,7 +674,7 @@ const ConfiguracionZonaPage: React.FC = () => {
                     </AlertDialogContent>
                 </AlertDialog>
             </div>
-        </DashboardLayout>
+        </div>
     );
 };
 
