@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
                 'Cookie': request.headers.get('Cookie') || ''
             },
             body: JSON.stringify({
-                email: session.user.email,
-                name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuario'
+                email: user.email,
+                name: user.user_metadata?.name || user.email?.split('@')[0] || 'Usuario'
             }),
         });
 

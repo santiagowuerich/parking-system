@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         console.log(`✅ [FALLBACK] Dirección "${direccionLimpia}" disponible en el sistema`);
 
         // 2.6. Verificar límite de estacionamientos por usuario (máximo 5)
-        const { data: userParkingCount, error: countError } = await supabase
+        const { count: userParkingCount, error: countError } = await supabase
             .from('estacionamientos')
             .select('est_id', { count: 'exact', head: true })
             .eq('due_id', usuarioId);

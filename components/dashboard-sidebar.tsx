@@ -43,6 +43,12 @@ const navigationItems = [
         description: "Gestión de estacionamientos"
     },
     {
+        title: "Panel de Administrador",
+        href: "/dashboard/admin",
+        icon: Shield,
+        description: "Configuración y estadísticas"
+    },
+    {
         title: "Mis Estacionamientos",
         href: "/dashboard/parking",
         icon: Car,
@@ -89,7 +95,7 @@ const navigationItems = [
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, logout } = useAuth();
+    const { user, signOut } = useAuth();
     const [collapsed, setCollapsed] = useState(false);
 
     const handleNavigation = (href: string) => {
@@ -97,7 +103,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     };
 
     const handleLogout = async () => {
-        await logout();
+        await signOut();
         router.push('/auth/login');
     };
 
