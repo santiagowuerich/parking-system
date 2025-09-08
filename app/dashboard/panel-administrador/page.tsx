@@ -122,15 +122,41 @@ export default function PanelAdministradorPage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Crear nuevo registro de entrada
+            // Primero verificar si el vehículo existe, si no, crearlo
+            const vehicleTypeMap: { [key: string]: string } = {
+                'Auto': 'AUT',
+                'Moto': 'MOT',
+                'Camioneta': 'CAM'
+            };
+
+            const vehicleSegment = vehicleTypeMap[entry.type] || 'AUT';
+
+            // Verificar si el vehículo ya existe
+            const { data: existingVehicle } = await supabase
+                .from('vehiculos')
+                .select('*')
+                .eq('veh_patente', entry.license_plate)
+                .single();
+
+            if (!existingVehicle) {
+                // Crear el vehículo si no existe
+                const { error: vehicleError } = await supabase
+                    .from('vehiculos')
+                    .insert({
+                        veh_patente: entry.license_plate,
+                        catv_segmento: vehicleSegment
+                    });
+
+                if (vehicleError) throw vehicleError;
+            }
+
+            // Registrar la ocupación
             const { error } = await supabase
-                .from('parked_vehicles')
+                .from('ocupacion')
                 .insert({
-                    license_plate: entry.license_plate,
-                    type: entry.type,
-                    entry_time: new Date().toISOString(),
+                    veh_patente: entry.license_plate,
                     est_id: estId,
-                    user_id: user?.id
+                    ocu_fh_entrada: new Date().toISOString()
                 });
 
             if (error) throw error;

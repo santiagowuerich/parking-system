@@ -52,8 +52,11 @@ export default function OperadorSimplePage() {
                 );
 
                 const { data, error } = await supabase
-                    .from('rates')
-                    .select('*')
+                    .from('tarifas')
+                    .select(`
+                        *,
+                        cat_vehiculo!inner(catv_descripcion)
+                    `)
                     .eq('est_id', estId);
 
                 if (error) throw error;
@@ -144,15 +147,42 @@ export default function OperadorSimplePage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
+            // Primero verificar si el vehículo existe, si no, crearlo
+            const vehicleTypeMap: { [key: string]: string } = {
+                'Auto': 'AUT',
+                'Moto': 'MOT',
+                'Camioneta': 'CAM'
+            };
+
+            const vehicleSegment = vehicleTypeMap[vehicleData.type] || 'AUT';
+
+            // Verificar si el vehículo ya existe
+            const { data: existingVehicle } = await supabase
+                .from('vehiculos')
+                .select('*')
+                .eq('veh_patente', vehicleData.license_plate)
+                .single();
+
+            if (!existingVehicle) {
+                // Crear el vehículo si no existe
+                const { error: vehicleError } = await supabase
+                    .from('vehiculos')
+                    .insert({
+                        veh_patente: vehicleData.license_plate,
+                        catv_segmento: vehicleSegment
+                    });
+
+                if (vehicleError) throw vehicleError;
+            }
+
+            // Registrar la ocupación
             const { error } = await supabase
-                .from('parked_vehicles')
+                .from('ocupacion')
                 .insert({
-                    license_plate: vehicleData.license_plate,
-                    type: vehicleData.type,
-                    entry_time: new Date().toISOString(),
+                    veh_patente: vehicleData.license_plate,
                     est_id: estId,
-                    user_id: user.id,
-                    plaza_number: vehicleData.pla_numero
+                    ocu_fh_entrada: new Date().toISOString(),
+                    pla_numero: vehicleData.pla_numero
                 });
 
             if (error) throw error;
@@ -191,20 +221,36 @@ export default function OperadorSimplePage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Buscar el vehículo
+            // Buscar el vehículo en ocupación activa
             const { data: vehicle, error: vehicleError } = await supabase
-                .from('parked_vehicles')
-                .select('*')
-                .eq('license_plate', licensePlate)
+                .from('ocupacion')
+                .select(`
+                    *,
+                    vehiculos!inner(veh_patente, catv_segmento)
+                `)
+                .eq('veh_patente', licensePlate)
                 .eq('est_id', estId)
+                .is('ocu_fh_salida', null)
                 .single();
 
             if (vehicleError || !vehicle) {
                 throw new Error("Vehículo no encontrado");
             }
 
+            // Convertir el tipo de vehículo para compatibilidad
+            const vehicleTypeMap: { [key: string]: string } = {
+                'AUT': 'Auto',
+                'MOT': 'Moto',
+                'CAM': 'Camioneta'
+            };
+
+            const mappedVehicle = {
+                ...vehicle,
+                type: vehicleTypeMap[vehicle.vehiculos.catv_segmento] || 'Auto'
+            };
+
             // Calcular tarifa
-            const entryTime = new Date(vehicle.entry_time);
+            const entryTime = new Date(vehicle.ocu_fh_entrada);
             const exitTime = new Date();
             const durationMs = exitTime.getTime() - entryTime.getTime();
             const durationHours = durationMs / (1000 * 60 * 60);
@@ -212,38 +258,38 @@ export default function OperadorSimplePage() {
             // Calcular tarifa basada en las tarifas configuradas
             let fee = 0;
             if (rates && rates.length > 0) {
-                const vehicleRate = rates.find((r: any) => r.vehicle_type === vehicle.type);
+                const vehicleSegment = vehicle.vehiculos.catv_segmento;
+                const vehicleRate = rates.find((r: any) => r.catv_segmento === vehicleSegment);
+
                 if (vehicleRate) {
-                    fee = calculateFee(durationHours, vehicleRate);
+                    // Calcular tarifa: precio base + fracción por hora
+                    const basePrice = vehicleRate.tar_precio;
+                    const fractionPrice = vehicleRate.tar_fraccion;
+                    const effectiveHours = Math.ceil(durationHours);
+
+                    // Si la duración es menor o igual a 1 hora, cobrar precio base
+                    // Si es mayor, cobrar precio base + fracción por hora adicional
+                    if (effectiveHours <= 1) {
+                        fee = basePrice;
+                    } else {
+                        fee = basePrice + (fractionPrice * (effectiveHours - 1));
+                    }
                 }
             }
 
-            // Crear registro en el historial
-            const { error: historyError } = await supabase
-                .from('vw_historial_estacionamiento')
-                .insert({
-                    license_plate: vehicle.license_plate,
-                    type: vehicle.type,
-                    entry_time: vehicle.entry_time,
-                    exit_time: exitTime.toISOString(),
-                    duration: durationMs,
-                    fee: fee,
-                    est_id: estId,
-                    user_id: user.id,
-                    plaza_number: vehicle.plaza_number,
-                    payment_method: 'Efectivo' // Por defecto
-                });
+            // Actualizar la ocupación con la hora de salida
+            const { error: updateError } = await supabase
+                .from('ocupacion')
+                .update({
+                    ocu_fh_salida: exitTime.toISOString()
+                })
+                .eq('ocu_id', vehicle.ocu_id);
 
-            if (historyError) throw historyError;
+            if (updateError) throw updateError;
 
-            // Eliminar de vehículos estacionados
-            const { error: deleteError } = await supabase
-                .from('parked_vehicles')
-                .delete()
-                .eq('license_plate', licensePlate)
-                .eq('est_id', estId);
-
-            if (deleteError) throw deleteError;
+            // Crear registro en el historial (si es necesario)
+            // Nota: La vista vw_historial_estacionamiento probablemente se genera automáticamente
+            // desde la tabla ocupacion cuando ocu_fh_salida no es NULL
 
             // Actualizar datos
             await refreshParkedVehicles();
@@ -252,7 +298,7 @@ export default function OperadorSimplePage() {
 
             // Mostrar información de salida
             setExitInfo({
-                vehicle: vehicle,
+                vehicle: mappedVehicle,
                 fee: fee,
                 exitTime: exitTime,
                 duration: formatDuration(durationMs)
