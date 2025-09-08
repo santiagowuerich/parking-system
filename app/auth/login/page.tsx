@@ -51,14 +51,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="mb-8">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Park System</span>
       </div>
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-        <h2 className="text-2xl font-bold text-center mb-2">Iniciar Sesión</h2>
-        <p className="text-sm text-center text-gray-500 mb-6">
-          Ingresa tus credenciales para acceder al sistema
-        </p>
+        <h2 className="text-2xl font-bold text-center mb-2 text-gray-900">Iniciar Sesión</h2>
         {resetOk && (
           <p className="text-sm text-center text-emerald-500 mb-2">Contraseña actualizada. Iniciá sesión con tu nueva contraseña.</p>
         )}
@@ -73,7 +70,7 @@ export default function LoginPage() {
               placeholder="tu@correo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-white"
             />
           </div>
           <div>
@@ -86,7 +83,7 @@ export default function LoginPage() {
               placeholder="Contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-white"
             />
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}

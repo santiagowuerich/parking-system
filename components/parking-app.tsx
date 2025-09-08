@@ -635,15 +635,13 @@ export default function ParkingApp() {
       Camioneta: parking.parkedVehicles.filter((v) => v.type === "Camioneta").length,
     };
 
-    return {
-      Auto: parking.capacity.Auto - occupied.Auto,
-      Moto: parking.capacity.Moto - occupied.Moto,
-      Camioneta: parking.capacity.Camioneta - occupied.Camioneta,
-      total: {
-        capacity: Object.values(parking.capacity).reduce((a, b) => a + b, 0),
-        occupied: Object.values(occupied).reduce((a, b) => a + b, 0),
-      },
-    };
+      return {
+          ...occupied,
+          total: {
+              capacity: Object.values(parking.capacity).reduce((a, b) => a + b, 0),
+              occupied: Object.values(occupied).reduce((a, b) => a + b, 0),
+          },
+      };
   };
 
   // Función para obtener el estado híbrido de plazas
