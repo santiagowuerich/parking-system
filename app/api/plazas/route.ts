@@ -44,24 +44,58 @@ export async function GET(request: Request) {
         if (zonaId) {
             console.log(`🔍 Consultando plazas de zona ${zonaId} para configuración de plantillas`);
 
-            const { data: plazas, error: plazasError } = await supabase
+            console.log(`🔍 Consultando plazas de zona ${zonaId} con plantillas...`);
+
+            // Obtener plazas primero
+            const { data: plazasBasicas, error: plazasBasicasError } = await supabase
                 .from('plazas')
-                .select(`
-                    pla_numero,
-                    plantilla_id,
-                    catv_segmento,
-                    pla_estado,
-                    pla_zona,
-                    zona_id,
-                    plantillas!left(
-                        plantilla_id,
-                        nombre_plantilla,
-                        catv_segmento
-                    )
-                `)
+                .select('pla_numero, pla_estado, catv_segmento, pla_zona, zona_id, plantilla_id')
                 .eq('est_id', estId)
                 .eq('zona_id', zonaId)
                 .order('pla_numero');
+
+            console.log(`📊 Plazas básicas obtenidas: ${plazasBasicas?.length || 0}`);
+
+            // Si hay plazas con plantillas, obtener la información de las plantillas
+            let plazas = plazasBasicas;
+            if (plazasBasicas && plazasBasicas.length > 0) {
+                const plantillaIds = plazasBasicas
+                    .filter(p => p.plantilla_id)
+                    .map(p => p.plantilla_id);
+
+                if (plantillaIds.length > 0) {
+                    console.log(`🔗 Obteniendo información de ${plantillaIds.length} plantillas...`);
+
+                    const { data: plantillas, error: plantillasError } = await supabase
+                        .from('plantillas')
+                        .select('plantilla_id, nombre_plantilla, catv_segmento')
+                        .in('plantilla_id', plantillaIds);
+
+                    if (!plantillasError && plantillas) {
+                        console.log(`✅ Plantillas obtenidas: ${plantillas.length}`);
+
+                        // Crear un mapa de plantillas para lookup rápido
+                        const plantillasMap = new Map();
+                        plantillas.forEach(plantilla => {
+                            plantillasMap.set(plantilla.plantilla_id, plantilla);
+                        });
+
+                        // Combinar plazas con información de plantillas
+                        plazas = plazasBasicas.map(plaza => ({
+                            ...plaza,
+                            plantillas: plaza.plantilla_id ? [plantillasMap.get(plaza.plantilla_id)] : []
+                        }));
+
+                        console.log(`🔄 Plazas combinadas con plantillas completadas`);
+                    } else {
+                        console.error('❌ Error obteniendo plantillas:', plantillasError);
+                    }
+                } else {
+                    console.log(`ℹ️ No hay plazas con plantillas asignadas`);
+                }
+            }
+
+            const plazasError = plazasBasicasError;
 
             if (plazasError) {
                 console.error('❌ Error obteniendo plazas de zona:', plazasError);
@@ -86,6 +120,8 @@ export async function GET(request: Request) {
                     error: `Error obteniendo zona: ${zonaError.message}`
                 }, { status: 500 });
             }
+
+            console.log(`📊 Zona encontrada:`, zona ? { id: zona.zona_id, nombre: zona.zona_nombre, grid: `${zona.grid_rows}x${zona.grid_cols}` } : 'null');
 
             // Si no hay configuración de grid guardada, intentar sincronizar
             if (!zona) {
@@ -129,27 +165,41 @@ export async function GET(request: Request) {
                 } else {
                     console.log(`❌ No se pudo encontrar información de zona ${zonaId}`);
                 }
-            } else if (zona.grid_rows && zona.grid_cols) {
-                // La verificación se hará después de declarar plazasConfiguracion
+            } else {
+                console.log(`✅ Zona ${zona.zona_nombre} encontrada con configuración ${zona.grid_rows}x${zona.grid_cols}`);
             }
 
             // Transformar datos para el frontend de configuración
+            console.log(`🔄 Transformando ${plazas?.length || 0} plazas crudas para zona ${zonaId}`);
+
             const plazasConfiguracion = (plazas || [])
                 .filter(plaza => plaza && plaza.pla_numero) // Filtrar plazas válidas
-                .map(plaza => ({
-                    numero: plaza.pla_numero || 0,
-                    estado: plaza.pla_estado || 'Libre',
-                    tipo_vehiculo: plaza.catv_segmento || 'AUT',
-                    plantilla_actual: plaza.plantillas && Array.isArray(plaza.plantillas) && plaza.plantillas.length > 0 ? {
+                .map(plaza => {
+                    const plantillaInfo = plaza.plantillas && Array.isArray(plaza.plantillas) && plaza.plantillas.length > 0 ? {
                         plantilla_id: plaza.plantillas[0].plantilla_id || null,
                         nombre_plantilla: plaza.plantillas[0].nombre_plantilla || 'Sin nombre',
                         catv_segmento: plaza.plantillas[0].catv_segmento || 'AUT'
-                    } : null,
-                    zona_id: plaza.zona_id || null,
-                    zona_nombre: plaza.pla_zona || 'Sin zona'
-                }));
+                    } : null;
 
-            console.log(`✅ Plazas obtenidas: ${plazasConfiguracion.length} plazas en zona ${zonaId}`);
+                    return {
+                        numero: plaza.pla_numero || 0,
+                        estado: plaza.pla_estado || 'Libre',
+                        tipo_vehiculo: plaza.catv_segmento || 'AUT',
+                        plantilla_actual: plantillaInfo,
+                        zona_id: plaza.zona_id || null,
+                        zona_nombre: plaza.pla_zona || 'Sin zona'
+                    };
+                });
+
+            console.log(`✅ Plazas transformadas: ${plazasConfiguracion.length} plazas en zona ${zonaId}`);
+
+            // Mostrar algunas plazas de ejemplo con sus plantillas
+            if (plazasConfiguracion.length > 0) {
+                console.log(`📋 Ejemplos de plazas:`, plazasConfiguracion.slice(0, 3).map(p => ({
+                    numero: p.numero,
+                    plantilla: p.plantilla_actual ? `${p.plantilla_actual.nombre_plantilla} (${p.plantilla_actual.plantilla_id})` : 'Sin plantilla'
+                })));
+            }
 
             // Verificar si la configuración del grid coincide con el número real de plazas
             if (zona && zona.grid_rows && zona.grid_cols) {

@@ -132,9 +132,11 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
     // Función para cargar plazas de una zona específica
     const cargarPlazasZona = async (zonaId: number) => {
         try {
+            console.log(`🔄 Cargando plazas de zona ${zonaId}...`);
             const response = await fetch(`/api/plazas?est_id=${estId}&zona_id=${zonaId}`);
             if (response.ok) {
                 const data = await response.json();
+                console.log(`✅ Datos cargados: ${data.plazas?.length || 0} plazas`);
 
                 if (data.zona) {
                     setZonaActual(data.zona);
@@ -150,6 +152,15 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                 setSeleccion(new Set()); // Limpiar selección
                 setAcciones([]); // Limpiar acciones
                 setIndiceAccionActual(-1);
+
+                // Mostrar algunas plazas como ejemplo
+                if (data.plazas && data.plazas.length > 0) {
+                    const primerasPlazas = data.plazas.slice(0, 3);
+                    console.log('📋 Primeras plazas cargadas:', primerasPlazas.map(p => ({
+                        numero: p.numero,
+                        plantilla: p.plantilla_actual ? p.plantilla_actual.nombre_plantilla : 'Sin plantilla'
+                    })));
+                }
 
                 toast.success(`Zona "${data.zona?.zona_nombre}" cargada con ${data.total_plazas} plazas`);
             } else {
@@ -296,22 +307,31 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
     const aplicarCambiosEnBD = async (accionesToApply: any[]) => {
         if (!zonaActual) return;
 
+        console.log('🔄 Enviando acciones a BD:', accionesToApply);
+
         try {
             setSaving(true);
+
+            const requestBody = {
+                est_id: estId,
+                zona_id: zonaActual.zona_id,
+                acciones: accionesToApply
+            };
+
+            console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
 
             const response = await fetch('/api/plazas/apply', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    est_id: estId,
-                    zona_id: zonaActual.zona_id,
-                    acciones: accionesToApply
-                })
+                body: JSON.stringify(requestBody)
             });
 
+            console.log('📥 Response status:', response.status);
+
             const data = await response.json();
+            console.log('📥 Response data:', data);
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al aplicar cambios');
@@ -324,10 +344,18 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                 });
             }
 
-            toast.success(`${data.updated} plazas actualizadas en la base de datos`);
+            const totalPlazasProcesadas = accionesToApply.reduce((total, accion) => total + accion.plazas.length, 0);
+
+            if (data.message) {
+                toast.success(data.message);
+            } else if (data.skipped && data.skipped > 0) {
+                toast.success(`${data.updated} plazas actualizadas de ${totalPlazasProcesadas} procesadas (${data.skipped} omitidas)`);
+            } else {
+                toast.success(`${data.updated} plazas actualizadas de ${totalPlazasProcesadas} procesadas`);
+            }
 
         } catch (error: any) {
-            console.error('Error aplicando cambios en BD:', error);
+            console.error('❌ Error aplicando cambios en BD:', error);
             toast.error(error.message || 'Error al guardar los cambios');
             throw error;
         } finally {
@@ -398,18 +426,24 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
             await aplicarCambiosEnBD(accionesToApply);
 
+            // Recargar datos desde el servidor para reflejar los cambios guardados
+            console.log('🔄 Recargando datos desde el servidor después de guardar...');
+            if (zonaActual) {
+                await cargarPlazasZona(zonaActual.zona_id);
+            }
+
             // Limpiar historial después de confirmar
             setAcciones([]);
             setIndiceAccionActual(-1);
 
-            toast.success('Todos los cambios han sido confirmados');
+            toast.success('Todos los cambios han sido confirmados y aplicados');
 
         } catch (error) {
             console.error('Error confirmando cambios:', error);
         } finally {
             setSaving(false);
         }
-    }, [acciones, indiceAccionActual]);
+    }, [acciones, indiceAccionActual, zonaActual, cargarPlazasZona]);
 
     if (loading) {
         return (
