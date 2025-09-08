@@ -1,7 +1,6 @@
 // app/page.tsx
-
-import ParkingApp from "@/components/parking-app";
+import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  return <ParkingApp />;
+  redirect('/dashboard');
 }

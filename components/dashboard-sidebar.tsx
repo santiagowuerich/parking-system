@@ -38,9 +38,15 @@ const navigationItems = [
     },
     {
         title: "Panel de Operador",
-        href: "/dashboard/operador",
+        href: "/dashboard/operador-simple",
         icon: ParkingCircle,
         description: "Gestión de estacionamientos"
+    },
+    {
+        title: "Panel de Administrador",
+        href: "/dashboard/panel-administrador",
+        icon: BarChart3,
+        description: "Administración y estadísticas"
     },
     {
         title: "Mis Estacionamientos",

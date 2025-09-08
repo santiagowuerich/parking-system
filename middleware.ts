@@ -44,17 +44,15 @@ export async function middleware(request: NextRequest) {
   // Si no hay usuario autenticado y el usuario intenta acceder a la ruta raíz ('/')
   if (!user && url.pathname === '/') {
     // Redirigir a la página de autenticación ESPECÍFICA
-    url.pathname = '/auth/login'; // <-- Cambiar '/auth' por '/auth/login'
-    console.log('Middleware: No authenticated user, redirecting to /auth/login'); // Actualizar log
+    url.pathname = '/auth/login';
     return NextResponse.redirect(url);
   }
 
   // Si hay usuario autenticado y el usuario está en una página de autenticación
   // Permitimos /auth/reset-password aunque haya sesión, para que pueda actualizarse
   if (user && url.pathname.startsWith('/auth') && url.pathname !== '/auth/reset-password') {
-    // Redirigir a la página principal
-    url.pathname = '/';
-    console.log('Middleware: Authenticated user found, redirecting from /auth page to /');
+    // Redirigir al dashboard
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
