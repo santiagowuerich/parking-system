@@ -33,7 +33,7 @@ export default function TarifasDashboardPage() {
                         <div className="flex gap-4 justify-center">
                             <Button
                                 variant="default"
-                                onClick={() => window.location.href = '/dashboard/admin'}
+                                onClick={() => window.location.href = '/home/admin'}
                                 className="mr-2"
                             >
                                 Ir al Panel de Administrador

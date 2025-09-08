@@ -32,49 +32,49 @@ interface SidebarProps {
 const navigationItems = [
     {
         title: "Dashboard",
-        href: "/dashboard",
+        href: "/home",
         icon: LayoutDashboard,
         description: "Vista general del sistema"
     },
     {
         title: "Panel de Operador",
-        href: "/dashboard/operador",
+        href: "/home/operador",
         icon: ParkingCircle,
         description: "Gestión de estacionamientos"
     },
     {
         title: "Panel de Administrador",
-        href: "/dashboard/admin",
+        href: "/home/admin",
         icon: Shield,
         description: "Configuración y estadísticas"
     },
     {
         title: "Mis Estacionamientos",
-        href: "/dashboard/parking",
+        href: "/home/parking",
         icon: Car,
         description: "Administrar estacionamientos"
     },
     {
         title: "Plantillas",
-        href: "/dashboard/plantillas",
+        href: "/home/plantillas",
         icon: FileText,
         description: "Gestionar plantillas de plazas"
     },
     {
         title: "Tarifas",
-        href: "/dashboard/tarifas",
+        href: "/home/tarifas",
         icon: CreditCard,
         description: "Configurar precios y tarifas"
     },
     {
         title: "Google Maps",
-        href: "/dashboard/google-maps",
+        href: "/home/google-maps",
         icon: MapPin,
         description: "Configurar mapas y ubicación"
     },
     {
         title: "Empleados",
-        href: "/dashboard/empleados",
+        href: "/home/empleados",
         icon: Users,
         description: "Gestionar empleados"
     },
@@ -86,7 +86,7 @@ const navigationItems = [
     },
     {
         title: "Pagos",
-        href: "/dashboard/payments",
+        href: "/home/payments",
         icon: Wallet,
         description: "Historial de pagos"
     }
@@ -141,7 +141,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                     {navigationItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href ||
-                            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                            (item.href !== "/home" && pathname.startsWith(item.href));
 
                         return (
                             <Button

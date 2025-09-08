@@ -41,6 +41,21 @@ export async function middleware(request: NextRequest) {
   // Obtener la URL actual
   const url = request.nextUrl.clone();
 
+  // REDIRECCIÓN DE COMPATIBILIDAD: /dashboard/* → /home/*
+  if (url.pathname.startsWith('/dashboard/')) {
+    const newPath = url.pathname.replace('/dashboard/', '/home/');
+    url.pathname = newPath;
+    console.log(`Middleware: Redirecting ${request.nextUrl.pathname} to ${newPath}`);
+    return NextResponse.redirect(url);
+  }
+
+  // REDIRECCIÓN DE COMPATIBILIDAD: /dashboard → /home
+  if (url.pathname === '/dashboard') {
+    url.pathname = '/home';
+    console.log('Middleware: Redirecting /dashboard to /home');
+    return NextResponse.redirect(url);
+  }
+
   // Si no hay usuario autenticado y el usuario intenta acceder a la ruta raíz ('/')
   if (!user && url.pathname === '/') {
     // Redirigir a la página de autenticación ESPECÍFICA
@@ -75,5 +90,6 @@ export const config = {
     // Rutas explícitas
     '/',
     '/auth/:path*', // Actualizar matcher para cubrir subrutas de /auth
+    '/dashboard/:path*', // Para redirigir URLs antiguas de dashboard
   ],
 } 

@@ -17,56 +17,56 @@ export default function ParkingApp() {
       title: "Panel de Operador",
       description: "Gestionar entradas y salidas de vehiculos",
       icon: ParkingCircle,
-      href: "/dashboard/operador",
+      href: "/home/operador",
       color: "bg-blue-500 hover:bg-blue-600"
     },
     {
       title: "Panel de Administrador",
       description: "Configurar capacidad y ver estadisticas",
       icon: Shield,
-      href: "/dashboard/admin",
+      href: "/home/admin",
       color: "bg-green-500 hover:bg-green-600"
     },
     {
       title: "Mis Estacionamientos",
       description: "Administrar multiples estacionamientos",
       icon: Car,
-      href: "/dashboard/parking",
+      href: "/home/parking",
       color: "bg-purple-500 hover:bg-purple-600"
     },
     {
       title: "Plantillas",
       description: "Gestionar plantillas de plazas",
       icon: Settings,
-      href: "/dashboard/plantillas",
+      href: "/home/plantillas",
       color: "bg-orange-500 hover:bg-orange-600"
     },
     {
       title: "Tarifas",
       description: "Configurar precios y tarifas",
       icon: CreditCard,
-      href: "/dashboard/tarifas",
+      href: "/home/tarifas",
       color: "bg-red-500 hover:bg-red-600"
     },
     {
       title: "Google Maps",
       description: "Configurar ubicacion y mapas",
       icon: MapPin,
-      href: "/dashboard/google-maps",
+      href: "/home/google-maps",
       color: "bg-indigo-500 hover:bg-indigo-600"
     },
     {
       title: "Empleados",
       description: "Gestionar empleados del sistema",
       icon: Users,
-      href: "/dashboard/empleados",
+      href: "/home/empleados",
       color: "bg-pink-500 hover:bg-pink-600"
     },
     {
       title: "Pagos",
       description: "Historial de pagos y finanzas",
       icon: BarChart3,
-      href: "/dashboard/payments",
+      href: "/home/payments",
       color: "bg-teal-500 hover:bg-teal-600"
     }
   ];
