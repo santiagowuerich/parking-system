@@ -154,20 +154,20 @@ export async function POST(request: NextRequest) {
         // 6. Crear plazas adicionales si es necesario
         const plazasFaltantes = cantidadTotal - plazasAsignadas;
 
+        // Encontrar el siguiente número disponible (siempre necesario para el reporte)
+        const { data: maxPlazaData } = await supabase
+            .from('plazas')
+            .select('pla_numero')
+            .eq('est_id', est_id)
+            .order('pla_numero', { ascending: false })
+            .limit(1);
+
+        const numeroInicioNuevo = (maxPlazaData && maxPlazaData.length > 0)
+            ? maxPlazaData[0].pla_numero + 1
+            : 1;
+
         if (plazasFaltantes > 0) {
             console.log(`📝 Creando ${plazasFaltantes} plazas adicionales`);
-
-            // Encontrar el siguiente número disponible
-            const { data: maxPlazaData } = await supabase
-                .from('plazas')
-                .select('pla_numero')
-                .eq('est_id', est_id)
-                .order('pla_numero', { ascending: false })
-                .limit(1);
-
-            const numeroInicioNuevo = (maxPlazaData && maxPlazaData.length > 0)
-                ? maxPlazaData[0].pla_numero + 1
-                : 1;
 
             const plazasToCreate = [];
 

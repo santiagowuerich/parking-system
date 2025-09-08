@@ -31,11 +31,10 @@ export default function OperadorSimplePage() {
     useEffect(() => {
         if (parkedVehicles && parkingCapacity && estId) {
             setParking({
-                id: estId,
-                name: `Estacionamiento ${estId}`,
                 capacity: parkingCapacity,
                 parkedVehicles: parkedVehicles,
-                rates: rates || {}
+                rates: rates || {},
+                history: [] // Se puede cargar después si es necesario
             });
         }
     }, [parkedVehicles, parkingCapacity, estId, rates]);
@@ -286,8 +285,7 @@ export default function OperadorSimplePage() {
                     license_plate: ocupacion.license_plate,
                     type: ocupacion.type,
                     entry_time: ocupacion.entry_time,
-                    plaza_number: ocupacion.plaza_number,
-                    user_id: null
+                    plaza_number: ocupacion.plaza_number
                 },
                 fee: fee,
                 exitTime: exitTime,

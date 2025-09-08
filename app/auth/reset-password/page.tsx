@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 
 export default function ResetPasswordPage() {
-  const { resetPassword } = useAuth();
+  const { updatePassword } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,7 @@ export default function ResetPasswordPage() {
     }
     setLoading(true);
     try {
-      await resetPassword({ password });
+      await updatePassword({ newPassword: password });
       setMessage("Contraseña actualizada correctamente.");
     } catch (err: any) {
       setError(err.message || "No se pudo actualizar la contraseña.");
