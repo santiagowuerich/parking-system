@@ -69,6 +69,20 @@ export default function DashboardPage() {
             icon: ParkingCircle,
             href: "/google-maps-setup",
             color: "bg-orange-500"
+        },
+        {
+            title: "Configurar Zona",
+            description: "Crear zonas y plazas",
+            icon: Settings,
+            href: "/configuracion-zona",
+            color: "bg-indigo-500"
+        },
+        {
+            title: "Ver Plazas",
+            description: "Visualizar estado de plazas",
+            icon: Activity,
+            href: "/visualizacion-plazas",
+            color: "bg-cyan-500"
         }
     ];
 

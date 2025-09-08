@@ -2,14 +2,96 @@
 import { createClient } from "@/lib/supabase/client";
 import { NextResponse, type NextRequest } from 'next/server'
 
-// GET: Obtener todas las zonas únicas de un estacionamiento
+// GET: Obtener zonas o información específica de una zona
 export async function GET(request: NextRequest) {
     const { supabase, response } = createClient(request);
 
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || 1
+    const zonaNombre = url.searchParams.get('zona')
 
     try {
+        // Si se especifica una zona, obtener información detallada de esa zona
+        if (zonaNombre) {
+            console.log(`🔍 Consultando información detallada de zona "${zonaNombre}"`);
+
+            // Obtener todas las plazas de la zona
+            const { data: plazas, error: plazasError } = await supabase
+                .from('plazas')
+                .select('*')
+                .eq('est_id', estId)
+                .eq('pla_zona', zonaNombre)
+                .order('pla_numero');
+
+            if (plazasError) {
+                console.error('❌ Error obteniendo plazas de zona:', plazasError);
+                return NextResponse.json({
+                    error: `Error obteniendo plazas: ${plazasError.message}`
+                }, { status: 500 });
+            }
+
+            if (!plazas || plazas.length === 0) {
+                return NextResponse.json({
+                    error: `No se encontraron plazas para la zona "${zonaNombre}"`
+                }, { status: 404 });
+            }
+
+            // Calcular estadísticas de la zona
+            const estadisticas = {
+                total_plazas: plazas.length,
+                plazas_libres: plazas.filter(p => p.pla_estado === 'Libre').length,
+                plazas_ocupadas: plazas.filter(p => p.pla_estado === 'Ocupada').length,
+                plazas_reservadas: plazas.filter(p => p.pla_estado === 'Reservada').length,
+                plazas_mantenimiento: plazas.filter(p => p.pla_estado === 'Mantenimiento').length,
+                numero_min: Math.min(...plazas.map(p => p.pla_numero)),
+                numero_max: Math.max(...plazas.map(p => p.pla_numero))
+            };
+
+            // Intentar calcular filas y columnas (si hay patrón)
+            let filas = 1;
+            let columnas = plazas.length;
+
+            // Si hay un patrón claro de filas/columnas, intentar detectarlo
+            const posiblesColumnas = [5, 8, 10, 12, 15, 16, 20, 24, 25, 30];
+            for (const cols of posiblesColumnas) {
+                if (plazas.length % cols === 0) {
+                    columnas = cols;
+                    filas = plazas.length / cols;
+                    break;
+                }
+            }
+
+            const zonaInfo = {
+                zona_nombre: zonaNombre,
+                est_id: estId,
+                total_plazas: plazas.length,
+                filas_detectadas: filas,
+                columnas_detectadas: columnas,
+                estadisticas,
+                plazas: plazas.map(p => ({
+                    numero: p.pla_numero,
+                    estado: p.pla_estado,
+                    tipo_vehiculo: p.catv_segmento
+                }))
+            };
+
+            console.log(`✅ Información de zona obtenida: ${plazas.length} plazas, ${filas}x${columnas} layout`);
+
+            const json = NextResponse.json({
+                success: true,
+                zona: zonaInfo
+            });
+
+            response.cookies.getAll().forEach(c => {
+                const { name, value, ...opt } = c;
+                json.cookies.set({ name, value, ...opt })
+            });
+            return json;
+        }
+
+        // Si no se especifica zona, obtener todas las zonas únicas
+        console.log('📊 Consultando todas las zonas disponibles');
+
         // Obtener zonas únicas del campo pla_zona (todas las plazas tienen zona obligatoria)
         const { data, error } = await supabase
             .from('plazas')
@@ -31,7 +113,7 @@ export async function GET(request: NextRequest) {
             est_id: estId
         }));
 
-        console.log('📊 Zonas encontradas (sistema zonal obligatorio):', { plazasData: plazasData.length, zonasUnicas, zonas });
+        console.log('📊 Zonas encontradas:', { total: zonas.length, zonas: zonasUnicas });
 
         const json = NextResponse.json({ zonas });
         response.cookies.getAll().forEach(c => {
