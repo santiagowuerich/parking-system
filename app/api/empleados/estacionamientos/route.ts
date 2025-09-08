@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 // GET - Obtener estacionamientos del usuario actual
 export async function GET(request: NextRequest) {
     try {
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
 
         // Crear cliente de Supabase para el servidor
         const supabase = createServerClient(

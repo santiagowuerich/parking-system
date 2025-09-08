@@ -117,7 +117,7 @@ const navigationItems = [
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, logout } = useAuth();
+    const { user, signOut } = useAuth();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
 
@@ -126,7 +126,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     };
 
     const handleLogout = async () => {
-        await logout();
+        await signOut();
         router.push('/auth/login');
     };
 
