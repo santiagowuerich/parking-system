@@ -68,50 +68,24 @@ export default function PanelAdministradorPage() {
 
     // Función para eliminar entrada del historial
     const handleDeleteHistoryEntry = async (id: string) => {
-        try {
-            const supabase = createBrowserClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-            );
-
-            const { error } = await supabase
-                .from('vw_historial_estacionamiento')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
-
-            setHistory(prev => prev.filter(entry => entry.id !== id));
-        } catch (error) {
-            console.error("Error al eliminar entrada:", error);
-            throw error;
-        }
+        // No permitir eliminación de registros históricos por razones de auditoría
+        toast({
+            variant: "destructive",
+            title: "Operación no permitida",
+            description: "No se pueden eliminar registros históricos para mantener la integridad de los datos"
+        });
+        throw new Error("Eliminación de registros históricos no permitida");
     };
 
     // Función para actualizar entrada del historial
     const handleUpdateHistoryEntry = async (id: string, data: Partial<ParkingHistory>) => {
-        try {
-            const supabase = createBrowserClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-            );
-
-            const { error } = await supabase
-                .from('vw_historial_estacionamiento')
-                .update(data)
-                .eq('id', id);
-
-            if (error) throw error;
-
-            setHistory(prev =>
-                prev.map(entry =>
-                    entry.id === id ? { ...entry, ...data } : entry
-                )
-            );
-        } catch (error) {
-            console.error("Error al actualizar entrada:", error);
-            throw error;
-        }
+        // No permitir actualización de registros históricos por razones de auditoría
+        toast({
+            variant: "destructive",
+            title: "Operación no permitida",
+            description: "No se pueden modificar registros históricos para mantener la integridad de los datos"
+        });
+        throw new Error("Actualización de registros históricos no permitida");
     };
 
     // Función para reingresar vehículo
@@ -122,20 +96,50 @@ export default function PanelAdministradorPage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Crear nuevo registro de entrada
-            const { error } = await supabase
-                .from('parked_vehicles')
+            // Mapeo de tipos de vehículo del frontend a códigos de BD
+            const vehicleTypeMapping = {
+                'Auto': 'AUT',
+                'Moto': 'MOT',
+                'Camioneta': 'CAM'
+            };
+
+            const dbVehicleType = vehicleTypeMapping[entry.type as keyof typeof vehicleTypeMapping] || 'AUT';
+
+            // Verificar si el vehículo ya existe, si no, crearlo
+            const { data: existingVehicle, error: vehicleCheckError } = await supabase
+                .from('vehiculos')
+                .select('veh_patente')
+                .eq('veh_patente', entry.license_plate)
+                .single();
+
+            if (vehicleCheckError && vehicleCheckError.code !== 'PGRST116') { // PGRST116 es "not found"
+                throw vehicleCheckError;
+            }
+
+            // Si el vehículo no existe, crearlo
+            if (!existingVehicle) {
+                const { error: createVehicleError } = await supabase
+                    .from('vehiculos')
+                    .insert({
+                        veh_patente: entry.license_plate,
+                        catv_segmento: dbVehicleType
+                    });
+
+                if (createVehicleError) throw createVehicleError;
+            }
+
+            // Registrar la nueva ocupación
+            const { error: ocupacionError } = await supabase
+                .from('ocupacion')
                 .insert({
-                    license_plate: entry.license_plate,
-                    type: entry.type,
-                    entry_time: new Date().toISOString(),
                     est_id: estId,
-                    user_id: user?.id
+                    veh_patente: entry.license_plate,
+                    ocu_fh_entrada: new Date().toISOString()
                 });
 
-            if (error) throw error;
+            if (ocupacionError) throw ocupacionError;
 
-            // Eliminar del historial
+            // Eliminar del historial (esto debería funcionar ya que usa la vista correcta)
             await handleDeleteHistoryEntry(entry.id);
 
             toast({
