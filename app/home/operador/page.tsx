@@ -1,12 +1,12 @@
 "use client";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
-import GestionTarifasPage from "@/app/gestion-tarifas/page";
+import ParkingApp from "@/components/parking-app";
 
-export default function TarifasDashboardPage() {
+export default function OperadorDashboardPage() {
     return (
         <DashboardLayout>
-            <GestionTarifasPage />
+            <ParkingApp />
         </DashboardLayout>
     );
 }
