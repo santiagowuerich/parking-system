@@ -114,10 +114,10 @@ const navigationItems = [
         description: "Configuración de cuenta"
     },
     {
-        title: "Pagos",
-        href: "/dashboard/payments",
+        title: "Configuración de Pagos",
+        href: "/dashboard/configuracion-pagos",
         icon: Wallet,
-        description: "Historial de pagos"
+        description: "Métodos y configuraciones de pago"
     }
 ];
 
