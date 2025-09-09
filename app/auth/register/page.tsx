@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 
 export default function RegisterPage() {
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signIn, signInWithGoogle } = useAuth();
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -41,12 +41,30 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      await signUp({
-        name: form.nombre,
+      // 1) Crear en Auth + usuario + dueño vía endpoint de servicio
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          nombre: form.nombre,
+          apellido: form.apellido,
+          dni: form.dni,
+          telefono: form.telefono
+        })
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'No se pudo crear la cuenta.' }));
+        throw new Error(error || 'No se pudo crear la cuenta.');
+      }
+
+      // 2) Iniciar sesión automática para continuar flujo
+      await signIn({
         email: form.email,
         password: form.password,
       });
-      // Redirige o muestra mensaje de éxito según tu lógica
     } catch (err: any) {
       setError(err.message || "No se pudo crear la cuenta.");
     } finally {
