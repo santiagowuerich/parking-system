@@ -7,9 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 interface Plaza {
     est_id: number;
@@ -55,11 +52,6 @@ export default function VisualizacionPlazasPage() {
     const [estadisticasPlantillas, setEstadisticasPlantillas] = useState<EstadisticasPlantillas | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Estados para filtros de plantillas
-    const [filtroPlantilla, setFiltroPlantilla] = useState<string>('todos');
-    const [busquedaPlantilla, setBusquedaPlantilla] = useState<string>('');
-    const [filtroTipoVehiculo, setFiltroTipoVehiculo] = useState<string>('todos');
 
     useEffect(() => {
         cargarDatos();
@@ -121,31 +113,8 @@ export default function VisualizacionPlazasPage() {
         }
     };
 
-    // Filtrar plazas según criterios de plantilla
-    const plazasFiltradas = plazas.filter(plaza => {
-        // Filtro por plantilla (con/sin plantilla)
-        if (filtroPlantilla === 'con_plantilla' && !plaza.plantillas) return false;
-        if (filtroPlantilla === 'sin_plantilla' && plaza.plantillas) return false;
-
-        // Filtro por búsqueda de nombre de plantilla
-        if (busquedaPlantilla && plaza.plantillas) {
-            if (!plaza.plantillas.nombre_plantilla.toLowerCase().includes(busquedaPlantilla.toLowerCase())) {
-                return false;
-            }
-        }
-
-        // Filtro por tipo de vehículo de la plantilla
-        if (filtroTipoVehiculo !== 'todos' && plaza.plantillas) {
-            if (plaza.plantillas.catv_segmento !== filtroTipoVehiculo) {
-                return false;
-            }
-        }
-
-        return true;
-    });
-
-    // Agrupar plazas filtradas por zona
-    const plazasPorZona = plazasFiltradas.reduce((acc, plaza) => {
+    // Agrupar plazas por zona
+    const plazasPorZona = plazas.reduce((acc, plaza) => {
         const zonaNombre = plaza.pla_zona || 'Sin Zona';
         if (!acc[zonaNombre]) {
             acc[zonaNombre] = [];
@@ -163,80 +132,6 @@ export default function VisualizacionPlazasPage() {
                         <p className="text-gray-600">Visualización completa del estado de todas las plazas</p>
                     </div>
 
-                    {/* Filtros de Plantillas */}
-                    <Card className="mb-6">
-                        <CardHeader>
-                            <CardTitle className="text-lg">🔍 Filtros de Plantillas</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="filtro-plantilla">Tipo de Plantilla</Label>
-                                    <Select value={filtroPlantilla} onValueChange={setFiltroPlantilla}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar filtro" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="todos">Todas las plazas</SelectItem>
-                                            <SelectItem value="con_plantilla">Solo con plantilla</SelectItem>
-                                            <SelectItem value="sin_plantilla">Solo sin plantilla</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="busqueda-plantilla">Buscar por nombre</Label>
-                                    <Input
-                                        id="busqueda-plantilla"
-                                        type="text"
-                                        placeholder="Nombre de plantilla..."
-                                        value={busquedaPlantilla}
-                                        onChange={(e) => setBusquedaPlantilla(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="filtro-tipo-vehiculo">Tipo de Vehículo</Label>
-                                    <Select value={filtroTipoVehiculo} onValueChange={setFiltroTipoVehiculo}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Todos los tipos" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="todos">Todos los tipos</SelectItem>
-                                            <SelectItem value="AUT">Automóvil</SelectItem>
-                                            <SelectItem value="MOT">Motocicleta</SelectItem>
-                                            <SelectItem value="CAM">Camioneta</SelectItem>
-                                            <SelectItem value="BIC">Bicicleta</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Resultados</Label>
-                                    <div className="flex items-center justify-center h-10">
-                                        <Badge variant="outline">
-                                            {plazasFiltradas.length} de {plazas.length} plazas
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Botones de acción */}
-                            <div className="flex gap-2 mt-4">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        setFiltroPlantilla('todos');
-                                        setBusquedaPlantilla('');
-                                        setFiltroTipoVehiculo('todos');
-                                    }}
-                                >
-                                    Limpiar Filtros
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
 
                     {/* Estados de carga y error dentro del dashboard */}
                     {loading && (
