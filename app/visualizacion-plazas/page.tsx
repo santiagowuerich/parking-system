@@ -380,9 +380,6 @@ export default function VisualizacionPlazasPage() {
                                                                                             <div className="text-sm">
                                                                                                 <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
                                                                                             </div>
-                                                                                            <div className="text-sm">
-                                                                                                <span className="font-medium">ID:</span> {plaza.plantillas.plantilla_id}
-                                                                                            </div>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
