@@ -100,7 +100,7 @@ export const AuthContext = createContext<{
   refreshCapacity: async () => { },
   setEstId: () => { },
   ensureParkingSetup: async () => { },
-  signInWithGoogle: async () => {},
+  signInWithGoogle: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-  
+
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
@@ -136,6 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
       if (error) throw error;
+
+      // Nota: Para Google OAuth, el usuario se creará automáticamente en tabla tradicional
+      // cuando se ejecute ensureParkingSetup() después del primer login
+      console.log("🔄 Redirigiendo a Google OAuth...");
     } finally {
       setLoading(false);
     }
@@ -651,8 +655,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Si el usuario fue creado pero necesita confirmación
       if (data.user && !data.session) {
-        console.log("Usuario creado, esperando confirmación de email");
-        // El estacionamiento se creará cuando el usuario inicie sesión por primera vez
+        console.log("✅ Usuario creado en Supabase Auth, esperando confirmación de email");
+        console.log("ℹ️ El usuario se creará en tabla tradicional en el primer login");
+      } else if (data.user && data.session) {
+        console.log("✅ Usuario creado y autenticado inmediatamente");
+        console.log("ℹ️ El usuario se creará en tabla tradicional automáticamente");
       }
     } finally {
       setLoading(false);

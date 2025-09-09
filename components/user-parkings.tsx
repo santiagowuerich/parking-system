@@ -124,7 +124,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 },
                 body: JSON.stringify({
                     name: newParkingName.trim(),
-                    email: usuario?.email,
                     direccion: newParkingAddress.trim()
                 }),
             });
@@ -139,7 +138,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                     },
                     body: JSON.stringify({
                         name: newParkingName.trim(),
-                        email: usuario?.email
+                        direccion: newParkingAddress.trim()
                     }),
                 });
             }

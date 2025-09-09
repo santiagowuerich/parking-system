@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
                     usu_email: email,
                     usu_fechareg: new Date().toISOString(),
                     usu_contrasena: 'supabase_auth', // Placeholder ya que usa Supabase Auth
+                    auth_user_id: user.id // Vincular con Supabase Auth
                 })
                 .select('usu_id')
                 .single();

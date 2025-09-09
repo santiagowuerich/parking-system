@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, direccion } = await request.json();
+        const { name, direccion } = await request.json();
 
-        if (!name || !email) {
+        if (!name) {
             return NextResponse.json(
-                { error: "Nombre y email son requeridos" },
+                { error: "El nombre del estacionamiento es requerido" },
                 { status: 400 }
             );
         }
@@ -23,13 +23,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Verificar que el email coincida con el usuario autenticado
-        if (user.email !== email) {
-            return NextResponse.json(
-                { error: "Email no coincide con usuario autenticado" },
-                { status: 403 }
-            );
-        }
+        // Obtener el email del usuario autenticado
+        const email = user.email;
 
         console.log(`🏗️ Creando nuevo estacionamiento "${name}" para usuario: ${email}`);
 
@@ -52,19 +47,62 @@ export async function POST(request: NextRequest) {
 
         console.log(`📍 Asignando est_id: ${nextEstId} (obtenido de manera thread-safe)`);
 
-        // 2. Verificar si el usuario existe en tabla tradicional
+        // 2. Verificar si el usuario existe en tabla tradicional, si no existe, crearlo
         const { data: usuarioData, error: usuarioError } = await supabase
             .from('usuario')
             .select('usu_id')
             .eq('usu_email', email)
             .single();
 
-        if (usuarioError || !usuarioData) {
-            return NextResponse.json({ error: "Usuario no encontrado en sistema tradicional" }, { status: 404 });
-        }
+        let usuarioId: number;
 
-        const usuarioId = usuarioData.usu_id;
-        console.log(`👤 Usuario encontrado con usu_id: ${usuarioId}`);
+        if (usuarioError || !usuarioData) {
+            console.log(`👤 Usuario no encontrado en tabla tradicional, creándolo...`);
+
+            // Crear usuario en tabla tradicional
+            const nameParts = user.user_metadata?.name?.split(' ') || email.split('@')[0].split('.');
+            const firstName = nameParts[0] || 'Usuario';
+            const lastName = nameParts.slice(1).join(' ') || 'Nuevo';
+
+            const { data: newUsuarioData, error: newUsuarioError } = await supabase
+                .from('usuario')
+                .insert({
+                    usu_nom: firstName,
+                    usu_ape: lastName,
+                    usu_dni: '00000000', // DNI placeholder
+                    usu_tel: null,
+                    usu_email: email,
+                    usu_fechareg: new Date().toISOString(),
+                    usu_contrasena: 'supabase_auth', // Placeholder ya que usa Supabase Auth
+                    auth_user_id: user.id // Vincular con Supabase Auth
+                })
+                .select('usu_id')
+                .single();
+
+            if (newUsuarioError) {
+                console.error("❌ Error creando usuario tradicional:", newUsuarioError);
+                return NextResponse.json({ error: "Error creando usuario en base de datos" }, { status: 500 });
+            }
+
+            usuarioId = newUsuarioData.usu_id;
+            console.log(`👤 Usuario creado con usu_id: ${usuarioId}`);
+
+            // Crear entrada en tabla dueno
+            const { error: duenoError } = await supabase
+                .from('dueno')
+                .insert({
+                    due_id: usuarioId
+                });
+
+            if (duenoError) {
+                console.error("❌ Error creando dueño:", duenoError);
+                return NextResponse.json({ error: "Error asignando rol de dueño" }, { status: 500 });
+            }
+            console.log(`🏢 Dueño creado con due_id: ${usuarioId}`);
+        } else {
+            usuarioId = usuarioData.usu_id;
+            console.log(`👤 Usuario encontrado con usu_id: ${usuarioId}`);
+        }
 
         // 2.5. Validar dirección única (se debe proporcionar)
         if (!direccion || direccion.trim() === '') {
@@ -128,17 +166,6 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`✅ Usuario puede crear estacionamiento (${currentParkingCount}/${MAX_PARKINGS_PER_USER})`);
-
-        // 3. Verificar que el usuario sea dueño (debe existir de setup inicial)
-        const { data: duenoData, error: duenoError } = await supabase
-            .from('dueno')
-            .select('due_id')
-            .eq('due_id', usuarioId)
-            .single();
-
-        if (duenoError || !duenoData) {
-            return NextResponse.json({ error: "Usuario no tiene permisos de dueño" }, { status: 403 });
-        }
 
         // 4. Crear nuevo estacionamiento con configuración mínima
         console.log(`🔧 Insertando estacionamiento con datos:`, {
