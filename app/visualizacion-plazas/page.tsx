@@ -75,10 +75,10 @@ export default function VisualizacionPlazasPage() {
             const plazasData = data.plazas || [];
             const estadisticasPlantillas = {
                 totalPlazas: plazasData.length,
-                plazasConPlantilla: plazasData.filter(p => p.plantillas).length,
-                plazasSinPlantilla: plazasData.filter(p => !p.plantillas).length,
-                porcentajeConPlantilla: plazasData.length > 0 ? ((plazasData.filter(p => p.plantillas).length / plazasData.length) * 100).toFixed(1) : '0',
-                plantillasUnicas: [...new Set(plazasData.filter(p => p.plantillas).map(p => p.plantillas.nombre_plantilla))].length
+                plazasConPlantilla: plazasData.filter((p: Plaza) => p.plantillas).length,
+                plazasSinPlantilla: plazasData.filter((p: Plaza) => !p.plantillas).length,
+                porcentajeConPlantilla: plazasData.length > 0 ? ((plazasData.filter((p: Plaza) => p.plantillas).length / plazasData.length) * 100).toFixed(1) : '0',
+                plantillasUnicas: [...new Set(plazasData.filter((p: Plaza) => p.plantillas).map((p: Plaza) => p.plantillas?.nombre_plantilla || ''))].length
             };
             setEstadisticasPlantillas(estadisticasPlantillas);
         } catch (err) {
@@ -114,7 +114,7 @@ export default function VisualizacionPlazasPage() {
     };
 
     // Agrupar plazas por zona
-    const plazasPorZona = plazas.reduce((acc, plaza) => {
+    const plazasPorZona = plazas.reduce((acc: Record<string, Plaza[]>, plaza: Plaza) => {
         const zonaNombre = plaza.pla_zona || 'Sin Zona';
         if (!acc[zonaNombre]) {
             acc[zonaNombre] = [];
@@ -310,11 +310,11 @@ export default function VisualizacionPlazasPage() {
 
                                             const estadisticasZona = {
                                                 total: plazasZona.length,
-                                                libres: plazasZona.filter(p => p.pla_estado === 'Libre').length,
-                                                ocupadas: plazasZona.filter(p => p.pla_estado === 'Ocupada').length,
-                                                reservadas: plazasZona.filter(p => p.pla_estado === 'Reservada').length,
-                                                conPlantilla: plazasZona.filter(p => p.plantillas).length,
-                                                sinPlantilla: plazasZona.filter(p => !p.plantillas).length
+                                                libres: plazasZona.filter((p: Plaza) => p.pla_estado === 'Libre').length,
+                                                ocupadas: plazasZona.filter((p: Plaza) => p.pla_estado === 'Ocupada').length,
+                                                reservadas: plazasZona.filter((p: Plaza) => p.pla_estado === 'Reservada').length,
+                                                conPlantilla: plazasZona.filter((p: Plaza) => p.plantillas).length,
+                                                sinPlantilla: plazasZona.filter((p: Plaza) => !p.plantillas).length
                                             };
 
                                             return (
