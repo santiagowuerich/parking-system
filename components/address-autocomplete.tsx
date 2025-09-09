@@ -102,19 +102,21 @@ export default function AddressAutocomplete({
                 });
 
                 // Listener para cuando se selecciona una dirección
-                autocompleteRef.current.addListener('place_changed', () => {
-                    const place = autocompleteRef.current?.getPlace();
+                if (autocompleteRef.current) {
+                    autocompleteRef.current.addListener('place_changed', () => {
+                        const place = autocompleteRef.current?.getPlace();
 
-                    if (place && place.formatted_address) {
-                        console.log('📍 Dirección seleccionada:', place.formatted_address);
-                        onChange(place.formatted_address);
+                        if (place && place.formatted_address) {
+                            console.log('📍 Dirección seleccionada:', place.formatted_address);
+                            onChange(place.formatted_address);
 
-                        // Llamar al callback opcional con los detalles del lugar
-                        if (onSelect) {
-                            onSelect(place);
+                            // Llamar al callback opcional con los detalles del lugar
+                            if (onSelect) {
+                                onSelect(place);
+                            }
                         }
-                    }
-                });
+                    });
+                }
 
                 console.log('✅ Google Places Autocomplete inicializado');
             } catch (error) {
