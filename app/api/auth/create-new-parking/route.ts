@@ -33,49 +33,24 @@ export async function POST(request: NextRequest) {
 
         console.log(`🏗️ Creando nuevo estacionamiento "${name}" para usuario: ${email}`);
 
-        // 1. Obtener el próximo est_id disponible de manera simple y confiable
-        console.log("🔍 Buscando próximo ID disponible para estacionamiento...");
+        // 1. Obtener el próximo est_id disponible usando función thread-safe
+        console.log("🔍 Obteniendo próximo ID disponible para estacionamiento usando función thread-safe...");
 
-        // Método simple: obtener el máximo ID actual y sumar 1
-        const { data: maxIdData, error: maxIdError } = await supabase
-            .from('estacionamientos')
-            .select('est_id')
-            .order('est_id', { ascending: false })
-            .limit(1);
+        // Usar la función thread-safe para obtener el siguiente ID
+        const { data: idResult, error: idError } = await supabase
+            .rpc('get_next_est_id_v2');
 
-        if (maxIdError) {
-            console.error("❌ Error obteniendo máximo est_id:", maxIdError);
-            return NextResponse.json({ error: "Error consultando IDs de estacionamientos" }, { status: 500 });
-        }
-
-        // Calcular el siguiente ID disponible
-        const maxId = maxIdData && maxIdData.length > 0 ? maxIdData[0].est_id : 0;
-        const nextEstId = maxId + 1;
-
-        console.log(`📍 IDs existentes: máximo = ${maxId}`);
-        console.log(`📍 Asignando est_id: ${nextEstId} (siguiente disponible)`);
-
-        // Verificación adicional: confirmar que el ID no existe
-        const { data: existingCheck, error: checkError } = await supabase
-            .from('estacionamientos')
-            .select('est_id')
-            .eq('est_id', nextEstId)
-            .single();
-
-        if (existingCheck && !checkError) {
-            console.error(`❌ CONFLICTO: El ID ${nextEstId} ya existe en la base de datos!`);
+        if (idError) {
+            console.error("❌ Error obteniendo siguiente est_id:", idError);
             return NextResponse.json({
-                error: "Conflicto de ID detectado",
-                details: `El ID ${nextEstId} ya está en uso`,
-                suggestion: "Intentar nuevamente"
-            }, { status: 409 });
+                error: "Error obteniendo ID para el estacionamiento",
+                details: idError.message
+            }, { status: 500 });
         }
 
-        if (checkError && checkError.code !== 'PGRST116') {
-            // PGRST116 es el código cuando no se encuentra el registro (lo cual es bueno)
-            console.error("❌ Error verificando ID:", checkError);
-            return NextResponse.json({ error: "Error verificando disponibilidad del ID" }, { status: 500 });
-        }
+        const nextEstId = idResult;
+
+        console.log(`📍 Asignando est_id: ${nextEstId} (obtenido de manera thread-safe)`);
 
         // 2. Verificar si el usuario existe en tabla tradicional
         const { data: usuarioData, error: usuarioError } = await supabase
