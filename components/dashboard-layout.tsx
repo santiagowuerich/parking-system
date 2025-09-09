@@ -2,6 +2,7 @@
 
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/toaster";
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -21,6 +22,9 @@ export function DashboardLayout({ children, className }: DashboardLayoutProps) {
                     {children}
                 </main>
             </div>
+
+            {/* Toaster for notifications */}
+            <Toaster />
         </div>
     );
 }
