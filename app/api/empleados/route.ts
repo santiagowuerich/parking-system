@@ -271,6 +271,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // VALIDACIÓN DE SEGURIDAD: Verificar que el usuario autenticado es DUEÑO del estacionamiento
+        const { data: duenoValidation, error: duenoError } = await supabaseAdmin
+            .from('dueno')
+            .select('due_id')
+            .eq('due_id', usuarioAutenticado.usu_id)
+            .single();
+
+        if (duenoError || !duenoValidation) {
+            console.log('🚫 Usuario no es dueño:', usuarioAutenticado.usu_id);
+            return NextResponse.json(
+                { error: "Solo los dueños pueden crear empleados" },
+                { status: 403 }
+            );
+        }
+
+        console.log('✅ Validación de seguridad: Usuario es dueño del sistema');
+
         const { data: estacionamiento, error: estError } = await supabaseAdmin
             .from('estacionamientos')
             .select('est_id, est_nombre')
@@ -336,6 +353,7 @@ export async function POST(request: NextRequest) {
         console.log('✅ Usuario creado en Auth:', authUser.user.id);
 
         // SEGUNDO: Crear empleado en la base de datos del sistema
+        console.log('🔗 Iniciando creación de empleado en BD con auth_user_id:', authUser.user.id);
         // Primero crear registro en tabla usuario si no existe
         const { error: userInsertError } = await supabaseAdmin
             .from('usuario')
@@ -347,12 +365,14 @@ export async function POST(request: NextRequest) {
                 usu_contrasena: hashedPassword,
                 usu_fechareg: new Date().toISOString(),
                 usu_estado: estado || 'Activo',
-                requiere_cambio_contrasena: false
-                // Nota: auth_user_id se omite temporalmente por constraint FK
+                requiere_cambio_contrasena: false,
+                auth_user_id: authUser.user.id
             });
 
         if (userInsertError) {
             console.error('❌ Error insertando usuario en tabla usuario:', userInsertError);
+            console.error('   Detalles del error:', userInsertError.details);
+            console.error('   Código de error:', userInsertError.code);
 
             // Intentar eliminar el usuario de Auth y limpiar datos
             try {
@@ -373,7 +393,7 @@ export async function POST(request: NextRequest) {
         // Obtener el usu_id generado automáticamente usando el email
         const { data: usuarioCreado, error: getUserError } = await supabaseAdmin
             .from('usuario')
-            .select('usu_id')
+            .select('usu_id, auth_user_id')
             .eq('usu_email', email)
             .single();
 
@@ -396,13 +416,14 @@ export async function POST(request: NextRequest) {
         }
 
         console.log('✅ Usuario creado en BD con usu_id:', usuarioCreado.usu_id);
+        console.log('✅ auth_user_id vinculado correctamente:', usuarioCreado.auth_user_id);
 
         // Crear las relaciones manualmente (en lugar de usar la función)
         console.log('🔗 Creando relaciones de empleado manualmente...');
 
         try {
             // PASO 1: Insertar en playeros
-            console.log('👤 Insertando en playeros...');
+            console.log('👤 Insertando en playeros con play_id:', usuarioCreado.usu_id);
             const { error: playeroError } = await supabaseAdmin
                 .from('playeros')
                 .insert({ play_id: usuarioCreado.usu_id });
@@ -411,6 +432,7 @@ export async function POST(request: NextRequest) {
                 console.error('❌ Error insertando en playeros:', playeroError);
                 throw playeroError;
             }
+            console.log('✅ Rol de playero asignado exitosamente');
 
             // PASO 2: Insertar en empleados_estacionamiento
             console.log('🏢 Insertando en empleados_estacionamiento...');
@@ -477,13 +499,22 @@ export async function POST(request: NextRequest) {
             email: email,
             estado: estado || 'Activo',
             estacionamiento_id: est_id,
-            auth_user_id: authUser.user.id
+            auth_user_id: authUser.user.id,
+            rol: 'playero'
         };
+
+        console.log('🎉 Alta de empleado completada exitosamente:', {
+            email,
+            auth_user_id: authUser.user.id,
+            usu_id: usuarioCreado.usu_id,
+            rol: 'playero'
+        });
 
         return NextResponse.json({
             message: "Empleado creado exitosamente",
             empleado: empleadoCreado,
-            auth_user_id: authUser.user!.id
+            auth_user_id: authUser.user.id,
+            rol: 'playero'
         }, { status: 201 });
 
     } catch (error) {
