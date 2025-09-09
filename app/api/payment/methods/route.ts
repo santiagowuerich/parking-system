@@ -43,19 +43,39 @@ export async function GET(request: NextRequest) {
     console.log(`📊 Estacionamiento ${estId}: ${acceptedMethods?.length || 0} métodos configurados`);
     console.log(`📋 Métodos configurados: ${Array.from(acceptedSet).join(', ') || 'NINGUNO'}`);
 
-    // Crear lista de métodos
-    const methods = [
-      ...(allMethods || []).map(method => ({
-        method: method.mepa_metodo,
-        description: method.mepa_descripcion,
-        enabled: acceptedSet.has(method.mepa_metodo)
-      })),
-      {
-        method: 'QR',
-        description: 'Código QR de MercadoPago',
-        enabled: acceptedSet.has('MercadoPago')
-      }
+    // Crear lista de métodos asegurando que estén todos los 4 métodos
+    const defaultMethods = [
+      { method: 'Efectivo', description: 'Pago en efectivo' },
+      { method: 'Transferencia', description: 'Transferencia bancaria' },
+      { method: 'QR', description: 'Código QR de MercadoPago' },
+      { method: 'Link de Pago', description: 'Enlace de pago generado' }
     ];
+
+    // Combinar métodos de BD con métodos por defecto, dando prioridad a BD
+    const methodsMap = new Map();
+
+    // Primero agregar métodos de BD
+    (allMethods || []).forEach(method => {
+      if (method.mepa_metodo !== 'MercadoPago') { // Excluir MercadoPago ya que QR lo reemplaza
+        methodsMap.set(method.mepa_metodo, {
+          method: method.mepa_metodo,
+          description: method.mepa_descripcion,
+          enabled: acceptedSet.has(method.mepa_metodo)
+        });
+      }
+    });
+
+    // Agregar métodos por defecto si no existen
+    defaultMethods.forEach(defaultMethod => {
+      if (!methodsMap.has(defaultMethod.method)) {
+        methodsMap.set(defaultMethod.method, {
+          ...defaultMethod,
+          enabled: acceptedSet.has(defaultMethod.method === 'QR' ? 'MercadoPago' : defaultMethod.method)
+        });
+      }
+    });
+
+    const methods = Array.from(methodsMap.values());
 
     console.log(`✅ Métodos a devolver:`, methods.map(m => `${m.method}: ${m.enabled}`).join(', '));
 
@@ -104,7 +124,8 @@ export async function PUT(request: NextRequest) {
     const defaultMethods = [
       { est_id: estId, mepa_metodo: 'Efectivo' },
       { est_id: estId, mepa_metodo: 'Transferencia' },
-      { est_id: estId, mepa_metodo: 'MercadoPago' }
+      { est_id: estId, mepa_metodo: 'MercadoPago' },
+      { est_id: estId, mepa_metodo: 'Link de Pago' }
     ];
 
     const { error: insertError } = await supabase
@@ -148,15 +169,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Método de pago requerido" }, { status: 400 });
     }
 
-    // Manejar QR como método especial (es equivalente a MercadoPago)
+    // Manejar métodos según su tipo
     if (method === 'QR') {
+      // QR está ligado a MercadoPago
+      const dbMethod = 'MercadoPago';
       if (enabled) {
-        // Para QR, habilitamos MercadoPago en la base de datos
         const { error: insertError } = await supabase
           .from("est_acepta_metodospago")
           .upsert({
             est_id: estId,
-            mepa_metodo: 'MercadoPago'
+            mepa_metodo: dbMethod
           }, {
             onConflict: 'est_id,mepa_metodo'
           });
@@ -166,22 +188,57 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: insertError.message }, { status: 500 });
         }
       } else {
-        // Para deshabilitar QR, deshabilitamos MercadoPago
         const { error: deleteError } = await supabase
           .from("est_acepta_metodospago")
           .delete()
           .eq("est_id", estId)
-          .eq("mepa_metodo", 'MercadoPago');
+          .eq("mepa_metodo", dbMethod);
 
         if (deleteError) {
           console.error("Error deshabilitando MercadoPago para QR:", deleteError);
           return NextResponse.json({ error: deleteError.message }, { status: 500 });
         }
       }
-    } else {
-      // Método normal (Efectivo, Transferencia, MercadoPago)
+    } else if (method === 'Link de Pago') {
+      // Link de Pago está ligado a MercadoPago también
+      const dbMethod = 'MercadoPago';
       if (enabled) {
-        // Habilitar método: insertar en est_acepta_metodospago
+        const { error: insertError } = await supabase
+          .from("est_acepta_metodospago")
+          .upsert({
+            est_id: estId,
+            mepa_metodo: dbMethod
+          }, {
+            onConflict: 'est_id,mepa_metodo'
+          });
+
+        if (insertError) {
+          console.error("Error habilitando MercadoPago para Link de Pago:", insertError);
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+      } else {
+        // Solo deshabilitar si tanto QR como Link de Pago están deshabilitados
+        const { data: currentMethods } = await supabase
+          .from("est_acepta_metodospago")
+          .select("mepa_metodo")
+          .eq("est_id", estId)
+          .eq("mepa_metodo", dbMethod);
+
+        if (currentMethods && currentMethods.length > 0) {
+          // Verificar si QR también está habilitado
+          const { data: qrEnabled } = await supabase
+            .from("est_acepta_metodospago")
+            .select("mepa_metodo")
+            .eq("est_id", estId)
+            .eq("mepa_metodo", 'MercadoPago');
+
+          // Solo deshabilitar MercadoPago si QR también está siendo deshabilitado
+          // Por ahora, mantener habilitado si QR está activo
+        }
+      }
+    } else {
+      // Método normal (Efectivo, Transferencia)
+      if (enabled) {
         const { error: insertError } = await supabase
           .from("est_acepta_metodospago")
           .upsert({
@@ -196,7 +253,6 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: insertError.message }, { status: 500 });
         }
       } else {
-        // Deshabilitar método: eliminar de est_acepta_metodospago
         const { error: deleteError } = await supabase
           .from("est_acepta_metodospago")
           .delete()

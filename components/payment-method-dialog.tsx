@@ -100,12 +100,12 @@ export function PaymentMethodDialog({
         } else {
           console.error('❌ Error cargando métodos de pago, usando fallback')
           // Fallback: todos habilitados si hay error
-          setEnabledMethods(['Efectivo', 'Transferencia', 'MercadoPago', 'QR'])
+          setEnabledMethods(['Efectivo', 'Transferencia', 'MercadoPago', 'QR', 'Link de Pago'])
         }
       } catch (error) {
         console.error('Error cargando métodos de pago:', error)
         // Fallback: métodos básicos si hay error
-        setEnabledMethods(['Efectivo', 'Transferencia', 'MercadoPago', 'QR'])
+        setEnabledMethods(['Efectivo', 'Transferencia', 'MercadoPago', 'QR', 'Link de Pago'])
       } finally {
         setLoadingMethods(false)
       }
@@ -185,6 +185,18 @@ export function PaymentMethodDialog({
                 <div className="flex flex-col items-center">
                   <span className="text-2xl mb-2">📱</span>
                   <span>Código QR</span>
+                </div>
+              </Button>
+            )}
+            {enabledMethods.includes('Link de Pago') && (
+              <Button
+                variant="outline"
+                onClick={() => onSelectMethod("link_pago")}
+                className="h-24 flex items-center justify-center"
+              >
+                <div className="flex flex-col items-center">
+                  <span className="text-2xl mb-2">🔗</span>
+                  <span>Link de Pago</span>
                 </div>
               </Button>
             )}
