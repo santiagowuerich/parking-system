@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
             .select(`
                 est_id,
                 due_id,
-                dueno(
+                duenos!inner(
                     due_id,
-                    usuario(
+                    usuarios!inner(
                         usu_id,
                         auth_user_id,
                         usu_email
@@ -107,14 +107,14 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Estacionamiento verificado:', {
             est_id: estacionamientoCheck.est_id,
-            dueno_auth_user_id: estacionamientoCheck.dueno?.usuario?.auth_user_id,
-            dueno_email: estacionamientoCheck.dueno?.usuario?.usu_email
+            dueno_auth_user_id: estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.auth_user_id,
+            dueno_email: estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.usu_email
         });
 
         // Usar service role client si:
         // 1. El usuario actual es legacy, O
         // 2. El estacionamiento pertenece a un usuario legacy
-        const usarServiceRole = usuarioActual?.auth_user_id === null || !usuarioActual || estacionamientoCheck.dueno?.usuario?.auth_user_id === null;
+        const usarServiceRole = usuarioActual?.auth_user_id === null || !usuarioActual || estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null;
 
         if (usarServiceRole) {
             // Usar service role client para evitar problemas con RLS
@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
                     est_id,
                     est_nombre,
                     due_id,
-                    dueno(
+                    duenos!inner(
                         due_id,
-                        usuario(
+                        usuarios!inner(
                             usu_id,
                             auth_user_id,
                             usu_email
@@ -146,9 +146,9 @@ export async function POST(request: NextRequest) {
                     est_id,
                     est_nombre,
                     due_id,
-                    dueno(
+                    duenos!inner(
                         due_id,
-                        usuario(
+                        usuarios!inner(
                             usu_id,
                             auth_user_id,
                             usu_email
@@ -171,10 +171,10 @@ export async function POST(request: NextRequest) {
         // Verificar acceso del usuario (considerar usuarios legacy y autenticados)
         let userHasAccess = false;
 
-        if (estacionamientoData.dueno?.usuario?.auth_user_id === user.id) {
+        if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === user.id) {
             // Usuario autenticado con Supabase y vinculado correctamente
             userHasAccess = true;
-        } else if (estacionamientoData.dueno?.usuario?.auth_user_id === null) {
+        } else if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null) {
             // Usuario legacy - permitir acceso temporal para migración
             console.log('⚠️ Acceso legacy permitido para estacionamiento:', est_id);
             userHasAccess = true;
@@ -184,8 +184,8 @@ export async function POST(request: NextRequest) {
             console.log('❌ Acceso denegado:', {
                 user_id: user.id,
                 user_email: user.email,
-                dueno_auth_user_id: estacionamientoData.dueno?.usuario?.auth_user_id,
-                dueno_email: estacionamientoData.dueno?.usuario?.usu_email
+                dueno_auth_user_id: estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id,
+                dueno_email: estacionamientoData.duenos?.[0]?.usuarios?.[0]?.usu_email
             });
             return NextResponse.json({
                 error: 'No tienes acceso a este estacionamiento'
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         // Para usuarios legacy (sin auth_user_id), usar el service role client
         let zonaData, zonaError;
 
-        if (estacionamientoData.dueno?.usuario?.auth_user_id === null) {
+        if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null) {
             // Usuario legacy - usar service role client para bypasear RLS
             const serviceSupabase = createServerClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -292,6 +292,12 @@ export async function POST(request: NextRequest) {
             }, { status: 500 });
         }
 
+        if (!zonaData) {
+            return NextResponse.json({
+                error: 'Error: No se pudo obtener la zona creada'
+            }, { status: 500 });
+        }
+
         const zona_id = zonaData.zona_id;
         console.log('✅ Zona creada con ID:', zona_id);
 
@@ -299,7 +305,7 @@ export async function POST(request: NextRequest) {
         console.log(`📝 Creando ${cantidadTotal} plazas nuevas para la zona "${zona_nombre}"`);
 
         // Usar el mismo cliente que se usó para crear la zona
-        const clienteParaPlazas = estacionamientoData.dueno?.usuario?.auth_user_id === null ?
+        const clienteParaPlazas = estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null ?
             createServerClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
                 process.env.SUPABASE_SERVICE_ROLE_KEY!,

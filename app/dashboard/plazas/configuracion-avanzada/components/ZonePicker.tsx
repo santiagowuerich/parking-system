@@ -20,7 +20,7 @@ interface Zona {
 interface ZonePickerProps {
     zonaActual: Zona | null;
     onZonaChange: (zonaId: number) => void;
-    estId: number;
+    estId: number | null;
 }
 
 export const ZonePicker: React.FC<ZonePickerProps> = ({
@@ -38,6 +38,11 @@ export const ZonePicker: React.FC<ZonePickerProps> = ({
 
 
     const cargarZonas = async () => {
+        if (!estId) {
+            console.error('No hay estacionamiento asignado para cargar zonas');
+            return;
+        }
+
         try {
             const response = await fetch(`/api/zonas?est_id=${estId}`);
             if (response.ok) {
