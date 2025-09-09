@@ -101,6 +101,12 @@ const navigationItems = [
         description: "Ver estado de todas las plazas"
     },
     {
+        title: "Configuración Avanzada",
+        href: "/dashboard/plazas/configuracion-avanzada",
+        icon: Settings,
+        description: "Gestionar plantillas de plazas"
+    },
+    {
         title: "Perfil",
         href: "/account/security",
         icon: User,

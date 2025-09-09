@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Save, RotateCcw, CheckCircle, AlertTriangle } from 'lucide-react';
+import { DashboardLayout } from '@/components/dashboard-layout';
 
 // Importar componentes
 import { ZonePicker } from './components/ZonePicker';
@@ -437,7 +438,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <DashboardLayout>
             <div className="p-6 space-y-6">
                 {/* Header */}
                 <div className="mb-6">
@@ -557,7 +558,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </DashboardLayout>
     );
 };
 
