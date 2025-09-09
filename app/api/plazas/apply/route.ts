@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
             cookies: {
                 get(name) { return request.cookies.get(name)?.value },
                 set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value, path: '/', expires: new Date(0) }) }
+                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
             }
         }
     )
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
                     let plazasGlobales = accion.plazas;
 
                     // Si los números parecen ser locales (1-N), convertirlos a globales
-                    if (accion.plazas.every(num => typeof num === 'number' && num > 0 && num <= 60)) {
+                    if (accion.plazas.every((num: any) => typeof num === 'number' && num > 0 && num <= 60)) {
                         console.log(`🔄 Convirtiendo números locales a globales:`, accion.plazas);
 
                         // Obtener el mapeo de números locales a globales para esta zona
@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
 
                         if (!mappingError && plazaMapping) {
                             const localToGlobal = new Map();
-                            plazaMapping.forEach(p => {
+                            plazaMapping.forEach((p: any) => {
                                 localToGlobal.set(p.pla_local_numero, p.pla_numero);
                             });
 
-                            plazasGlobales = accion.plazas.map(local => localToGlobal.get(local) || local);
+                            plazasGlobales = accion.plazas.map((local: any) => localToGlobal.get(local) || local);
                             console.log(`✅ Conversión completada:`, plazasGlobales);
                         } else {
                             console.log(`⚠️ Error obteniendo mapeo local-global, usando números originales`);
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
                     let plazasGlobales = accion.plazas;
 
                     // Si los números parecen ser locales (1-N), convertirlos a globales
-                    if (accion.plazas.every(num => typeof num === 'number' && num > 0 && num <= 60)) {
+                    if (accion.plazas.every((num: any) => typeof num === 'number' && num > 0 && num <= 60)) {
                         console.log(`🔄 Convirtiendo números locales a globales para limpieza:`, accion.plazas);
 
                         // Obtener el mapeo de números locales a globales para esta zona
@@ -160,11 +160,11 @@ export async function POST(request: NextRequest) {
 
                         if (!mappingError && plazaMapping) {
                             const localToGlobal = new Map();
-                            plazaMapping.forEach(p => {
+                            plazaMapping.forEach((p: any) => {
                                 localToGlobal.set(p.pla_local_numero, p.pla_numero);
                             });
 
-                            plazasGlobales = accion.plazas.map(local => localToGlobal.get(local) || local);
+                            plazasGlobales = accion.plazas.map((local: any) => localToGlobal.get(local) || local);
                             console.log(`✅ Conversión completada para limpieza:`, plazasGlobales);
                         } else {
                             console.log(`⚠️ Error obteniendo mapeo local-global para limpieza, usando números originales`);

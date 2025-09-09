@@ -60,7 +60,7 @@ export async function GET(request: Request) {
             let plazas = plazasBasicas;
             if (plazasBasicas && plazasBasicas.length > 0) {
                 const plantillaIds = plazasBasicas
-                    .filter(p => p.plantilla_id)
+                    .filter((p: any) => p.plantilla_id)
                     .map(p => p.plantilla_id);
 
                 if (plantillaIds.length > 0) {
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
                 if (!localError && localNumbers) {
                     // Crear mapa de números locales
                     const localMap = new Map();
-                    localNumbers.forEach(p => {
+                    localNumbers.forEach((p: any) => {
                         localMap.set(p.pla_numero, p.pla_local_numero);
                     });
 
@@ -203,8 +203,8 @@ export async function GET(request: Request) {
             console.log(`🔄 Transformando ${plazas?.length || 0} plazas crudas para zona ${zonaId}`);
 
             const plazasConfiguracion = (plazas || [])
-                .filter(plaza => plaza && plaza.pla_numero) // Filtrar plazas válidas
-                .map(plaza => {
+                .filter((plaza: any) => plaza && plaza.pla_numero) // Filtrar plazas válidas
+                .map((plaza: any) => {
                     const plantillaInfo = plaza.plantillas && Array.isArray(plaza.plantillas) && plaza.plantillas.length > 0 ? {
                         plantilla_id: plaza.plantillas[0].plantilla_id || null,
                         nombre_plantilla: plaza.plantillas[0].nombre_plantilla || 'Sin nombre',

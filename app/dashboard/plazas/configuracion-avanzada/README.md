@@ -7,7 +7,6 @@ Sistema completo para gestionar plantillas de plazas de manera visual e intuitiv
 - **Interfaz Visual**: Grid interactivo con colores por tipo de plantilla
 - **Múltiples Modos de Selección**: Individual, rango, fila, columna
 - **Aplicación Masiva**: Cambios en múltiples plazas simultáneamente
-- **Sistema de Presets**: Guarda y reutiliza configuraciones
 - **Vista Previa**: Preview de cambios antes de confirmar
 - **Validaciones**: Solo afecta plazas libres, respeta ocupaciones
 
@@ -21,8 +20,7 @@ configuracion-avanzada/
 │   ├── ZonePicker.tsx         # Selector y configuración de zona
 │   ├── PlazasGrid.tsx         # Grid visual de plazas
 │   ├── SelectionToolbar.tsx   # Herramientas de selección
-│   ├── ApplyTemplatePanel.tsx # Panel de aplicación de plantillas
-│   └── PresetPanel.tsx        # Gestión de presets
+│   └── ApplyTemplatePanel.tsx # Panel de aplicación de plantillas
 └── README.md                  # Este archivo
 ```
 
@@ -44,12 +42,7 @@ configuracion-avanzada/
 - Haz clic en "Aplicar plantilla"
 - Los cambios se muestran inmediatamente (preview mode)
 
-### 4. Gestionar Presets
-- Crea presets para guardar configuraciones
-- Aplica presets existentes a zonas completas
-- Preview antes de aplicar
-
-### 5. Confirmar Cambios
+### 4. Confirmar Cambios
 - Revisa todos los cambios en el historial
 - Usa "Deshacer" si necesitas revertir
 - Haz clic en "Confirmar Cambios" para persistir
@@ -61,8 +54,6 @@ configuracion-avanzada/
 - `GET /api/zonas` - Lista zonas del estacionamiento
 - `GET /api/plazas?zona_id=X` - Plazas de una zona específica
 - `POST /api/plazas/apply` - Aplicar cambios masivamente
-- `GET/POST /api/presets` - CRUD de presets
-- `POST /api/presets/apply` - Aplicar preset existente
 - `GET/PUT /api/zonas/{id}/grid` - Configurar grid de zona
 
 ### Funciones de Base de Datos

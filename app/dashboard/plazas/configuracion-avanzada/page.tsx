@@ -11,7 +11,6 @@ import { ZonePicker } from './components/ZonePicker';
 import { PlazasGrid } from './components/PlazasGrid';
 import { SelectionToolbar } from './components/SelectionToolbar';
 import { ApplyTemplatePanel } from './components/ApplyTemplatePanel';
-import { PresetPanel } from './components/PresetPanel';
 
 // Tipos
 interface Plaza {
@@ -44,11 +43,6 @@ interface Plantilla {
     caracteristicas: { [tipo: string]: string[] };
 }
 
-interface Preset {
-    preset_id: number;
-    preset_nombre: string;
-    reglas: any[];
-}
 
 interface Action {
     tipo: 'APLICAR_PLANTILLA' | 'LIMPIAR_PLANTILLA';
@@ -66,7 +60,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
     const [zonaActual, setZonaActual] = useState<Zona | null>(null);
     const [plazas, setPlazas] = useState<Map<number, Plaza>>(new Map());
     const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
-    const [presets, setPresets] = useState<Preset[]>([]);
 
     // Estado de selección
     const [seleccion, setSeleccion] = useState<Set<number>>(new Set());
@@ -107,19 +100,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                 setPlantillas(plantillasValidas);
             }
 
-            // Cargar presets disponibles
-            const presetsResponse = await fetch(`/api/presets?est_id=${estId}`);
-            if (presetsResponse.ok) {
-                const presetsData = await presetsResponse.json();
-                const presetsValidos = (presetsData.presets || [])
-                    .filter((p: any) => p && p.preset_id && p.preset_nombre)
-                    .map((p: any) => ({
-                        preset_id: p.preset_id,
-                        preset_nombre: p.preset_nombre || 'Sin nombre',
-                        reglas: Array.isArray(p.reglas) ? p.reglas : []
-                    }));
-                setPresets(presetsValidos);
-            }
 
         } catch (error) {
             console.error('Error cargando datos iniciales:', error);
@@ -156,7 +136,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                 // Mostrar algunas plazas como ejemplo
                 if (data.plazas && data.plazas.length > 0) {
                     const primerasPlazas = data.plazas.slice(0, 3);
-                    console.log('📋 Primeras plazas cargadas:', primerasPlazas.map(p => ({
+                    console.log('📋 Primeras plazas cargadas:', primerasPlazas.map((p: any) => ({
                         numero: p.numero,
                         plantilla: p.plantilla_actual ? p.plantilla_actual.nombre_plantilla : 'Sin plantilla'
                     })));
@@ -499,13 +479,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                             setPreviewMode={setPreviewMode}
                         />
 
-                        <PresetPanel
-                            presets={presets}
-                            zonaActual={zonaActual}
-                            onAplicarPreset={(presetId) => {/* Implementar */ }}
-                            onCrearPreset={() => {/* Implementar */ }}
-                            estId={estId}
-                        />
                     </div>
 
                     {/* Panel derecho: Grid de plazas */}

@@ -30,11 +30,6 @@ export interface Plantilla {
     caracteristicas: { [tipo: string]: string[] };
 }
 
-export interface Preset {
-    preset_id: number;
-    preset_nombre: string;
-    reglas: any[];
-}
 
 export interface Action {
     tipo: 'APLICAR_PLANTILLA' | 'LIMPIAR_PLANTILLA';
