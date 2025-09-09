@@ -12,10 +12,30 @@ import {
     ParkingCircle,
     Users,
     Settings,
-    Activity
+    Activity,
+    Building2,
+    MapPin,
+    Loader2
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
+
+interface EstacionamientoDetalle {
+    est_id: number;
+    est_nombre: string;
+    est_prov: string;
+    est_locali: string;
+    est_direc: string;
+    est_capacidad: number;
+    est_latitud?: number;
+    est_longitud?: number;
+    est_telefono?: string;
+    est_email?: string;
+    est_descripcion?: string;
+    plazas_totales_reales: number;
+    plazas_disponibles_reales: number;
+    plazas_ocupadas: number;
+}
 
 export default function DashboardPage() {
     const { user, estId, parkedVehicles, parkingCapacity } = useAuth();
@@ -25,6 +45,52 @@ export default function DashboardPage() {
         totalSpaces: 0,
         todayRevenue: 0
     });
+    const [estacionamientoActual, setEstacionamientoActual] = useState<EstacionamientoDetalle | null>(null);
+    const [loadingEstacionamiento, setLoadingEstacionamiento] = useState(false);
+
+    // Función para cargar detalles del estacionamiento actual
+    const cargarDetallesEstacionamiento = async () => {
+        if (!estId) {
+            setEstacionamientoActual(null);
+            return;
+        }
+
+        try {
+            setLoadingEstacionamiento(true);
+            console.log(`🔍 Cargando detalles del estacionamiento ${estId}`);
+
+            const response = await fetch(`/api/auth/list-parkings`);
+
+            if (!response.ok) {
+                throw new Error('Error al cargar detalles del estacionamiento');
+            }
+
+            const data = await response.json();
+
+            if (data.estacionamientos && data.estacionamientos.length > 0) {
+                // Buscar el estacionamiento actual por est_id
+                const estacionamiento = data.estacionamientos.find(
+                    (est: EstacionamientoDetalle) => est.est_id === estId
+                );
+
+                if (estacionamiento) {
+                    setEstacionamientoActual(estacionamiento);
+                    console.log(`✅ Detalles cargados para estacionamiento: ${estacionamiento.est_nombre}`);
+                } else {
+                    console.warn(`⚠️ No se encontró el estacionamiento con ID ${estId}`);
+                    setEstacionamientoActual(null);
+                }
+            } else {
+                console.warn('⚠️ No se encontraron estacionamientos');
+                setEstacionamientoActual(null);
+            }
+        } catch (error) {
+            console.error('❌ Error cargando detalles del estacionamiento:', error);
+            setEstacionamientoActual(null);
+        } finally {
+            setLoadingEstacionamiento(false);
+        }
+    };
 
     useEffect(() => {
         if (parkedVehicles && parkingCapacity) {
@@ -40,6 +106,11 @@ export default function DashboardPage() {
             });
         }
     }, [parkedVehicles, parkingCapacity]);
+
+    // Cargar detalles del estacionamiento cuando estId cambie
+    useEffect(() => {
+        cargarDetallesEstacionamiento();
+    }, [estId]);
 
     const quickActions = [
         {
@@ -103,10 +174,60 @@ export default function DashboardPage() {
                         <p className="text-gray-600 mt-1">
                             Bienvenido de vuelta, {user?.email?.split('@')[0]}
                         </p>
+
+                        {/* Información compacta del estacionamiento */}
+                        <div
+                            className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors duration-200"
+                            onClick={() => window.location.href = '/dashboard/parking'}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Building2 className="h-5 w-5 text-blue-600" />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-blue-900">
+                                            {estacionamientoActual?.est_nombre || 'Cargando estacionamiento...'}
+                                        </span>
+                                        {loadingEstacionamiento && (
+                                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                        )}
+                                        {estId && (
+                                            <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
+                                                ID: {estId}
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {estacionamientoActual && (
+                                        <div className="flex items-center gap-4 mt-1 text-sm text-blue-700">
+                                            <div className="flex items-center gap-1">
+                                                <MapPin className="h-3 w-3" />
+                                                <span className="truncate max-w-48">
+                                                    {estacionamientoActual.est_locali}, {estacionamientoActual.est_prov}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-green-600 font-medium">
+                                                    🟢 {estacionamientoActual.plazas_disponibles_reales}
+                                                </span>
+                                                <span className="text-red-600 font-medium">
+                                                    🔴 {estacionamientoActual.plazas_ocupadas}
+                                                </span>
+                                                <span className="text-blue-600 font-medium">
+                                                    📊 {estacionamientoActual.plazas_totales_reales}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!estacionamientoActual && !loadingEstacionamiento && (
+                                        <div className="text-sm text-blue-700">
+                                            {estId ? 'No se pudo cargar la información' : 'No hay estacionamiento seleccionado'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <Badge variant="secondary" className="text-sm">
-                        Estacionamiento {estId || 'No seleccionado'}
-                    </Badge>
                 </div>
 
                 {/* Stats Cards */}

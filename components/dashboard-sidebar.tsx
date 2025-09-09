@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
+import ParkingStatusWidget from "./ParkingStatusWidget";
 
 interface SidebarProps {
     className?: string;
@@ -200,6 +201,11 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
             {/* Navigation */}
             <ScrollArea className="flex-1 px-3 py-4">
+                {/* Widget de estado del estacionamiento */}
+                <div className="mb-4">
+                    <ParkingStatusWidget collapsed={collapsed} />
+                </div>
+
                 <div className="space-y-2">
                     {navigationItems.map((item) => {
                         const Icon = item.icon;
