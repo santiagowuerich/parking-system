@@ -83,6 +83,13 @@ export default function DashboardPage() {
             icon: Activity,
             href: "/dashboard/visualizacion-plazas",
             color: "bg-cyan-500"
+        },
+        {
+            title: "Configuración Avanzada",
+            description: "Gestionar plantillas de plazas",
+            icon: Settings,
+            href: "/dashboard/plazas/configuracion-avanzada",
+            color: "bg-pink-500"
         }
     ];
 
