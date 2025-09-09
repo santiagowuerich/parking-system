@@ -100,7 +100,7 @@ export const AuthContext = createContext<{
   refreshCapacity: async () => { },
   setEstId: () => { },
   ensureParkingSetup: async () => { },
-  signInWithGoogle: async () => {},
+  signInWithGoogle: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-  
+
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
