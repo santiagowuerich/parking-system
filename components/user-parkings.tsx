@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2 } from "lucide-react";
 import ParkingConfig from "./parking-config";
+import AddressAutocomplete from "./address-autocomplete";
 
 interface Estacionamiento {
     est_id: number;
@@ -339,41 +340,33 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     className="bg-gray-100 border-gray-200 text-gray-900 mt-1"
                                                     disabled={creating}
                                                 />
-                                                {newParkingName.trim() && newParkingName.trim().length >= 2 && (
-                                                    <p className="text-xs text-green-400 mt-1">
-                                                        ✓ Nombre disponible
-                                                    </p>
-                                                )}
                                             </div>
 
-                                            <div>
-                                                <Label htmlFor="parking-address" className="text-gray-600">
-                                                    Dirección del Estacionamiento *
-                                                </Label>
-                                                <Input
-                                                    id="parking-address"
-                                                    type="text"
-                                                    placeholder="Ej: Av. Libertador 1234, Buenos Aires"
-                                                    value={newParkingAddress}
-                                                    onChange={(e) => {
-                                                        setNewParkingAddress(e.target.value);
-                                                        // Limpiar error cuando el usuario empiece a escribir
-                                                        if (error && error.includes("dirección")) {
-                                                            setError(null);
-                                                        }
-                                                    }}
-                                                    className="bg-gray-100 border-gray-200 text-gray-900 mt-1"
-                                                    disabled={creating}
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    ⚠️ La dirección debe ser única en todo el sistema
+                                            <AddressAutocomplete
+                                                value={newParkingAddress}
+                                                onChange={(value) => {
+                                                    setNewParkingAddress(value);
+                                                    // Limpiar error cuando el usuario empiece a escribir
+                                                    if (error && error.includes("dirección")) {
+                                                        setError(null);
+                                                    }
+                                                }}
+                                                onSelect={(place) => {
+                                                    console.log('📍 Dirección completa seleccionada:', place);
+                                                    // Aquí puedes extraer información adicional del lugar si es necesario
+                                                }}
+                                                placeholder="Ej: Av. Libertador 1234, Buenos Aires"
+                                                error={error && error.includes("dirección") ? error : undefined}
+                                                disabled={creating}
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                ⚠️ La dirección debe ser única en todo el sistema
+                                            </p>
+                                            {newParkingAddress.trim() && newParkingAddress.trim().length >= 5 && (
+                                                <p className="text-xs text-green-400 mt-1">
+                                                    ✓ Dirección válida
                                                 </p>
-                                                {newParkingAddress.trim() && newParkingAddress.trim().length >= 5 && (
-                                                    <p className="text-xs text-green-400 mt-1">
-                                                        ✓ Dirección válida
-                                                    </p>
-                                                )}
-                                            </div>
+                                            )}
 
                                             <div className="flex gap-2">
                                                 <Button
