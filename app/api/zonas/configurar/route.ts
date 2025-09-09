@@ -1,6 +1,7 @@
 // app/api/zonas/configurar/route.ts
 // Endpoint para crear zona y generar plazas masivamente
 import { createClient } from "@/lib/supabase/client";
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server'
 
 interface ConfiguracionZona {
@@ -20,19 +21,178 @@ export async function POST(request: NextRequest) {
     const { supabase, response } = createClient(request);
 
     try {
-        // 1. Recibir y Validar Datos
+        // 1. Verificar autenticación del usuario
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            return NextResponse.json({
+                error: 'Usuario no autenticado'
+            }, { status: 401 });
+        }
+
+        // 2. Recibir y Validar Datos
         const body: ConfiguracionZona = await request.json();
 
         const { est_id, zona_nombre, cantidad_plazas, filas, columnas, numeracion } = body;
 
+        console.log('🔍 Debug - API /zonas/configurar:', {
+            user_email: user.email,
+            user_id: user.id,
+            est_id,
+            zona_nombre,
+            cantidad_plazas,
+            filas,
+            columnas,
+            numeracion
+        });
+
         // Validar datos requeridos
         if (!est_id || !zona_nombre || !numeracion) {
+            console.log('❌ Error: Faltan datos requeridos:', { est_id, zona_nombre, numeracion });
             return NextResponse.json({
                 error: 'Faltan datos requeridos: est_id, zona_nombre, numeracion'
             }, { status: 400 });
         }
 
-        // Validar que se proporcione al menos una forma de especificar la cantidad
+        // 3. Verificar que el usuario tiene acceso al estacionamiento
+        // Para usuarios legacy o cuando se accede a estacionamientos legacy, usar service role client
+        let estacionamientoData, estError;
+
+        // Verificar si el usuario actual es legacy
+        const { data: usuarioActual, error: usuarioError } = await supabase
+            .from('usuario')
+            .select('usu_id, auth_user_id, usu_email')
+            .eq('auth_user_id', user.id)
+            .single();
+
+        // Verificar si el estacionamiento pertenece a un usuario legacy
+        const serviceSupabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                cookies: {
+                    get() { return undefined },
+                    set() { },
+                    remove() { }
+                }
+            }
+        );
+
+        const { data: estacionamientoCheck, error: checkError } = await serviceSupabase
+            .from('estacionamientos')
+            .select(`
+                est_id,
+                due_id,
+                dueno(
+                    due_id,
+                    usuario(
+                        usu_id,
+                        auth_user_id,
+                        usu_email
+                    )
+                )
+            `)
+            .eq('est_id', est_id)
+            .single();
+
+        if (checkError || !estacionamientoCheck) {
+            console.log('❌ Error verificando estacionamiento:', {
+                checkError,
+                estacionamientoCheck,
+                est_id
+            });
+            return NextResponse.json({
+                error: 'El estacionamiento no existe'
+            }, { status: 404 });
+        }
+
+        console.log('✅ Estacionamiento verificado:', {
+            est_id: estacionamientoCheck.est_id,
+            dueno_auth_user_id: estacionamientoCheck.dueno?.usuario?.auth_user_id,
+            dueno_email: estacionamientoCheck.dueno?.usuario?.usu_email
+        });
+
+        // Usar service role client si:
+        // 1. El usuario actual es legacy, O
+        // 2. El estacionamiento pertenece a un usuario legacy
+        const usarServiceRole = usuarioActual?.auth_user_id === null || !usuarioActual || estacionamientoCheck.dueno?.usuario?.auth_user_id === null;
+
+        if (usarServiceRole) {
+            // Usar service role client para evitar problemas con RLS
+            const result = await serviceSupabase
+                .from('estacionamientos')
+                .select(`
+                    est_id,
+                    est_nombre,
+                    due_id,
+                    dueno(
+                        due_id,
+                        usuario(
+                            usu_id,
+                            auth_user_id,
+                            usu_email
+                        )
+                    )
+                `)
+                .eq('est_id', est_id)
+                .single();
+
+            estacionamientoData = result.data;
+            estError = result.error;
+        } else {
+            // Usuario autenticado normal accediendo a estacionamiento normal - usar cliente regular con RLS
+            const result = await supabase
+                .from('estacionamientos')
+                .select(`
+                    est_id,
+                    est_nombre,
+                    due_id,
+                    dueno(
+                        due_id,
+                        usuario(
+                            usu_id,
+                            auth_user_id,
+                            usu_email
+                        )
+                    )
+                `)
+                .eq('est_id', est_id)
+                .single();
+
+            estacionamientoData = result.data;
+            estError = result.error;
+        }
+
+        if (estError || !estacionamientoData) {
+            return NextResponse.json({
+                error: 'El estacionamiento no existe'
+            }, { status: 404 });
+        }
+
+        // Verificar acceso del usuario (considerar usuarios legacy y autenticados)
+        let userHasAccess = false;
+
+        if (estacionamientoData.dueno?.usuario?.auth_user_id === user.id) {
+            // Usuario autenticado con Supabase y vinculado correctamente
+            userHasAccess = true;
+        } else if (estacionamientoData.dueno?.usuario?.auth_user_id === null) {
+            // Usuario legacy - permitir acceso temporal para migración
+            console.log('⚠️ Acceso legacy permitido para estacionamiento:', est_id);
+            userHasAccess = true;
+        }
+
+        if (!userHasAccess) {
+            console.log('❌ Acceso denegado:', {
+                user_id: user.id,
+                user_email: user.email,
+                dueno_auth_user_id: estacionamientoData.dueno?.usuario?.auth_user_id,
+                dueno_email: estacionamientoData.dueno?.usuario?.usu_email
+            });
+            return NextResponse.json({
+                error: 'No tienes acceso a este estacionamiento'
+            }, { status: 403 });
+        }
+
+        // 4. Validar que se proporcione al menos una forma de especificar la cantidad
         if (!cantidad_plazas && (!filas || !columnas)) {
             return NextResponse.json({
                 error: 'Debe especificar cantidad_plazas O filas y columnas'
@@ -45,7 +205,7 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // 2. Calcular Cantidad Total de Plazas
+        // 5. Calcular Cantidad Total de Plazas
         let cantidadTotal: number;
 
         if (filas && columnas) {
@@ -70,7 +230,7 @@ export async function POST(request: NextRequest) {
             }, { status: 500 });
         }
 
-        // 3. Crear la Zona
+        // 6. Crear la Zona
         const zonaInsertData = {
             est_id,
             zona_nombre,
@@ -80,14 +240,53 @@ export async function POST(request: NextRequest) {
         // Nota: Las columnas zona_filas y zona_columnas no existen en la tabla actual
         // Se pueden agregar posteriormente si es necesario con una migración
 
-        const { data: zonaData, error: zonaError } = await supabase
-            .from('zonas')
-            .insert(zonaInsertData)
-            .select('zona_id')
-            .single();
+        // Para usuarios legacy (sin auth_user_id), usar el service role client
+        let zonaData, zonaError;
+
+        if (estacionamientoData.dueno?.usuario?.auth_user_id === null) {
+            // Usuario legacy - usar service role client para bypasear RLS
+            const serviceSupabase = createServerClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                {
+                    cookies: {
+                        get() { return undefined },
+                        set() { },
+                        remove() { }
+                    }
+                }
+            );
+
+            const result = await serviceSupabase
+                .from('zonas')
+                .insert(zonaInsertData)
+                .select('zona_id')
+                .single();
+
+            zonaData = result.data;
+            zonaError = result.error;
+        } else {
+            // Usuario autenticado normal
+            const result = await supabase
+                .from('zonas')
+                .insert(zonaInsertData)
+                .select('zona_id')
+                .single();
+
+            zonaData = result.data;
+            zonaError = result.error;
+        }
 
         if (zonaError) {
             console.error('❌ Error creando zona:', zonaError);
+
+            // Manejar error de zona duplicada
+            if (zonaError.code === '23505' && zonaError.message.includes('zonas_est_id_zona_nombre_key')) {
+                return NextResponse.json({
+                    error: `La zona "${zona_nombre}" ya existe en este estacionamiento. Por favor elige un nombre diferente.`
+                }, { status: 400 });
+            }
+
             return NextResponse.json({
                 error: `Error creando zona: ${zonaError.message}`
             }, { status: 500 });
@@ -96,110 +295,81 @@ export async function POST(request: NextRequest) {
         const zona_id = zonaData.zona_id;
         console.log('✅ Zona creada con ID:', zona_id);
 
-        // 3. Determinar el Número de Inicio de Plaza
-        // Siempre comenzamos desde 1 para cada zona
-        const numeroInicio = 1;
+        // 7. Crear plazas nuevas para la zona (cada zona tiene sus propias plazas)
+        console.log(`📝 Creando ${cantidadTotal} plazas nuevas para la zona "${zona_nombre}"`);
 
-        // 4. Buscar plazas libres para reutilizar
-        console.log(`🔍 Buscando ${cantidadTotal} plazas libres para asignar a la zona "${zona_nombre}"`);
+        // Usar el mismo cliente que se usó para crear la zona
+        const clienteParaPlazas = estacionamientoData.dueno?.usuario?.auth_user_id === null ?
+            createServerClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                {
+                    cookies: {
+                        get() { return undefined },
+                        set() { },
+                        remove() { }
+                    }
+                }
+            ) : supabase;
 
-        const { data: plazasLibres, error: libresError } = await supabase
+        // Encontrar el primer número disponible para plazas nuevas
+        const { data: plazasExistentes, error: existError } = await clienteParaPlazas
             .from('plazas')
             .select('pla_numero')
             .eq('est_id', est_id)
-            .eq('pla_estado', 'Libre')
-            .is('zona_id', null)
-            .order('pla_numero')
-            .limit(cantidadTotal);
+            .order('pla_numero');
 
-        if (libresError) {
-            console.error('❌ Error buscando plazas libres:', libresError);
-            await supabase.from('zonas').delete().eq('zona_id', zona_id);
+        if (existError) {
+            console.error('❌ Error obteniendo plazas existentes:', existError);
+            await clienteParaPlazas.from('zonas').delete().eq('zona_id', zona_id);
             return NextResponse.json({
-                error: `Error buscando plazas libres: ${libresError.message}`
+                error: `Error obteniendo plazas existentes: ${existError.message}`
             }, { status: 500 });
         }
 
-        console.log(`✅ Encontradas ${plazasLibres?.length || 0} plazas libres`);
+        // Crear un set de números existentes para búsqueda rápida
+        const numerosExistentes = new Set(plazasExistentes?.map((p: any) => p.pla_numero) || []);
 
-        let plazasAsignadas = 0;
-        let plazasCreadas = 0;
+        // Encontrar el primer número disponible
+        let numeroInicio = 1;
+        while (numerosExistentes.has(numeroInicio)) {
+            numeroInicio++;
+        }
+
+        console.log(`🔢 Primer número disponible encontrado: ${numeroInicio}`);
         const numeroFin = numeroInicio + cantidadTotal - 1;
 
-        // 5. Asignar plazas libres existentes a la zona
-        if (plazasLibres && plazasLibres.length > 0) {
-            const plazasParaAsignar = plazasLibres.slice(0, cantidadTotal);
-
-            for (const plaza of plazasParaAsignar) {
-                const { error: updateError } = await supabase
-                    .from('plazas')
-                    .update({
-                        zona_id,
-                        pla_zona: zona_nombre
-                    })
-                    .eq('est_id', est_id)
-                    .eq('pla_numero', plaza.pla_numero);
-
-                if (updateError) {
-                    console.error(`❌ Error asignando plaza ${plaza.pla_numero}:`, updateError);
-                    continue;
-                }
-
-                plazasAsignadas++;
-            }
-
-            console.log(`✅ Asignadas ${plazasAsignadas} plazas libres a la zona`);
+        // Crear todas las plazas para esta zona
+        const plazasToCreate = [];
+        for (let i = 0; i < cantidadTotal; i++) {
+            plazasToCreate.push({
+                est_id,
+                pla_numero: numeroInicio + i,
+                zona_id,
+                pla_estado: 'Libre',
+                catv_segmento: 'AUT',
+                pla_zona: zona_nombre
+            });
         }
 
-        // 6. Crear plazas adicionales si es necesario
-        const plazasFaltantes = cantidadTotal - plazasAsignadas;
-
-        // Encontrar el siguiente número disponible (siempre necesario para el reporte)
-        const { data: maxPlazaData } = await supabase
+        const { error: plazasError } = await clienteParaPlazas
             .from('plazas')
-            .select('pla_numero')
-            .eq('est_id', est_id)
-            .order('pla_numero', { ascending: false })
-            .limit(1);
+            .insert(plazasToCreate);
 
-        const numeroInicioNuevo = (maxPlazaData && maxPlazaData.length > 0)
-            ? maxPlazaData[0].pla_numero + 1
-            : 1;
-
-        if (plazasFaltantes > 0) {
-            console.log(`📝 Creando ${plazasFaltantes} plazas adicionales`);
-
-            const plazasToCreate = [];
-
-            for (let i = 0; i < plazasFaltantes; i++) {
-                plazasToCreate.push({
-                    est_id,
-                    pla_numero: numeroInicioNuevo + i,
-                    zona_id,
-                    pla_estado: 'Libre',
-                    catv_segmento: 'AUT',
-                    pla_zona: zona_nombre
-                });
-            }
-
-            const { error: plazasError } = await supabase
-                .from('plazas')
-                .insert(plazasToCreate);
-
-            if (plazasError) {
-                console.error('❌ Error creando plazas adicionales:', plazasError);
-                // No eliminamos la zona aquí porque ya asignamos algunas plazas
-                return NextResponse.json({
-                    error: `Error creando plazas adicionales: ${plazasError.message}`
-                }, { status: 500 });
-            }
-
-            plazasCreadas = plazasFaltantes;
-            console.log(`✅ Creadas ${plazasCreadas} plazas adicionales: ${numeroInicioNuevo}-${numeroInicioNuevo + plazasFaltantes - 1}`);
+        if (plazasError) {
+            console.error('❌ Error creando plazas para la zona:', plazasError);
+            await clienteParaPlazas.from('zonas').delete().eq('zona_id', zona_id);
+            return NextResponse.json({
+                error: `Error creando plazas para la zona: ${plazasError.message}`
+            }, { status: 500 });
         }
 
+        console.log(`✅ Creadas ${cantidadTotal} plazas nuevas: ${numeroInicio}-${numeroFin}`);
+        const plazasCreadas = cantidadTotal;
+        const plazasAsignadas = 0; // No reutilizamos plazas, creamos nuevas
 
-        // 7. Éxito: Retornar respuesta
+
+        // 8. Éxito: Retornar respuesta
         const zonaInfo = {
             zona_id,
             zona_nombre,
@@ -214,17 +384,15 @@ export async function POST(request: NextRequest) {
             cantidad_total: cantidadTotal,
             plazas_asignadas: plazasAsignadas,
             plazas_creadas: plazasCreadas,
-            rango_numeros: plazasAsignadas > 0 ? `1-${plazasAsignadas}` : `${numeroInicioNuevo}-${numeroInicioNuevo + plazasCreadas - 1}`,
-            modo_numeracion: 'reutilizacion_inteligente'
+            rango_numeros: `${numeroInicio}-${numeroFin}`,
+            modo_numeracion: 'zonas_independientes'
         };
 
-        // Información detallada sobre la asignación
-        if (plazasAsignadas > 0) {
-            plazasInfo.detalle_asignacion = {
-                plazas_reutilizadas: `1-${plazasAsignadas} (previamente libres)`,
-                plazas_nuevas: plazasCreadas > 0 ? `${numeroInicioNuevo}-${numeroInicioNuevo + plazasCreadas - 1}` : null
-            };
-        }
+        // Información detallada sobre la creación
+        plazasInfo.detalle_creacion = {
+            plazas_nuevas: `${numeroInicio}-${numeroFin} (creadas específicamente para esta zona)`,
+            zona_independiente: true
+        };
 
         // Información de layout (no se almacena en BD pero se incluye en respuesta para compatibilidad)
         if (filas && columnas) {
@@ -239,7 +407,7 @@ export async function POST(request: NextRequest) {
             success: true,
             zona: zonaInfo,
             plazas: plazasInfo,
-            message: `Zona "${zona_nombre}" creada exitosamente con ${cantidadTotal} plazas (${numeroInicio}-${numeroFin})`
+            message: `Zona "${zona_nombre}" creada exitosamente con ${cantidadTotal} plazas nuevas (${numeroInicio}-${numeroFin})`
         });
 
         response.cookies.getAll().forEach(c => {

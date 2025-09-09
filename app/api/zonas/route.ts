@@ -469,113 +469,150 @@ async function handleZoneCreation(supabase: any, response: any, body: any) {
         return json;
     }
 
-    // Modo 2: Creación de zona con generación automática de plazas
-    const { zona_nombre, est_id, capacidad } = body;
+    // Modo 2: Creación de zona con generación automática de plazas (formato nuevo - compatible con configuracion-zona)
+    const { zona_nombre, est_id, cantidad_plazas, filas, columnas, numeracion } = body;
 
-    if (!zona_nombre || !est_id || !capacidad) {
+    if (!zona_nombre || !est_id) {
         return NextResponse.json({
-            error: 'Se requieren zona_nombre, est_id y capacidad para crear zona con plazas'
+            error: 'Se requieren zona_nombre y est_id'
         }, { status: 400 });
     }
 
-    // Verificar que la zona no exista ya
-    const { data: existingZones } = await supabase
-        .from('plazas')
-        .select('pla_zona')
+    // Determinar cantidad total de plazas
+    let totalPlazas: number;
+
+    if (cantidad_plazas) {
+        // Modo directo: cantidad especificada
+        totalPlazas = cantidad_plazas;
+    } else if (filas && columnas) {
+        // Modo layout: filas x columnas
+        totalPlazas = filas * columnas;
+    } else {
+        return NextResponse.json({
+            error: 'Debe especificar cantidad_plazas O filas y columnas'
+        }, { status: 400 });
+    }
+
+    if (totalPlazas <= 0) {
+        return NextResponse.json({
+            error: 'La cantidad de plazas debe ser mayor a 0'
+        }, { status: 400 });
+    }
+
+    // Verificar que la zona no exista ya en la tabla zonas
+    const { data: existingZone } = await supabase
+        .from('zonas')
+        .select('zona_id')
         .eq('est_id', est_id)
-        .eq('pla_zona', zona_nombre)
+        .eq('zona_nombre', zona_nombre)
         .limit(1);
 
-    if (existingZones && existingZones.length > 0) {
+    if (existingZone && existingZone.length > 0) {
         return NextResponse.json({
-            error: `La zona "${zona_nombre}" ya existe`
+            error: `La zona "${zona_nombre}" ya existe en este estacionamiento`
         }, { status: 400 });
     }
 
-    // Obtener el número más alto de plaza existente
-    const { data: existingPlazas } = await supabase
+    // Crear la zona en la tabla zonas primero
+    const zonaInsertData = {
+        est_id,
+        zona_nombre,
+        zona_capacidad: totalPlazas,
+        grid_rows: filas || null,
+        grid_cols: columnas || null
+    };
+
+    const { data: zonaData, error: zonaError } = await supabase
+        .from('zonas')
+        .insert(zonaInsertData)
+        .select('zona_id')
+        .single();
+
+    if (zonaError) {
+        console.error('❌ Error creando zona:', zonaError);
+        return NextResponse.json({
+            error: `Error creando zona: ${zonaError.message}`
+        }, { status: 500 });
+    }
+
+    const zona_id = zonaData.zona_id;
+    console.log('✅ Zona creada con ID:', zona_id);
+
+    // Encontrar el primer número disponible para plazas nuevas
+    const { data: plazasExistentes, error: existError } = await supabase
         .from('plazas')
         .select('pla_numero')
         .eq('est_id', est_id)
-        .order('pla_numero', { ascending: false })
-        .limit(1);
+        .order('pla_numero');
 
-    let nextPlazaNumber = 1;
-    if (existingPlazas && existingPlazas.length > 0) {
-        nextPlazaNumber = (existingPlazas[0].pla_numero || 0) + 1;
+    if (existError) {
+        console.error('❌ Error obteniendo plazas existentes:', existError);
+        await supabase.from('zonas').delete().eq('zona_id', zona_id);
+        return NextResponse.json({
+            error: `Error obteniendo plazas existentes: ${existError.message}`
+        }, { status: 500 });
     }
 
-    // Generar plazas para cada tipo de vehículo
+    // Crear un set de números existentes para búsqueda rápida
+    const numerosExistentes = new Set(plazasExistentes?.map((p: any) => p.pla_numero) || []);
+
+    // Encontrar el primer número disponible
+    let numeroInicio = 1;
+    while (numerosExistentes.has(numeroInicio)) {
+        numeroInicio++;
+    }
+
+    console.log(`🔢 Primer número disponible encontrado: ${numeroInicio}`);
+
+    // Crear plazas nuevas para la zona
     const plazasToCreate = [];
-    const tiposVehiculo = [
-        { key: 'AUT', count: capacidad.Auto || 0 },
-        { key: 'MOT', count: capacidad.Moto || 0 },
-        { key: 'CAM', count: capacidad.Camioneta || 0 }
-    ];
-
-    let currentNumber = nextPlazaNumber;
-
-    for (const tipo of tiposVehiculo) {
-        for (let i = 0; i < tipo.count; i++) {
-            plazasToCreate.push({
-                est_id: est_id,
-                pla_numero: currentNumber,
-                pla_estado: 'Libre',
-                catv_segmento: tipo.key,
-                pla_zona: zona_nombre
-            });
-            currentNumber++;
-        }
+    for (let i = 0; i < totalPlazas; i++) {
+        plazasToCreate.push({
+            est_id,
+            pla_numero: numeroInicio + i,
+            zona_id,
+            pla_estado: 'Libre',
+            catv_segmento: 'AUT', // Por defecto autos
+            pla_zona: zona_nombre
+        });
     }
 
-    // Insertar todas las plazas
-    if (plazasToCreate.length > 0) {
-        const { error: plazasError } = await supabase
-            .from('plazas')
-            .insert(plazasToCreate);
+    const { error: plazasError } = await supabase
+        .from('plazas')
+        .insert(plazasToCreate);
 
-        if (plazasError) {
-            console.error('❌ Error creando plazas:', plazasError);
-            return NextResponse.json({
-                error: `Error creando plazas: ${plazasError.message}`
-            }, { status: 500 });
-        }
-
-        // Asignar números locales a las plazas recién creadas
-        // Primero obtener el zona_id de la zona que acabamos de crear
-        const { data: zonaCreada, error: zonaError } = await supabase
-            .from('zonas')
-            .select('zona_id')
-            .eq('zona_nombre', zona_nombre)
-            .eq('est_id', est_id)
-            .single();
-
-        if (!zonaError && zonaCreada) {
-            // Actualizar números locales usando la función
-            const { data: updateResult, error: updateError } = await supabase.rpc(
-                'update_local_numbers_for_zone',
-                { p_zona_id: zonaCreada.zona_id, p_est_id: est_id }
-            );
-
-            if (updateError) {
-                console.error('⚠️ Error actualizando números locales:', updateError);
-            } else {
-                console.log('✅ Números locales actualizados:', updateResult);
-            }
-        } else {
-            console.error('⚠️ Error obteniendo zona_id para actualizar números locales:', zonaError);
-        }
+    if (plazasError) {
+        console.error('❌ Error creando plazas para la zona:', plazasError);
+        await supabase.from('zonas').delete().eq('zona_id', zona_id);
+        return NextResponse.json({
+            error: `Error creando plazas para la zona: ${plazasError.message}`
+        }, { status: 500 });
     }
 
-    const totalPlazas = plazasToCreate.length;
-    const plazaRange = totalPlazas > 0 ? `${nextPlazaNumber}-${currentNumber - 1}` : 'ninguna';
+    console.log(`✅ Creadas ${totalPlazas} plazas nuevas: ${numeroInicio}-${numeroInicio + totalPlazas - 1}`);
 
+    // Información de respuesta
+    const numeroFin = numeroInicio + totalPlazas - 1;
     const json = NextResponse.json({
         success: true,
-        zona_nombre,
-        plazas_creadas: totalPlazas,
-        rango_plazas: plazaRange,
-        message: `Zona "${zona_nombre}" creada con ${totalPlazas} plazas (${plazaRange})`
+        zona: {
+            zona_id,
+            zona_nombre,
+            est_id,
+            zona_capacidad: totalPlazas
+        },
+        plazas: {
+            cantidad_total: totalPlazas,
+            plazas_creadas: totalPlazas,
+            plazas_asignadas: 0,
+            rango_numeros: `${numeroInicio}-${numeroFin}`,
+            modo_numeracion: 'zonas_independientes',
+            detalle_creacion: {
+                plazas_nuevas: `${numeroInicio}-${numeroFin} (creadas específicamente para esta zona)`,
+                zona_independiente: true
+            }
+        },
+        message: `Zona "${zona_nombre}" creada exitosamente con ${totalPlazas} plazas nuevas (${numeroInicio}-${numeroFin})`
     });
 
     response.cookies.getAll().forEach((c: any) => {

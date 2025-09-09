@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 // Tipos para la API
 interface Zona {
@@ -33,6 +34,7 @@ interface ConfiguracionZona {
 
 const ConfiguracionZonaPage: React.FC = () => {
     const router = useRouter();
+    const { estId, user, loading: authLoading, setEstId } = useAuth();
 
     // Estados del formulario
     const [zonaNombre, setZonaNombre] = useState<string>('');
@@ -56,12 +58,162 @@ const ConfiguracionZonaPage: React.FC = () => {
     // Estado para controlar si usar filas/columnas o cantidad directa
     const [usarLayout, setUsarLayout] = useState<boolean>(false);
 
-    // Obtener el ID del estacionamiento (simulado por ahora)
-    const estId = 1; // TODO: Obtener desde contexto de autenticación
+    // Estado para zonas existentes
+    const [zonasExistentes, setZonasExistentes] = useState<string[]>([]);
+    const [cargandoZonas, setCargandoZonas] = useState<boolean>(false);
+    const [zonaDuplicada, setZonaDuplicada] = useState<boolean>(false);
 
     // Obtener el parámetro de zona de la URL
     const searchParams = new URLSearchParams(window.location.search);
     const zonaParametro = searchParams.get('zona');
+
+    // Sincronización simple: mantener totalEditable actualizado
+    React.useEffect(() => {
+        if (cantidadPlazas > 0) {
+            setTotalEditable(cantidadPlazas);
+        }
+    }, [cantidadPlazas]);
+
+    // Cargar configuración de zona existente si viene por parámetro
+    React.useEffect(() => {
+        if (zonaParametro && estId) {
+            cargarInformacionZona(zonaParametro);
+        }
+    }, [zonaParametro, estId]);
+
+    // Cargar zonas existentes cuando el estId esté disponible
+    React.useEffect(() => {
+        if (estId && !authLoading) {
+            cargarZonasExistentes();
+        }
+    }, [estId, authLoading]);
+
+    // Verificar zona en tiempo real cuando cambie el nombre
+    React.useEffect(() => {
+        verificarZonaTiempoReal(zonaNombre);
+    }, [zonaNombre, zonasExistentes]);
+
+    // Función para cargar zonas existentes
+    const cargarZonasExistentes = async () => {
+        if (!estId) return;
+
+        try {
+            setCargandoZonas(true);
+            const response = await fetch(`/api/zonas?est_id=${estId}`);
+            if (response.ok) {
+                const data = await response.json();
+                const nombresZonas = data.zonas?.map((zona: any) => zona.zona_nombre) || [];
+                setZonasExistentes(nombresZonas);
+                console.log('📋 Zonas existentes cargadas:', nombresZonas);
+            }
+        } catch (error) {
+            console.error('Error cargando zonas existentes:', error);
+        } finally {
+            setCargandoZonas(false);
+        }
+    };
+
+    // Función para verificar si una zona ya existe
+    const verificarZonaExistente = async (nombreZona: string): Promise<boolean> => {
+        try {
+            const response = await fetch(`/api/zonas?est_id=${estId}`);
+            if (response.ok) {
+                const data = await response.json();
+                return data.zonas?.some((zona: any) => zona.zona_nombre === nombreZona) || false;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error verificando zona existente:', error);
+            return false;
+        }
+    };
+
+    // Función para verificar zona en tiempo real
+    const verificarZonaTiempoReal = (nombre: string) => {
+        const nombreTrim = nombre.trim();
+        const existe = zonasExistentes.includes(nombreTrim);
+        setZonaDuplicada(existe && nombreTrim !== '');
+        return existe;
+    };
+
+    // Función para refrescar el estacionamiento
+    const refreshEstacionamiento = async () => {
+        try {
+            console.log('🔄 Refrescando estacionamiento...');
+            const response = await fetch('/api/auth/get-parking-id');
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.has_parking && data.est_id) {
+                    console.log(`✅ Nuevo estacionamiento encontrado: ${data.est_id}`);
+                    setEstId(data.est_id);
+                    if (typeof window !== 'undefined') {
+                        localStorage.setItem('parking_est_id', String(data.est_id));
+                    }
+                    toast.success(`Estacionamiento actualizado: ${data.est_nombre}`);
+                } else {
+                    toast.error('No se encontró ningún estacionamiento para tu cuenta');
+                }
+            } else {
+                toast.error('Error al refrescar el estacionamiento');
+            }
+        } catch (error) {
+            console.error('Error refrescando estacionamiento:', error);
+            toast.error('Error al refrescar el estacionamiento');
+        }
+    };
+
+    // Validar que el usuario esté autenticado y tenga estacionamiento
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+                    <p className="text-gray-600">Cargando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso Denegado</h2>
+                    <p className="text-gray-600">Debes iniciar sesión para acceder a esta página.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!estId && !authLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Estacionamiento No Configurado</h2>
+                    <p className="text-gray-600 mb-4">No se encontró un estacionamiento configurado para tu cuenta.</p>
+
+                    <div className="bg-gray-100 p-4 rounded-lg mb-4 text-left max-w-md">
+                        <p className="text-sm text-gray-700 mb-1"><strong>Usuario:</strong> {user?.email}</p>
+                        <p className="text-sm text-gray-700 mb-1"><strong>ID del estacionamiento:</strong> {estId || 'No disponible'}</p>
+                        <p className="text-sm text-gray-700"><strong>Estado:</strong> Sin estacionamiento asignado</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Button onClick={refreshEstacionamiento} className="mr-2">
+                            <Loader2 className="mr-2 h-4 w-4" />
+                            Refrescar Estacionamiento
+                        </Button>
+                        <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                            Ir al Dashboard
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Función para mostrar errores con dialog
     const showErrorDialog = (title: string, message: string) => {
@@ -80,6 +232,25 @@ const ConfiguracionZonaPage: React.FC = () => {
     const enviarDatos = async (data?: any) => {
         try {
             setLoading(true);
+
+            console.log('🔍 Debug - enviarDatos:', {
+                estId,
+                user: user?.email,
+                zonaNombre,
+                usarLayout,
+                filas,
+                columnas,
+                cantidadPlazas
+            });
+
+            if (!estId) {
+                throw new Error('No se ha seleccionado un estacionamiento válido');
+            }
+
+            // Verificar si la zona ya existe antes de intentar crearla
+            if (await verificarZonaExistente(zonaNombre.trim())) {
+                throw new Error(`La zona "${zonaNombre.trim()}" ya existe en este estacionamiento. Por favor elige un nombre diferente.`);
+            }
 
             const configuracion: ConfiguracionZona = {
                 est_id: estId,
@@ -141,26 +312,13 @@ const ConfiguracionZonaPage: React.FC = () => {
     };
 
 
-    // Sincronización simple: mantener totalEditable actualizado
-    React.useEffect(() => {
-        if (cantidadPlazas > 0) {
-            setTotalEditable(cantidadPlazas);
-        }
-    }, [cantidadPlazas]);
-
-    // Cargar configuración de zona existente si viene por parámetro
-    React.useEffect(() => {
-        if (zonaParametro) {
-            cargarInformacionZona(zonaParametro);
-        }
-    }, [zonaParametro]);
 
     const cargarInformacionZona = async (zonaNombre: string) => {
         try {
             setLoading(true);
             console.log(`🔍 Cargando información de zona "${zonaNombre}"`);
 
-            const response = await fetch(`/api/zonas?zona=${encodeURIComponent(zonaNombre)}&est_id=${estId}`);
+            const response = await fetch(`/api/zonas?zona=${encodeURIComponent(zonaNombre)}&est_id=${estId!}`);
 
             if (!response.ok) {
                 throw new Error('Error al cargar información de la zona');
@@ -312,6 +470,15 @@ const ConfiguracionZonaPage: React.FC = () => {
             return;
         }
 
+        // Verificar si la zona ya existe
+        if (zonaDuplicada) {
+            showErrorDialog(
+                "Zona duplicada",
+                `La zona "${zonaNombre.trim()}" ya existe en este estacionamiento. Por favor elige un nombre diferente.`
+            );
+            return;
+        }
+
         // Validar cantidad de plazas
         let cantidadFinal = totalEditable;
 
@@ -392,13 +559,32 @@ const ConfiguracionZonaPage: React.FC = () => {
                             <CardContent className="space-y-4">
                                 {/* Nombre de la zona */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="zona-nombre">Nombre de la zona</Label>
+                                    <Label htmlFor="zona-nombre">
+                                        Nombre de la zona
+                                        {cargandoZonas && <span className="text-xs text-gray-500 ml-2">(Cargando zonas...)</span>}
+                                    </Label>
                                     <Input
                                         id="zona-nombre"
                                         placeholder="Ej: Zona Norte, Zona VIP, etc."
                                         value={zonaNombre}
                                         onChange={(e) => setZonaNombre(e.target.value)}
+                                        className={zonaDuplicada ? "border-red-500 focus:border-red-500" : ""}
                                     />
+
+                                    {/* Mensaje de error si la zona está duplicada */}
+                                    {zonaDuplicada && (
+                                        <div className="text-sm text-red-600 flex items-center gap-1">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            Esta zona ya existe. Por favor elige un nombre diferente.
+                                        </div>
+                                    )}
+
+                                    {/* Lista de zonas existentes */}
+                                    {zonasExistentes.length > 0 && (
+                                        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                            <strong>Zonas existentes:</strong> {zonasExistentes.join(', ')}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Switch para modo de configuración */}
@@ -540,7 +726,7 @@ const ConfiguracionZonaPage: React.FC = () => {
                                     </Button>
                                     <Button
                                         onClick={handleContinuar}
-                                        disabled={loading || !zonaNombre.trim() || !cantidadPlazas}
+                                        disabled={loading || !zonaNombre.trim() || !cantidadPlazas || zonaDuplicada}
                                     >
                                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Continuar

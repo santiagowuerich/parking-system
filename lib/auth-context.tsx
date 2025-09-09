@@ -100,7 +100,7 @@ export const AuthContext = createContext<{
   refreshCapacity: async () => { },
   setEstId: () => { },
   ensureParkingSetup: async () => { },
-  signInWithGoogle: async () => {},
+  signInWithGoogle: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-  
+
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
@@ -554,24 +554,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user?.id) {
       console.log(`👤 Usuario autenticado: ${user.email}, verificando estacionamiento...`);
 
-      // Verificar si hay estId guardado en localStorage
-      if (typeof window !== 'undefined') {
-        const savedEstId = localStorage.getItem('parking_est_id');
-        if (savedEstId) {
-          console.log(`📦 estId encontrado en localStorage: ${savedEstId}`);
-          setEstId(parseInt(savedEstId));
-        } else {
-          console.log(`📦 No hay estId en localStorage`);
-        }
-      }
+      // Función para obtener el estId del usuario
+      const getUserEstId = async () => {
+        try {
+          // Primero verificar si hay estId guardado en localStorage
+          if (typeof window !== 'undefined') {
+            const savedEstId = localStorage.getItem('parking_est_id');
+            if (savedEstId) {
+              console.log(`📦 estId encontrado en localStorage: ${savedEstId}`);
+              const parsedEstId = parseInt(savedEstId);
+              setEstId(parsedEstId);
+              return parsedEstId;
+            }
+          }
 
-      // Solo ejecutar ensureParkingSetup si no hay estId válido
-      if (estId === null) {
-        console.log(`🔍 No hay estId, ejecutando ensureParkingSetup`);
-        ensureParkingSetup();
-      } else {
-        console.log(`✅ Ya hay estId válido: ${estId}, omitiendo ensureParkingSetup`);
-      }
+          // Si no hay en localStorage, verificar desde la API
+          console.log(`🔍 No hay estId en localStorage, consultando API...`);
+          const response = await fetch('/api/auth/get-parking-id');
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.has_parking && data.est_id) {
+              console.log(`✅ Estacionamiento encontrado via API: ${data.est_id}`);
+              setEstId(data.est_id);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('parking_est_id', String(data.est_id));
+              }
+              return data.est_id;
+            } else {
+              console.log(`⚠️ Usuario no tiene estacionamiento asignado`);
+              setEstId(null);
+              return null;
+            }
+          } else {
+            console.log(`❌ Error consultando estacionamiento via API`);
+            setEstId(null);
+            return null;
+          }
+        } catch (error) {
+          console.error(`❌ Error obteniendo estId:`, error);
+          setEstId(null);
+          return null;
+        }
+      };
+
+      // Obtener el estId
+      getUserEstId();
     } else {
       console.log(`🚪 Usuario no autenticado, reseteando datos`);
       // Resetear los datos cuando no hay usuario
