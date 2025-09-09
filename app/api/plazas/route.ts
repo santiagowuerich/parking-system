@@ -292,12 +292,19 @@ export async function GET(request: Request) {
             });
         }
 
-        // Si no se especifica zona_id, obtener todas las plazas (comportamiento original)
-        console.log('📊 Consultando todas las plazas del estacionamiento');
+        // Si no se especifica zona_id, obtener todas las plazas con información de plantillas (comportamiento original)
+        console.log('📊 Consultando todas las plazas del estacionamiento con información de plantillas');
 
         const { data: plazas, error: plazasError } = await supabase
             .from('plazas')
-            .select('*')
+            .select(`
+                *,
+                plantillas (
+                    plantilla_id,
+                    nombre_plantilla,
+                    catv_segmento
+                )
+            `)
             .eq('est_id', estId)
             .order('pla_numero');
 
