@@ -2,8 +2,50 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import UserParkings from "@/components/user-parkings";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ParkingDashboardPage() {
+    const { estId, setEstId, refreshParkedVehicles, refreshParkingHistory, refreshCapacity } = useAuth();
+    const { toast } = useToast();
+
+    const handleSelectParking = async (newEstId: number) => {
+        console.log('🔄 Iniciando cambio de estacionamiento a:', newEstId);
+
+        // Cambiar el estacionamiento en el contexto
+        setEstId(newEstId);
+
+        // Mostrar toast inmediatamente
+        toast({
+            title: "Cambiando estacionamiento...",
+            description: `Cargando datos del estacionamiento ID: ${newEstId}`
+        });
+
+        // Pequeño delay para asegurar que el estado se actualice completamente
+        setTimeout(async () => {
+            try {
+                // Refrescar datos del nuevo estacionamiento
+                await Promise.all([
+                    refreshParkedVehicles(),
+                    refreshParkingHistory(),
+                    refreshCapacity()
+                ]);
+
+                toast({
+                    title: "Estacionamiento cambiado",
+                    description: `Ahora estás gestionando el estacionamiento ID: ${newEstId}`
+                });
+            } catch (error) {
+                console.error('Error al cambiar estacionamiento:', error);
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Error al cargar los datos del nuevo estacionamiento"
+                });
+            }
+        }, 100);
+    };
+
     return (
         <DashboardLayout>
             <div className="p-6">
@@ -13,7 +55,10 @@ export default function ParkingDashboardPage() {
                         Administra y cambia entre tus diferentes estacionamientos
                     </p>
                 </div>
-                <UserParkings />
+                <UserParkings
+                    onSelectParking={handleSelectParking}
+                    currentEstId={estId || undefined}
+                />
             </div>
         </DashboardLayout>
     );
