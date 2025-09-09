@@ -53,6 +53,34 @@ export async function POST(request: NextRequest) {
 
                     console.log(`📝 Aplicando plantilla ${accion.plantilla_id} a plazas:`, accion.plazas);
 
+                    // Convertir números locales a números globales si es necesario
+                    let plazasGlobales = accion.plazas;
+
+                    // Si los números parecen ser locales (1-N), convertirlos a globales
+                    if (accion.plazas.every(num => typeof num === 'number' && num > 0 && num <= 60)) {
+                        console.log(`🔄 Convirtiendo números locales a globales:`, accion.plazas);
+
+                        // Obtener el mapeo de números locales a globales para esta zona
+                        const { data: plazaMapping, error: mappingError } = await supabase
+                            .from('plazas')
+                            .select('pla_local_numero, pla_numero')
+                            .eq('zona_id', zona_id)
+                            .eq('est_id', est_id)
+                            .in('pla_local_numero', accion.plazas);
+
+                        if (!mappingError && plazaMapping) {
+                            const localToGlobal = new Map();
+                            plazaMapping.forEach(p => {
+                                localToGlobal.set(p.pla_local_numero, p.pla_numero);
+                            });
+
+                            plazasGlobales = accion.plazas.map(local => localToGlobal.get(local) || local);
+                            console.log(`✅ Conversión completada:`, plazasGlobales);
+                        } else {
+                            console.log(`⚠️ Error obteniendo mapeo local-global, usando números originales`);
+                        }
+                    }
+
                     // Validar que la plantilla existe y pertenece al estacionamiento
                     const { data: plantilla, error: plantillaError } = await supabase
                         .from('plantillas')
@@ -75,7 +103,7 @@ export async function POST(request: NextRequest) {
                             p_est_id: est_id,
                             p_zona_id: zona_id,
                             p_plantilla_id: accion.plantilla_id,
-                            p_plazas: accion.plazas
+                            p_plazas: plazasGlobales
                         }
                     )
 
@@ -115,7 +143,35 @@ export async function POST(request: NextRequest) {
                         continue
                     }
 
-                    console.log(`🧹 Limpiando plantillas de plazas:`, accion.plazas);
+                    // Convertir números locales a números globales si es necesario
+                    let plazasGlobales = accion.plazas;
+
+                    // Si los números parecen ser locales (1-N), convertirlos a globales
+                    if (accion.plazas.every(num => typeof num === 'number' && num > 0 && num <= 60)) {
+                        console.log(`🔄 Convirtiendo números locales a globales para limpieza:`, accion.plazas);
+
+                        // Obtener el mapeo de números locales a globales para esta zona
+                        const { data: plazaMapping, error: mappingError } = await supabase
+                            .from('plazas')
+                            .select('pla_local_numero, pla_numero')
+                            .eq('zona_id', zona_id)
+                            .eq('est_id', est_id)
+                            .in('pla_local_numero', accion.plazas);
+
+                        if (!mappingError && plazaMapping) {
+                            const localToGlobal = new Map();
+                            plazaMapping.forEach(p => {
+                                localToGlobal.set(p.pla_local_numero, p.pla_numero);
+                            });
+
+                            plazasGlobales = accion.plazas.map(local => localToGlobal.get(local) || local);
+                            console.log(`✅ Conversión completada para limpieza:`, plazasGlobales);
+                        } else {
+                            console.log(`⚠️ Error obteniendo mapeo local-global para limpieza, usando números originales`);
+                        }
+                    }
+
+                    console.log(`🧹 Limpiando plantillas de plazas:`, plazasGlobales);
 
                     // Limpiar plantillas usando la función de base de datos
                     const { data: result, error: clearError } = await supabase.rpc(
@@ -123,7 +179,7 @@ export async function POST(request: NextRequest) {
                         {
                             p_est_id: est_id,
                             p_zona_id: zona_id,
-                            p_plazas: accion.plazas
+                            p_plazas: plazasGlobales
                         }
                     )
 

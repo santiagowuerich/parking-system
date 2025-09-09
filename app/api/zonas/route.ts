@@ -540,6 +540,31 @@ async function handleZoneCreation(supabase: any, response: any, body: any) {
                 error: `Error creando plazas: ${plazasError.message}`
             }, { status: 500 });
         }
+
+        // Asignar números locales a las plazas recién creadas
+        // Primero obtener el zona_id de la zona que acabamos de crear
+        const { data: zonaCreada, error: zonaError } = await supabase
+            .from('zonas')
+            .select('zona_id')
+            .eq('zona_nombre', zona_nombre)
+            .eq('est_id', est_id)
+            .single();
+
+        if (!zonaError && zonaCreada) {
+            // Actualizar números locales usando la función
+            const { data: updateResult, error: updateError } = await supabase.rpc(
+                'update_local_numbers_for_zone',
+                { p_zona_id: zonaCreada.zona_id, p_est_id: est_id }
+            );
+
+            if (updateError) {
+                console.error('⚠️ Error actualizando números locales:', updateError);
+            } else {
+                console.log('✅ Números locales actualizados:', updateResult);
+            }
+        } else {
+            console.error('⚠️ Error obteniendo zona_id para actualizar números locales:', zonaError);
+        }
     }
 
     const totalPlazas = plazasToCreate.length;

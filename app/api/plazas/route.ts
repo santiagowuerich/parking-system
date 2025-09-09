@@ -97,6 +97,36 @@ export async function GET(request: Request) {
 
             const plazasError = plazasBasicasError;
 
+            // Agregar información de números locales si las plazas existen
+            if (plazas && plazas.length > 0) {
+                console.log(`🔢 Agregando números locales para ${plazas.length} plazas...`);
+
+                // Obtener números locales para todas las plazas de esta zona
+                const { data: localNumbers, error: localError } = await supabase
+                    .from('plazas')
+                    .select('pla_numero, pla_local_numero')
+                    .eq('zona_id', zonaId)
+                    .eq('est_id', estId);
+
+                if (!localError && localNumbers) {
+                    // Crear mapa de números locales
+                    const localMap = new Map();
+                    localNumbers.forEach(p => {
+                        localMap.set(p.pla_numero, p.pla_local_numero);
+                    });
+
+                    // Agregar pla_local_numero a las plazas
+                    plazas = plazas.map(plaza => ({
+                        ...plaza,
+                        pla_local_numero: localMap.get(plaza.pla_numero) || plaza.pla_numero
+                    }));
+
+                    console.log(`✅ Números locales agregados`);
+                } else {
+                    console.log(`⚠️ No se pudieron obtener números locales, usando números globales`);
+                }
+            }
+
             if (plazasError) {
                 console.error('❌ Error obteniendo plazas de zona:', plazasError);
                 return NextResponse.json({
@@ -182,7 +212,8 @@ export async function GET(request: Request) {
                     } : null;
 
                     return {
-                        numero: plaza.pla_numero || 0,
+                        numero: plaza.pla_local_numero || plaza.pla_numero || 0, // Usar número local para UI
+                        numero_global: plaza.pla_numero, // Mantener referencia al número global
                         estado: plaza.pla_estado || 'Libre',
                         tipo_vehiculo: plaza.catv_segmento || 'AUT',
                         plantilla_actual: plantillaInfo,
