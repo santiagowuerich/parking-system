@@ -3,14 +3,6 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar que tenemos acceso a supabaseAdmin
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: "Configuración de servidor incompleta" },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     const {
       email,
@@ -29,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 1) Crear usuario en Supabase Auth (confirmación inmediata)
-    const { data: created, error: createUserError } = await (supabaseAdmin as any).auth.admin.createUser({
+    const { data: created, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -47,7 +39,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Usuario creado en Supabase Auth con ID:', authUserId);
 
     // 2) Crear/asegurar fila en tabla `usuario`
-    const { data: usuarioData, error: usuarioError } = await (supabaseAdmin as any)
+    const { data: usuarioData, error: usuarioError } = await supabaseAdmin
       .from('usuario')
       .insert({
         usu_nom: nombre,
@@ -75,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // 3) Crear rol de dueño enlazado
     console.log('👑 Asignando rol de dueño con due_id:', usuarioData.usu_id);
-    const { error: duenoError } = await (supabaseAdmin as any)
+    const { error: duenoError } = await supabaseAdmin
       .from('dueno')
       .insert({ due_id: usuarioData.usu_id });
 

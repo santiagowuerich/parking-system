@@ -107,14 +107,14 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Estacionamiento verificado:', {
             est_id: estacionamientoCheck.est_id,
-            dueno_auth_user_id: (estacionamientoCheck.dueno as any)?.usuario?.[0]?.[0]?.auth_user_id,
-            dueno_email: (estacionamientoCheck.dueno as any)?.usuario?.[0]?.[0]?.usu_email
+            dueno_auth_user_id: estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.auth_user_id,
+            dueno_email: estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.usu_email
         });
 
         // Usar service role client si:
         // 1. El usuario actual es legacy, O
         // 2. El estacionamiento pertenece a un usuario legacy
-        const usarServiceRole = usuarioActual?.auth_user_id === null || !usuarioActual || (estacionamientoCheck.dueno as any)?.usuario?.[0]?.[0]?.auth_user_id === null;
+        const usarServiceRole = usuarioActual?.auth_user_id === null || !usuarioActual || estacionamientoCheck.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null;
 
         if (usarServiceRole) {
             // Usar service role client para evitar problemas con RLS
@@ -171,11 +171,10 @@ export async function POST(request: NextRequest) {
         // Verificar acceso del usuario (considerar usuarios legacy y autenticados)
         let userHasAccess = false;
 
-
-        if ((estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id === user.id) {
+        if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === user.id) {
             // Usuario autenticado con Supabase y vinculado correctamente
             userHasAccess = true;
-        } else if ((estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id === null) {
+        } else if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null) {
             // Usuario legacy - permitir acceso temporal para migración
             console.log('⚠️ Acceso legacy permitido para estacionamiento:', est_id);
             userHasAccess = true;
@@ -185,8 +184,8 @@ export async function POST(request: NextRequest) {
             console.log('❌ Acceso denegado:', {
                 user_id: user.id,
                 user_email: user.email,
-                dueno_auth_user_id: (estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id,
-                dueno_email: (estacionamientoData.dueno as any)?.usuario?.[0]?.usu_email
+                dueno_auth_user_id: estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id,
+                dueno_email: estacionamientoData.duenos?.[0]?.usuarios?.[0]?.usu_email
             });
             return NextResponse.json({
                 error: 'No tienes acceso a este estacionamiento'
@@ -244,7 +243,7 @@ export async function POST(request: NextRequest) {
         // Para usuarios legacy (sin auth_user_id), usar el service role client
         let zonaData, zonaError;
 
-        if ((estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id === null) {
+        if (estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null) {
             // Usuario legacy - usar service role client para bypasear RLS
             const serviceSupabase = createServerClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -278,18 +277,18 @@ export async function POST(request: NextRequest) {
             zonaError = result.error;
         }
 
-        if (zonaError || !zonaData) {
+        if (zonaError) {
             console.error('❌ Error creando zona:', zonaError);
 
             // Manejar error de zona duplicada
-            if (zonaError?.code === '23505' && zonaError.message.includes('zonas_est_id_zona_nombre_key')) {
+            if (zonaError.code === '23505' && zonaError.message.includes('zonas_est_id_zona_nombre_key')) {
                 return NextResponse.json({
                     error: `La zona "${zona_nombre}" ya existe en este estacionamiento. Por favor elige un nombre diferente.`
                 }, { status: 400 });
             }
 
             return NextResponse.json({
-                error: zonaError ? `Error creando zona: ${zonaError.message}` : 'No se pudo crear la zona'
+                error: `Error creando zona: ${zonaError.message}`
             }, { status: 500 });
         }
 
@@ -306,7 +305,7 @@ export async function POST(request: NextRequest) {
         console.log(`📝 Creando ${cantidadTotal} plazas nuevas para la zona "${zona_nombre}"`);
 
         // Usar el mismo cliente que se usó para crear la zona
-        const clienteParaPlazas = (estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id === null ?
+        const clienteParaPlazas = estacionamientoData.duenos?.[0]?.usuarios?.[0]?.auth_user_id === null ?
             createServerClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
                 process.env.SUPABASE_SERVICE_ROLE_KEY!,

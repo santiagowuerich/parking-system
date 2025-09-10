@@ -33,7 +33,6 @@ import {
     Monitor
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useRole } from "@/lib/use-role";
 import { useTheme } from "next-themes";
 import ParkingStatusWidget from "./ParkingStatusWidget";
 
@@ -41,110 +40,73 @@ interface SidebarProps {
     className?: string;
 }
 
-// Items de navegación por rol
-const navigationItemsByRole = {
-    owner: [
-        {
-            title: "Dashboard",
-            href: "/dashboard",
-            icon: LayoutDashboard,
-            description: "Vista general del sistema"
-        },
-        {
-            title: "Panel de Administrador",
-            href: "/dashboard/panel-administrador",
-            icon: BarChart3,
-            description: "Administración y estadísticas"
-        },
-        {
-            title: "Mis Estacionamientos",
-            href: "/dashboard/parking",
-            icon: Car,
-            description: "Administrar estacionamientos"
-        },
-        {
-            title: "Plantillas",
-            href: "/dashboard/plantillas",
-            icon: FileText,
-            description: "Gestionar plantillas de plazas"
-        },
-        {
-            title: "Tarifas",
-            href: "/dashboard/tarifas",
-            icon: CreditCard,
-            description: "Configurar precios y tarifas"
-        },
-        {
-            title: "Empleados",
-            href: "/dashboard/empleados",
-            icon: Users,
-            description: "Gestionar empleados"
-        },
-        {
-            title: "Configuración de Zona",
-            href: "/dashboard/configuracion-zona",
-            icon: Settings,
-            description: "Crear zonas y plazas"
-        },
-        {
-            title: "Visualización de Plazas",
-            href: "/dashboard/visualizacion-plazas",
-            icon: BarChart3,
-            description: "Ver estado de todas las plazas"
-        },
-        {
-            title: "Configuración Avanzada",
-            href: "/dashboard/plazas/configuracion-avanzada",
-            icon: Settings,
-            description: "Gestionar plantillas de plazas"
-        },
-        {
-            title: "Pagos",
-            href: "/dashboard/payments",
-            icon: Wallet,
-            description: "Historial de pagos"
-        }
-    ],
-    playero: [
-        {
-            title: "Dashboard",
-            href: "/dashboard",
-            icon: LayoutDashboard,
-            description: "Vista general del sistema"
-        },
-        {
-            title: "Panel de Operador",
-            href: "/dashboard/operador-simple",
-            icon: ParkingCircle,
-            description: "Gestión de estacionamientos"
-        },
-        {
-            title: "Visualización de Plazas",
-            href: "/dashboard/visualizacion-plazas",
-            icon: BarChart3,
-            description: "Ver estado de todas las plazas"
-        }
-    ],
-    conductor: [
-        {
-            title: "Dashboard",
-            href: "/dashboard",
-            icon: LayoutDashboard,
-            description: "Vista general del sistema"
-        }
-    ],
-    unknown: [
-        {
-            title: "Dashboard",
-            href: "/dashboard",
-            icon: LayoutDashboard,
-            description: "Vista general del sistema"
-        }
-    ]
-};
-
-// Items comunes para todos los roles
-const commonItems = [
+const navigationItems = [
+    {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        description: "Vista general del sistema"
+    },
+    {
+        title: "Panel de Operador",
+        href: "/dashboard/operador-simple",
+        icon: ParkingCircle,
+        description: "Gestión de estacionamientos"
+    },
+    {
+        title: "Panel de Administrador",
+        href: "/dashboard/panel-administrador",
+        icon: BarChart3,
+        description: "Administración y estadísticas"
+    },
+    {
+        title: "Mis Estacionamientos",
+        href: "/dashboard/parking",
+        icon: Car,
+        description: "Administrar estacionamientos"
+    },
+    {
+        title: "Plantillas",
+        href: "/dashboard/plantillas",
+        icon: FileText,
+        description: "Gestionar plantillas de plazas"
+    },
+    {
+        title: "Tarifas",
+        href: "/dashboard/tarifas",
+        icon: CreditCard,
+        description: "Configurar precios y tarifas"
+    },
+    {
+        title: "Google Maps",
+        href: "/dashboard/google-maps",
+        icon: MapPin,
+        description: "Configurar mapas y ubicación"
+    },
+    {
+        title: "Empleados",
+        href: "/dashboard/empleados",
+        icon: Users,
+        description: "Gestionar empleados"
+    },
+    {
+        title: "Configuración de Zona",
+        href: "/dashboard/configuracion-zona",
+        icon: Settings,
+        description: "Crear zonas y plazas"
+    },
+    {
+        title: "Visualización de Plazas",
+        href: "/dashboard/visualizacion-plazas",
+        icon: BarChart3,
+        description: "Ver estado de todas las plazas"
+    },
+    {
+        title: "Configuración Avanzada",
+        href: "/dashboard/plazas/configuracion-avanzada",
+        icon: Settings,
+        description: "Gestionar plantillas de plazas"
+    },
     {
         title: "Perfil",
         href: "/account/security",
@@ -163,14 +125,8 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const { user, signOut } = useAuth();
-    const { role, loading: roleLoading } = useRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
-
-    // Obtener items de navegación según el rol
-    const navigationItems = role
-        ? [...navigationItemsByRole[role], ...commonItems]
-        : [...commonItems];
 
     const handleNavigation = (href: string) => {
         router.push(href);
@@ -286,9 +242,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                     {!collapsed && (
                         <div className="px-3 py-2">
                             <p className="text-sm font-medium">{user?.email}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {roleLoading ? 'Cargando...' : `Rol: ${role === 'owner' ? 'Dueño' : role === 'playero' ? 'Playero' : role === 'conductor' ? 'Conductor' : 'Sin definir'}`}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Usuario activo</p>
                         </div>
                     )}
                     <Button
