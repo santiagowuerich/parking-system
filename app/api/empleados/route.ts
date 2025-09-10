@@ -74,8 +74,19 @@ export async function GET(request: NextRequest) {
 
         const userId = usuario.usu_id;
 
-        // Si no se especifica est_id, obtener todos los empleados de los estacionamientos del usuario
-        let query = supabaseAdmin
+        // Verificar si el usuario es un DUEÑO o un EMPLEADO
+        const { data: duenoCheck, error: duenoError } = await supabaseAdmin
+            .from('dueno')
+            .select('due_id')
+            .eq('due_id', userId)
+            .single();
+
+        const isDueno = !duenoError && duenoCheck !== null;
+        console.log('👤 Usuario', user.email, 'es', isDueno ? 'DUEÑO' : 'EMPLEADO');
+        console.log('🔍 Usuario ID:', userId, 'Auth ID:', user.id);
+
+        // Si no se especifica est_id, obtener empleados según el rol del usuario
+        let query = supabase
             .from('empleados_estacionamiento')
             .select(`
                 *,
@@ -95,35 +106,32 @@ export async function GET(request: NextRequest) {
         if (estId) {
             query = query.eq('est_id', parseInt(estId));
         } else {
-            // Si no se especifica est_id, obtener solo los estacionamientos del usuario actual
-            const { data: userEstacionamientos, error: estError } = await supabaseAdmin
-                .from('estacionamientos')
-                .select('est_id')
-                .eq('due_id', userId);
+            if (isDueno) {
+                // DUEÑO: obtener empleados de sus estacionamientos usando consulta directa
+                console.log('👑 Dueño - obteniendo empleados de sus estacionamientos');
 
-            if (estError) {
-                console.error('Error obteniendo estacionamientos del usuario:', estError);
-                return NextResponse.json(
-                    { error: "Error al obtener estacionamientos del usuario" },
-                    { status: 500 }
-                );
-            }
+                // Para dueños, obtener todos los empleados de sus estacionamientos
+                // La política RLS se encargará de filtrar automáticamente
+                console.log('👑 Dueño consultando todos los empleados disponibles');
 
-            if (userEstacionamientos && userEstacionamientos.length > 0) {
-                const estIds = userEstacionamientos.map(est => est.est_id);
-                query = query.in('est_id', estIds);
             } else {
-                return NextResponse.json({
-                    empleados: []
-                });
+                // EMPLEADO: obtener solo su propia asignación
+                console.log('👷 Empleado consultando sus asignaciones - userId:', userId);
+                query = query.eq('play_id', userId);
             }
         }
 
         // Ejecutar la consulta
         console.log('🔄 GET /api/empleados - Ejecutando consulta...');
+        console.log('📋 GET /api/empleados - Query SQL que se ejecutará:', query.toString());
+
         const { data: empleados, error } = await query;
         console.log('📊 GET /api/empleados - Empleados crudos encontrados:', empleados?.length || 0);
-        console.log('📋 GET /api/empleados - Empleados crudos:', empleados);
+        console.log('📋 GET /api/empleados - Empleados crudos:', JSON.stringify(empleados, null, 2));
+
+        if (empleados && empleados.length > 0) {
+            console.log('👤 GET /api/empleados - Primer empleado encontrado:', empleados[0]);
+        }
 
         if (error) {
             console.log('❌ GET /api/empleados - Error en consulta:', error);

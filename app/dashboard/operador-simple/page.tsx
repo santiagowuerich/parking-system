@@ -434,11 +434,7 @@ export default function OperadorSimplePage() {
 
             // Mostrar información detallada de la tarifa
             let toastDescription = `${licensePlate} ha salido exitosamente. `;
-            if (agreedPrice > 0 && agreedPrice > calculatedFee) {
-                toastDescription += `Tarifa acordada: $${agreedPrice.toFixed(2)} (calculada: $${calculatedFee.toFixed(2)})`;
-            } else {
-                toastDescription += `Tarifa: $${fee.toFixed(2)}`;
-            }
+            toastDescription += `Tarifa: $${fee.toFixed(2)}`;
 
             toast({
                 title: "Salida registrada",

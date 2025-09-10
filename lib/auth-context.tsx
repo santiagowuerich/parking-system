@@ -480,7 +480,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('📋 Respuesta de get-parking-id:', checkData);
 
         if (!checkData.has_parking) {
-          console.log("🏗️ Usuario sin estacionamiento, creando...");
+          console.log("👷 Usuario sin estacionamiento propio, verificando si es empleado...");
+
+          // Verificar si el usuario es un empleado asignado a algún estacionamiento
+          const employeeResponse = await fetch('/api/auth/get-employee-parking');
+          if (employeeResponse.ok) {
+            const employeeData = await employeeResponse.json();
+            console.log('👷 Respuesta de get-employee-parking:', employeeData);
+
+            if (employeeData.has_assignment) {
+              console.log(`✅ Empleado asignado al estacionamiento: ${employeeData.est_id}`);
+              setEstId(employeeData.est_id);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('parking_est_id', String(employeeData.est_id));
+              }
+              return; // Salir aquí porque ya configuramos el estacionamiento del empleado
+            }
+          }
+
+          console.log("🏗️ Usuario sin estacionamiento ni asignación, creando...");
 
           // Crear el estacionamiento
           const setupResponse = await fetch('/api/auth/setup-parking', {
@@ -568,29 +586,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          // Si no hay en localStorage, verificar desde la API
+          // Si no hay en localStorage, verificar si es dueño de estacionamiento
           console.log(`🔍 No hay estId en localStorage, consultando API...`);
-          const response = await fetch('/api/auth/get-parking-id');
+          const ownerResponse = await fetch('/api/auth/get-parking-id');
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.has_parking && data.est_id) {
-              console.log(`✅ Estacionamiento encontrado via API: ${data.est_id}`);
-              setEstId(data.est_id);
+          if (ownerResponse.ok) {
+            const ownerData = await ownerResponse.json();
+            if (ownerData.has_parking && ownerData.est_id) {
+              console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
+              setEstId(ownerData.est_id);
               if (typeof window !== 'undefined') {
-                localStorage.setItem('parking_est_id', String(data.est_id));
+                localStorage.setItem('parking_est_id', String(ownerData.est_id));
               }
-              return data.est_id;
-            } else {
-              console.log(`⚠️ Usuario no tiene estacionamiento asignado`);
-              setEstId(null);
-              return null;
+              return ownerData.est_id;
             }
-          } else {
-            console.log(`❌ Error consultando estacionamiento via API`);
-            setEstId(null);
-            return null;
           }
+
+          // Si no es dueño, verificar si es empleado asignado
+          console.log(`👷 Usuario no es dueño, verificando si es empleado...`);
+          const employeeResponse = await fetch('/api/auth/get-employee-parking');
+
+          if (employeeResponse.ok) {
+            const employeeData = await employeeResponse.json();
+            if (employeeData.has_assignment && employeeData.est_id) {
+              console.log(`✅ Usuario es EMPLEADO asignado a estacionamiento: ${employeeData.est_id}`);
+              setEstId(employeeData.est_id);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('parking_est_id', String(employeeData.est_id));
+              }
+              return employeeData.est_id;
+            }
+          }
+
+          // Si no es dueño ni empleado asignado
+          console.log(`⚠️ Usuario no tiene estacionamiento ni asignación`);
+          setEstId(null);
+          return null;
+
         } catch (error) {
           console.error(`❌ Error obteniendo estId:`, error);
           setEstId(null);

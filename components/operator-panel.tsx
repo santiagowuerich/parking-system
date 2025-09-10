@@ -673,11 +673,6 @@ export default function OperatorPanel({
                       <SelectItem value="mes">1 Mes (30 días)</SelectItem>
                     </SelectContent>
                   </Select>
-                  {agreedPrice !== null && agreedPrice > 0 && (
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                      💰 Precio acordado: ${agreedPrice.toFixed(2)} (mínimo garantizado)
-                    </p>
-                  )}
                 </div>
               )}
             </div>
