@@ -66,12 +66,6 @@ const employeeNavigationItems = [
 // Elementos de navegación para dueños
 const ownerNavigationItems = [
     {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-        description: "Vista general del sistema"
-    },
-    {
         title: "Panel de Operador",
         href: "/dashboard/operador-simple",
         icon: ParkingCircle,
@@ -100,12 +94,6 @@ const ownerNavigationItems = [
         href: "/dashboard/tarifas",
         icon: CreditCard,
         description: "Configurar precios y tarifas"
-    },
-    {
-        title: "Google Maps",
-        href: "/dashboard/google-maps",
-        icon: MapPin,
-        description: "Configurar mapas y ubicación"
     },
     {
         title: "Empleados",

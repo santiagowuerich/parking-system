@@ -39,6 +39,7 @@ interface EstacionamientoDetalle {
 
 export default function DashboardPage() {
     const { user, estId, parkedVehicles, parkingCapacity } = useAuth();
+    const [isOwner, setIsOwner] = useState<boolean | null>(null);
     const [stats, setStats] = useState({
         totalVehicles: 0,
         availableSpaces: 0,
@@ -115,62 +116,112 @@ export default function DashboardPage() {
         }
     }, [parkedVehicles, parkingCapacity]);
 
+    // Determinar si el usuario es dueño
+    useEffect(() => {
+        const checkUserRole = async () => {
+            if (!user?.email) return;
+
+            try {
+                const checkResponse = await fetch('/api/auth/get-parking-id');
+                if (checkResponse.ok) {
+                    const checkData = await checkResponse.json();
+                    setIsOwner(checkData.has_parking);
+                } else {
+                    // Si no puede obtener estacionamientos propios, verificar si es empleado
+                    const employeeResponse = await fetch('/api/auth/get-employee-parking');
+                    if (employeeResponse.ok) {
+                        const employeeData = await employeeResponse.json();
+                        setIsOwner(!employeeData.has_assignment); // Si es empleado, no es dueño
+                    } else {
+                        setIsOwner(false);
+                    }
+                }
+            } catch (error) {
+                console.error('Error determinando rol del usuario:', error);
+                setIsOwner(false);
+            }
+        };
+
+        checkUserRole();
+    }, [user]);
+
     // Cargar detalles del estacionamiento cuando estId cambie
     useEffect(() => {
         cargarDetallesEstacionamiento();
     }, [estId]);
 
+    // Filtrar acciones según el rol del usuario
     const quickActions = [
         {
             title: "Registrar Entrada",
             description: "Registrar un nuevo vehículo",
             icon: Car,
             href: "/",
-            color: "bg-blue-500"
+            color: "bg-blue-500",
+            showForOwners: true,
+            showForEmployees: true
         },
         {
             title: "Gestionar Tarifas",
             description: "Configurar precios",
             icon: DollarSign,
             href: "/gestion-tarifas",
-            color: "bg-green-500"
+            color: "bg-green-500",
+            showForOwners: true,
+            showForEmployees: true
         },
         {
             title: "Plantillas",
             description: "Administrar plantillas",
             icon: Settings,
             href: "/gestion-plantillas",
-            color: "bg-purple-500"
+            color: "bg-purple-500",
+            showForOwners: true,
+            showForEmployees: false
         },
         {
             title: "Google Maps",
             description: "Configurar ubicación",
             icon: ParkingCircle,
             href: "/google-maps-setup",
-            color: "bg-orange-500"
+            color: "bg-orange-500",
+            showForOwners: false, // Ocultar para dueños
+            showForEmployees: true
         },
         {
             title: "Configurar Zona",
             description: "Crear zonas y plazas",
             icon: Settings,
             href: "/dashboard/configuracion-zona",
-            color: "bg-indigo-500"
+            color: "bg-indigo-500",
+            showForOwners: true,
+            showForEmployees: false
         },
         {
             title: "Ver Plazas",
             description: "Visualizar estado de plazas",
             icon: Activity,
             href: "/dashboard/visualizacion-plazas",
-            color: "bg-cyan-500"
+            color: "bg-cyan-500",
+            showForOwners: true,
+            showForEmployees: true
         },
         {
             title: "Configuración Avanzada",
             description: "Gestionar plantillas de plazas",
             icon: Settings,
             href: "/dashboard/plazas/configuracion-avanzada",
-            color: "bg-pink-500"
+            color: "bg-pink-500",
+            showForOwners: true,
+            showForEmployees: false
         }
-    ];
+    ].filter(action => {
+        // Si aún no sabemos el rol, mostrar todas las acciones
+        if (isOwner === null) return true;
+
+        // Mostrar según el rol del usuario
+        return isOwner ? action.showForOwners : action.showForEmployees;
+    });
 
     return (
         <DashboardLayout>
@@ -185,8 +236,13 @@ export default function DashboardPage() {
 
                         {/* Información compacta del estacionamiento */}
                         <div
-                            className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                            onClick={() => window.location.href = '/dashboard/parking'}
+                            className={`mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg transition-colors duration-200 ${isOwner ? 'cursor-default' : 'cursor-pointer hover:bg-blue-100'
+                                }`}
+                            onClick={() => {
+                                if (!isOwner) {
+                                    window.location.href = '/dashboard/parking';
+                                }
+                            }}
                         >
                             <div className="flex items-center gap-3">
                                 <Building2 className="h-5 w-5 text-blue-600" />
