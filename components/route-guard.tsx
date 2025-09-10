@@ -3,7 +3,7 @@
 import { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { useRole } from "@/lib/use-role";
+import { useRole } from "../lib/use-role";
 import { Button } from "@/components/ui/button";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
 
