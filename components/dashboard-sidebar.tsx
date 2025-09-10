@@ -72,12 +72,6 @@ const ownerNavigationItems = [
         description: "Gestión de estacionamientos"
     },
     {
-        title: "Panel de Administrador",
-        href: "/dashboard/panel-administrador",
-        icon: BarChart3,
-        description: "Administración y estadísticas"
-    },
-    {
         title: "Mis Estacionamientos",
         href: "/dashboard/parking",
         icon: Car,
