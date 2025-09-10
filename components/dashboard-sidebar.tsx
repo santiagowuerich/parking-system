@@ -270,7 +270,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
                         return (
                             <Button
-                                key={item.href}
+                                key={`${item.href}-${item.title}`}
                                 variant={isActive ? "secondary" : "ghost"}
                                 className={cn(
                                     "w-full justify-start h-auto p-3",
