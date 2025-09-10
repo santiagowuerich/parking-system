@@ -104,6 +104,9 @@ export default function OperatorPanel({
   const [showExitConfirmation, setShowExitConfirmation] = useState(false)
   const [selectedPlaza, setSelectedPlaza] = useState<any>(null)
 
+  // Estado para el selector de duración
+  const [selectedDuration, setSelectedDuration] = useState<string>("hora")
+
   // Filtros para la tabla de vehículos estacionados
   const [filterPlate, setFilterPlate] = useState<string>("")
   const [filterVehicleType, setFilterVehicleType] = useState<VehicleType | 'Todos'>("Todos")
@@ -137,6 +140,7 @@ export default function OperatorPanel({
   // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
   useEffect(() => { reloadPlazas() }, [estId, selectedType])
 
+
   // Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
   useEffect(() => { reloadPlazas() }, [parking.parkedVehicles.length])
 
@@ -155,9 +159,20 @@ export default function OperatorPanel({
     }
 
     // Ahora es obligatorio seleccionar una plaza
-    if (!selectedPlaza) {
+    if (!plaNumero || plaNumero === "") {
       setError("Debe seleccionar una plaza")
       return
+    }
+
+    // Si no tenemos selectedPlaza pero tenemos plaNumero, crear plaza temporal
+    if (!selectedPlaza && plaNumero) {
+      const plazaTemporal = {
+        pla_numero: Number(plaNumero),
+        pla_estado: 'Libre',
+        catv_segmento: 'AUT',
+        pla_zona: 'Sin zona'
+      };
+      setSelectedPlaza(plazaTemporal);
     }
 
     // Verificar que la plaza esté realmente libre
@@ -173,14 +188,34 @@ export default function OperatorPanel({
       license_plate: licensePlate,
       type: selectedType,
       pla_numero: chosen,
-      plaNumeroSelected: plaNumero,
-      selectedPlaza: selectedPlaza
+      duracion: selectedDuration
     });
+
+    // Calcular fecha límite basada en duración
+    const now = new Date();
+    let fechaLimite = new Date(now);
+    switch (selectedDuration) {
+      case "hora":
+        fechaLimite.setHours(now.getHours() + 1);
+        break;
+      case "dia":
+        fechaLimite.setDate(now.getDate() + 1);
+        break;
+      case "semana":
+        fechaLimite.setDate(now.getDate() + 7);
+        break;
+      case "mes":
+        fechaLimite.setMonth(now.getMonth() + 1);
+        break;
+    }
 
     onRegisterEntry({
       license_plate: licensePlate,
       type: selectedType,
       pla_numero: chosen,
+      duracion_tipo: selectedDuration,
+      precio_acordado: 0, // Se calculará en el backend
+      fecha_limite: fechaLimite.toISOString()
     })
 
     // Limpiar formulario
@@ -188,6 +223,7 @@ export default function OperatorPanel({
     setSelectedType("Auto")
     setPlaNumero("")
     setSelectedPlaza(null)
+    setSelectedDuration("hora")
   }
 
   const handleExit = async (vehicle: Vehicle) => {
@@ -227,14 +263,20 @@ export default function OperatorPanel({
 
   // Función para manejar selección de plaza
   const handlePlazaSelection = (plazaNumero: string) => {
+    console.log('🔍 Seleccionando plaza:', plazaNumero);
+
     setPlaNumero(plazaNumero);
 
     if (plazaNumero) {
       // Encontrar la plaza seleccionada
-      const plaza = plazasCompletas.find(p => p.pla_numero === Number(plazaNumero));
-      setSelectedPlaza(plaza);
+      const plazaNumeroNum = Number(plazaNumero);
+      const plaza = plazasCompletas.find(p => p.pla_numero === plazaNumeroNum);
+
+      console.log('🏠 Plaza encontrada:', plaza ? `Sí (${plaza.pla_numero})` : 'No');
 
       if (plaza) {
+        console.log('✅ Plaza seleccionada correctamente:', plaza.pla_numero);
+        setSelectedPlaza(plaza);
         // Si la plaza tiene plantilla, usar el tipo de vehículo de la plantilla
         if (plaza.plantillas && plaza.plantillas.catv_segmento) {
           const tipoVehiculo = mapearTipoVehiculo(plaza.plantillas.catv_segmento);
@@ -245,6 +287,17 @@ export default function OperatorPanel({
           const tipoVehiculo = mapearTipoVehiculo(plaza.catv_segmento);
           setSelectedType(tipoVehiculo);
         }
+      } else {
+        console.log('❌ Plaza no encontrada en plazasCompletas, creando plaza temporal');
+        // Crear una plaza temporal para permitir que funcione el formulario
+        const plazaTemporal = {
+          pla_numero: plazaNumeroNum,
+          pla_estado: 'Libre',
+          catv_segmento: 'AUT',
+          pla_zona: 'Sin zona'
+        };
+        setSelectedPlaza(plazaTemporal);
+        setSelectedType('Auto');
       }
     } else {
       setSelectedPlaza(null);
@@ -260,6 +313,7 @@ export default function OperatorPanel({
       default: return 'Auto';
     }
   };
+
 
   // Crear visualización rica de zonas usando plazasCompletas
   const crearVisualizacionRica = () => {
@@ -518,6 +572,21 @@ export default function OperatorPanel({
               </div>
 
               <div className="space-y-2">
+                <Label className="dark:text-zinc-400">Duración</Label>
+                <Select value={selectedDuration} onValueChange={setSelectedDuration}>
+                  <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
+                    <SelectValue placeholder="Seleccionar duración" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hora">Por Hora</SelectItem>
+                    <SelectItem value="dia">Diaria</SelectItem>
+                    <SelectItem value="semana">Semanal</SelectItem>
+                    <SelectItem value="mes">Mensual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label className="dark:text-zinc-400">Seleccionar Plaza (determina el tipo de vehículo)</Label>
                 <Select value={plaNumero} onValueChange={handlePlazaSelection}>
                   <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
@@ -552,8 +621,8 @@ export default function OperatorPanel({
               </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
               disabled={!selectedPlaza}
             >
@@ -562,6 +631,7 @@ export default function OperatorPanel({
           </form>
         </CardContent>
       </Card>
+
 
       {/* Panel de "Salida Registrada" eliminado: usamos solo notificación (toast) */}
 

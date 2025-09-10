@@ -101,6 +101,7 @@ export default function OperadorSimplePage() {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log('📊 Plazas completas cargadas:', data.plazas?.length || 0);
                 setPlazasCompletas(data.plazas || []);
             } else {
                 console.error("Error al cargar datos completos de plazas");
@@ -155,7 +156,12 @@ export default function OperadorSimplePage() {
     };
 
     // Registrar entrada de vehículo
-    const registerEntry = async (vehicleData: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => {
+    const registerEntry = async (vehicleData: Omit<Vehicle, "entry_time"> & {
+        pla_numero?: number | null,
+        duracion_tipo?: string,
+        precio_acordado?: number,
+        fecha_limite?: string
+    }) => {
         if (!estId || !user?.id) {
             toast({
                 variant: "destructive",
@@ -203,6 +209,34 @@ export default function OperadorSimplePage() {
                 if (createVehicleError) throw createVehicleError;
             }
 
+            // Calcular precio basado en la duración seleccionada y tarifas disponibles
+            let precioCalculado = 0;
+            if (vehicleData.duracion_tipo && vehicleData.duracion_tipo !== 'hora') {
+                // Buscar tarifa para la duración seleccionada
+                const { data: tarifas } = await supabase
+                    .from('tarifas')
+                    .select('*')
+                    .eq('est_id', estId)
+                    .order('tar_f_desde', { ascending: false });
+
+                if (tarifas && tarifas.length > 0) {
+                    // Mapear duración a tiptar_nro
+                    const duracionMap: { [key: string]: number } = {
+                        'hora': 1,
+                        'dia': 2,
+                        'semana': 4,
+                        'mes': 3
+                    };
+
+                    const tiptarNro = duracionMap[vehicleData.duracion_tipo] || 1;
+                    const tarifaEncontrada = tarifas.find(t => t.tiptar_nro === tiptarNro);
+
+                    if (tarifaEncontrada) {
+                        precioCalculado = tarifaEncontrada.tar_precio;
+                    }
+                }
+            }
+
             // Registrar la ocupación
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
@@ -210,7 +244,10 @@ export default function OperadorSimplePage() {
                     est_id: estId,
                     veh_patente: vehicleData.license_plate,
                     ocu_fh_entrada: new Date().toISOString(),
-                    pla_numero: vehicleData.pla_numero
+                    pla_numero: vehicleData.pla_numero,
+                    ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
+                    ocu_precio_acordado: precioCalculado,
+                    ocu_fecha_limite: vehicleData.fecha_limite || null
                 });
 
             if (ocupacionError) throw ocupacionError;
@@ -237,7 +274,7 @@ export default function OperadorSimplePage() {
 
             toast({
                 title: "Entrada registrada",
-                description: `${vehicleData.license_plate} ha sido registrado exitosamente`
+                description: `${vehicleData.license_plate} registrado por ${vehicleData.duracion_tipo || 'hora'}${precioCalculado > 0 ? ` - $${precioCalculado.toFixed(2)}` : ''}`
             });
         } catch (error) {
             console.error("Error al registrar entrada:", error);
