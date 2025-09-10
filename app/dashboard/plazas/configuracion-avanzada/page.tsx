@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Save, RotateCcw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { useAuth } from '@/lib/auth-context';
 
 // Importar componentes
 import { ZonePicker } from './components/ZonePicker';
@@ -53,6 +54,9 @@ interface Action {
 }
 
 const ConfiguracionAvanzadaPage: React.FC = () => {
+    // Obtener el contexto de autenticación
+    const { estId, user, loading: authLoading } = useAuth();
+
     // Estados principales
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -74,15 +78,23 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
     const [modoSeleccion, setModoSeleccion] = useState<'individual' | 'rango' | 'fila' | 'columna'>('individual');
     const [previewMode, setPreviewMode] = useState(false);
 
-    // ID del estacionamiento (hardcoded por ahora)
-    const estId = 1;
-
-    // Cargar datos iniciales
+    // Cargar datos iniciales cuando estId esté disponible
     useEffect(() => {
-        cargarDatosIniciales();
-    }, []);
+        if (!authLoading && user && estId) {
+            cargarDatosIniciales();
+        } else if (!authLoading && !estId) {
+            // Si no hay estacionamiento asignado, mostrar mensaje
+            setLoading(false);
+        }
+    }, [authLoading, user, estId]);
 
     const cargarDatosIniciales = async () => {
+        if (!estId) {
+            console.error('No hay estacionamiento asignado');
+            toast.error('No se pudo determinar el estacionamiento actual');
+            return;
+        }
+
         try {
             setLoading(true);
 
@@ -112,8 +124,14 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
     // Función para cargar plazas de una zona específica
     const cargarPlazasZona = async (zonaId: number) => {
+        if (!estId) {
+            console.error('No hay estacionamiento asignado');
+            toast.error('No se pudo determinar el estacionamiento actual');
+            return;
+        }
+
         try {
-            console.log(`🔄 Cargando plazas de zona ${zonaId}...`);
+            console.log(`🔄 Cargando plazas de zona ${zonaId} para estacionamiento ${estId}...`);
             const response = await fetch(`/api/plazas?est_id=${estId}&zona_id=${zonaId}`);
             if (response.ok) {
                 const data = await response.json();
@@ -286,9 +304,13 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
     // Función para aplicar cambios en la base de datos
     const aplicarCambiosEnBD = async (accionesToApply: any[]) => {
-        if (!zonaActual) return;
+        if (!zonaActual || !estId) {
+            console.error('No hay zona seleccionada o estacionamiento asignado');
+            toast.error('No se pudo aplicar los cambios: zona o estacionamiento no disponible');
+            return;
+        }
 
-        console.log('🔄 Enviando acciones a BD:', accionesToApply);
+        console.log(`🔄 Enviando acciones a BD para estacionamiento ${estId}:`, accionesToApply);
 
         try {
             setSaving(true);
@@ -424,7 +446,44 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [acciones, indiceAccionActual, zonaActual, cargarPlazasZona]);
+    }, [acciones, indiceAccionActual, zonaActual, cargarPlazasZona, estId]);
+
+    // Mostrar loading mientras se carga la autenticación
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p className="text-muted-foreground">Verificando autenticación...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Mostrar mensaje si no hay usuario autenticado
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-6xl mb-4">🔒</div>
+                    <p className="text-muted-foreground">Debes iniciar sesión para acceder a esta página</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Mostrar mensaje si no hay estacionamiento asignado
+    if (!estId) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-6xl mb-4">🏗️</div>
+                    <p className="text-muted-foreground">No tienes un estacionamiento asignado</p>
+                    <p className="text-sm text-muted-foreground mt-2">Contacta al administrador para configurar tu estacionamiento</p>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
