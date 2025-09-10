@@ -577,7 +577,6 @@ export default function AdminPanel({
                   </div>
                 ))}
               </div>
-
               <DialogFooter className="flex justify-end gap-2">
                 {/* Botón de regenerar plazas se elimina porque Guardar ahora incluye esa operación */}
                 <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
