@@ -14,17 +14,23 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const userEmail = user.email?.toLowerCase(); // Normalizar a minúsculas
+        const userEmail = user.email;
 
-        // Buscar el usuario en la tabla tradicional por email (opcional para compatibilidad)
+        // Buscar el usuario en la tabla tradicional por email
         const { data: usuarioData, error: usuarioError } = await supabase
             .from('usuario')
             .select('usu_id, usu_nom, usu_ape, usu_email')
-            .eq('usu_email', userEmail) // Ya normalizado a minúsculas
+            .eq('usu_email', userEmail)
             .single();
 
-        // Buscar todos los estacionamientos del usuario por email (nuevo sistema)
-        // Usar búsqueda case-insensitive con lower()
+        if (usuarioError || !usuarioData) {
+            return NextResponse.json({
+                estacionamientos: [],
+                message: "Usuario no encontrado en sistema tradicional"
+            });
+        }
+
+        // Buscar todos los estacionamientos del usuario
         const { data: estacionamientosBasicos, error: estacionamientosError } = await supabase
             .from('estacionamientos')
             .select(`
@@ -36,11 +42,9 @@ export async function GET(request: NextRequest) {
         est_capacidad,
         est_cantidad_espacios_disponibles,
         est_horario_funcionamiento,
-        est_tolerancia_min,
-        est_email,
-        due_id
+        est_tolerancia_min
       `)
-            .eq('est_email', userEmail) // Ya está normalizado a minúsculas
+            .eq('due_id', usuarioData.usu_id)
             .order('est_id');
 
         if (estacionamientosError) {
@@ -83,21 +87,13 @@ export async function GET(request: NextRequest) {
 
         console.log(`📋 Usuario ${userEmail} tiene ${estacionamientosData?.length || 0} estacionamiento(s)`);
 
-        // Preparar información del usuario (usar datos tradicionales si existen, sino del auth)
-        const usuarioInfo = usuarioData ? {
-            usu_id: usuarioData.usu_id,
-            nombre_completo: `${usuarioData.usu_nom} ${usuarioData.usu_ape}`,
-            email: usuarioData.usu_email
-        } : {
-            usu_id: null,
-            nombre_completo: user.user_metadata?.name || userEmail?.split('@')[0] || 'Usuario',
-            email: userEmail
-        };
-
         return NextResponse.json({
             estacionamientos: estacionamientosData || [],
-            usuario: usuarioInfo,
-            sistema_tradicional: !!usuarioData // Indicar si el usuario existe en sistema tradicional
+            usuario: {
+                usu_id: usuarioData.usu_id,
+                nombre_completo: `${usuarioData.usu_nom} ${usuarioData.usu_ape}`,
+                email: usuarioData.usu_email
+            }
         });
 
     } catch (error) {
