@@ -5,7 +5,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import OperatorPanel from "@/components/operator-panel";
 import { useAuth } from "@/lib/auth-context";
 import { createBrowserClient } from "@supabase/ssr";
-import type { Parking, Vehicle, VehicleType, ParkingHistory } from "@/lib/types";
+import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -16,6 +16,8 @@ type ExitInfo = {
     fee: number;
     exitTime: Date;
     duration: string;
+    agreedPrice?: number;
+    calculatedFee?: number;
 };
 
 export default function OperadorSimplePage() {
@@ -155,7 +157,7 @@ export default function OperadorSimplePage() {
     };
 
     // Registrar entrada de vehículo
-    const registerEntry = async (vehicleData: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => {
+    const registerEntry = async (vehicleData: VehicleEntryData) => {
         if (!estId || !user?.id) {
             toast({
                 variant: "destructive",
@@ -203,6 +205,23 @@ export default function OperadorSimplePage() {
                 if (createVehicleError) throw createVehicleError;
             }
 
+            // Calcular fecha límite basada en duración seleccionada
+            let fechaLimite: Date | null = null;
+            if (vehicleData.duracion_tipo && vehicleData.duracion_tipo !== 'hora') {
+                const now = new Date();
+                switch (vehicleData.duracion_tipo) {
+                    case 'dia':
+                        fechaLimite = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // +1 día
+                        break;
+                    case 'semana':
+                        fechaLimite = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 días
+                        break;
+                    case 'mes':
+                        fechaLimite = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // +30 días (aproximado)
+                        break;
+                }
+            }
+
             // Registrar la ocupación
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
@@ -210,10 +229,16 @@ export default function OperadorSimplePage() {
                     est_id: estId,
                     veh_patente: vehicleData.license_plate,
                     ocu_fh_entrada: new Date().toISOString(),
-                    pla_numero: vehicleData.pla_numero
+                    pla_numero: vehicleData.pla_numero,
+                    ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
+                    ocu_precio_acordado: vehicleData.precio_acordado || 0,
+                    ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
                 });
 
-            if (ocupacionError) throw ocupacionError;
+            if (ocupacionError) {
+                console.error('Error al registrar ocupación:', ocupacionError);
+                throw new Error(`Error al registrar ocupación: ${ocupacionError.message}`);
+            }
 
             // Si se asignó una plaza específica, actualizarla como ocupada
             if (vehicleData.pla_numero) {
@@ -286,23 +311,74 @@ export default function OperadorSimplePage() {
 
             // Calcular tarifa basada en las tarifas configuradas
             let fee = 0;
+            let calculatedFee = 0; // Tarifa calculada por tiempo real
+            let agreedPrice = ocupacion.ocu_precio_acordado || 0; // Precio acordado mínimo
+
             if (rates && rates.length > 0) {
-                // Buscar tarifa por tipo de vehículo usando catv_segmento
-                const vehicleRate = rates.find((r: any) => {
-                    const rateSegmento = r.catv_segmento;
-                    return rateSegmento === ocupacion.type;
-                });
+                // Determinar el tipo de tarifa basado en la duración acordada
+                let tiptar = 1; // Por defecto hora
+                if (ocupacion.ocu_duracion_tipo === 'dia') {
+                    tiptar = 2; // Diaria
+                } else if (ocupacion.ocu_duracion_tipo === 'mes') {
+                    tiptar = 3; // Mensual
+                } else if (ocupacion.ocu_duracion_tipo === 'semana') {
+                    tiptar = 4; // Semanal
+                }
+
+                let vehicleRate = null;
+
+                // Obtener información de la plaza para determinar la plantilla
+                let plazaPlantillaId = null;
+                if (ocupacion.plaza_number) {
+                    try {
+                        const { data: plazaData, error: plazaError } = await supabase
+                            .from('plazas')
+                            .select('plantilla_id')
+                            .eq('pla_numero', ocupacion.plaza_number)
+                            .eq('est_id', estId)
+                            .single();
+
+                        if (!plazaError && plazaData?.plantilla_id) {
+                            plazaPlantillaId = plazaData.plantilla_id;
+                        }
+                    } catch (error) {
+                        console.warn('Error obteniendo plantilla de plaza:', error);
+                    }
+                }
+
+                // Primero intentar buscar por plantilla_id de la plaza (si existe)
+                if (plazaPlantillaId) {
+                    vehicleRate = rates.find((r: any) => {
+                        return r.plantilla_id === plazaPlantillaId && r.tiptar_nro === tiptar;
+                    });
+                }
+
+                // Si no se encontró por plantilla, buscar por catv_segmento (fallback)
+                if (!vehicleRate) {
+                    vehicleRate = rates.find((r: any) => {
+                        const rateSegmento = r.catv_segmento;
+                        const rateTipo = r.tiptar_nro;
+                        return rateSegmento === ocupacion.type && rateTipo === tiptar;
+                    });
+                }
 
                 if (vehicleRate) {
-                    // Calcular tarifa: precio base + (horas * precio por fracción)
                     const basePrice = parseFloat(vehicleRate.tar_precio) || 0;
                     const hourlyRate = parseFloat(vehicleRate.tar_fraccion) || 0;
 
-                    if (durationHours <= 1) {
-                        fee = basePrice;
-                    } else {
-                        fee = basePrice + (hourlyRate * (durationHours - 1));
+                    // Lógica de cálculo según el tipo de tarifa
+                    if (tiptar === 1) { // HORA: calcular dinámicamente
+                        if (durationHours <= 1) {
+                            calculatedFee = basePrice;
+                        } else {
+                            calculatedFee = basePrice + (hourlyRate * (durationHours - 1));
+                        }
+                    } else { // DÍA/SEMANA/MES: usar precio fijo
+                        calculatedFee = basePrice;
                     }
+
+                    // Usar el máximo entre la tarifa calculada y el precio acordado
+                    fee = Math.max(calculatedFee, agreedPrice);
                 }
             }
 
@@ -351,12 +427,22 @@ export default function OperadorSimplePage() {
                 },
                 fee: fee,
                 exitTime: exitTime,
-                duration: formatDuration(durationMs)
+                duration: formatDuration(durationMs),
+                agreedPrice: agreedPrice > 0 ? agreedPrice : undefined,
+                calculatedFee: calculatedFee
             });
+
+            // Mostrar información detallada de la tarifa
+            let toastDescription = `${licensePlate} ha salido exitosamente. `;
+            if (agreedPrice > 0 && agreedPrice > calculatedFee) {
+                toastDescription += `Tarifa acordada: $${agreedPrice.toFixed(2)} (calculada: $${calculatedFee.toFixed(2)})`;
+            } else {
+                toastDescription += `Tarifa: $${fee.toFixed(2)}`;
+            }
 
             toast({
                 title: "Salida registrada",
-                description: `${licensePlate} ha salido exitosamente. Tarifa: $${fee.toFixed(2)}`
+                description: toastDescription
             });
 
         } catch (error) {
