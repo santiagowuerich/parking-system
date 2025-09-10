@@ -42,6 +42,13 @@ async function createAuthenticatedSupabaseClient() {
 // GET - Obtener empleados de un estacionamiento
 export async function GET(request: NextRequest) {
     try {
+        // Verificar que tenemos acceso a supabaseAdmin
+        if (!supabaseAdmin) {
+            return NextResponse.json(
+                { error: "Configuración de servidor incompleta" },
+                { status: 500 }
+            );
+        }
         console.log('📋 GET /api/empleados - Iniciando...');
         const supabase = await createAuthenticatedSupabaseClient();
         const { searchParams } = new URL(request.url);
@@ -96,7 +103,7 @@ export async function GET(request: NextRequest) {
             query = query.eq('est_id', parseInt(estId));
         } else {
             // Si no se especifica est_id, obtener solo los estacionamientos del usuario actual
-            const { data: userEstacionamientos, error: estError } = await supabaseAdmin
+            const { data: userEstacionamientos, error: estError } = await (supabaseAdmin as any)
                 .from('estacionamientos')
                 .select('est_id')
                 .eq('due_id', userId);
@@ -110,7 +117,7 @@ export async function GET(request: NextRequest) {
             }
 
             if (userEstacionamientos && userEstacionamientos.length > 0) {
-                const estIds = userEstacionamientos.map(est => est.est_id);
+                const estIds = userEstacionamientos.map((est: { est_id: number }) => est.est_id);
                 query = query.in('est_id', estIds);
             } else {
                 return NextResponse.json({
@@ -216,6 +223,13 @@ export async function GET(request: NextRequest) {
 // POST - Crear nuevo empleado
 export async function POST(request: NextRequest) {
     try {
+        // Verificar que tenemos acceso a supabaseAdmin
+        if (!supabaseAdmin) {
+            return NextResponse.json(
+                { error: "Configuración de servidor incompleta" },
+                { status: 500 }
+            );
+        }
         console.log('🔄 Iniciando creación de empleado');
         const supabase = await createAuthenticatedSupabaseClient();
         const body = await request.json();
@@ -272,7 +286,7 @@ export async function POST(request: NextRequest) {
         }
 
         // VALIDACIÓN DE SEGURIDAD: Verificar que el usuario autenticado es DUEÑO del estacionamiento
-        const { data: duenoValidation, error: duenoError } = await supabaseAdmin
+        const { data: duenoValidation, error: duenoError } = await (supabaseAdmin as any)
             .from('dueno')
             .select('due_id')
             .eq('due_id', usuarioAutenticado.usu_id)
@@ -288,7 +302,7 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Validación de seguridad: Usuario es dueño del sistema');
 
-        const { data: estacionamiento, error: estError } = await supabaseAdmin
+        const { data: estacionamiento, error: estError } = await (supabaseAdmin as any)
             .from('estacionamientos')
             .select('est_id, est_nombre')
             .eq('est_id', est_id)
@@ -304,7 +318,7 @@ export async function POST(request: NextRequest) {
 
 
         // Verificar que el email no esté duplicado
-        const { data: existingUser } = await supabaseAdmin
+        const { data: existingUser } = await (supabaseAdmin as any)
             .from('usuario')
             .select('usu_id')
             .eq('usu_email', email)
@@ -322,7 +336,7 @@ export async function POST(request: NextRequest) {
 
         // PRIMERO: Crear usuario en Supabase Auth
         console.log('🔐 Creando usuario en Supabase Auth...');
-        const { data: authUser, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
+        const { data: authUser, error: createAuthError } = await (supabaseAdmin as any).auth.admin.createUser({
             email: email,
             password: contrasena, // Usar contraseña original, no hasheada
             email_confirm: true, // Confirmar email automáticamente
@@ -355,7 +369,7 @@ export async function POST(request: NextRequest) {
         // SEGUNDO: Crear empleado en la base de datos del sistema
         console.log('🔗 Iniciando creación de empleado en BD con auth_user_id:', authUser.user.id);
         // Primero crear registro en tabla usuario si no existe
-        const { error: userInsertError } = await supabaseAdmin
+        const { error: userInsertError } = await (supabaseAdmin as any)
             .from('usuario')
             .insert({
                 usu_nom: nombre,
@@ -376,9 +390,9 @@ export async function POST(request: NextRequest) {
 
             // Intentar eliminar el usuario de Auth y limpiar datos
             try {
-                await supabaseAdmin.auth.admin.deleteUser(authUser.user!.id);
+                await (supabaseAdmin as any).auth.admin.deleteUser(authUser.user!.id);
                 // También intentar limpiar cualquier registro de usuario que se haya creado
-                await supabaseAdmin.from('usuario').delete().eq('usu_email', email);
+                await (supabaseAdmin as any).from('usuario').delete().eq('usu_email', email);
                 console.log('✅ Usuario de Auth y datos eliminados por error en BD');
             } catch (cleanupError) {
                 console.error('⚠️ Error limpiando:', cleanupError);
@@ -391,7 +405,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Obtener el usu_id generado automáticamente usando el email
-        const { data: usuarioCreado, error: getUserError } = await supabaseAdmin
+        const { data: usuarioCreado, error: getUserError } = await (supabaseAdmin as any)
             .from('usuario')
             .select('usu_id, auth_user_id')
             .eq('usu_email', email)
@@ -402,8 +416,8 @@ export async function POST(request: NextRequest) {
 
             // Limpiar datos
             try {
-                await supabaseAdmin.from('usuario').delete().eq('usu_email', email);
-                await supabaseAdmin.auth.admin.deleteUser(authUser.user!.id);
+                await (supabaseAdmin as any).from('usuario').delete().eq('usu_email', email);
+                await (supabaseAdmin as any).auth.admin.deleteUser(authUser.user!.id);
                 console.log('🧹 Datos limpiados por error al obtener usu_id');
             } catch (cleanupError) {
                 console.error('⚠️ Error limpiando:', cleanupError);
@@ -424,7 +438,7 @@ export async function POST(request: NextRequest) {
         try {
             // PASO 1: Insertar en playeros
             console.log('👤 Insertando en playeros con play_id:', usuarioCreado.usu_id);
-            const { error: playeroError } = await supabaseAdmin
+            const { error: playeroError } = await (supabaseAdmin as any)
                 .from('playeros')
                 .insert({ play_id: usuarioCreado.usu_id });
 
@@ -436,7 +450,7 @@ export async function POST(request: NextRequest) {
 
             // PASO 2: Insertar en empleados_estacionamiento
             console.log('🏢 Insertando en empleados_estacionamiento...');
-            const { error: empleadoEstError } = await supabaseAdmin
+            const { error: empleadoEstError } = await (supabaseAdmin as any)
                 .from('empleados_estacionamiento')
                 .insert({
                     play_id: usuarioCreado.usu_id,
@@ -452,7 +466,7 @@ export async function POST(request: NextRequest) {
             if (disponibilidad && disponibilidad.length > 0) {
                 console.log('📅 Insertando disponibilidad...');
                 for (const disp of disponibilidad) {
-                    const { error: dispError } = await supabaseAdmin
+                    const { error: dispError } = await (supabaseAdmin as any)
                         .from('disponibilidad_empleado')
                         .insert({
                             play_id: usuarioCreado.usu_id,
@@ -475,8 +489,8 @@ export async function POST(request: NextRequest) {
             // Intentar eliminar el usuario de Auth y limpiar datos si falló la creación en BD
             try {
                 console.log('🧹 Intentando limpiar usuario de Auth y datos...');
-                await supabaseAdmin.auth.admin.deleteUser(authUser.user!.id);
-                await supabaseAdmin.from('usuario').delete().eq('usu_email', email);
+                await (supabaseAdmin as any).auth.admin.deleteUser(authUser.user!.id);
+                await (supabaseAdmin as any).from('usuario').delete().eq('usu_email', email);
                 console.log('✅ Usuario de Auth y datos eliminados por error en BD');
             } catch (cleanupError) {
                 console.error('⚠️ Error limpiando:', cleanupError);
@@ -558,7 +572,7 @@ export async function PUT(request: NextRequest) {
         if (estado !== undefined) updateData.usu_estado = estado;
 
         if (Object.keys(updateData).length > 0) {
-            const { error: updateError } = await supabaseAdmin
+            const { error: updateError } = await (supabaseAdmin as any)
                 .from('usuario')
                 .update(updateData)
                 .eq('usu_id', usu_id);
@@ -575,7 +589,7 @@ export async function PUT(request: NextRequest) {
         // Actualizar disponibilidad si se proporcionó
         if (disponibilidad && disponibilidad.length >= 0) {
             // Primero eliminar la disponibilidad existente
-            const { error: deleteError } = await supabaseAdmin
+            const { error: deleteError } = await (supabaseAdmin as any)
                 .from('disponibilidad_empleado')
                 .delete()
                 .eq('play_id', usu_id);
@@ -596,7 +610,7 @@ export async function PUT(request: NextRequest) {
                     turno_id: disp.turno_id
                 }));
 
-                const { error: insertError } = await supabaseAdmin
+                const { error: insertError } = await (supabaseAdmin as any)
                     .from('disponibilidad_empleado')
                     .insert(disponibilidadData);
 
@@ -614,7 +628,7 @@ export async function PUT(request: NextRequest) {
         console.log('🔍 Obteniendo empleado actualizado para usu_id:', usu_id);
 
         // Primero verificar que existe la asignación
-        const { data: asignacion, error: asignacionError } = await supabaseAdmin
+        const { data: asignacion, error: asignacionError } = await (supabaseAdmin as any)
             .from('empleados_estacionamiento')
             .select('*')
             .eq('play_id', usu_id)
@@ -631,7 +645,7 @@ export async function PUT(request: NextRequest) {
         console.log('✅ Asignación encontrada:', asignacion);
 
         // Obtener datos del usuario
-        const { data: usuarioActualizado, error: usuarioError } = await supabaseAdmin
+        const { data: usuarioActualizado, error: usuarioError } = await (supabaseAdmin as any)
             .from('usuario')
             .select('*')
             .eq('usu_id', usu_id)
@@ -648,7 +662,7 @@ export async function PUT(request: NextRequest) {
         console.log('✅ Usuario actualizado:', usuarioActualizado);
 
         // Obtener disponibilidad
-        const { data: disponibilidadActualizada, error: disponibilidadError } = await supabaseAdmin
+        const { data: disponibilidadActualizada, error: disponibilidadError } = await (supabaseAdmin as any)
             .from('disponibilidad_empleado')
             .select(`
                 dia_semana,
@@ -709,7 +723,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Verificar que el usuario existe y es un playero
-        const { data: playero, error: checkError } = await supabaseAdmin
+        const { data: playero, error: checkError } = await (supabaseAdmin as any)
             .from('playeros')
             .select('play_id')
             .eq('play_id', usu_id)
@@ -726,7 +740,7 @@ export async function DELETE(request: NextRequest) {
         console.log('🗑️ Eliminando relaciones del empleado con ID:', usu_id);
 
         // 1. Eliminar disponibilidad
-        const { error: dispError } = await supabaseAdmin
+        const { error: dispError } = await (supabaseAdmin as any)
             .from('disponibilidad_empleado')
             .delete()
             .eq('play_id', usu_id);
@@ -736,7 +750,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // 2. Eliminar asignación de estacionamiento
-        const { error: asignacionError } = await supabaseAdmin
+        const { error: asignacionError } = await (supabaseAdmin as any)
             .from('empleados_estacionamiento')
             .delete()
             .eq('play_id', usu_id);
@@ -746,7 +760,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // 3. Eliminar registro de playero
-        const { error: playeroError } = await supabaseAdmin
+        const { error: playeroError } = await (supabaseAdmin as any)
             .from('playeros')
             .delete()
             .eq('play_id', usu_id);
@@ -757,7 +771,7 @@ export async function DELETE(request: NextRequest) {
 
         // 4. Finalmente eliminar el usuario
         console.log('🗑️ Eliminando registro de usuario...');
-        const { error: deleteError } = await supabaseAdmin
+        const { error: deleteError } = await (supabaseAdmin as any)
             .from('usuario')
             .delete()
             .eq('usu_id', usu_id);
