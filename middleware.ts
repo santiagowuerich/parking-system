@@ -66,6 +66,13 @@ export async function middleware(request: NextRequest) {
   if (user && url.pathname.startsWith('/auth') && !url.pathname.includes('/reset-password')) {
     // Determinar el rol del usuario para redirigir apropiadamente
     try {
+      // Verificar que supabaseAdmin esté disponible
+      if (!supabaseAdmin) {
+        console.error('❌ supabaseAdmin no disponible en middleware');
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
+      }
+
       // Buscar usuario en tabla usuario
       const { data: usuarioData } = await supabaseAdmin
         .from('usuario')
@@ -119,6 +126,13 @@ export async function middleware(request: NextRequest) {
   // Protección de rutas por rol
   if (user && !isPublicPath) {
     try {
+      // Verificar que supabaseAdmin esté disponible
+      if (!supabaseAdmin) {
+        console.error('❌ supabaseAdmin no disponible en middleware para protección de rutas');
+        url.pathname = '/dashboard';
+        return NextResponse.redirect(url);
+      }
+
       // Determinar rol del usuario
       const { data: usuarioData } = await supabaseAdmin
         .from('usuario')

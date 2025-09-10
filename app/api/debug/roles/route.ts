@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
+interface Usuario {
+  usu_id: number;
+  usu_nom: string;
+  usu_ape: string;
+  usu_email: string;
+  auth_user_id: string;
+}
+
+interface Dueno {
+  due_id: number;
+}
+
+interface Playero {
+  play_id: number;
+}
+
+interface EmpleadoEstacionamiento {
+  play_id: number;
+  est_id: number;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Verificar que tenemos acceso a supabaseAdmin
@@ -58,11 +79,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. Análisis de conflictos
-    const conflictos = [];
-    const usuariosConRoles = usuarios.map(user => {
-      const esDueno = duenos?.some(d => d.due_id === user.usu_id);
-      const esPlayero = playeros?.some(p => p.play_id === user.usu_id);
-      const empleadoEst = empleadosEst?.find(e => e.play_id === user.usu_id);
+    const conflictos: Array<{ usuario: Usuario; problema: string }> = [];
+    const usuariosConRoles = (usuarios as Usuario[]).map((user: Usuario) => {
+      const esDueno = (duenos as Dueno[])?.some((d: Dueno) => d.due_id === user.usu_id);
+      const esPlayero = (playeros as Playero[])?.some((p: Playero) => p.play_id === user.usu_id);
+      const empleadoEst = (empleadosEst as EmpleadoEstacionamiento[])?.find((e: EmpleadoEstacionamiento) => e.play_id === user.usu_id);
       
       let rol = 'conductor'; // Por defecto
       let problema = null;

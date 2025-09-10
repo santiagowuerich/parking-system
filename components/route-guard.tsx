@@ -98,7 +98,7 @@ export function RouteGuard({
   }
 
   // Check if user has required role
-  if (!allowedRoles.includes(role)) {
+  if (!allowedRoles.includes(role as 'owner' | 'playero' | 'conductor')) {
     console.log(`🚫 Usuario con rol '${role}' intentando acceder a ruta protegida para roles:`, allowedRoles);
 
     if (showAccessDenied) {
