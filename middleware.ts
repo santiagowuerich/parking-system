@@ -91,11 +91,12 @@ export async function middleware(request: NextRequest) {
           .single();
 
         if (duenoData) {
+          console.log('👑 Usuario es DUEÑO - Redirigiendo a dashboard completo');
           url.pathname = '/dashboard';
           return NextResponse.redirect(url);
         }
 
-        // Verificar si es playero
+        // Verificar si es playero (empleado)
         const { data: playeroData } = await supabaseAdmin
           .from('playeros')
           .select('play_id')
@@ -103,11 +104,13 @@ export async function middleware(request: NextRequest) {
           .single();
 
         if (playeroData) {
-          url.pathname = '/dashboard';
+          console.log('👷 Usuario es EMPLEADO - Redirigiendo a panel de operador');
+          url.pathname = '/dashboard/operador-simple';
           return NextResponse.redirect(url);
         }
 
-        // Si es conductor o no tiene rol específico, ir al dashboard general
+        // Si es conductor (no tiene rol específico), ir al dashboard general
+        console.log('🚗 Usuario es CONDUCTOR - Redirigiendo a dashboard general');
         url.pathname = '/dashboard';
         return NextResponse.redirect(url);
       } else {
@@ -181,9 +184,18 @@ export async function middleware(request: NextRequest) {
           url.pathname === path || url.pathname.startsWith(path + '/')
         );
 
+        // Redirigir empleados al panel de operador si acceden al dashboard principal
+        if (url.pathname === '/dashboard' && userRole === 'playero') {
+          console.log('👷 Empleado intentando acceder a dashboard principal - Redirigiendo a panel de operador');
+          url.pathname = '/dashboard/operador-simple';
+          return NextResponse.redirect(url);
+        }
+
+        // Bloquear rutas de owner para empleados
         if (isOwnerOnlyPath && userRole !== 'owner') {
           console.log(`🚫 Usuario con rol '${userRole}' intentando acceder a ruta de owner: ${url.pathname}`);
-          url.pathname = '/dashboard';
+          // Redirigir empleados al panel de operador, conductores al dashboard principal
+          url.pathname = userRole === 'playero' ? '/dashboard/operador-simple' : '/dashboard';
           return NextResponse.redirect(url);
         }
       }
@@ -201,12 +213,13 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
+     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     // Rutas explícitas
     '/',
     '/auth/:path*', // Actualizar matcher para cubrir subrutas de /auth
