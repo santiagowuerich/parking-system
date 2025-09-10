@@ -39,7 +39,7 @@ const DIAS_SEMANA = [
 ];
 
 export default function GestionUsuariosPage() {
-    const { estId } = useAuth();
+    const { estId, user } = useAuth();
 
     // Estados principales
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -73,19 +73,48 @@ export default function GestionUsuariosPage() {
             estado: string;
         };
     } | null>(null);
+    const [userRole, setUserRole] = useState<'dueno' | 'empleado' | null>(null);
 
     // Cargar datos iniciales
     useEffect(() => {
         loadTurnos(); // Cargar turnos siempre, no depende de estId
-        if (estId) {
-            loadEmpleados();
+        if (user) {
+            determineUserRoleAndLoadEmpleados();
         }
-    }, [estId]);
+    }, [user, estId]);
 
-    const loadEmpleados = async () => {
-        console.log('🔄 Iniciando carga de empleados para estId:', estId);
+    // Determinar el rol del usuario y cargar empleados apropiadamente
+    const determineUserRoleAndLoadEmpleados = async () => {
+        if (!user?.email) return;
+
+        try {
+            // Verificar si el usuario es dueño
+            const response = await fetch('/api/auth/get-parking-id');
+            const parkingData = await response.json();
+
+            if (parkingData.has_parking) {
+                // Usuario es DUEÑO
+                setUserRole('dueno');
+                console.log('👑 Usuario identificado como DUEÑO');
+                loadEmpleadosAsDueno();
+            } else {
+                // Usuario podría ser EMPLEADO
+                setUserRole('empleado');
+                console.log('👷 Usuario identificado como EMPLEADO');
+                loadEmpleadosAsEmpleado();
+            }
+        } catch (error) {
+            console.error('Error determinando rol del usuario:', error);
+            setUserRole('empleado'); // Por defecto asumir empleado
+            loadEmpleadosAsEmpleado();
+        }
+    };
+
+    const loadEmpleadosAsDueno = async () => {
+        console.log('🔄 Iniciando carga de empleados como DUEÑO, estId:', estId);
         if (!estId) {
             console.log('❌ No hay estId disponible para cargar empleados');
+            setLoading(false);
             return;
         }
 
@@ -108,6 +137,40 @@ export default function GestionUsuariosPage() {
         }
         setLoading(false);
         console.log('🏁 Carga de empleados completada');
+    };
+
+    const loadEmpleadosAsEmpleado = async () => {
+        console.log('🔄 Iniciando carga de empleados como EMPLEADO');
+        setLoading(true);
+
+        try {
+            // Hacer consulta directa para obtener la asignación del empleado
+            const response = await fetch('/api/empleados');
+            const data = await response.json();
+
+            console.log('📊 Respuesta directa del endpoint empleados:', data);
+
+            if (response.ok && data.empleados) {
+                console.log('✅ Asignaciones de empleado cargadas exitosamente:', data.empleados.length);
+                console.log('👤 Asignaciones:', data.empleados);
+                setEmpleados(data.empleados);
+            } else {
+                console.log('❌ Error en respuesta:', data.error || 'Respuesta no válida');
+                // Si no hay empleados, mostrar mensaje vacío
+                setEmpleados([]);
+            }
+        } catch (error) {
+            console.log('❌ Error al cargar asignaciones:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error al cargar asignaciones"
+            });
+            setEmpleados([]);
+        }
+
+        setLoading(false);
+        console.log('🏁 Carga de asignaciones completada');
     };
 
     const loadTurnos = async () => {
@@ -158,8 +221,18 @@ export default function GestionUsuariosPage() {
     };
 
     const handleSaveUser = async () => {
-        // Validar que tengamos el estId del contexto
-        if (!estId) {
+        // Los empleados no pueden crear ni editar empleados
+        if (userRole === 'empleado') {
+            toast({
+                variant: "destructive",
+                title: "Acceso denegado",
+                description: "Los empleados no pueden gestionar otros empleados"
+            });
+            return;
+        }
+
+        // Validar que tengamos el estId del contexto para dueños
+        if (userRole === 'dueno' && !estId) {
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -176,16 +249,6 @@ export default function GestionUsuariosPage() {
                 variant: "destructive",
                 title: "Datos inválidos",
                 description: errores.join(', ')
-            });
-            return;
-        }
-
-        // Validar que estId esté disponible
-        if (!estId) {
-            toast({
-                variant: "destructive",
-                title: "Error de Configuración",
-                description: "No se pudo determinar el estacionamiento actual. Por favor, recargue la página."
             });
             return;
         }
@@ -209,12 +272,12 @@ export default function GestionUsuariosPage() {
             email: usuarioSeleccionado.email || '',
             estado: usuarioSeleccionado.estado || 'Activo',
             contrasena: contrasenaTemporal,
-            est_id: estId, // Usar el estacionamiento actual del contexto
+            est_id: estId!, // Solo disponible para dueños, por lo tanto nunca null
             disponibilidad: usuarioSeleccionado.disponibilidad || []
         };
 
         console.log('📤 Datos que se van a enviar al backend:', JSON.stringify(empleadoData, null, 2));
-        console.log('🔍 Estado del contexto:', { estId, contrasenaTemporal, usuarioSeleccionado });
+        console.log('🔍 Estado del contexto:', { userRole, estId, contrasenaTemporal, usuarioSeleccionado });
 
         let result;
         if (usuarioSeleccionado.usu_id) {
@@ -246,7 +309,7 @@ export default function GestionUsuariosPage() {
             setModalOpen(false);
             handleNewUser();
             console.log('🔄 Llamando a loadEmpleados después de crear empleado...');
-            await loadEmpleados();
+            await determineUserRoleAndLoadEmpleados();
             console.log('✅ Lista recargada después de crear empleado');
         } else {
             toast({
@@ -260,6 +323,16 @@ export default function GestionUsuariosPage() {
     };
 
     const handleDeleteUser = async (usuId: number) => {
+        // Los empleados no pueden eliminar empleados
+        if (userRole === 'empleado') {
+            toast({
+                variant: "destructive",
+                title: "Acceso denegado",
+                description: "Los empleados no pueden eliminar otros empleados"
+            });
+            return;
+        }
+
         if (!confirm('¿Estás seguro de que quieres eliminar este empleado? Esta acción no se puede deshacer.')) {
             return;
         }
@@ -271,7 +344,7 @@ export default function GestionUsuariosPage() {
                 title: "Éxito",
                 description: "Empleado eliminado correctamente"
             });
-            await loadEmpleados();
+            await determineUserRoleAndLoadEmpleados();
         } else {
             toast({
                 variant: "destructive",
@@ -354,9 +427,14 @@ export default function GestionUsuariosPage() {
     return (
         <div className="container mx-auto p-6 max-w-7xl bg-white min-h-screen">
             <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">Gestión de Empleados</h1>
+                <h1 className="text-3xl font-bold text-gray-900">
+                    {userRole === 'dueno' ? 'Gestión de Empleados' : 'Mi Asignación'}
+                </h1>
                 <p className="text-gray-600 mt-1">
-                    Administra los empleados de tu estacionamiento actual, sus datos y disponibilidad
+                    {userRole === 'dueno'
+                        ? 'Administra los empleados de tu estacionamiento actual, sus datos y disponibilidad'
+                        : 'Visualiza tu asignación actual como empleado'
+                    }
                 </p>
             </div>
 
@@ -364,13 +442,17 @@ export default function GestionUsuariosPage() {
             <Card className="bg-white border border-gray-200 shadow-sm">
                 <CardHeader>
                     <div className="flex items-center justify-between">
-                        <CardTitle className="text-gray-900">Listado de empleados</CardTitle>
+                        <CardTitle className="text-gray-900">
+                            {userRole === 'dueno' ? 'Listado de empleados' : 'Mi asignación'}
+                        </CardTitle>
                         <div className="flex gap-2">
-                            <Button onClick={handleNewUser} size="sm" className="bg-blue-600 hover:bg-blue-700">
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Nuevo Empleado
-                            </Button>
-                            <Button onClick={loadEmpleados} variant="outline" size="sm">
+                            {userRole === 'dueno' && (
+                                <Button onClick={handleNewUser} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Nuevo Empleado
+                                </Button>
+                            )}
+                            <Button onClick={determineUserRoleAndLoadEmpleados} variant="outline" size="sm">
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Actualizar
                             </Button>
@@ -406,18 +488,28 @@ export default function GestionUsuariosPage() {
                                 <tr className="bg-gradient-to-r from-gray-200 to-gray-300 border-b-2 border-gray-400">
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Nombre</th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Email</th>
-                                    <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Disponibilidad</th>
+                                    <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">
+                                        {userRole === 'dueno' ? 'Disponibilidad' : 'Estacionamiento'}
+                                    </th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
-                                    <th className="py-4 px-4 text-right text-sm font-bold text-gray-900">Acciones</th>
+                                    {userRole === 'dueno' && (
+                                        <th className="py-4 px-4 text-right text-sm font-bold text-gray-900">Acciones</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
                                 {empleadosFiltrados.length === 0 ? (
                                     <tr className="bg-white">
-                                        <td colSpan={5} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                        <td colSpan={userRole === 'dueno' ? 5 : 4} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
                                             {empleados.length === 0
-                                                ? "No hay empleados registrados en este estacionamiento. Crea el primero haciendo clic en 'Nuevo Empleado'."
-                                                : "No se encontraron empleados con los filtros aplicados."
+                                                ? (userRole === 'dueno'
+                                                    ? "No hay empleados registrados en este estacionamiento. Crea el primero haciendo clic en 'Nuevo Empleado'."
+                                                    : "No tienes asignaciones activas en ningún estacionamiento."
+                                                )
+                                                : (userRole === 'dueno'
+                                                    ? "No se encontraron empleados con los filtros aplicados."
+                                                    : "No se encontraron asignaciones con los filtros aplicados."
+                                                )
                                             }
                                         </td>
                                     </tr>
@@ -431,39 +523,47 @@ export default function GestionUsuariosPage() {
                                                 {empleado.email || 'Sin email'}
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
-                                                <div className="max-w-48 truncate" title={formatearDisponibilidad(empleado.disponibilidad)}>
-                                                    {formatearDisponibilidad(empleado.disponibilidad)}
-                                                </div>
+                                                {userRole === 'dueno' ? (
+                                                    <div className="max-w-48 truncate" title={formatearDisponibilidad(empleado.disponibilidad)}>
+                                                        {formatearDisponibilidad(empleado.disponibilidad)}
+                                                    </div>
+                                                ) : (
+                                                    <div className="max-w-48 truncate" title={empleado.estacionamiento?.est_nombre || 'Sin asignación'}>
+                                                        {empleado.estacionamiento?.est_nombre || 'Sin asignación'}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                                                 <Badge variant={getEstadoBadgeVariant(empleado.estado)} className="font-medium">
                                                     {empleado.estado}
                                                 </Badge>
                                             </td>
-                                            <td className="py-4 px-4 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleSelectUser(empleado)}
-                                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded px-2 py-1"
-                                                        title="Editar empleado"
-                                                    >
-                                                        <Edit className="h-4 w-4 mr-1" />
-                                                        <span className="text-xs font-medium">Editar</span>
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteUser(empleado.usu_id)}
-                                                        className="text-red-600 hover:text-red-800 hover:bg-red-50 border border-transparent hover:border-red-200 rounded px-2 py-1"
-                                                        title="Eliminar empleado"
-                                                    >
-                                                        <Trash2 className="h-4 w-4 mr-1" />
-                                                        <span className="text-xs font-medium">Eliminar</span>
-                                                    </Button>
-                                                </div>
-                                            </td>
+                                            {userRole === 'dueno' && (
+                                                <td className="py-4 px-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleSelectUser(empleado)}
+                                                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded px-2 py-1"
+                                                            title="Editar empleado"
+                                                        >
+                                                            <Edit className="h-4 w-4 mr-1" />
+                                                            <span className="text-xs font-medium">Editar</span>
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleDeleteUser(empleado.usu_id)}
+                                                            className="text-red-600 hover:text-red-800 hover:bg-red-50 border border-transparent hover:border-red-200 rounded px-2 py-1"
+                                                            title="Eliminar empleado"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-1" />
+                                                            <span className="text-xs font-medium">Eliminar</span>
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))
                                 )}

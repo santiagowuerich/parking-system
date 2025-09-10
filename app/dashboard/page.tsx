@@ -62,7 +62,8 @@ export default function DashboardPage() {
             const response = await fetch(`/api/auth/list-parkings`);
 
             if (!response.ok) {
-                throw new Error('Error al cargar detalles del estacionamiento');
+                const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+                throw new Error(`Error al cargar detalles del estacionamiento: ${errorData.error || response.statusText}`);
             }
 
             const data = await response.json();
@@ -78,6 +79,8 @@ export default function DashboardPage() {
                     console.log(`✅ Detalles cargados para estacionamiento: ${estacionamiento.est_nombre}`);
                 } else {
                     console.warn(`⚠️ No se encontró el estacionamiento con ID ${estId}`);
+                    // Para empleados, esto podría significar que no tienen asignación activa
+                    console.log(`👷 Posiblemente empleado sin asignación activa`);
                     setEstacionamientoActual(null);
                 }
             } else {
@@ -87,6 +90,11 @@ export default function DashboardPage() {
         } catch (error) {
             console.error('❌ Error cargando detalles del estacionamiento:', error);
             setEstacionamientoActual(null);
+
+            // Si hay un error específico, lo mostramos
+            if (error instanceof Error) {
+                console.error('Detalle del error:', error.message);
+            }
         } finally {
             setLoadingEstacionamiento(false);
         }
@@ -221,7 +229,7 @@ export default function DashboardPage() {
 
                                     {!estacionamientoActual && !loadingEstacionamiento && (
                                         <div className="text-sm text-blue-700">
-                                            {estId ? 'No se pudo cargar la información' : 'No hay estacionamiento seleccionado'}
+                                            {estId ? 'No se pudo cargar la información del estacionamiento' : 'No hay estacionamiento asignado'}
                                         </div>
                                     )}
                                 </div>
