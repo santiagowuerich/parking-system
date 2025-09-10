@@ -209,12 +209,13 @@ export default function OperatorPanel({
         break;
     }
 
+    // Nota: El precio se calculará en el backend basado en las tarifas configuradas
     onRegisterEntry({
       license_plate: licensePlate,
       type: selectedType,
       pla_numero: chosen,
       duracion_tipo: selectedDuration,
-      precio_acordado: 0, // Se calculará en el backend
+      precio_acordado: 0, // El backend calculará el precio correcto
       fecha_limite: fechaLimite.toISOString()
     })
 
