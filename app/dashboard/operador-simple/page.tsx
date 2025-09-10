@@ -215,6 +215,20 @@ export default function OperadorSimplePage() {
 
             if (ocupacionError) throw ocupacionError;
 
+            // Si se asignó una plaza específica, actualizarla como ocupada
+            if (vehicleData.pla_numero) {
+                const { error: plazaUpdateError } = await supabase
+                    .from('plazas')
+                    .update({ pla_estado: 'Ocupada' })
+                    .eq('pla_numero', vehicleData.pla_numero)
+                    .eq('est_id', estId);
+
+                if (plazaUpdateError) {
+                    console.warn('Error actualizando estado de plaza:', plazaUpdateError);
+                    // No lanzar error aquí porque la ocupación ya se registró exitosamente
+                }
+            }
+
             await refreshParkedVehicles();
             await Promise.all([
                 fetchPlazasStatus(),
@@ -304,6 +318,20 @@ export default function OperadorSimplePage() {
                 .is('ocu_fh_salida', null);
 
             if (updateError) throw updateError;
+
+            // Si había una plaza asignada, liberarla
+            if (ocupacion.plaza_number) {
+                const { error: plazaUpdateError } = await supabase
+                    .from('plazas')
+                    .update({ pla_estado: 'Libre' })
+                    .eq('pla_numero', ocupacion.plaza_number)
+                    .eq('est_id', estId);
+
+                if (plazaUpdateError) {
+                    console.warn('Error liberando plaza:', plazaUpdateError);
+                    // No lanzar error aquí porque la salida ya se registró exitosamente
+                }
+            }
 
             // Actualizar datos
             await refreshParkedVehicles();
