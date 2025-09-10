@@ -41,26 +41,21 @@ interface SidebarProps {
     className?: string;
 }
 
-// Tipo para los elementos del sidebar
-type SidebarItem = {
-    id: string;
-    title: string;
-    href: string;
-    icon: React.ComponentType<any>;
-    description: string;
-};
-
 // Elementos de navegación para empleados
 const employeeNavigationItems = [
     {
-        id: "employee-dashboard",
         title: "Dashboard",
         href: "/dashboard/operador-simple",
         icon: LayoutDashboard,
         description: "Panel de operador"
     },
     {
-        id: "employee-profile",
+        title: "Panel de Operador",
+        href: "/dashboard/operador-simple",
+        icon: ParkingCircle,
+        description: "Gestión de estacionamientos"
+    },
+    {
         title: "Perfil",
         href: "/account/security",
         icon: User,
@@ -71,91 +66,78 @@ const employeeNavigationItems = [
 // Elementos de navegación para dueños
 const ownerNavigationItems = [
     {
-        id: "owner-dashboard",
         title: "Dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
         description: "Vista general del sistema"
     },
     {
-        id: "owner-operator-panel",
         title: "Panel de Operador",
         href: "/dashboard/operador-simple",
         icon: ParkingCircle,
         description: "Gestión de estacionamientos"
     },
     {
-        id: "owner-admin-panel",
         title: "Panel de Administrador",
         href: "/dashboard/panel-administrador",
         icon: BarChart3,
         description: "Administración y estadísticas"
     },
     {
-        id: "owner-parkings",
         title: "Mis Estacionamientos",
         href: "/dashboard/parking",
         icon: Car,
         description: "Administrar estacionamientos"
     },
     {
-        id: "owner-templates",
         title: "Plantillas",
         href: "/dashboard/plantillas",
         icon: FileText,
         description: "Gestionar plantillas de plazas"
     },
     {
-        id: "owner-rates",
         title: "Tarifas",
         href: "/dashboard/tarifas",
         icon: CreditCard,
         description: "Configurar precios y tarifas"
     },
     {
-        id: "owner-maps",
         title: "Google Maps",
         href: "/dashboard/google-maps",
         icon: MapPin,
         description: "Configurar mapas y ubicación"
     },
     {
-        id: "owner-employees",
         title: "Empleados",
         href: "/dashboard/empleados",
         icon: Users,
         description: "Gestionar empleados"
     },
     {
-        id: "owner-zone-config",
         title: "Configuración de Zona",
         href: "/dashboard/configuracion-zona",
         icon: Settings,
         description: "Crear zonas y plazas"
     },
     {
-        id: "owner-places-visualization",
         title: "Visualización de Plazas",
         href: "/dashboard/visualizacion-plazas",
         icon: BarChart3,
         description: "Ver estado de todas las plazas"
     },
     {
-        id: "owner-advanced-config",
         title: "Configuración Avanzada",
         href: "/dashboard/plazas/configuracion-avanzada",
         icon: Settings,
         description: "Gestionar plantillas de plazas"
     },
     {
-        id: "owner-profile",
         title: "Perfil",
         href: "/account/security",
         icon: User,
         description: "Configuración de cuenta"
     },
     {
-        id: "owner-payment-config",
         title: "Configuración de Pagos",
         href: "/dashboard/configuracion-pagos",
         icon: Wallet,
@@ -166,63 +148,18 @@ const ownerNavigationItems = [
 // Elementos de navegación para conductores
 const driverNavigationItems = [
     {
-        id: "driver-dashboard",
         title: "Dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
         description: "Vista general del sistema"
     },
     {
-        id: "driver-profile",
         title: "Perfil",
         href: "/account/security",
         icon: User,
         description: "Configuración de cuenta"
     }
 ];
-
-// Función para normalizar y deduplicar elementos del sidebar
-function buildSidebarItems(params: { role: 'dueno' | 'operador' | 'admin' | 'conductor' | string }): SidebarItem[] {
-    let items: SidebarItem[] = [];
-
-    // Seleccionar elementos según el rol
-    if (params.role === 'dueno' || params.role === 'admin') {
-        items = [...ownerNavigationItems];
-    } else if (params.role === 'operador') {
-        items = [...employeeNavigationItems];
-    } else if (params.role === 'conductor') {
-        items = [...driverNavigationItems];
-    } else {
-        // Por defecto, mostrar elementos limitados
-        items = [...employeeNavigationItems];
-    }
-
-    // Deduplicar por href manteniendo la primera ocurrencia
-    const dedupByHref = Array.from(new Map(items.map(item => [item.href, item])).values());
-
-    // Asegurar que cada item tenga un id único y estable
-    const normalized = dedupByHref.map((item) => ({
-        ...item,
-        id: item.id || `sidebar:${item.href}`, // fallback si no hay id
-    }));
-
-    // Guard en desarrollo para detectar duplicados
-    if (process.env.NODE_ENV !== 'production') {
-        const hrefs = normalized.map(item => item.href);
-        const dups = hrefs.filter((v, i, arr) => arr.indexOf(v) !== i);
-        if (dups.length) {
-            console.warn('Duplicate sidebar hrefs detected after normalization:', dups);
-        }
-
-        const ids = normalized.map(item => item.id);
-        const dupIds = ids.filter((v, i, arr) => arr.indexOf(v) !== i);
-        if (dupIds.length) {
-            console.warn('Duplicate sidebar IDs detected:', dupIds);
-        }
-    }
-
-    return normalized;
-}
 
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
@@ -232,8 +169,20 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
 
-    // Construir elementos de navegación normalizados
-    const navigationItems = buildSidebarItems({ role: role || 'operador' });
+    // Seleccionar elementos de navegación según el rol
+    const getNavigationItems = () => {
+        if (isOwner) {
+            return ownerNavigationItems;
+        } else if (isPlayero) {
+            return employeeNavigationItems;
+        } else if (isConductor) {
+            return driverNavigationItems;
+        }
+        // Por defecto, mostrar elementos limitados
+        return employeeNavigationItems;
+    };
+
+    const navigationItems = getNavigationItems();
 
     const handleNavigation = (href: string) => {
         router.push(href);
@@ -321,7 +270,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
                         return (
                             <Button
-                                key={item.id}
+                                key={`${item.href}-${item.title}`}
                                 variant={isActive ? "secondary" : "ghost"}
                                 className={cn(
                                     "w-full justify-start h-auto p-3",
