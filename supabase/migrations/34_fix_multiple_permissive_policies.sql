@@ -19,7 +19,7 @@ CREATE POLICY "estacionamientos_authenticated_insert" ON public.estacionamientos
         (select auth.uid()) IS NOT NULL AND
         due_id IN (
             SELECT usu_id FROM public.usuario
-            WHERE usu_email = (select auth.email())
+            WHERE usu_email = (select auth.jwt() ->> 'email')
         )
     );
 
@@ -30,7 +30,7 @@ CREATE POLICY "estacionamientos_authenticated_select" ON public.estacionamientos
         (select auth.uid()) IS NOT NULL AND
         due_id IN (
             SELECT usu_id FROM public.usuario
-            WHERE usu_email = (select auth.email())
+            WHERE usu_email = (select auth.jwt() ->> 'email')
         )
     );
 
@@ -41,14 +41,14 @@ CREATE POLICY "estacionamientos_authenticated_update" ON public.estacionamientos
         (select auth.uid()) IS NOT NULL AND
         due_id IN (
             SELECT usu_id FROM public.usuario
-            WHERE usu_email = (select auth.email())
+            WHERE usu_email = (select auth.jwt() ->> 'email')
         )
     )
     WITH CHECK (
         (select auth.uid()) IS NOT NULL AND
         due_id IN (
             SELECT usu_id FROM public.usuario
-            WHERE usu_email = (select auth.email())
+            WHERE usu_email = (select auth.jwt() ->> 'email')
         )
     );
 
@@ -71,7 +71,7 @@ CREATE POLICY "plazas_authenticated_insert" ON public.plazas
             SELECT est_id FROM public.estacionamientos
             WHERE due_id IN (
                 SELECT usu_id FROM public.usuario
-                WHERE usu_email = (select auth.email())
+                WHERE usu_email = (select auth.jwt() ->> 'email')
             )
         )
     );
@@ -85,7 +85,7 @@ CREATE POLICY "plazas_authenticated_select" ON public.plazas
             SELECT est_id FROM public.estacionamientos
             WHERE due_id IN (
                 SELECT usu_id FROM public.usuario
-                WHERE usu_email = (select auth.email())
+                WHERE usu_email = (select auth.jwt() ->> 'email')
             )
         )
     );
@@ -99,7 +99,7 @@ CREATE POLICY "plazas_authenticated_update" ON public.plazas
             SELECT est_id FROM public.estacionamientos
             WHERE due_id IN (
                 SELECT usu_id FROM public.usuario
-                WHERE usu_email = (select auth.email())
+                WHERE usu_email = (select auth.jwt() ->> 'email')
             )
         )
     )
@@ -109,7 +109,7 @@ CREATE POLICY "plazas_authenticated_update" ON public.plazas
             SELECT est_id FROM public.estacionamientos
             WHERE due_id IN (
                 SELECT usu_id FROM public.usuario
-                WHERE usu_email = (select auth.email())
+                WHERE usu_email = (select auth.jwt() ->> 'email')
             )
         )
     );
