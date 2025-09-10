@@ -8,7 +8,11 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { Parking, Vehicle, VehicleType, ParkingHistory } from "@/lib/types";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Settings } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import dayjs from "dayjs";
 
 type ExitInfo = {
@@ -26,6 +30,12 @@ export default function OperadorSimplePage() {
     const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
     const [plazasData, setPlazasData] = useState<any>(null);
     const [loadingPlazas, setLoadingPlazas] = useState(true);
+
+    // Datos completos para visualización detallada
+    const [plazasCompletas, setPlazasCompletas] = useState<any[]>([]);
+    const [estadisticasCompletas, setEstadisticasCompletas] = useState<any>(null);
+    const [zonasCompletas, setZonasCompletas] = useState<any[]>([]);
+    const [loadingPlazasCompletas, setLoadingPlazasCompletas] = useState(true);
 
     // Inicializar datos del parking
     useEffect(() => {
@@ -66,7 +76,7 @@ export default function OperadorSimplePage() {
         loadRates();
     }, [estId]);
 
-    // Cargar estado de plazas
+    // Cargar estado de plazas (básico para operaciones)
     const fetchPlazasStatus = async () => {
         if (!estId) return;
 
@@ -87,11 +97,37 @@ export default function OperadorSimplePage() {
         }
     };
 
+    // Cargar datos completos para visualización detallada
+    const fetchPlazasCompletas = async () => {
+        if (!estId) return;
+
+        try {
+            setLoadingPlazasCompletas(true);
+            const response = await fetch(`/api/plazas?est_id=${estId}`);
+
+            if (response.ok) {
+                const data = await response.json();
+                setPlazasCompletas(data.plazas || []);
+                setEstadisticasCompletas(data.estadisticas || null);
+                setZonasCompletas(data.zonas || []);
+            } else {
+                console.error("Error al cargar datos completos de plazas");
+            }
+        } catch (error) {
+            console.error("Error al cargar datos completos de plazas:", error);
+        } finally {
+            setLoadingPlazasCompletas(false);
+        }
+    };
+
     // Cargar estado inicial
     useEffect(() => {
         const initializeData = async () => {
             setLoading(true);
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
             setLoading(false);
         };
 
@@ -188,7 +224,10 @@ export default function OperadorSimplePage() {
             if (ocupacionError) throw ocupacionError;
 
             await refreshParkedVehicles();
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
 
             toast({
                 title: "Entrada registrada",
@@ -277,7 +316,10 @@ export default function OperadorSimplePage() {
             // Actualizar datos
             await refreshParkedVehicles();
             await refreshParkingHistory();
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
 
             // Mostrar información de salida
             setExitInfo({
@@ -306,6 +348,28 @@ export default function OperadorSimplePage() {
             });
         }
     };
+
+    // Funciones auxiliares para visualización de plazas
+    const getEstadoColor = (estado: string) => {
+        switch (estado) {
+            case 'Libre': return 'bg-green-500';
+            case 'Ocupada': return 'bg-red-500';
+            case 'Reservada': return 'bg-yellow-500';
+            case 'Mantenimiento': return 'bg-gray-500';
+            default: return 'bg-gray-400';
+        }
+    };
+
+    const getEstadoIcon = (estado: string) => {
+        switch (estado) {
+            case 'Libre': return '🟢';
+            case 'Ocupada': return '🔴';
+            case 'Reservada': return '🟡';
+            case 'Mantenimiento': return '⚫';
+            default: return '❓';
+        }
+    };
+
 
     // Función para configurar zonas (redirige al panel de administrador)
     const handleConfigureZones = () => {
@@ -369,29 +433,171 @@ export default function OperadorSimplePage() {
         );
     }
 
-    return (
-        <DashboardLayout>
-            <div className="p-6">
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Panel de Operador</h1>
-                    <p className="text-gray-600 mt-1">
-                        Gestiona entradas y salidas de vehículos en tiempo real
-                    </p>
-                </div>
+    // Agrupar plazas por zona para visualización detallada
+    const plazasPorZona = plazasCompletas.reduce((acc: Record<string, any[]>, plaza: any) => {
+        const zonaNombre = plaza.pla_zona || 'Sin Zona';
+        if (!acc[zonaNombre]) {
+            acc[zonaNombre] = [];
+        }
+        acc[zonaNombre].push(plaza);
+        return acc;
+    }, {} as Record<string, any[]>);
 
-                <OperatorPanel
-                    parking={parking}
-                    availableSpaces={getAvailableSpaces()}
-                    onRegisterEntry={registerEntry}
-                    onRegisterExit={handleExit}
-                    exitInfo={exitInfo}
-                    setExitInfo={setExitInfo}
-                    plazasData={plazasData}
-                    loadingPlazas={loadingPlazas}
-                    fetchPlazasStatus={fetchPlazasStatus}
-                    onConfigureZones={handleConfigureZones}
-                />
-            </div>
-        </DashboardLayout>
+    return (
+        <TooltipProvider>
+            <DashboardLayout>
+                <div className="p-6 space-y-6">
+                    <div className="mb-6">
+                        <h1 className="text-3xl font-bold text-gray-900">Panel de Operador</h1>
+                        <p className="text-gray-600 mt-1">
+                            Gestiona entradas y salidas de vehículos con visualización de zonas
+                        </p>
+                    </div>
+
+                    {/* Panel de Operador Original */}
+                    <OperatorPanel
+                        parking={parking}
+                        availableSpaces={getAvailableSpaces()}
+                        onRegisterEntry={registerEntry}
+                        onRegisterExit={handleExit}
+                        exitInfo={exitInfo}
+                        setExitInfo={setExitInfo}
+                        plazasData={plazasData}
+                        loadingPlazas={loadingPlazas}
+                        fetchPlazasStatus={fetchPlazasStatus}
+                        onConfigureZones={handleConfigureZones}
+                    />
+
+                    {/* Visualización de Plazas por Zona */}
+                    {!loadingPlazasCompletas && Object.entries(plazasPorZona).length > 0 && (
+                        <div className="space-y-6">
+                            <div className="border-t pt-6">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">🏗️ Visualización de Zonas</h2>
+
+                                <div className="space-y-6">
+                                    {Object.entries(plazasPorZona).map(([zonaNombre, plazasZona]) => {
+                                        const plazasPorFila = 10;
+                                        const filas = [];
+
+                                        // Ordenar plazas por número
+                                        plazasZona.sort((a, b) => a.pla_numero - b.pla_numero);
+
+                                        for (let i = 0; i < plazasZona.length; i += plazasPorFila) {
+                                            filas.push(plazasZona.slice(i, i + plazasPorFila));
+                                        }
+
+                                        const estadisticasZona = {
+                                            total: plazasZona.length,
+                                            libres: plazasZona.filter(p => p.pla_estado === 'Libre').length,
+                                            ocupadas: plazasZona.filter(p => p.pla_estado === 'Ocupada').length
+                                        };
+
+                                        return (
+                                            <Card key={zonaNombre}>
+                                                <CardHeader>
+                                                    <CardTitle className="flex items-center justify-between">
+                                                        <span>🏗️ {zonaNombre}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline">
+                                                                {estadisticasZona.libres}/{estadisticasZona.total} libres
+                                                            </Badge>
+                                                            <Badge variant="outline">
+                                                                {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupadas
+                                                            </Badge>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => window.location.href = `/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`}
+                                                                className="flex items-center gap-1"
+                                                            >
+                                                                <Settings className="h-3 w-3" />
+                                                                Configurar
+                                                            </Button>
+                                                        </div>
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <div className="space-y-2">
+                                                        {filas.map((fila, filaIndex) => (
+                                                            <div key={filaIndex} className="flex gap-2 justify-center">
+                                                                {fila.map(plaza => (
+                                                                    <Tooltip key={plaza.pla_numero}>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div
+                                                                                className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md transition-colors duration-200 relative cursor-pointer ${getEstadoColor(plaza.pla_estado)} ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
+                                                                            >
+                                                                                <span className="text-xs">{plaza.pla_numero}</span>
+                                                                                {plaza.plantillas && (
+                                                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                                                                        <span className="text-white text-xs font-bold">P</span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="top" className="max-w-xs">
+                                                                            <div className="space-y-2">
+                                                                                <div className="font-semibold">Plaza #{plaza.pla_numero}</div>
+                                                                                <div className="text-sm">
+                                                                                    <span className="font-medium">Estado:</span> {plaza.pla_estado}
+                                                                                </div>
+                                                                                <div className="text-sm">
+                                                                                    <span className="font-medium">Tipo:</span> {plaza.catv_segmento}
+                                                                                </div>
+                                                                                <div className="text-sm">
+                                                                                    <span className="font-medium">Zona:</span> {plaza.pla_zona || 'Sin zona'}
+                                                                                </div>
+                                                                                {plaza.plantillas && (
+                                                                                    <div className="border-t pt-2 mt-2">
+                                                                                        <div className="text-sm font-medium text-blue-600 mb-1">📋 Plantilla Asignada</div>
+                                                                                        <div className="text-sm">
+                                                                                            <span className="font-medium">Nombre:</span> {plaza.plantillas.nombre_plantilla}
+                                                                                        </div>
+                                                                                        <div className="text-sm">
+                                                                                            <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                ))}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+                                )}
+
+                                {/* Botón de recarga */}
+                                <div className="mt-6 text-center">
+                                    <Button
+                                        onClick={() => Promise.all([fetchPlazasStatus(), fetchPlazasCompletas()])}
+                                        className="px-4 py-2"
+                                    >
+                                        🔄 Actualizar Visualización
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Estado de carga para visualización de zonas */}
+                    {loadingPlazasCompletas && (
+                        <div className="border-t pt-6">
+                            <div className="flex items-center justify-center py-12">
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                    <span>Cargando visualización de zonas...</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </DashboardLayout>
+        </TooltipProvider>
     );
 }
