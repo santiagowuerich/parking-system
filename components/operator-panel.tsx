@@ -102,6 +102,7 @@ export default function OperatorPanel({
   const [error, setError] = useState("")
   const [processingExit, setProcessingExit] = useState<string | null>(null)
   const [showExitConfirmation, setShowExitConfirmation] = useState(false)
+  const [selectedPlaza, setSelectedPlaza] = useState<any>(null)
 
   // Filtros para la tabla de vehículos estacionados
   const [filterPlate, setFilterPlate] = useState<string>("")
@@ -148,29 +149,32 @@ export default function OperatorPanel({
       return
     }
 
-    if (!selectedType) {
-      setError("Debe seleccionar un tipo de vehículo")
-      return
-    }
-
     if (parking.parkedVehicles.some((v) => v.license_plate === licensePlate)) {
       setError("Ya existe un vehículo con esta matrícula en el estacionamiento")
       return
     }
 
-    if (availableSpaces[selectedType] <= 0) {
-      setError(`No hay espacios disponibles para ${selectedType}`)
+    // Ahora es obligatorio seleccionar una plaza
+    if (!selectedPlaza) {
+      setError("Debe seleccionar una plaza")
       return
     }
 
-    // Elegir plaza: solo si se seleccionó explícitamente, sino NULL (sin plaza asignada)
-    const chosen = plaNumero ? Number(plaNumero) : null;
+    // Verificar que la plaza esté realmente libre
+    if (selectedPlaza.pla_estado !== 'Libre') {
+      setError(`La plaza ${selectedPlaza.pla_numero} ya no está disponible`)
+      return
+    }
+
+    // El tipo de vehículo se determina automáticamente por la plaza
+    const chosen = Number(plaNumero);
 
     console.log('🏁 Registrando entrada:', {
       license_plate: licensePlate,
       type: selectedType,
       pla_numero: chosen,
-      plaNumeroSelected: plaNumero
+      plaNumeroSelected: plaNumero,
+      selectedPlaza: selectedPlaza
     });
 
     onRegisterEntry({
@@ -179,12 +183,11 @@ export default function OperatorPanel({
       pla_numero: chosen,
     })
 
-    // Intentar actualizar visual de plazas inmediatamente
-    reloadPlazas()
-
+    // Limpiar formulario
     setLicensePlate("")
     setSelectedType("Auto")
-    setPlaNumero("") // Limpiar selección de plaza
+    setPlaNumero("")
+    setSelectedPlaza(null)
   }
 
   const handleExit = async (vehicle: Vehicle) => {
@@ -210,6 +213,51 @@ export default function OperatorPanel({
     } catch (error) {
       console.error("Error formateando fecha con Day.js:", error);
       return "Error de formato";
+    }
+  };
+
+  // Obtener plazas libres para el selector
+  const getPlazasLibres = () => {
+    if (!plazasCompletas || plazasCompletas.length === 0) return [];
+
+    return plazasCompletas.filter(plaza =>
+      plaza.pla_estado === 'Libre' && plaza.pla_numero != null
+    ).sort((a, b) => a.pla_numero - b.pla_numero);
+  };
+
+  // Función para manejar selección de plaza
+  const handlePlazaSelection = (plazaNumero: string) => {
+    setPlaNumero(plazaNumero);
+
+    if (plazaNumero) {
+      // Encontrar la plaza seleccionada
+      const plaza = plazasCompletas.find(p => p.pla_numero === Number(plazaNumero));
+      setSelectedPlaza(plaza);
+
+      if (plaza) {
+        // Si la plaza tiene plantilla, usar el tipo de vehículo de la plantilla
+        if (plaza.plantillas && plaza.plantillas.catv_segmento) {
+          const tipoVehiculo = mapearTipoVehiculo(plaza.plantillas.catv_segmento);
+          setSelectedType(tipoVehiculo);
+        }
+        // Si no tiene plantilla, usar el tipo de vehículo de la plaza
+        else if (plaza.catv_segmento) {
+          const tipoVehiculo = mapearTipoVehiculo(plaza.catv_segmento);
+          setSelectedType(tipoVehiculo);
+        }
+      }
+    } else {
+      setSelectedPlaza(null);
+    }
+  };
+
+  // Mapear códigos de BD a tipos frontend
+  const mapearTipoVehiculo = (segmento: string): VehicleType => {
+    switch (segmento) {
+      case 'MOT': return 'Moto';
+      case 'CAM': return 'Camioneta';
+      case 'AUT':
+      default: return 'Auto';
     }
   };
 
@@ -470,38 +518,46 @@ export default function OperatorPanel({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="vehicleType" className="dark:text-zinc-400">Tipo de Vehículo</Label>
-                <Select
-                  value={selectedType}
-                  onValueChange={(value: string) => setSelectedType(value as VehicleType)}
-                >
-                  <SelectTrigger id="vehicleType" className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder="Seleccionar tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Auto">Auto</SelectItem>
-                    <SelectItem value="Moto">Moto</SelectItem>
-                    <SelectItem value="Camioneta">Camioneta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="dark:text-zinc-400">Plaza (opcional)</Label>
-                <Select value={plaNumero} onValueChange={(v) => setPlaNumero(v)}>
+                <Label className="dark:text-zinc-400">Seleccionar Plaza (determina el tipo de vehículo)</Label>
+                <Select value={plaNumero} onValueChange={handlePlazaSelection}>
                   <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder={selectedPlazasType.filter(p => !p.occupied).length > 0 ? `Elegir plaza libre (${selectedPlazasType.filter(p => !p.occupied).length} libres)` : 'Sin plazas libres'} />
+                    <SelectValue placeholder={getPlazasLibres().length > 0 ? `Elegir plaza (${getPlazasLibres().length} disponibles)` : 'No hay plazas libres'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedPlazasType.filter(p => !p.occupied && p.pla_numero != null).map(p => (
-                      <SelectItem key={`plaza-${p.pla_numero}`} value={String(p.pla_numero)}>Plaza #{p.pla_numero}</SelectItem>
+                    {getPlazasLibres().map(plaza => (
+                      <SelectItem key={`plaza-${plaza.pla_numero}`} value={String(plaza.pla_numero)}>
+                        <div className="flex items-center gap-2">
+                          <span>Plaza #{plaza.pla_numero}</span>
+                          {plaza.plantillas && (
+                            <Badge variant="secondary" className="text-xs">
+                              {mapearTipoVehiculo(plaza.plantillas.catv_segmento)} - {plaza.plantillas.nombre_plantilla}
+                            </Badge>
+                          )}
+                          {!plaza.plantillas && plaza.catv_segmento && (
+                            <Badge variant="outline" className="text-xs">
+                              {mapearTipoVehiculo(plaza.catv_segmento)}
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedPlaza && (
+                  <p className="text-xs text-blue-400">
+                    Tipo de vehículo: {selectedType}
+                    {selectedPlaza.plantillas && ` (plantilla: ${selectedPlaza.plantillas.nombre_plantilla})`}
+                  </p>
+                )}
               </div>
             </div>
 
-            <Button type="submit" className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200">
-              Registrar Entrada
+            <Button 
+              type="submit" 
+              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
+              disabled={!selectedPlaza}
+            >
+              {selectedPlaza ? `Registrar Entrada en Plaza ${selectedPlaza.pla_numero}` : 'Seleccionar Plaza para Continuar'}
             </Button>
           </form>
         </CardContent>
