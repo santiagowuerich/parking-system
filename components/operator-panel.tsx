@@ -35,7 +35,7 @@ import timezone from 'dayjs/plugin/timezone'
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-import type { Parking, Vehicle, VehicleType, ParkingHistory } from "@/lib/types"
+import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types"
 import { formatCurrency, formatTime } from "@/lib/utils"
 
 interface ExitInfo {
@@ -43,6 +43,8 @@ interface ExitInfo {
   exitTime: Date
   duration: string
   fee: number
+  agreedPrice?: number
+  calculatedFee?: number
 }
 
 interface OperatorPanelProps {
@@ -56,7 +58,7 @@ interface OperatorPanelProps {
       occupied: number
     }
   }
-  onRegisterEntry: (vehicle: Omit<Vehicle, "entry_time"> & { pla_numero?: number | null }) => void
+  onRegisterEntry: (vehicle: VehicleEntryData) => void
   onRegisterExit: (licensePlate: string) => Promise<void>
   exitInfo: ExitInfo | null
   setExitInfo: (info: ExitInfo | null) => void
@@ -104,6 +106,11 @@ export default function OperatorPanel({
   const [showExitConfirmation, setShowExitConfirmation] = useState(false)
   const [selectedPlaza, setSelectedPlaza] = useState<any>(null)
 
+  // Nueva funcionalidad: Selección de duración mínima
+  const [selectedDuration, setSelectedDuration] = useState<string>("hora")
+  const [agreedPrice, setAgreedPrice] = useState<number | null>(null)
+  const [showDurationSelector, setShowDurationSelector] = useState(false)
+
   // Filtros para la tabla de vehículos estacionados
   const [filterPlate, setFilterPlate] = useState<string>("")
   const [filterVehicleType, setFilterVehicleType] = useState<VehicleType | 'Todos'>("Todos")
@@ -137,6 +144,18 @@ export default function OperatorPanel({
   // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
   useEffect(() => { reloadPlazas() }, [estId, selectedType])
 
+  // Calcular precio acordado cuando cambie duración o tipo de vehículo
+  useEffect(() => {
+    const calculatePrice = async () => {
+      if (selectedType && selectedDuration) {
+        const price = await calculateAgreedPrice(selectedDuration, selectedType);
+        setAgreedPrice(price);
+      }
+    };
+
+    calculatePrice();
+  }, [selectedDuration, selectedType]);
+
   // Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
   useEffect(() => { reloadPlazas() }, [parking.parkedVehicles.length])
 
@@ -167,7 +186,12 @@ export default function OperatorPanel({
     }
 
     // El tipo de vehículo se determina automáticamente por la plaza
-    const chosen = Number(plaNumero);
+    const chosen = selectedPlaza.pla_numero;
+
+    if (!chosen || chosen <= 0) {
+      setError("Número de plaza inválido")
+      return
+    }
 
     console.log('🏁 Registrando entrada:', {
       license_plate: licensePlate,
@@ -181,6 +205,8 @@ export default function OperatorPanel({
       license_plate: licensePlate,
       type: selectedType,
       pla_numero: chosen,
+      duracion_tipo: selectedDuration,
+      precio_acordado: agreedPrice || 0,
     })
 
     // Limpiar formulario
@@ -188,6 +214,9 @@ export default function OperatorPanel({
     setSelectedType("Auto")
     setPlaNumero("")
     setSelectedPlaza(null)
+    setShowDurationSelector(false)
+    setAgreedPrice(null)
+    setSelectedDuration("hora")
   }
 
   const handleExit = async (vehicle: Vehicle) => {
@@ -245,9 +274,14 @@ export default function OperatorPanel({
           const tipoVehiculo = mapearTipoVehiculo(plaza.catv_segmento);
           setSelectedType(tipoVehiculo);
         }
+
+        // Activar selector de duración cuando se selecciona una plaza
+        setShowDurationSelector(true);
       }
     } else {
       setSelectedPlaza(null);
+      setShowDurationSelector(false);
+      setAgreedPrice(null);
     }
   };
 
@@ -258,6 +292,79 @@ export default function OperatorPanel({
       case 'CAM': return 'Camioneta';
       case 'AUT':
       default: return 'Auto';
+    }
+  };
+
+  // Calcular precio acordado basado en duración seleccionada
+  const calculateAgreedPrice = async (duration: string, vehicleType: VehicleType): Promise<number> => {
+    if (!estId) return 0;
+
+    try {
+      // Obtener tarifas del estacionamiento
+      const { data: rates, error } = await supabase
+        .from('tarifas')
+        .select('*')
+        .eq('est_id', estId);
+
+      if (error || !rates || rates.length === 0) {
+        console.error('Error obteniendo tarifas:', error);
+        return 0;
+      }
+
+      // Mapear tipo de vehículo frontend a BD
+      const vehicleTypeMapping = {
+        'Auto': 'AUT',
+        'Moto': 'MOT',
+        'Camioneta': 'CAM'
+      };
+
+      const dbVehicleType = vehicleTypeMapping[vehicleType] || 'AUT';
+
+      // Calcular duración en horas
+      let durationHours = 1; // mínimo 1 hora
+      switch (duration) {
+        case 'hora':
+          durationHours = 1;
+          break;
+        case 'dia':
+          durationHours = 24;
+          break;
+        case 'semana':
+          durationHours = 24 * 7; // 168 horas
+          break;
+        case 'mes':
+          durationHours = 24 * 30; // 720 horas (aproximado)
+          break;
+        default:
+          durationHours = 1;
+      }
+
+      // Buscar tarifa por tipo de vehículo
+      const vehicleRate = rates.find((r: any) => {
+        const rateSegmento = r.catv_segmento;
+        return rateSegmento === dbVehicleType;
+      });
+
+      if (!vehicleRate) {
+        console.error('No se encontró tarifa para el tipo de vehículo:', dbVehicleType);
+        return 0;
+      }
+
+      // Calcular precio: precio base + (horas adicionales * precio por fracción)
+      const basePrice = parseFloat(vehicleRate.tar_precio) || 0;
+      const hourlyRate = parseFloat(vehicleRate.tar_fraccion) || 0;
+
+      let totalPrice = 0;
+      if (durationHours <= 1) {
+        totalPrice = basePrice;
+      } else {
+        totalPrice = basePrice + (hourlyRate * (durationHours - 1));
+      }
+
+      return Math.max(totalPrice, basePrice); // Asegurar precio mínimo
+    } catch (error) {
+      console.error('Error calculando precio acordado:', error);
+      return 0;
     }
   };
 
@@ -550,10 +657,33 @@ export default function OperatorPanel({
                   </p>
                 )}
               </div>
+
+              {/* Selector de duración mínima */}
+              {showDurationSelector && (
+                <div className="space-y-2">
+                  <Label className="dark:text-zinc-400">Duración Mínima</Label>
+                  <Select value={selectedDuration} onValueChange={setSelectedDuration}>
+                    <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
+                      <SelectValue placeholder="Seleccionar duración" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hora">1 Hora</SelectItem>
+                      <SelectItem value="dia">1 Día (24 horas)</SelectItem>
+                      <SelectItem value="semana">1 Semana (7 días)</SelectItem>
+                      <SelectItem value="mes">1 Mes (30 días)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {agreedPrice !== null && agreedPrice > 0 && (
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      💰 Precio acordado: ${agreedPrice.toFixed(2)} (mínimo garantizado)
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
               disabled={!selectedPlaza}
             >
@@ -608,6 +738,7 @@ export default function OperatorPanel({
                   <TableHead className="dark:text-zinc-400">Tipo</TableHead>
                   <TableHead className="dark:text-zinc-400">Plaza</TableHead>
                   <TableHead className="dark:text-zinc-400">Hora de Entrada</TableHead>
+                  <TableHead className="dark:text-zinc-400">Tarifa Acordada</TableHead>
                   <TableHead className="text-right dark:text-zinc-400">Acción</TableHead>
                 </TableRow>
               </TableHeader>
@@ -635,6 +766,10 @@ export default function OperatorPanel({
                           )}
                         </TableCell>
                         <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
+                        <TableCell className="dark:text-zinc-100">
+                          {/* TODO: Mostrar tarifa acordada cuando esté disponible */}
+                          <span className="text-xs text-gray-500">Pendiente</span>
+                        </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="destructive"

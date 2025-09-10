@@ -5,6 +5,12 @@ export interface Vehicle {
   type: VehicleType
   entry_time: string
   plaza_number?: number
+  duracion_tipo?: string
+  precio_acordado?: number
+}
+
+export interface VehicleEntryData extends Omit<Vehicle, 'entry_time'> {
+  pla_numero?: number | null
 }
 
 export interface ParkingHistory extends Omit<Vehicle, 'entry_time'> {
