@@ -3,18 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, direccion } = await request.json();
+        const { name, email: providedEmail, direccion } = await request.json();
 
         if (!name) {
             return NextResponse.json(
-                { error: "El nombre del estacionamiento es requerido" },
-                { status: 400 }
-            );
-        }
-
-        if (!email) {
-            return NextResponse.json(
-                { error: "El email del usuario es requerido" },
+                { error: "Nombre es requerido" },
                 { status: 400 }
             );
         }
@@ -30,16 +23,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Usar el email del usuario autenticado si no se proporciona uno
-        const userEmail = email || user.email;
-        if (!userEmail) {
+        // Usar el email del usuario autenticado, normalizado a minúsculas
+        const email = user.email?.toLowerCase();
+
+        // Si se proporcionó un email diferente al del usuario autenticado, verificar que coincida (case-insensitive)
+        if (providedEmail && user.email && user.email.toLowerCase() !== providedEmail.toLowerCase()) {
             return NextResponse.json(
-                { error: "No se pudo determinar el email del usuario" },
-                { status: 400 }
+                { error: "Email proporcionado no coincide con usuario autenticado" },
+                { status: 403 }
             );
         }
 
-        console.log(`🏗️ Creando nuevo estacionamiento "${name}" para usuario: ${userEmail}`);
+        console.log(`🏗️ Creando nuevo estacionamiento "${name}" para usuario: ${email}`);
 
         // 1. Obtener el próximo est_id disponible usando función thread-safe
         console.log("🔍 Obteniendo próximo ID disponible para estacionamiento usando función thread-safe...");
@@ -60,81 +55,77 @@ export async function POST(request: NextRequest) {
 
         console.log(`📍 Asignando est_id: ${nextEstId} (obtenido de manera thread-safe)`);
 
-        // 2. Buscar o crear usuario en tabla tradicional
-        let { data: usuarioData, error: usuarioError } = await supabase
-            .from('usuario')
-            .select('usu_id')
-            .eq('usu_email', userEmail)
-            .single();
+        // 2. Usar directamente el email del usuario autenticado (sin validación tradicional)
+        console.log(`👤 Usuario autenticado con email: ${email}`);
 
-        let usuarioId;
-
-        if (usuarioError || !usuarioData) {
-            // Usuario no existe, intentar crearlo
-            console.log(`👤 Usuario no encontrado, intentando crearlo...`);
-
-            const nombreParts = user.display_name ? user.display_name.split(' ') : ['Usuario', 'Desconocido'];
-            const nombre = nombreParts[0] || 'Usuario';
-            const apellido = nombreParts.slice(1).join(' ') || 'Desconocido';
-
-            const { data: newUserData, error: createUserError } = await supabase
-                .from('usuario')
-                .insert({
-                    usu_email: userEmail,
-                    usu_nom: nombre,
-                    usu_ape: apellido,
-                    usu_fechareg: new Date().toISOString(),
-                    usu_estado: 'Activo',
-                    auth_user_id: user.id
-                })
-                .select('usu_id')
-                .single();
-
-            if (createUserError) {
-                console.error("❌ Error creando usuario:", createUserError);
-                // Si falla la creación, usar un ID temporal
-                usuarioId = Math.floor(Math.random() * 1000000) + 100000;
-                console.log(`⚠️ Usando ID temporal para usuario: ${usuarioId}`);
-            } else {
-                usuarioId = newUserData.usu_id;
-                console.log(`✅ Usuario creado con usu_id: ${usuarioId}`);
-            }
-        } else {
-            usuarioId = usuarioData.usu_id;
-            console.log(`👤 Usuario encontrado con usu_id: ${usuarioId}`);
+        // 2.5. Validar dirección única (se debe proporcionar)
+        if (!direccion || direccion.trim() === '') {
+            return NextResponse.json({
+                error: "La dirección es obligatoria y debe ser única",
+                details: "Ingresa una dirección válida para el estacionamiento"
+            }, { status: 400 });
         }
 
-        // 2.5. Manejar dirección (opcional pero recomendado)
-        const direccionLimpia = direccion && direccion.trim() !== '' ? direccion.trim() : `Dirección temporal - ${name}`;
+        const direccionLimpia = direccion.trim();
 
-        console.log(`📍 Usando dirección: "${direccionLimpia}"`);
-
-        // 2.6. Crear registro de dueño si no existe
-        const { data: duenoData, error: duenoError } = await supabase
-            .from('dueno')
-            .select('due_id')
-            .eq('due_id', usuarioId)
+        // Verificar que la dirección no exista en ningún estacionamiento (única en toda la BD)
+        const { data: existingDireccion, error: direccionError } = await supabase
+            .from('estacionamientos')
+            .select('est_id, est_nombre, est_direc')
+            .eq('est_direc', direccionLimpia)
             .single();
 
-        if (duenoError || !duenoData) {
-            console.log(`👑 Usuario no es dueño, intentando crear registro...`);
-            const { error: createDuenoError } = await supabase
-                .from('dueno')
-                .insert({ due_id: usuarioId });
-
-            if (createDuenoError) {
-                console.error("❌ Error creando registro de dueño:", createDuenoError);
-                // No es crítico, continuamos
-            } else {
-                console.log(`✅ Registro de dueño creado para usu_id: ${usuarioId}`);
-            }
+        if (existingDireccion && !direccionError) {
+            console.error(`❌ DIRECCIÓN DUPLICADA: La dirección "${direccionLimpia}" ya existe en estacionamiento ID: ${existingDireccion.est_id} (${existingDireccion.est_nombre})`);
+            return NextResponse.json({
+                error: `La dirección "${direccionLimpia}" ya está registrada`,
+                details: `Esta dirección ya pertenece al estacionamiento "${existingDireccion.est_nombre}". Cada dirección debe ser única en el sistema.`,
+                estacionamiento_existente: {
+                    id: existingDireccion.est_id,
+                    nombre: existingDireccion.est_nombre
+                }
+            }, { status: 409 });
         }
+
+        if (direccionError && direccionError.code !== 'PGRST116') {
+            // PGRST116 es cuando no encuentra registro (lo cual es bueno)
+            console.error("❌ Error verificando dirección duplicada:", direccionError);
+            return NextResponse.json({ error: "Error verificando disponibilidad de la dirección" }, { status: 500 });
+        }
+
+        console.log(`✅ Dirección "${direccionLimpia}" disponible en el sistema`);
+
+        // 2.6. Verificar límite de estacionamientos por usuario usando email (máximo 5)
+        const { count: userParkingCount, error: countError } = await supabase
+            .from('estacionamientos')
+            .select('*', { count: 'exact', head: true })
+            .eq('est_email', email); // Usar email en lugar de due_id
+
+        if (countError) {
+            console.error("❌ Error verificando límite de estacionamientos:", countError);
+            return NextResponse.json({ error: "Error verificando límites de usuario" }, { status: 500 });
+        }
+
+        const currentParkingCount = userParkingCount || 0;
+        const MAX_PARKINGS_PER_USER = 5;
+
+        if (currentParkingCount >= MAX_PARKINGS_PER_USER) {
+            console.error(`❌ LÍMITE EXCEDIDO: Usuario ${email} tiene ${currentParkingCount} estacionamientos (máx: ${MAX_PARKINGS_PER_USER})`);
+            return NextResponse.json({
+                error: `Has alcanzado el límite máximo de estacionamientos (${MAX_PARKINGS_PER_USER})`,
+                details: `Actualmente tienes ${currentParkingCount} estacionamientos. Para crear más, contacta al soporte.`,
+                current_count: currentParkingCount,
+                max_allowed: MAX_PARKINGS_PER_USER
+            }, { status: 429 }); // 429 Too Many Requests
+        }
+
+        console.log(`✅ Usuario puede crear estacionamiento (${currentParkingCount}/${MAX_PARKINGS_PER_USER})`);
 
         // 4. Crear nuevo estacionamiento con configuración mínima
         console.log(`🔧 Insertando estacionamiento con datos:`, {
             est_id: nextEstId,
             est_nombre: name,
-            due_id: usuarioId,
+            est_email: email,
             est_capacidad: 0,
             est_cantidad_espacios_disponibles: 0
         });
@@ -147,8 +138,8 @@ export async function POST(request: NextRequest) {
                 est_locali: 'Por configurar',
                 est_direc: direccionLimpia, // Usar la dirección proporcionada
                 est_nombre: name,
+                est_email: email, // Usar email del usuario autenticado
                 est_capacidad: 0, // Sin capacidad inicial
-                due_id: usuarioId,
                 est_cantidad_espacios_disponibles: 0, // Sin espacios disponibles
                 est_horario_funcionamiento: 24, // 24 horas por defecto
                 est_tolerancia_min: 15 // 15 minutos por defecto
@@ -173,37 +164,41 @@ export async function POST(request: NextRequest) {
 
         console.log(`🅿️ Nuevo estacionamiento creado con est_id: ${nextEstId}`);
 
-        // 5. Intentar crear elementos adicionales (no críticos)
-        try {
-            // Tarifas básicas por defecto
-            const { error: tarifasError } = await supabase
-                .from('tarifas')
-                .insert([
-                    { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'AUT', tar_f_desde: new Date().toISOString(), tar_precio: 500, tar_fraccion: 1, pla_tipo: 'Normal' },
-                    { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'MOT', tar_f_desde: new Date().toISOString(), tar_precio: 300, tar_fraccion: 1, pla_tipo: 'Normal' }
-                ]);
+        // 5. Crear tarifas básicas por defecto (opcional)
+        const tarifasToCreate = [
+            // Tarifas por hora (tiptar_nro = 1)
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'AUT', tar_f_desde: new Date().toISOString(), tar_precio: 500, tar_fraccion: 1, pla_tipo: 'Normal' },
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'MOT', tar_f_desde: new Date().toISOString(), tar_precio: 300, tar_fraccion: 1, pla_tipo: 'Normal' },
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'CAM', tar_f_desde: new Date().toISOString(), tar_precio: 700, tar_fraccion: 1, pla_tipo: 'Normal' },
+        ];
 
-            if (!tarifasError) {
-                console.log(`💰 Tarifas básicas creadas para est_id: ${nextEstId}`);
-            }
-        } catch (tarifasErr) {
-            console.log(`⚠️ No se pudieron crear tarifas (no crítico):`, tarifasErr.message);
+        const { error: tarifasError } = await supabase
+            .from('tarifas')
+            .insert(tarifasToCreate);
+
+        if (tarifasError) {
+            console.error("❌ Error creando tarifas:", tarifasError);
+            // No es crítico para la creación del estacionamiento, continuamos
+        } else {
+            console.log(`💰 Tarifas básicas creadas para est_id: ${nextEstId}`);
         }
 
-        try {
-            // Métodos de pago aceptados
-            const { error: metodosError } = await supabase
-                .from('est_acepta_metodospago')
-                .insert([
-                    { est_id: nextEstId, mepa_metodo: 'Efectivo' },
-                    { est_id: nextEstId, mepa_metodo: 'Transferencia' }
-                ]);
+        // 6. Configurar métodos de pago aceptados (todos por defecto)
+        const metodosToCreate = [
+            { est_id: nextEstId, mepa_metodo: 'Efectivo' },
+            { est_id: nextEstId, mepa_metodo: 'Transferencia' },
+            { est_id: nextEstId, mepa_metodo: 'MercadoPago' }
+        ];
 
-            if (!metodosError) {
-                console.log(`💳 Métodos de pago configurados para est_id: ${nextEstId}`);
-            }
-        } catch (metodosErr) {
-            console.log(`⚠️ No se pudieron configurar métodos de pago (no crítico):`, metodosErr.message);
+        const { error: metodosError } = await supabase
+            .from('est_acepta_metodospago')
+            .insert(metodosToCreate);
+
+        if (metodosError) {
+            console.error("❌ Error configurando métodos de pago:", metodosError);
+            // No es crítico, continuamos
+        } else {
+            console.log(`💳 Métodos de pago configurados para est_id: ${nextEstId}`);
         }
 
         console.log(`✅ Nuevo estacionamiento "${name}" creado exitosamente`);
@@ -215,7 +210,7 @@ export async function POST(request: NextRequest) {
             details: {
                 est_id: nextEstId,
                 est_nombre: name,
-                usuario_id: usuarioId,
+                usuario_email: email,
                 plazas_creadas: 0, // Sin plazas predeterminadas
                 tarifas_creadas: tarifasError ? 0 : tarifasToCreate.length,
                 note: "Estacionamiento creado sin plazas predeterminadas. Configure las plazas desde el Panel de Administrador."
