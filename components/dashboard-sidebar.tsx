@@ -33,6 +33,7 @@ import {
     Monitor
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useRole } from "@/lib/use-role";
 import { useTheme } from "next-themes";
 import ParkingStatusWidget from "./ParkingStatusWidget";
 
@@ -40,7 +41,30 @@ interface SidebarProps {
     className?: string;
 }
 
-const navigationItems = [
+// Elementos de navegación para empleados
+const employeeNavigationItems = [
+    {
+        title: "Dashboard",
+        href: "/dashboard/operador-simple",
+        icon: LayoutDashboard,
+        description: "Panel de operador"
+    },
+    {
+        title: "Panel de Operador",
+        href: "/dashboard/operador-simple",
+        icon: ParkingCircle,
+        description: "Gestión de estacionamientos"
+    },
+    {
+        title: "Perfil",
+        href: "/account/security",
+        icon: User,
+        description: "Configuración de cuenta"
+    }
+];
+
+// Elementos de navegación para dueños
+const ownerNavigationItems = [
     {
         title: "Dashboard",
         href: "/dashboard",
@@ -121,12 +145,44 @@ const navigationItems = [
     }
 ];
 
+// Elementos de navegación para conductores
+const driverNavigationItems = [
+    {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        description: "Vista general del sistema"
+    },
+    {
+        title: "Perfil",
+        href: "/account/security",
+        icon: User,
+        description: "Configuración de cuenta"
+    }
+];
+
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const { user, signOut } = useAuth();
+    const { role, isPlayero, isOwner, isConductor } = useRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
+
+    // Seleccionar elementos de navegación según el rol
+    const getNavigationItems = () => {
+        if (isOwner) {
+            return ownerNavigationItems;
+        } else if (isPlayero) {
+            return employeeNavigationItems;
+        } else if (isConductor) {
+            return driverNavigationItems;
+        }
+        // Por defecto, mostrar elementos limitados
+        return employeeNavigationItems;
+    };
+
+    const navigationItems = getNavigationItems();
 
     const handleNavigation = (href: string) => {
         router.push(href);
