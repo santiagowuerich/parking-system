@@ -82,9 +82,9 @@ export async function POST(request: NextRequest) {
             .select(`
                 est_id,
                 due_id,
-                dueno(
+                duenos!inner(
                     due_id,
-                    usuario(
+                    usuarios!inner(
                         usu_id,
                         auth_user_id,
                         usu_email
@@ -124,9 +124,9 @@ export async function POST(request: NextRequest) {
                     est_id,
                     est_nombre,
                     due_id,
-                    dueno(
+                    duenos!inner(
                         due_id,
-                        usuario(
+                        usuarios!inner(
                             usu_id,
                             auth_user_id,
                             usu_email
@@ -146,9 +146,9 @@ export async function POST(request: NextRequest) {
                     est_id,
                     est_nombre,
                     due_id,
-                    dueno(
+                    duenos!inner(
                         due_id,
-                        usuario(
+                        usuarios!inner(
                             usu_id,
                             auth_user_id,
                             usu_email
@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
 
         // Verificar acceso del usuario (considerar usuarios legacy y autenticados)
         let userHasAccess = false;
+
 
         if ((estacionamientoData.dueno as any)?.usuario?.[0]?.auth_user_id === user.id) {
             // Usuario autenticado con Supabase y vinculado correctamente
@@ -289,6 +290,12 @@ export async function POST(request: NextRequest) {
 
             return NextResponse.json({
                 error: zonaError ? `Error creando zona: ${zonaError.message}` : 'No se pudo crear la zona'
+            }, { status: 500 });
+        }
+
+        if (!zonaData) {
+            return NextResponse.json({
+                error: 'Error: No se pudo obtener la zona creada'
             }, { status: 500 });
         }
 

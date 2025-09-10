@@ -150,6 +150,12 @@ const commonItems = [
         href: "/account/security",
         icon: User,
         description: "Configuración de cuenta"
+    },
+    {
+        title: "Configuración de Pagos",
+        href: "/dashboard/configuracion-pagos",
+        icon: Wallet,
+        description: "Métodos y configuraciones de pago"
     }
 ];
 
