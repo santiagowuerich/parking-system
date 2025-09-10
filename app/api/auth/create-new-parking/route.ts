@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, direccion } = await request.json();
+        const { name, email: providedEmail, direccion } = await request.json();
 
-        if (!name || !email) {
+        if (!name) {
             return NextResponse.json(
-                { error: "Nombre y email son requeridos" },
+                { error: "Nombre es requerido" },
                 { status: 400 }
             );
         }
@@ -23,10 +23,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Verificar que el email coincida con el usuario autenticado
-        if (user.email !== email) {
+        // Usar el email del usuario autenticado, normalizado a minúsculas
+        const email = user.email?.toLowerCase();
+
+        // Si se proporcionó un email diferente al del usuario autenticado, verificar que coincida (case-insensitive)
+        if (providedEmail && user.email && user.email.toLowerCase() !== providedEmail.toLowerCase()) {
             return NextResponse.json(
-                { error: "Email no coincide con usuario autenticado" },
+                { error: "Email proporcionado no coincide con usuario autenticado" },
                 { status: 403 }
             );
         }
@@ -52,19 +55,8 @@ export async function POST(request: NextRequest) {
 
         console.log(`📍 Asignando est_id: ${nextEstId} (obtenido de manera thread-safe)`);
 
-        // 2. Verificar si el usuario existe en tabla tradicional
-        const { data: usuarioData, error: usuarioError } = await supabase
-            .from('usuario')
-            .select('usu_id')
-            .eq('usu_email', email)
-            .single();
-
-        if (usuarioError || !usuarioData) {
-            return NextResponse.json({ error: "Usuario no encontrado en sistema tradicional" }, { status: 404 });
-        }
-
-        const usuarioId = usuarioData.usu_id;
-        console.log(`👤 Usuario encontrado con usu_id: ${usuarioId}`);
+        // 2. Usar directamente el email del usuario autenticado (sin validación tradicional)
+        console.log(`👤 Usuario autenticado con email: ${email}`);
 
         // 2.5. Validar dirección única (se debe proporcionar)
         if (!direccion || direccion.trim() === '') {
@@ -103,11 +95,11 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ Dirección "${direccionLimpia}" disponible en el sistema`);
 
-        // 2.6. Verificar límite de estacionamientos por usuario (máximo 5)
+        // 2.6. Verificar límite de estacionamientos por usuario usando email (máximo 5)
         const { count: userParkingCount, error: countError } = await supabase
             .from('estacionamientos')
             .select('*', { count: 'exact', head: true })
-            .eq('due_id', usuarioId);
+            .eq('est_email', email); // Usar email en lugar de due_id
 
         if (countError) {
             console.error("❌ Error verificando límite de estacionamientos:", countError);
@@ -129,22 +121,11 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ Usuario puede crear estacionamiento (${currentParkingCount}/${MAX_PARKINGS_PER_USER})`);
 
-        // 3. Verificar que el usuario sea dueño (debe existir de setup inicial)
-        const { data: duenoData, error: duenoError } = await supabase
-            .from('dueno')
-            .select('due_id')
-            .eq('due_id', usuarioId)
-            .single();
-
-        if (duenoError || !duenoData) {
-            return NextResponse.json({ error: "Usuario no tiene permisos de dueño" }, { status: 403 });
-        }
-
         // 4. Crear nuevo estacionamiento con configuración mínima
         console.log(`🔧 Insertando estacionamiento con datos:`, {
             est_id: nextEstId,
             est_nombre: name,
-            due_id: usuarioId,
+            est_email: email,
             est_capacidad: 0,
             est_cantidad_espacios_disponibles: 0
         });
@@ -157,8 +138,8 @@ export async function POST(request: NextRequest) {
                 est_locali: 'Por configurar',
                 est_direc: direccionLimpia, // Usar la dirección proporcionada
                 est_nombre: name,
+                est_email: email, // Usar email del usuario autenticado
                 est_capacidad: 0, // Sin capacidad inicial
-                due_id: usuarioId,
                 est_cantidad_espacios_disponibles: 0, // Sin espacios disponibles
                 est_horario_funcionamiento: 24, // 24 horas por defecto
                 est_tolerancia_min: 15 // 15 minutos por defecto
@@ -229,7 +210,7 @@ export async function POST(request: NextRequest) {
             details: {
                 est_id: nextEstId,
                 est_nombre: name,
-                usuario_id: usuarioId,
+                usuario_email: email,
                 plazas_creadas: 0, // Sin plazas predeterminadas
                 tarifas_creadas: tarifasError ? 0 : tarifasToCreate.length,
                 note: "Estacionamiento creado sin plazas predeterminadas. Configure las plazas desde el Panel de Administrador."
