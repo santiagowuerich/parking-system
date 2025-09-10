@@ -187,7 +187,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                 {!collapsed && (
                     <div className="flex items-center gap-2">
                         <ParkingCircle className="h-6 w-6 text-primary" />
-                        <span className="font-semibold text-lg">ParkingSys</span>
+                        <span className="font-semibold text-lg">Parqueo</span>
                     </div>
                 )}
                 <div className="flex items-center gap-1">
