@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email: providedEmail, direccion } = await request.json();
+        const { name, email, direccion } = await request.json();
 
-        if (!name) {
+        if (!name || !email) {
             return NextResponse.json(
-                { error: "Nombre es requerido" },
+                { error: "Nombre y email son requeridos" },
                 { status: 400 }
             );
         }
@@ -23,21 +23,28 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Usar el email del usuario autenticado, normalizado a minúsculas
-        const email = user.email?.toLowerCase();
-
-        // Si se proporcionó un email diferente al del usuario autenticado, verificar que coincida (case-insensitive)
-        if (providedEmail && user.email && user.email.toLowerCase() !== providedEmail.toLowerCase()) {
+        // Verificar que el email coincida
+        if (user.email !== email) {
             return NextResponse.json(
-                { error: "Email proporcionado no coincide con usuario autenticado" },
+                { error: "Email no coincide con usuario autenticado" },
                 { status: 403 }
             );
         }
 
         console.log(`🏗️ [FALLBACK] Creando nuevo estacionamiento "${name}" para usuario: ${email}`);
 
-        // 1. Usar directamente el email del usuario autenticado (sin validación tradicional)
-        console.log(`👤 [FALLBACK] Usuario autenticado con email: ${email}`);
+        // 1. Verificar si el usuario existe en tabla tradicional
+        const { data: usuarioData, error: usuarioError } = await supabase
+            .from('usuario')
+            .select('usu_id')
+            .eq('usu_email', email)
+            .single();
+
+        if (usuarioError || !usuarioData) {
+            return NextResponse.json({ error: "Usuario no encontrado en sistema tradicional" }, { status: 404 });
+        }
+
+        const usuarioId = usuarioData.usu_id;
 
         // 2. Validar dirección única (se debe proporcionar)
         if (!direccion || direccion.trim() === '') {
@@ -76,11 +83,11 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ [FALLBACK] Dirección "${direccionLimpia}" disponible en el sistema`);
 
-        // 2.6. Verificar límite de estacionamientos por usuario usando email (máximo 5)
+        // 2.6. Verificar límite de estacionamientos por usuario (máximo 5)
         const { count: userParkingCount, error: countError } = await supabase
             .from('estacionamientos')
             .select('*', { count: 'exact', head: true })
-            .eq('est_email', email); // Usar email en lugar de due_id
+            .eq('due_id', usuarioId);
 
         if (countError) {
             console.error("❌ [FALLBACK] Error verificando límite de estacionamientos:", countError);
@@ -102,63 +109,98 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ [FALLBACK] Usuario puede crear estacionamiento (${currentParkingCount}/${MAX_PARKINGS_PER_USER})`);
 
-        // 3. Obtener el próximo est_id disponible usando función thread-safe (igual que endpoint principal)
-        console.log("🔍 [FALLBACK] Obteniendo próximo ID disponible para estacionamiento usando función thread-safe...");
+        // 3. Verificar que el usuario sea dueño
+        const { data: duenoData, error: duenoError } = await supabase
+            .from('dueno')
+            .select('due_id')
+            .eq('due_id', usuarioId)
+            .single();
 
-        const { data: idResult, error: idError } = await supabase
-            .rpc('get_next_est_id_v2');
-
-        if (idError) {
-            console.error("❌ [FALLBACK] Error obteniendo siguiente est_id:", idError);
-            return NextResponse.json({
-                error: "Error obteniendo ID para el estacionamiento",
-                details: idError.message
-            }, { status: 500 });
+        if (duenoError || !duenoData) {
+            return NextResponse.json({ error: "Usuario no tiene permisos de dueño" }, { status: 403 });
         }
 
-        const nextEstId = idResult;
-        console.log(`📍 [FALLBACK] Asignando est_id: ${nextEstId} (obtenido de manera thread-safe)`);
-
-        // 4. Crear estacionamiento con ID específico
-        console.log(`🔧 [FALLBACK] Insertando estacionamiento con datos:`, {
-            est_id: nextEstId,
-            est_nombre: name,
-            est_email: email,
-            est_capacidad: 0,
-            est_cantidad_espacios_disponibles: 0
-        });
+        // 3. Estrategia FALLBACK: No especificar est_id y dejar que la BD lo genere
+        console.log(`🔧 [FALLBACK] Insertando sin especificar est_id (dejar que BD genere)`);
 
         const { data: insertResult, error: estacionamientoError } = await supabase
             .from('estacionamientos')
             .insert({
-                est_id: nextEstId,
+                // NO especificar est_id - dejar que la BD lo genere automáticamente
                 est_prov: 'Por configurar',
                 est_locali: 'Por configurar',
                 est_direc: direccionLimpia, // Usar la dirección proporcionada
                 est_nombre: name,
-                est_email: email, // Usar email del usuario autenticado
                 est_capacidad: 0,
+                due_id: usuarioId,
                 est_cantidad_espacios_disponibles: 0,
                 est_horario_funcionamiento: 24,
                 est_tolerancia_min: 15
             })
-            .select();
+            .select('est_id') // Obtener el ID generado
+            .single();
 
         if (estacionamientoError) {
             console.error("❌ [FALLBACK] Error creando estacionamiento:", estacionamientoError);
-            console.error("❌ [FALLBACK] Detalles del error:", {
-                code: estacionamientoError.code,
-                message: estacionamientoError.message,
-                details: estacionamientoError.details,
-                hint: estacionamientoError.hint
-            });
+
+            // Si aún así falla, intentar con una estrategia más agresiva
+            console.log("🔄 [FALLBACK] Intentando estrategia alternativa...");
+
+            // Obtener el máximo ID actual
+            const { data: maxData } = await supabase
+                .from('estacionamientos')
+                .select('est_id')
+                .order('est_id', { ascending: false })
+                .limit(1);
+
+            const maxId = maxData?.[0]?.est_id || 0;
+            const newId = maxId + Math.floor(Math.random() * 100) + 1; // Agregar un número aleatorio para evitar conflictos
+
+            console.log(`🎲 [FALLBACK] Intentando con ID aleatorio: ${newId}`);
+
+            const { data: fallbackResult, error: fallbackError } = await supabase
+                .from('estacionamientos')
+                .insert({
+                    est_id: newId,
+                    est_prov: 'Por configurar',
+                    est_locali: 'Por configurar',
+                    est_direc: direccionLimpia, // Usar la dirección proporcionada
+                    est_nombre: name,
+                    est_capacidad: 0,
+                    due_id: usuarioId,
+                    est_cantidad_espacios_disponibles: 0,
+                    est_horario_funcionamiento: 24,
+                    est_tolerancia_min: 15
+                })
+                .select('est_id')
+                .single();
+
+            if (fallbackError) {
+                console.error("❌ [FALLBACK] Error en estrategia alternativa:", fallbackError);
+                return NextResponse.json({
+                    error: "Error creando estacionamiento - todas las estrategias fallaron",
+                    details: fallbackError.message
+                }, { status: 500 });
+            }
+
+            const generatedEstId = fallbackResult.est_id;
+            console.log(`✅ [FALLBACK] Estacionamiento creado exitosamente con ID: ${generatedEstId}`);
+
             return NextResponse.json({
-                error: "Error creando estacionamiento",
-                details: estacionamientoError.message
-            }, { status: 500 });
+                success: true,
+                estacionamiento_id: generatedEstId,
+                message: `Estacionamiento "${name}" creado exitosamente`,
+                details: {
+                    est_id: generatedEstId,
+                    est_nombre: name,
+                    usuario_id: usuarioId,
+                    plazas_creadas: 0,
+                    strategy: 'fallback_random_id'
+                }
+            });
         }
 
-        const generatedEstId = insertResult[0]?.est_id;
+        const generatedEstId = insertResult.est_id;
         console.log(`✅ [FALLBACK] Estacionamiento creado exitosamente con ID: ${generatedEstId}`);
 
         return NextResponse.json({
@@ -168,9 +210,9 @@ export async function POST(request: NextRequest) {
             details: {
                 est_id: generatedEstId,
                 est_nombre: name,
-                usuario_email: email,
+                usuario_id: usuarioId,
                 plazas_creadas: 0,
-                strategy: 'thread_safe_id'
+                strategy: 'auto_generated_id'
             }
         });
 
