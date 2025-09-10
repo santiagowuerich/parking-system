@@ -22,6 +22,9 @@ import { ThemeToggle } from "./theme-toggle"
 import { useAuth } from "@/lib/auth-context"
 import { ZonaEstacionamiento } from "./ZonaEstacionamiento"
 import { SimpleVehicleList } from "./SimpleVehicleList"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
+import { Settings } from 'lucide-react'
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -62,6 +65,11 @@ interface OperatorPanelProps {
   loadingPlazas: boolean
   fetchPlazasStatus: () => void
   onConfigureZones?: () => void
+  // Nuevas props para visualización rica
+  plazasCompletas?: any[]
+  loadingPlazasCompletas?: boolean
+  getEstadoColor?: (estado: string) => string
+  getEstadoIcon?: (estado: string) => string
 }
 
 export default function OperatorPanel({
@@ -75,6 +83,10 @@ export default function OperatorPanel({
   loadingPlazas,
   fetchPlazasStatus,
   onConfigureZones,
+  plazasCompletas = [],
+  loadingPlazasCompletas = false,
+  getEstadoColor,
+  getEstadoIcon,
 }: OperatorPanelProps) {
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -201,13 +213,150 @@ export default function OperatorPanel({
     }
   };
 
+  // Crear visualización rica de zonas usando plazasCompletas
+  const crearVisualizacionRica = () => {
+    if (!plazasCompletas || plazasCompletas.length === 0) return null;
+
+    // Agrupar plazas por zona
+    const plazasPorZona = plazasCompletas.reduce((acc: Record<string, any[]>, plaza: any) => {
+      const zonaNombre = plaza.pla_zona || 'Sin Zona';
+      if (!acc[zonaNombre]) {
+        acc[zonaNombre] = [];
+      }
+      acc[zonaNombre].push(plaza);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return (
+      <TooltipProvider>
+        <div className="space-y-6">
+          <div className="flex justify-between items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+              </span>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
+              Actualizar
+            </Button>
+          </div>
+
+          {Object.entries(plazasPorZona).map(([zonaNombre, plazasZona]) => {
+            const plazasPorFila = 10;
+            const filas = [];
+
+            // Ordenar plazas por número
+            plazasZona.sort((a, b) => a.pla_numero - b.pla_numero);
+
+            for (let i = 0; i < plazasZona.length; i += plazasPorFila) {
+              filas.push(plazasZona.slice(i, i + plazasPorFila));
+            }
+
+            const estadisticasZona = {
+              total: plazasZona.length,
+              libres: plazasZona.filter(p => p.pla_estado === 'Libre').length,
+              ocupadas: plazasZona.filter(p => p.pla_estado === 'Ocupada').length
+            };
+
+            return (
+              <div key={zonaNombre} className="border rounded-lg p-4 dark:border-zinc-800">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold dark:text-zinc-100">🏗️ {zonaNombre}</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {estadisticasZona.libres}/{estadisticasZona.total} libres
+                    </Badge>
+                    <Badge variant="outline">
+                      {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupadas
+                    </Badge>
+                    {onConfigureZones && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.location.href = `/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`}
+                        className="flex items-center gap-1"
+                      >
+                        <Settings className="h-3 w-3" />
+                        Configurar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {filas.map((fila, filaIndex) => (
+                    <div key={filaIndex} className="flex gap-2 justify-center">
+                      {fila.map(plaza => (
+                        <Tooltip key={plaza.pla_numero}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md transition-colors duration-200 relative cursor-pointer ${getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400'
+                                } ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
+                              onClick={() => {
+                                if (plaza.pla_estado === 'Libre') {
+                                  setPlaNumero(String(plaza.pla_numero));
+                                  toast.success(`Plaza ${plaza.pla_numero} seleccionada`, {
+                                    description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
+                                  });
+                                }
+                              }}
+                            >
+                              <span className="text-xs">{plaza.pla_numero}</span>
+                              {plaza.plantillas && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">P</span>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            <div className="space-y-2">
+                              <div className="font-semibold">Plaza #{plaza.pla_numero}</div>
+                              <div className="text-sm">
+                                <span className="font-medium">Estado:</span> {plaza.pla_estado}
+                              </div>
+                              <div className="text-sm">
+                                <span className="font-medium">Tipo:</span> {plaza.catv_segmento}
+                              </div>
+                              <div className="text-sm">
+                                <span className="font-medium">Zona:</span> {plaza.pla_zona || 'Sin zona'}
+                              </div>
+                              {plaza.plantillas && (
+                                <div className="border-t pt-2 mt-2">
+                                  <div className="text-sm font-medium text-blue-600 mb-1">📋 Plantilla Asignada</div>
+                                  <div className="text-sm">
+                                    <span className="font-medium">Nombre:</span> {plaza.plantillas.nombre_plantilla}
+                                  </div>
+                                  <div className="text-sm">
+                                    <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </TooltipProvider>
+    );
+  };
+
   return (
     <div className="relative flex flex-col gap-4 p-4">
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
       {/* Sistema Híbrido: Vista Simple vs Zonas */}
-      {loadingPlazas ? (
+      {loadingPlazas || loadingPlazasCompletas ? (
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
             <CardTitle className="dark:text-zinc-100">Cargando...</CardTitle>
@@ -218,8 +367,18 @@ export default function OperatorPanel({
             </div>
           </CardContent>
         </Card>
+      ) : plazasCompletas && plazasCompletas.length > 0 ? (
+        // VISTA RICA: Con información completa de plantillas y tooltips
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Visualización de Plazas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {crearVisualizacionRica()}
+          </CardContent>
+        </Card>
       ) : plazasData?.mode === 'simple' ? (
-        // VISTA SIMPLE: Sin zonas configuradas
+        // VISTA SIMPLE: Sin zonas configuradas (fallback)
         <SimpleVehicleList
           stats={plazasData.stats}
           plazas={plazasData.plazas || []}
@@ -236,7 +395,7 @@ export default function OperatorPanel({
           showConfigureButton={true}
         />
       ) : (
-        // VISTA POR ZONAS: Zonas configuradas
+        // VISTA POR ZONAS: Zonas configuradas (fallback)
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
             <CardTitle className="dark:text-zinc-100">Disponibilidad por Zonas</CardTitle>
