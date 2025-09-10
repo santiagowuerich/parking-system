@@ -27,6 +27,10 @@ export default function OperadorSimplePage() {
     const [plazasData, setPlazasData] = useState<any>(null);
     const [loadingPlazas, setLoadingPlazas] = useState(true);
 
+    // Datos completos para visualización rica
+    const [plazasCompletas, setPlazasCompletas] = useState<any[]>([]);
+    const [loadingPlazasCompletas, setLoadingPlazasCompletas] = useState(true);
+
     // Inicializar datos del parking
     useEffect(() => {
         if (parkedVehicles && parkingCapacity && estId) {
@@ -66,7 +70,7 @@ export default function OperadorSimplePage() {
         loadRates();
     }, [estId]);
 
-    // Cargar estado de plazas
+    // Cargar estado de plazas (básico para operaciones)
     const fetchPlazasStatus = async () => {
         if (!estId) return;
 
@@ -87,11 +91,35 @@ export default function OperadorSimplePage() {
         }
     };
 
+    // Cargar datos completos para visualización rica
+    const fetchPlazasCompletas = async () => {
+        if (!estId) return;
+
+        try {
+            setLoadingPlazasCompletas(true);
+            const response = await fetch(`/api/plazas?est_id=${estId}`);
+
+            if (response.ok) {
+                const data = await response.json();
+                setPlazasCompletas(data.plazas || []);
+            } else {
+                console.error("Error al cargar datos completos de plazas");
+            }
+        } catch (error) {
+            console.error("Error al cargar datos completos de plazas:", error);
+        } finally {
+            setLoadingPlazasCompletas(false);
+        }
+    };
+
     // Cargar estado inicial
     useEffect(() => {
         const initializeData = async () => {
             setLoading(true);
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
             setLoading(false);
         };
 
@@ -188,7 +216,10 @@ export default function OperadorSimplePage() {
             if (ocupacionError) throw ocupacionError;
 
             await refreshParkedVehicles();
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
 
             toast({
                 title: "Entrada registrada",
@@ -277,7 +308,10 @@ export default function OperadorSimplePage() {
             // Actualizar datos
             await refreshParkedVehicles();
             await refreshParkingHistory();
-            await fetchPlazasStatus();
+            await Promise.all([
+                fetchPlazasStatus(),
+                fetchPlazasCompletas()
+            ]);
 
             // Mostrar información de salida
             setExitInfo({
@@ -306,6 +340,28 @@ export default function OperadorSimplePage() {
             });
         }
     };
+
+    // Funciones auxiliares para visualización de plazas
+    const getEstadoColor = (estado: string) => {
+        switch (estado) {
+            case 'Libre': return 'bg-green-500';
+            case 'Ocupada': return 'bg-red-500';
+            case 'Reservada': return 'bg-yellow-500';
+            case 'Mantenimiento': return 'bg-gray-500';
+            default: return 'bg-gray-400';
+        }
+    };
+
+    const getEstadoIcon = (estado: string) => {
+        switch (estado) {
+            case 'Libre': return '🟢';
+            case 'Ocupada': return '🔴';
+            case 'Reservada': return '🟡';
+            case 'Mantenimiento': return '⚫';
+            default: return '❓';
+        }
+    };
+
 
     // Función para configurar zonas (redirige al panel de administrador)
     const handleConfigureZones = () => {
@@ -371,14 +427,15 @@ export default function OperadorSimplePage() {
 
     return (
         <DashboardLayout>
-            <div className="p-6">
+            <div className="p-6 space-y-6">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-gray-900">Panel de Operador</h1>
                     <p className="text-gray-600 mt-1">
-                        Gestiona entradas y salidas de vehículos en tiempo real
+                        Gestiona entradas y salidas de vehículos con visualización de zonas
                     </p>
                 </div>
 
+                {/* Panel de Operador Original */}
                 <OperatorPanel
                     parking={parking}
                     availableSpaces={getAvailableSpaces()}
@@ -390,7 +447,13 @@ export default function OperadorSimplePage() {
                     loadingPlazas={loadingPlazas}
                     fetchPlazasStatus={fetchPlazasStatus}
                     onConfigureZones={handleConfigureZones}
+                    // Nuevas props para visualización rica
+                    plazasCompletas={plazasCompletas}
+                    loadingPlazasCompletas={loadingPlazasCompletas}
+                    getEstadoColor={getEstadoColor}
+                    getEstadoIcon={getEstadoIcon}
                 />
+
             </div>
         </DashboardLayout>
     );
