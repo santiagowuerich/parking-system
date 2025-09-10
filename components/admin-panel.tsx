@@ -474,7 +474,7 @@ export default function AdminPanel({
     <div key={type} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
       <p className="text-sm text-gray-500 dark:text-zinc-400">{label}</p>
       <p className="text-lg font-medium dark:text-zinc-100">
-        {capacity[type] - availableSpaces[type]} ocupados de {capacity[type]}
+          {availableSpaces[type]} ocupados de {capacity[type]}
       </p>
     </div>
   )
