@@ -29,8 +29,8 @@ BEGIN
 
   -- Asegurar una plaza por defecto
   IF NOT EXISTS (SELECT 1 FROM plazas WHERE est_id = 1 AND pla_numero = 1) THEN
-    INSERT INTO plazas (est_id, pla_numero, pla_estado, catv_segmento, pla_zona)
-    VALUES (1, 1, 'Libre', 'AUT', NULL);
+    INSERT INTO plazas (est_id, pla_numero, pla_local_numero, pla_estado, catv_segmento, pla_zona)
+    VALUES (1, 1, 1, 'Libre', 'AUT', NULL);
   END IF;
 END $$;
 

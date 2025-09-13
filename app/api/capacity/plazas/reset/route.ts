@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
 
   try {
     console.log('🔄 Iniciando reset completo de plazas...');
-    
+
     const { estId, target } = await request.json();
-    
+
     if (!estId || !target) {
       return NextResponse.json({ error: 'Missing estId or target' }, { status: 400 });
     }
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       CAM: Number(target.CAM || 0)
     };
 
-    for (const seg of ['AUT','MOT','CAM'] as const) {
+    for (const seg of ['AUT', 'MOT', 'CAM'] as const) {
       const current = currentCounts[seg] || 0;
       const desired = targetCounts[seg];
       if (desired < current) {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         const segPlazas = (plazasActuales || [])
           .filter(p => p.catv_segmento === seg)
           .map(p => p.pla_numero)
-          .sort((a,b) => b - a);
+          .sort((a, b) => b - a);
         const plazasAEliminar = segPlazas.slice(0, current - desired);
         const ocupadasBloqueantes = plazasAEliminar.filter(n => occupiedSet.has(n));
         if (ocupadasBloqueantes.length > 0) {
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Crear nuevas plazas con numeración consecutiva
     console.log('🏗️ Creando nuevas plazas con numeración consecutiva...');
-    
+
     const segments = [
       { key: 'AUT', count: target.AUT || 0 },
       { key: 'MOT', count: target.MOT || 0 },
@@ -115,16 +115,17 @@ export async function POST(request: NextRequest) {
     ];
 
     let currentNumber = 1;
-    
+
     for (const segment of segments) {
       if (segment.count > 0) {
         console.log(`🔢 Creando ${segment.count} plazas ${segment.key} desde el número ${currentNumber}`);
-        
+
         const plazasToCreate = [] as any[];
         for (let i = 0; i < segment.count; i++) {
           plazasToCreate.push({
             est_id: estId,
             pla_numero: currentNumber + i,
+            pla_local_numero: currentNumber + i, // Para plazas sin zona, usar mismo número
             catv_segmento: segment.key,
             pla_estado: 'Libre',
             pla_zona: null
@@ -155,17 +156,17 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Verificación final - plazas creadas:', verification);
     console.log('✅ Reset de plazas completado exitosamente');
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Plazas regeneradas exitosamente',
-      plazas: verification 
+      plazas: verification
     });
 
   } catch (err: any) {
     console.error('❌ Error en reset de plazas:', err);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Error interno del servidor',
-      details: err.message 
+      details: err.message
     }, { status: 500 });
   }
 }

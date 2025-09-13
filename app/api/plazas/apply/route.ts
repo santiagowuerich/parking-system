@@ -56,29 +56,40 @@ export async function POST(request: NextRequest) {
                     // Convertir números locales a números globales si es necesario
                     let plazasGlobales = accion.plazas;
 
-                    // Si los números parecen ser locales (1-N), convertirlos a globales
-                    if (accion.plazas.every((num: any) => typeof num === 'number' && num > 0 && num <= 60)) {
-                        console.log(`🔄 Convirtiendo números locales a globales:`, accion.plazas);
+                    // Verificar si los números necesitan conversión (si son números locales de la zona actual)
+                    console.log(`🔍 Verificando si los números necesitan conversión:`, accion.plazas);
 
-                        // Obtener el mapeo de números locales a globales para esta zona
-                        const { data: plazaMapping, error: mappingError } = await supabase
-                            .from('plazas')
-                            .select('pla_local_numero, pla_numero')
-                            .eq('zona_id', zona_id)
-                            .eq('est_id', est_id)
-                            .in('pla_local_numero', accion.plazas);
+                    // Obtener información de las plazas para determinar si son locales o globales
+                    const { data: plazaInfo, error: plazaInfoError } = await supabase
+                        .from('plazas')
+                        .select('pla_numero, pla_local_numero')
+                        .eq('zona_id', zona_id)
+                        .eq('est_id', est_id)
+                        .in('pla_local_numero', accion.plazas);
 
-                        if (!mappingError && plazaMapping) {
-                            const localToGlobal = new Map();
-                            plazaMapping.forEach((p: any) => {
-                                localToGlobal.set(p.pla_local_numero, p.pla_numero);
-                            });
+                    if (!plazaInfoError && plazaInfo && plazaInfo.length > 0) {
+                        console.log(`✅ Encontradas ${plazaInfo.length} plazas que coinciden con los números locales`);
 
-                            plazasGlobales = accion.plazas.map((local: any) => localToGlobal.get(local) || local);
-                            console.log(`✅ Conversión completada:`, plazasGlobales);
-                        } else {
-                            console.log(`⚠️ Error obteniendo mapeo local-global, usando números originales`);
-                        }
+                        // Crear mapeo local -> global
+                        const localToGlobal = new Map();
+                        plazaInfo.forEach((p: any) => {
+                            localToGlobal.set(p.pla_local_numero, p.pla_numero);
+                        });
+
+                        // Convertir usando el mapeo
+                        plazasGlobales = accion.plazas.map((local: any) => {
+                            const global = localToGlobal.get(local);
+                            return global !== undefined ? global : local;
+                        });
+
+                        console.log(`🔄 Conversión completada:`, {
+                            original: accion.plazas,
+                            convertido: plazasGlobales,
+                            mapeo: Object.fromEntries(localToGlobal)
+                        });
+                    } else {
+                        console.log(`ℹ️ Los números ya son globales o no se encontró mapeo, usando números originales:`, accion.plazas);
+                        plazasGlobales = accion.plazas;
                     }
 
                     // Validar que la plantilla existe y pertenece al estacionamiento
@@ -146,29 +157,40 @@ export async function POST(request: NextRequest) {
                     // Convertir números locales a números globales si es necesario
                     let plazasGlobales = accion.plazas;
 
-                    // Si los números parecen ser locales (1-N), convertirlos a globales
-                    if (accion.plazas.every((num: any) => typeof num === 'number' && num > 0 && num <= 60)) {
-                        console.log(`🔄 Convirtiendo números locales a globales para limpieza:`, accion.plazas);
+                    // Verificar si los números necesitan conversión (si son números locales de la zona actual)
+                    console.log(`🔍 Verificando si los números necesitan conversión para limpieza:`, accion.plazas);
 
-                        // Obtener el mapeo de números locales a globales para esta zona
-                        const { data: plazaMapping, error: mappingError } = await supabase
-                            .from('plazas')
-                            .select('pla_local_numero, pla_numero')
-                            .eq('zona_id', zona_id)
-                            .eq('est_id', est_id)
-                            .in('pla_local_numero', accion.plazas);
+                    // Obtener información de las plazas para determinar si son locales o globales
+                    const { data: plazaInfo, error: plazaInfoError } = await supabase
+                        .from('plazas')
+                        .select('pla_numero, pla_local_numero')
+                        .eq('zona_id', zona_id)
+                        .eq('est_id', est_id)
+                        .in('pla_local_numero', accion.plazas);
 
-                        if (!mappingError && plazaMapping) {
-                            const localToGlobal = new Map();
-                            plazaMapping.forEach((p: any) => {
-                                localToGlobal.set(p.pla_local_numero, p.pla_numero);
-                            });
+                    if (!plazaInfoError && plazaInfo && plazaInfo.length > 0) {
+                        console.log(`✅ Encontradas ${plazaInfo.length} plazas que coinciden con los números locales para limpieza`);
 
-                            plazasGlobales = accion.plazas.map((local: any) => localToGlobal.get(local) || local);
-                            console.log(`✅ Conversión completada para limpieza:`, plazasGlobales);
-                        } else {
-                            console.log(`⚠️ Error obteniendo mapeo local-global para limpieza, usando números originales`);
-                        }
+                        // Crear mapeo local -> global
+                        const localToGlobal = new Map();
+                        plazaInfo.forEach((p: any) => {
+                            localToGlobal.set(p.pla_local_numero, p.pla_numero);
+                        });
+
+                        // Convertir usando el mapeo
+                        plazasGlobales = accion.plazas.map((local: any) => {
+                            const global = localToGlobal.get(local);
+                            return global !== undefined ? global : local;
+                        });
+
+                        console.log(`🔄 Conversión completada para limpieza:`, {
+                            original: accion.plazas,
+                            convertido: plazasGlobales,
+                            mapeo: Object.fromEntries(localToGlobal)
+                        });
+                    } else {
+                        console.log(`ℹ️ Los números ya son globales o no se encontró mapeo para limpieza, usando números originales:`, accion.plazas);
+                        plazasGlobales = accion.plazas;
                     }
 
                     console.log(`🧹 Limpiando plantillas de plazas:`, plazasGlobales);
