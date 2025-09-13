@@ -309,6 +309,7 @@ export async function POST(request: NextRequest) {
             plazasToCreate.push({
                 est_id,
                 pla_numero: numeroInicio + i,
+                pla_local_numero: i + 1, // Número local dentro de la zona (1, 2, 3, ...)
                 zona_id,
                 pla_estado: 'Libre',
                 catv_segmento: 'AUT',

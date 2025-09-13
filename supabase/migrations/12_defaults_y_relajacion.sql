@@ -28,8 +28,8 @@ INSERT INTO estacionamientos (
 ) ON CONFLICT (est_id) DO NOTHING;
 
 -- 4) Crear al menos una plaza por defecto (est_id=1, pla_numero=1)
-INSERT INTO plazas (est_id, pla_numero, pla_estado, catv_segmento, pla_zona)
-VALUES (1, 1, 'Libre', 'AUT', NULL)
+INSERT INTO plazas (est_id, pla_numero, pla_local_numero, pla_estado, catv_segmento, pla_zona)
+VALUES (1, 1, 1, 'Libre', 'AUT', NULL)
 ON CONFLICT (est_id, pla_numero) DO NOTHING;
 
 
