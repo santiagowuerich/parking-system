@@ -11,6 +11,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
+import { logger, createTimer } from "@/lib/logger";
 
 type SignUpParams = {
   email: string;
@@ -720,14 +721,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async ({ email, password }: SignInParams) => {
+    const timer = createTimer('AuthContext.signIn');
     setLoading(true);
     try {
+      logger.debug('Iniciando signIn desde AuthContext');
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        logger.warn('SignIn fallido:', error.message);
+        throw error;
+      }
+
+      logger.info('SignIn exitoso, esperando redirección automática');
+      timer.end();
     } finally {
       setLoading(false);
     }

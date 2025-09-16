@@ -1,8 +1,25 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from './lib/supabase'
+import { logger, createTimer } from './lib/logger'
 
 export async function middleware(request: NextRequest) {
+  const timer = createTimer('Middleware execution');
+
+  // Obtener la URL actual ANTES de cualquier procesamiento
+  const url = request.nextUrl.clone();
+
+  // Rutas públicas que no requieren autenticación - verificar PRIMERO
+  const publicPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password'];
+  const isPublicPath = publicPaths.some(path => url.pathname.startsWith(path));
+
+  // Si es una ruta pública, continuar inmediatamente sin autenticación
+  if (isPublicPath) {
+    logger.debug(`Ruta pública accedida: ${url.pathname}`);
+    timer.end();
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -14,8 +31,8 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Variables de entorno de Supabase faltantes en middleware');
-    // En lugar de tirar error, continuar sin autenticación
+    logger.error('Variables de entorno de Supabase faltantes en middleware');
+    timer.end();
     return NextResponse.next();
   }
 
@@ -49,16 +66,11 @@ export async function middleware(request: NextRequest) {
   // Obtener el usuario autenticado (más seguro que getSession)
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Obtener la URL actual
-  const url = request.nextUrl.clone();
-
-  // Rutas públicas que no requieren autenticación
-  const publicPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password'];
-  const isPublicPath = publicPaths.some(path => url.pathname.startsWith(path));
-
   // Si no hay usuario autenticado y está intentando acceder a rutas protegidas
-  if (!user && !isPublicPath) {
+  if (!user) {
+    logger.debug(`Usuario no autenticado intentando acceder a: ${url.pathname}`);
     url.pathname = '/auth/login';
+    timer.end();
     return NextResponse.redirect(url);
   }
 
@@ -68,60 +80,54 @@ export async function middleware(request: NextRequest) {
     try {
       // Verificar que supabaseAdmin esté disponible
       if (!supabaseAdmin) {
-        console.error('❌ supabaseAdmin no disponible en middleware');
+        logger.error('supabaseAdmin no disponible en middleware');
         url.pathname = '/dashboard';
+        timer.end();
         return NextResponse.redirect(url);
       }
 
-      // Buscar usuario en tabla usuario
-      const { data: usuarioData } = await supabaseAdmin
+      // Consulta unificada para obtener usuario y rol
+      const { data: userWithRole } = await supabaseAdmin
         .from('usuario')
-        .select('usu_id')
+        .select(`
+          usu_id,
+          dueno!left(due_id),
+          playeros!left(play_id)
+        `)
         .eq('auth_user_id', user.id)
         .single();
 
-      if (usuarioData) {
-        const usuId = usuarioData.usu_id;
-
-        // Verificar si es dueño
-        const { data: duenoData } = await supabaseAdmin
-          .from('dueno')
-          .select('due_id')
-          .eq('due_id', usuId)
-          .single();
-
-        if (duenoData) {
-          console.log('👑 Usuario es DUEÑO - Redirigiendo a dashboard completo');
+      if (userWithRole) {
+        // Determinar rol basado en las relaciones
+        if (userWithRole.dueno && userWithRole.dueno.length > 0) {
+          logger.debug('Usuario es DUEÑO - Redirigiendo a dashboard completo');
           url.pathname = '/dashboard';
+          timer.end();
           return NextResponse.redirect(url);
-        }
-
-        // Verificar si es playero (empleado)
-        const { data: playeroData } = await supabaseAdmin
-          .from('playeros')
-          .select('play_id')
-          .eq('play_id', usuId)
-          .single();
-
-        if (playeroData) {
-          console.log('👷 Usuario es EMPLEADO - Redirigiendo a panel de operador');
+        } else if (userWithRole.playeros && userWithRole.playeros.length > 0) {
+          logger.debug('Usuario es EMPLEADO - Redirigiendo a panel de operador');
           url.pathname = '/dashboard/operador-simple';
+          timer.end();
+          return NextResponse.redirect(url);
+        } else {
+          // Si es conductor (no tiene rol específico), ir al dashboard general
+          logger.debug('Usuario es CONDUCTOR - Redirigiendo a dashboard general');
+          url.pathname = '/dashboard';
+          timer.end();
           return NextResponse.redirect(url);
         }
-
-        // Si es conductor (no tiene rol específico), ir al dashboard general
-        console.log('🚗 Usuario es CONDUCTOR - Redirigiendo a dashboard general');
-        url.pathname = '/dashboard';
-        return NextResponse.redirect(url);
       } else {
         // Usuario no encontrado en BD, redirigir a login
+        logger.warn('Usuario autenticado no encontrado en BD');
         url.pathname = '/auth/login';
+        timer.end();
         return NextResponse.redirect(url);
       }
     } catch (error) {
-      console.error('Error determinando rol en middleware:', error);
+      logger.error('Error determinando rol en middleware:', error);
       // En caso de error, redirigir al dashboard general
       url.pathname = '/dashboard';
+      timer.end();
       return NextResponse.redirect(url);
     }
   }
@@ -131,81 +137,73 @@ export async function middleware(request: NextRequest) {
     try {
       // Verificar que supabaseAdmin esté disponible
       if (!supabaseAdmin) {
-        console.error('❌ supabaseAdmin no disponible en middleware para protección de rutas');
+        logger.error('supabaseAdmin no disponible en middleware para protección de rutas');
         url.pathname = '/dashboard';
+        timer.end();
         return NextResponse.redirect(url);
       }
 
-      // Determinar rol del usuario
-      const { data: usuarioData } = await supabaseAdmin
+      // Consulta unificada para obtener usuario y rol
+      const { data: userWithRole } = await supabaseAdmin
         .from('usuario')
-        .select('usu_id')
+        .select(`
+          usu_id,
+          dueno!left(due_id),
+          playeros!left(play_id)
+        `)
         .eq('auth_user_id', user.id)
         .single();
 
-      if (usuarioData) {
-        const usuId = usuarioData.usu_id;
-        let userRole = 'unknown';
-
-        // Determinar rol
-        const { data: duenoData } = await supabaseAdmin
-          .from('dueno')
-          .select('due_id')
-          .eq('due_id', usuId)
-          .single();
-
-        if (duenoData) {
+      let userRole = 'unknown';
+      if (userWithRole) {
+        // Determinar rol basado en las relaciones
+        if (userWithRole.dueno && userWithRole.dueno.length > 0) {
           userRole = 'owner';
+        } else if (userWithRole.playeros && userWithRole.playeros.length > 0) {
+          userRole = 'playero';
         } else {
-          const { data: playeroData } = await supabaseAdmin
-            .from('playeros')
-            .select('play_id')
-            .eq('play_id', usuId)
-            .single();
-
-          if (playeroData) {
-            userRole = 'playero';
-          } else {
-            userRole = 'conductor';
-          }
-        }
-
-        // Proteger rutas específicas para owners
-        const ownerOnlyPaths = [
-          '/dashboard/empleados',
-          '/dashboard/tarifas',
-          '/dashboard/configuracion-zona',
-          '/dashboard/plazas/configuracion-avanzada',
-          '/dashboard/plantillas',
-          '/dashboard/payments'
-        ];
-
-        const isOwnerOnlyPath = ownerOnlyPaths.some(path =>
-          url.pathname === path || url.pathname.startsWith(path + '/')
-        );
-
-        // Redirigir empleados al panel de operador si acceden al dashboard principal
-        if (url.pathname === '/dashboard' && userRole === 'playero') {
-          console.log('👷 Empleado intentando acceder a dashboard principal - Redirigiendo a panel de operador');
-          url.pathname = '/dashboard/operador-simple';
-          return NextResponse.redirect(url);
-        }
-
-        // Bloquear rutas de owner para empleados
-        if (isOwnerOnlyPath && userRole !== 'owner') {
-          console.log(`🚫 Usuario con rol '${userRole}' intentando acceder a ruta de owner: ${url.pathname}`);
-          // Redirigir empleados al panel de operador, conductores al dashboard principal
-          url.pathname = userRole === 'playero' ? '/dashboard/operador-simple' : '/dashboard';
-          return NextResponse.redirect(url);
+          userRole = 'conductor';
         }
       }
+
+      // Proteger rutas específicas para owners
+      const ownerOnlyPaths = [
+        '/dashboard/empleados',
+        '/dashboard/tarifas',
+        '/dashboard/configuracion-zona',
+        '/dashboard/plazas/configuracion-avanzada',
+        '/dashboard/plantillas',
+        '/dashboard/payments'
+      ];
+
+      const isOwnerOnlyPath = ownerOnlyPaths.some(path =>
+        url.pathname === path || url.pathname.startsWith(path + '/')
+      );
+
+      // Redirigir empleados al panel de operador si acceden al dashboard principal
+      if (url.pathname === '/dashboard' && userRole === 'playero') {
+        logger.debug('Empleado intentando acceder a dashboard principal - Redirigiendo a panel de operador');
+        url.pathname = '/dashboard/operador-simple';
+        timer.end();
+        return NextResponse.redirect(url);
+      }
+
+      // Bloquear rutas de owner para empleados
+      if (isOwnerOnlyPath && userRole !== 'owner') {
+        logger.warn(`Usuario con rol '${userRole}' intentando acceder a ruta de owner: ${url.pathname}`);
+        // Redirigir empleados al panel de operador, conductores al dashboard principal
+        url.pathname = userRole === 'playero' ? '/dashboard/operador-simple' : '/dashboard';
+        timer.end();
+        return NextResponse.redirect(url);
+      }
     } catch (error) {
-      console.error('Error verificando permisos en middleware:', error);
+      logger.error('Error verificando permisos en middleware:', error);
       // En caso de error, permitir continuar para no bloquear al usuario
     }
   }
 
   // Si no se cumple ninguna condición de redirección, continuar
+  timer.end();
   return response;
 }
 
