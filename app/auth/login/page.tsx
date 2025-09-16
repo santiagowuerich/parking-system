@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, loading: authLoading } = useAuth();
   const router = useRouter();
   const search = useSearchParams();
   const resetOk = search?.get('reset') === 'ok';
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn({ email, password });
-      // El AuthContext maneja automáticamente la redirección
+      // El AuthContext maneja automáticamente la redirección y el loading
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
         setError("Email o contraseña incorrectos.");
@@ -30,8 +30,7 @@ export default function LoginPage() {
       } else {
         setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.");
       }
-    } finally {
-      setLoading(false);
+      setLoading(false); // Solo resetear loading en caso de error
     }
   };
 
@@ -40,10 +39,10 @@ export default function LoginPage() {
     setError(null);
     try {
       await signInWithGoogle();
+      // El AuthContext maneja automáticamente la redirección y el loading
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
-    } finally {
-      setLoading(false);
+      setLoading(false); // Solo resetear loading en caso de error
     }
   };
 
@@ -92,10 +91,10 @@ export default function LoginPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || authLoading}
             className="w-full py-2 bg-[#2563eb] text-white font-semibold rounded-md hover:bg-[#174ea6] transition disabled:opacity-50"
           >
-            {loading ? "Iniciando..." : "Iniciar Sesión"}
+            {(loading || authLoading) ? "Iniciando..." : "Iniciar Sesión"}
           </button>
         </form>
         {/* Separador */}
@@ -108,15 +107,15 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loading}
+          disabled={loading || authLoading}
           className="w-full py-2 flex items-center justify-center border border-gray-300 rounded-md bg-white hover:bg-gray-100 transition mb-2"
         >
           <svg width="20" height="20" viewBox="0 0 48 48" className="mr-2">
-            <path fill="#4285F4" d="M24 9.5c3.54 0 6.73 1.22 9.23 3.22l6.9-6.9C36.53 2.36 30.64 0 24 0 14.86 0 6.7 5.74 2.69 14.09l8.06 6.27C12.53 13.13 17.81 9.5 24 9.5z"/>
-            <path fill="#34A853" d="M46.1 24.5c0-1.64-.15-3.22-.43-4.75H24v9.02h12.44c-.54 2.92-2.18 5.39-4.64 7.05l7.19 5.59C43.93 37.36 46.1 31.44 46.1 24.5z"/>
-            <path fill="#FBBC05" d="M10.75 28.36c-1.12-3.29-1.12-6.83 0-10.12l-8.06-6.27C.86 15.86 0 19.81 0 24c0 4.19.86 8.14 2.69 11.77l8.06-6.27z"/>
-            <path fill="#EA4335" d="M24 48c6.64 0 12.53-2.36 17.13-6.45l-7.19-5.59c-2.01 1.35-4.58 2.14-7.44 2.14-6.19 0-11.47-3.63-13.25-8.86l-8.06 6.27C6.7 42.26 14.86 48 24 48z"/>
-            <path fill="none" d="M0 0h48v48H0z"/>
+            <path fill="#4285F4" d="M24 9.5c3.54 0 6.73 1.22 9.23 3.22l6.9-6.9C36.53 2.36 30.64 0 24 0 14.86 0 6.7 5.74 2.69 14.09l8.06 6.27C12.53 13.13 17.81 9.5 24 9.5z" />
+            <path fill="#34A853" d="M46.1 24.5c0-1.64-.15-3.22-.43-4.75H24v9.02h12.44c-.54 2.92-2.18 5.39-4.64 7.05l7.19 5.59C43.93 37.36 46.1 31.44 46.1 24.5z" />
+            <path fill="#FBBC05" d="M10.75 28.36c-1.12-3.29-1.12-6.83 0-10.12l-8.06-6.27C.86 15.86 0 19.81 0 24c0 4.19.86 8.14 2.69 11.77l8.06-6.27z" />
+            <path fill="#EA4335" d="M24 48c6.64 0 12.53-2.36 17.13-6.45l-7.19-5.59c-2.01 1.35-4.58 2.14-7.44 2.14-6.19 0-11.47-3.63-13.25-8.86l-8.06 6.27C6.7 42.26 14.86 48 24 48z" />
+            <path fill="none" d="M0 0h48v48H0z" />
           </svg>
           Google
         </button>

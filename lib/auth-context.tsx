@@ -13,6 +13,7 @@ import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
 import { logger, createTimer } from "@/lib/logger";
+import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 
 type SignUpParams = {
   email: string;
@@ -82,6 +83,7 @@ export const AuthContext = createContext<{
   setEstId: (id: number | null) => void;
   ensureParkingSetup: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  clearAuthCompletely: () => Promise<void>;
 }>({
   user: null,
   loading: true,
@@ -109,6 +111,7 @@ export const AuthContext = createContext<{
   setEstId: () => { },
   ensureParkingSetup: async () => { },
   signInWithGoogle: async () => { },
+  clearAuthCompletely: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -119,6 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
   const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
   const [loadingData, setLoadingData] = useState(false); // Guard para fetchUserData
+  const [isInitialized, setIsInitialized] = useState(false); // Flag para saber si ya se inicializó
+  const [lastUserId, setLastUserId] = useState<string | null>(null); // Para detectar cambios reales de usuario
   const [rates, setRates] = useState<Record<VehicleType, number> | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [parkedVehicles, setParkedVehicles] = useState<Vehicle[] | null>(null);
@@ -455,23 +460,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No eliminamos INIT_RATES_DONE, ya que es independiente del usuario
   };
 
+  // Función para limpiar completamente la autenticación (útil para errores de token)
+  const clearAuthCompletely = async () => {
+    try {
+      console.log('🧹 Limpiando autenticación completamente...');
+
+      // Cerrar sesión en Supabase
+      await supabase.auth.signOut({ scope: 'global' });
+
+      // Limpiar estado local
+      setUser(null);
+      setUserRole(null);
+      setLastUserId(null);
+      setLoading(false);
+
+      // Limpiar caché
+      clearCache();
+
+      // Limpiar localStorage adicional
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('parking_est_id');
+        sessionStorage.clear();
+      }
+
+      console.log('✅ Autenticación limpiada completamente');
+    } catch (error) {
+      console.error('Error limpiando autenticación:', error);
+    }
+  };
+
   // Efecto para manejar redirecciones basadas en autenticación
   useEffect(() => {
-    if (!loading) {
+    // Solo redirigir cuando no estemos cargando Y estemos inicializados
+    if (!loading && isInitialized) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
+
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
+        // Redirigir inmediatamente si tenemos usuario autenticado
         router.push("/");
       }
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
     initializeRates();
   }, []);
+
 
   useEffect(() => {
     console.log(`🎯 estId cambió a: ${estId}`);
@@ -659,6 +698,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]);
 
+  // Efecto para terminar el loading cuando se complete la inicialización
+  useEffect(() => {
+    // Terminar loading si usuario autenticado y no cargando rol
+    if (user?.id && !roleLoading) {
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 200);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user?.id, roleLoading]);
+
   // Función para obtener el rol del usuario
   const fetchUserRole = async () => {
     if (!user?.id || isLoadingRole) return;
@@ -735,16 +786,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let hasInitialized = false;
 
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted) {
           setUser(session?.user ?? null);
+          setLastUserId(session?.user?.id ?? null);
+          setIsInitialized(true);
+          hasInitialized = true;
+
+          // Solo terminar loading si no hay usuario
+          if (!session?.user) {
+            setLoading(false);
+          }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error initializing auth:", error);
-      } finally {
+
+        // Si es un error de refresh token, limpiar completamente la sesión
+        if (error?.code === 'refresh_token_not_found' ||
+          error?.message?.includes('Invalid Refresh Token')) {
+          console.log('🧹 Limpiando tokens inválidos...');
+          try {
+            await supabase.auth.signOut({ scope: 'global' });
+          } catch (signOutError) {
+            console.error("Error during cleanup:", signOutError);
+          }
+
+          // Limpiar estado local
+          setUser(null);
+          setLastUserId(null);
+          clearCache();
+        }
+
         if (mounted) {
           setLoading(false);
         }
@@ -756,18 +832,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
+      // Solo manejar eventos reales de autenticación, ignorar eventos de foco/visibilidad
       if (event === "SIGNED_OUT") {
         setUser(null);
+        setLastUserId(null);
         clearCache(); // Limpiar caché al cerrar sesión
         router.push("/auth/login");
-      } else if (session?.user) {
+        setLoading(false);
+      } else if (event === "SIGNED_IN" && session?.user) {
+        // Solo activar loading para login real (usuario diferente)
+        const isDifferentUser = lastUserId !== session.user.id;
+
+        if (isDifferentUser) {
+          console.log('🔄 Login real detectado para usuario:', session.user.id);
+          setLoading(true);
+        } else {
+          console.log('🔄 Mismo usuario, no activar loading');
+        }
+
         setUser(session.user);
+        setLastUserId(session.user.id);
+      } else if (session?.user) {
+        // Solo actualizar usuario sin cambiar loading
+        setUser(session.user);
+        setLastUserId(session.user.id);
       } else {
         setUser(null);
+        setLastUserId(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
+    // Inicializar ANTES de establecer el listener
     initializeAuth();
 
     return () => {
@@ -803,10 +899,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
-    setLoading(true);
+    // No poner loading=true aquí, dejar que onAuthStateChange maneje el estado
     try {
-      // Inicio de sesión
+      // Limpiar cualquier sesión previa antes de iniciar sesión
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+        clearCache();
+      } catch (cleanupError) {
+        // Ignorar errores de limpieza
+        console.log('Cleanup antes de login:', cleanupError);
+      }
 
+      // Inicio de sesión
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -821,8 +925,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch { }
       setUserRole(null);
       timer.end();
-    } finally {
+      // No cambiar loading aquí, onAuthStateChange lo manejará
+    } catch (error) {
+      // Solo en caso de error, asegurar que loading sea false
       setLoading(false);
+      throw error;
     }
   };
 
@@ -915,7 +1022,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   if (loading) {
-    return null; // O un componente de carga si lo prefieres
+    return <FullScreenLoader title="Iniciando sesión..." subtitle="Preparando tu panel" />;
   }
 
   return (
@@ -951,6 +1058,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserRole(null);
           setRoleLoading(false);
         },
+        clearAuthCompletely,
       }}
     >
       {children}
