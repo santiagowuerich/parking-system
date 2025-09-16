@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -58,6 +59,9 @@ export const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
   estId: number | null;
+  userRole: 'owner' | 'playero' | null;
+  roleLoading: boolean;
+  invalidateRoleCache: () => void;
   rates: Record<VehicleType, number> | null;
   userSettings: UserSettings | null;
   parkedVehicles: Vehicle[] | null;
@@ -82,6 +86,9 @@ export const AuthContext = createContext<{
   user: null,
   loading: true,
   estId: null,
+  userRole: null,
+  roleLoading: false,
+  invalidateRoleCache: () => { },
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -107,6 +114,11 @@ export const AuthContext = createContext<{
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
+  const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
+  const [loadingData, setLoadingData] = useState(false); // Guard para fetchUserData
   const [rates, setRates] = useState<Record<VehicleType, number> | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [parkedVehicles, setParkedVehicles] = useState<Vehicle[] | null>(null);
@@ -360,8 +372,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
   const fetchUserData = async () => {
-    if (!user?.id || estId === null) return;
+    if (!user?.id || estId === null || loadingData || isNavigating) return;
 
+    setLoadingData(true);
     setLoadingUserData(true);
     try {
       // Obtener datos que pueden venir de caché
@@ -415,6 +428,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingCapacity({ Auto: 0, Moto: 0, Camioneta: 0 });
     } finally {
       setLoadingUserData(false);
+      setLoadingData(false);
     }
   };
 
@@ -593,7 +607,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (ownerResponse.ok) {
             const ownerData = await ownerResponse.json();
-            if (ownerData.has_parking && ownerData.est_id) {
+            if (ownerData && ownerData.has_parking && ownerData.est_id) {
               console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
               setEstId(ownerData.est_id);
               if (typeof window !== 'undefined') {
@@ -645,12 +659,79 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]);
 
-  // Efecto separado para cargar datos cuando estId esté disponible
-  useEffect(() => {
-    if (user?.id && estId !== null) {
-      fetchUserData();
+  // Función para obtener el rol del usuario
+  const fetchUserRole = async () => {
+    if (!user?.id || isLoadingRole) return;
+
+    setIsLoadingRole(true);
+    setRoleLoading(true);
+
+    try {
+      // Verificar cache primero
+      const cachedRole = localStorage.getItem('user_role');
+      if (cachedRole) {
+        try {
+          const { role, timestamp } = JSON.parse(cachedRole);
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            setUserRole(role);
+            setRoleLoading(false);
+            setIsLoadingRole(false);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('user_role');
+        }
+      }
+
+      // Consultar API
+      const response = await fetch('/api/auth/get-role');
+      if (response.ok) {
+        const data = await response.json();
+        const role = data.role;
+
+        if (role === 'owner' || role === 'playero') {
+          setUserRole(role);
+          localStorage.setItem('user_role', JSON.stringify({
+            role,
+            timestamp: Date.now()
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error obteniendo rol:', error);
+    } finally {
+      setRoleLoading(false);
+      setIsLoadingRole(false);
     }
-  }, [user?.id, estId]);
+  };
+
+  // Efecto para cargar rol del usuario
+  useEffect(() => {
+    if (!user?.id) {
+      setUserRole(null);
+      setRoleLoading(false);
+      setIsLoadingRole(false);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetchUserRole();
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id]);
+
+  // Efecto separado: no cargar datos hasta que tengamos rol y estId
+  useEffect(() => {
+    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (roleLoading || !userRole) return; // esperar a rol
+
+    const timeoutId = setTimeout(() => {
+      fetchUserData();
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id, estId, userRole, roleLoading]);
 
   useEffect(() => {
     let mounted = true;
@@ -737,6 +818,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       logger.info('SignIn exitoso, esperando redirección automática');
+      // Forzar refetch de rol después de iniciar sesión
+      try {
+        localStorage.removeItem('user_role');
+      } catch { }
+      setUserRole(null);
       timer.end();
     } finally {
       setLoading(false);
@@ -861,6 +947,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEstId,
         ensureParkingSetup,
         signInWithGoogle,
+        userRole,
+        roleLoading,
+        invalidateRoleCache: () => {
+          localStorage.removeItem('user_role');
+          setUserRole(null);
+          setRoleLoading(false);
+        },
       }}
     >
       {children}

@@ -3,13 +3,13 @@
 import { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { useRole } from "../lib/use-role";
+import { useUserRole } from "../lib/use-user-role";
 import { Button } from "@/components/ui/button";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
 
 interface RouteGuardProps {
   children: ReactNode;
-  allowedRoles: ('owner' | 'playero' | 'conductor')[];
+  allowedRoles: ('owner' | 'playero')[];
   redirectTo?: string;
   showAccessDenied?: boolean;
   fallback?: ReactNode;
@@ -23,7 +23,8 @@ export function RouteGuard({
   fallback
 }: RouteGuardProps) {
   const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading, isUnknown } = useRole();
+  const { role, loading: roleLoading } = useUserRole();
+  const isUnknown = role === null;
   const router = useRouter();
 
   // Loading state
@@ -98,7 +99,7 @@ export function RouteGuard({
   }
 
   // Check if user has required role
-  if (!allowedRoles.includes(role as 'owner' | 'playero' | 'conductor')) {
+  if (!allowedRoles.includes(role as 'owner' | 'playero')) {
     console.log(`🚫 Usuario con rol '${role}' intentando acceder a ruta protegida para roles:`, allowedRoles);
 
     if (showAccessDenied) {

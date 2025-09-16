@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,12 +75,20 @@ export default function GestionUsuariosPage() {
     } | null>(null);
     const [userRole, setUserRole] = useState<'dueno' | 'empleado' | null>(null);
 
-    // Cargar datos iniciales
+    // Cargar turnos una sola vez
     useEffect(() => {
-        loadTurnos(); // Cargar turnos siempre, no depende de estId
-        if (user) {
-            determineUserRoleAndLoadEmpleados();
-        }
+        loadTurnos();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Evitar cargas repetidas: clave por usuario/estId
+    const lastLoadKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!user) return;
+        const key = `${user.id || 'no-user'}-${estId ?? 'no-est'}`;
+        if (lastLoadKeyRef.current === key) return;
+        lastLoadKeyRef.current = key;
+        determineUserRoleAndLoadEmpleados();
     }, [user, estId]);
 
     // Determinar el rol del usuario y cargar empleados apropiadamente
@@ -452,7 +460,7 @@ export default function GestionUsuariosPage() {
                                     Nuevo Empleado
                                 </Button>
                             )}
-                            <Button onClick={determineUserRoleAndLoadEmpleados} variant="outline" size="sm">
+                            <Button onClick={() => { lastLoadKeyRef.current = null; determineUserRoleAndLoadEmpleados(); }} variant="outline" size="sm">
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Actualizar
                             </Button>

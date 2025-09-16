@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "./auth-context";
 
 // Tipos de roles
-export type UserRole = 'owner' | 'playero' | 'conductor' | 'unknown';
+export type UserRole = 'owner' | 'playero' | 'unknown';
 
 // Hook para determinar el rol del usuario
 export function useRole() {
@@ -65,7 +65,6 @@ export function useRole() {
   // Flags booleanos para facilitar el uso
   const isOwner = role === 'owner';
   const isPlayero = role === 'playero';
-  const isConductor = role === 'conductor';
   const isUnknown = role === 'unknown';
 
   return {
@@ -75,7 +74,6 @@ export function useRole() {
     // Flags booleanos
     isOwner,
     isPlayero,
-    isConductor,
     isUnknown,
     // Método para refrescar el rol
     refreshRole: () => {

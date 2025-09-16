@@ -18,17 +18,15 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    // Opcionalmente permitir filtros por tiptar_nro y pla_tipo
+    // Leer versiones de tarifas por estacionamiento
     const url = new URL(request.url)
     const tiptar = Number(url.searchParams.get('tiptar')) || 1
-    const pla = url.searchParams.get('pla') || 'Normal'
     const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
 
     const { data, error } = await supabase
       .from('tarifas')
-      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro, pla_tipo')
+      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro')
       .eq('tiptar_nro', tiptar)
-      .eq('pla_tipo', pla)
       .eq('est_id', estId)
       .order('tar_f_desde', { ascending: false })
 

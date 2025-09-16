@@ -27,12 +27,11 @@ export async function GET(request: NextRequest) {
   const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
 
   try {
-    // Leer últimas tarifas por segmento para Hora (tiptar_nro=1) y pla_tipo='Normal' del est_id=1
+    // Leer últimas tarifas por segmento para Hora (tiptar_nro=1) del est_id
     const { data, error } = await supabase
       .from('tarifas')
-      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro, pla_tipo')
+      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro')
       .eq('tiptar_nro', 1)
-      .eq('pla_tipo', 'Normal')
       .eq('est_id', estId)
       .order('tar_f_desde', { ascending: false });
 
@@ -68,7 +67,7 @@ export async function GET(request: NextRequest) {
 // POST: Actualizar tarifas del usuario
 export async function POST(request: NextRequest) {
   try {
-    const { rates, modalidad, tipoPlaza } = await request.json();
+    const { rates, modalidad } = await request.json();
     if (!rates) {
       return NextResponse.json({ error: 'Se requieren tarifas' }, { status: 400 });
     }
@@ -93,21 +92,11 @@ export async function POST(request: NextRequest) {
       if (mm.includes('mens')) return 3; // Mensual
       return 1; // Hora (default)
     }
-    const mapPla = (p?: string) => {
-      const pp = (p || '').toLowerCase();
-      if (pp.includes('vip')) return 'VIP';
-      if (pp.includes('reserv')) return 'Reservada';
-      return 'Normal';
-    }
 
     const now = new Date().toISOString();
     const tiptar = mapModalidad(modalidad);
-    const pla = mapPla(tipoPlaza);
     if (![1,2,3].includes(tiptar)) {
       return NextResponse.json({ error: 'tiptar_nro inválido' }, { status: 400 })
-    }
-    if (!['Normal','VIP','Reservada'].includes(pla)) {
-      return NextResponse.json({ error: 'pla_tipo inválido' }, { status: 400 })
     }
 
     const url = new URL(request.url)
@@ -119,8 +108,7 @@ export async function POST(request: NextRequest) {
       catv_segmento: mapTypeToSeg(vehType),
       tar_f_desde: now,
       tar_precio: Number(price),
-      tar_fraccion: 1,
-      pla_tipo: pla
+      tar_fraccion: 1
     }));
 
     const { error: insertError } = await supabase.from('tarifas').insert(inserts);

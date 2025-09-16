@@ -74,7 +74,7 @@ El dashboard tiene **comportamiento inconsistente** al mostrar opciones según e
 **Modificar `lib/auth-context.tsx`**:
 ```typescript
 // Agregar estado de rol
-const [userRole, setUserRole] = useState<'owner' | 'playero' | 'conductor' | null>(null);
+const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
 
 // Función para obtener rol unificado
 const fetchUserRole = async () => {
@@ -146,7 +146,7 @@ import { useAuth } from './auth-context';
 
 export function useUserRole() {
   const { user } = useAuth();
-  const [role, setRole] = useState<'owner' | 'playero' | 'conductor' | null>(null);
+  const [role, setRole] = useState<'owner' | 'playero' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

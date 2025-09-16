@@ -68,7 +68,8 @@ export async function POST(request: NextRequest) {
     const tarifaTipo = String(body?.tarifa_tipo || 'hora') // Tipo de tarifa a usar
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
-    const plaRaw = String(body?.pla_tipo || 'Normal')
+    // La columna pla_tipo ya no existe, usar valor por defecto
+    const plaRaw = 'Normal'
     const allowedPla = ['Normal', 'VIP', 'Reservada']
     const pla = allowedPla.includes(plaRaw) ? plaRaw : 'Normal'
 
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
           .select('tar_precio, tar_fraccion')
           .eq('est_id', estId)
           .eq('tiptar_nro', tiptar)
-          .eq('pla_tipo', pla)
+          // La columna pla_tipo ya no existe
           .eq('plantilla_id', plazaData.plantilla_id)
           .order('tar_f_desde', { ascending: false })
           .limit(1);
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
         .select('tar_precio, tar_fraccion')
         .eq('est_id', estId)
         .eq('tiptar_nro', tiptar)
-        .eq('pla_tipo', pla)
+        // La columna pla_tipo ya no existe
         .eq('catv_segmento', seg)
         .order('tar_f_desde', { ascending: false })
         .limit(1);

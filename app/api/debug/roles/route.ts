@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
       const esPlayero = (playeros as Playero[])?.some((p: Playero) => p.play_id === user.usu_id);
       const empleadoEst = (empleadosEst as EmpleadoEstacionamiento[])?.find((e: EmpleadoEstacionamiento) => e.play_id === user.usu_id);
       
-      let rol = 'conductor'; // Por defecto
+      let rol = 'unknown'; // Por defecto
       let problema = null;
       
       if (esDueno && esPlayero) {
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
       } else if (esPlayero) {
         rol = 'playero';
       } else {
-        problema = 'No tiene rol asignado (será conductor por defecto)';
+        problema = 'No tiene rol asignado';
         conflictos.push({ usuario: user, problema });
       }
 

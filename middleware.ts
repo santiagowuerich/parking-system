@@ -98,20 +98,26 @@ export async function middleware(request: NextRequest) {
         .single();
 
       if (userWithRole) {
-        // Determinar rol basado en las relaciones
-        if (userWithRole.dueno && userWithRole.dueno.length > 0) {
+        // Determinar rol basado en las relaciones (acepta objeto o array)
+        const hasOwnerRel = Array.isArray(userWithRole.dueno)
+          ? userWithRole.dueno.length > 0
+          : Boolean(userWithRole.dueno);
+        const hasPlayeroRel = Array.isArray(userWithRole.playeros)
+          ? userWithRole.playeros.length > 0
+          : Boolean(userWithRole.playeros);
+
+        if (hasOwnerRel) {
           logger.debug('Usuario es DUEÑO - Redirigiendo a dashboard completo');
           url.pathname = '/dashboard';
           timer.end();
           return NextResponse.redirect(url);
-        } else if (userWithRole.playeros && userWithRole.playeros.length > 0) {
+        } else if (hasPlayeroRel) {
           logger.debug('Usuario es EMPLEADO - Redirigiendo a panel de operador');
           url.pathname = '/dashboard/operador-simple';
           timer.end();
           return NextResponse.redirect(url);
         } else {
-          // Si es conductor (no tiene rol específico), ir al dashboard general
-          logger.debug('Usuario es CONDUCTOR - Redirigiendo a dashboard general');
+          logger.debug('Usuario sin rol específico - Redirigiendo a dashboard general');
           url.pathname = '/dashboard';
           timer.end();
           return NextResponse.redirect(url);
@@ -156,14 +162,16 @@ export async function middleware(request: NextRequest) {
 
       let userRole = 'unknown';
       if (userWithRole) {
-        // Determinar rol basado en las relaciones
-        if (userWithRole.dueno && userWithRole.dueno.length > 0) {
-          userRole = 'owner';
-        } else if (userWithRole.playeros && userWithRole.playeros.length > 0) {
-          userRole = 'playero';
-        } else {
-          userRole = 'conductor';
-        }
+        const hasOwnerRel = Array.isArray(userWithRole.dueno)
+          ? userWithRole.dueno.length > 0
+          : Boolean(userWithRole.dueno);
+        const hasPlayeroRel = Array.isArray(userWithRole.playeros)
+          ? userWithRole.playeros.length > 0
+          : Boolean(userWithRole.playeros);
+
+        if (hasOwnerRel) userRole = 'owner';
+        else if (hasPlayeroRel) userRole = 'playero';
+        else userRole = 'unknown';
       }
 
       // Proteger rutas específicas para owners
@@ -191,7 +199,7 @@ export async function middleware(request: NextRequest) {
       // Bloquear rutas de owner para empleados
       if (isOwnerOnlyPath && userRole !== 'owner') {
         logger.warn(`Usuario con rol '${userRole}' intentando acceder a ruta de owner: ${url.pathname}`);
-        // Redirigir empleados al panel de operador, conductores al dashboard principal
+        // Redirigir empleados al panel de operador, usuarios sin rol definido quedan en dashboard
         url.pathname = userRole === 'playero' ? '/dashboard/operador-simple' : '/dashboard';
         timer.end();
         return NextResponse.redirect(url);

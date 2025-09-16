@@ -167,9 +167,28 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // Obtener usuarios faltantes si la relación viene null
+        const missingUserIds = (empleados || [])
+            .filter(emp => !emp.playeros || !emp.playeros.usuario)
+            .map(emp => emp.play_id);
+
+        let missingUsersMap: Record<number, any> = {};
+        if (missingUserIds.length > 0) {
+            const { data: missingUsers, error: missingUsersError } = await supabaseAdmin
+                .from('usuario')
+                .select('usu_id, usu_nom, usu_ape, usu_dni, usu_email, usu_estado, requiere_cambio_contrasena')
+                .in('usu_id', missingUserIds);
+
+            if (!missingUsersError && Array.isArray(missingUsers)) {
+                missingUsers.forEach(u => { missingUsersMap[u.usu_id] = u; });
+            } else {
+                console.log('⚠️ GET /api/empleados - No se pudo obtener usuarios faltantes:', missingUsersError);
+            }
+        }
+
         // Transformar los datos para un formato más amigable
         const empleadosFormateados = empleados?.map(emp => {
-            const usuario = emp.playeros.usuario;
+            const usuario = emp.playeros?.usuario || missingUsersMap[emp.play_id] || null;
             const estacionamiento = emp.estacionamientos;
 
             // Filtrar disponibilidad para este empleado
@@ -180,6 +199,27 @@ export async function GET(request: NextRequest) {
                     turno: d.turnos_catalogo?.nombre_turno || 'Sin turno',
                     turno_id: d.turno_id
                 }));
+
+            // Si no se pudo obtener el usuario, devolver un objeto mínimo para no romper UI
+            if (!usuario) {
+                return {
+                    usu_id: emp.play_id,
+                    nombre: 'Desconocido',
+                    apellido: '',
+                    dni: '',
+                    email: '',
+                    estado: 'Activo',
+                    requiere_cambio_contrasena: false,
+                    disponibilidad: disponibilidadEmpleado,
+                    estacionamiento: {
+                        est_id: estacionamiento?.est_id || null,
+                        est_nombre: estacionamiento?.est_nombre || 'N/A',
+                        est_locali: estacionamiento?.est_locali || 'N/A'
+                    },
+                    fecha_asignacion: emp.fecha_asignacion,
+                    activo: emp.activo
+                };
+            }
 
             return {
                 usu_id: usuario.usu_id,
