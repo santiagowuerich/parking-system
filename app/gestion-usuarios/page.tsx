@@ -119,24 +119,23 @@ export default function GestionUsuariosPage() {
     };
 
     const loadEmpleadosAsDueno = async () => {
-        console.log('🔄 Iniciando carga de empleados como DUEÑO, estId:', estId);
+        // iniciar carga de empleados como dueño
         if (!estId) {
-            console.log('❌ No hay estId disponible para cargar empleados');
+            // sin estId
             setLoading(false);
             return;
         }
 
         setLoading(true);
-        console.log('📡 Llamando a obtenerEmpleados con estId:', estId);
+        // llamada obtenerEmpleados
         const result = await obtenerEmpleados(estId); // Filtrar por el estacionamiento actual
-        console.log('📊 Resultado de obtenerEmpleados:', result);
+        // resultado obtenerEmpleados
 
         if (result.success && result.data) {
-            console.log('✅ Empleados cargados exitosamente:', result.data.length, 'empleados');
-            console.log('👥 Lista de empleados:', result.data);
+            // empleados cargados
             setEmpleados(result.data);
         } else {
-            console.log('❌ Error al cargar empleados:', result.error);
+            // error carga
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -144,7 +143,7 @@ export default function GestionUsuariosPage() {
             });
         }
         setLoading(false);
-        console.log('🏁 Carga de empleados completada');
+        // fin carga
     };
 
     const loadEmpleadosAsEmpleado = async () => {

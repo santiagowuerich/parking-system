@@ -15,7 +15,6 @@ export async function middleware(request: NextRequest) {
 
   // Si es una ruta pública, continuar inmediatamente sin autenticación
   if (isPublicPath) {
-    logger.debug(`Ruta pública accedida: ${url.pathname}`);
     timer.end();
     return NextResponse.next();
   }
@@ -31,7 +30,6 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    logger.error('Variables de entorno de Supabase faltantes en middleware');
     timer.end();
     return NextResponse.next();
   }
@@ -68,7 +66,6 @@ export async function middleware(request: NextRequest) {
 
   // Si no hay usuario autenticado y está intentando acceder a rutas protegidas
   if (!user) {
-    logger.debug(`Usuario no autenticado intentando acceder a: ${url.pathname}`);
     url.pathname = '/auth/login';
     timer.end();
     return NextResponse.redirect(url);
@@ -80,7 +77,6 @@ export async function middleware(request: NextRequest) {
     try {
       // Verificar que supabaseAdmin esté disponible
       if (!supabaseAdmin) {
-        logger.error('supabaseAdmin no disponible en middleware');
         url.pathname = '/dashboard';
         timer.end();
         return NextResponse.redirect(url);
@@ -107,30 +103,25 @@ export async function middleware(request: NextRequest) {
           : Boolean(userWithRole.playeros);
 
         if (hasOwnerRel) {
-          logger.debug('Usuario es DUEÑO - Redirigiendo a dashboard completo');
           url.pathname = '/dashboard';
           timer.end();
           return NextResponse.redirect(url);
         } else if (hasPlayeroRel) {
-          logger.debug('Usuario es EMPLEADO - Redirigiendo a panel de operador');
           url.pathname = '/dashboard/operador-simple';
           timer.end();
           return NextResponse.redirect(url);
         } else {
-          logger.debug('Usuario sin rol específico - Redirigiendo a dashboard general');
           url.pathname = '/dashboard';
           timer.end();
           return NextResponse.redirect(url);
         }
       } else {
         // Usuario no encontrado en BD, redirigir a login
-        logger.warn('Usuario autenticado no encontrado en BD');
         url.pathname = '/auth/login';
         timer.end();
         return NextResponse.redirect(url);
       }
     } catch (error) {
-      logger.error('Error determinando rol en middleware:', error);
       // En caso de error, redirigir al dashboard general
       url.pathname = '/dashboard';
       timer.end();
@@ -143,7 +134,6 @@ export async function middleware(request: NextRequest) {
     try {
       // Verificar que supabaseAdmin esté disponible
       if (!supabaseAdmin) {
-        logger.error('supabaseAdmin no disponible en middleware para protección de rutas');
         url.pathname = '/dashboard';
         timer.end();
         return NextResponse.redirect(url);
@@ -190,7 +180,6 @@ export async function middleware(request: NextRequest) {
 
       // Redirigir empleados al panel de operador si acceden al dashboard principal
       if (url.pathname === '/dashboard' && userRole === 'playero') {
-        logger.debug('Empleado intentando acceder a dashboard principal - Redirigiendo a panel de operador');
         url.pathname = '/dashboard/operador-simple';
         timer.end();
         return NextResponse.redirect(url);
@@ -198,14 +187,12 @@ export async function middleware(request: NextRequest) {
 
       // Bloquear rutas de owner para empleados
       if (isOwnerOnlyPath && userRole !== 'owner') {
-        logger.warn(`Usuario con rol '${userRole}' intentando acceder a ruta de owner: ${url.pathname}`);
         // Redirigir empleados al panel de operador, usuarios sin rol definido quedan en dashboard
         url.pathname = userRole === 'playero' ? '/dashboard/operador-simple' : '/dashboard';
         timer.end();
         return NextResponse.redirect(url);
       }
     } catch (error) {
-      logger.error('Error verificando permisos en middleware:', error);
       // En caso de error, permitir continuar para no bloquear al usuario
     }
   }

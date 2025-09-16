@@ -805,19 +805,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timer = createTimer('AuthContext.signIn');
     setLoading(true);
     try {
-      logger.debug('Iniciando signIn desde AuthContext');
+      // Inicio de sesión
 
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        logger.warn('SignIn fallido:', error.message);
-        throw error;
-      }
+      if (error) throw error;
 
-      logger.info('SignIn exitoso, esperando redirección automática');
+      // Login OK
       // Forzar refetch de rol después de iniciar sesión
       try {
         localStorage.removeItem('user_role');

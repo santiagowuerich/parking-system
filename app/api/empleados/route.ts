@@ -42,11 +42,9 @@ async function createAuthenticatedSupabaseClient() {
 // GET - Obtener empleados de un estacionamiento
 export async function GET(request: NextRequest) {
     try {
-        console.log('📋 GET /api/empleados - Iniciando...');
         const supabase = await createAuthenticatedSupabaseClient();
         const { searchParams } = new URL(request.url);
         const estId = searchParams.get('est_id');
-        console.log('🔍 GET /api/empleados - Parámetros:', { estId });
 
         // Obtener el usuario autenticado
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -82,8 +80,6 @@ export async function GET(request: NextRequest) {
             .single();
 
         const isDueno = !duenoError && duenoCheck !== null;
-        console.log('👤 Usuario', user.email, 'es', isDueno ? 'DUEÑO' : 'EMPLEADO');
-        console.log('🔍 Usuario ID:', userId, 'Auth ID:', user.id);
 
         // Si no se especifica est_id, obtener empleados según el rol del usuario
         let query = supabase
@@ -108,30 +104,20 @@ export async function GET(request: NextRequest) {
         } else {
             if (isDueno) {
                 // DUEÑO: obtener empleados de sus estacionamientos usando consulta directa
-                console.log('👑 Dueño - obteniendo empleados de sus estacionamientos');
 
                 // Para dueños, obtener todos los empleados de sus estacionamientos
                 // La política RLS se encargará de filtrar automáticamente
-                console.log('👑 Dueño consultando todos los empleados disponibles');
 
             } else {
                 // EMPLEADO: obtener solo su propia asignación
-                console.log('👷 Empleado consultando sus asignaciones - userId:', userId);
                 query = query.eq('play_id', userId);
             }
         }
 
         // Ejecutar la consulta
-        console.log('🔄 GET /api/empleados - Ejecutando consulta...');
-        console.log('📋 GET /api/empleados - Query SQL que se ejecutará:', query.toString());
 
         const { data: empleados, error } = await query;
-        console.log('📊 GET /api/empleados - Empleados crudos encontrados:', empleados?.length || 0);
-        console.log('📋 GET /api/empleados - Empleados crudos:', JSON.stringify(empleados, null, 2));
 
-        if (empleados && empleados.length > 0) {
-            console.log('👤 GET /api/empleados - Primer empleado encontrado:', empleados[0]);
-        }
 
         if (error) {
             console.log('❌ GET /api/empleados - Error en consulta:', error);
@@ -160,7 +146,7 @@ export async function GET(request: NextRequest) {
                 .in('play_id', empleadosIds);
 
             if (dispError) {
-                console.log('⚠️ GET /api/empleados - Error obteniendo disponibilidad:', dispError);
+                // mantén silencio en prod
             } else {
                 disponibilidadData = disponibilidad || [];
                 console.log('📅 GET /api/empleados - Disponibilidad obtenida:', disponibilidadData.length, 'registros');

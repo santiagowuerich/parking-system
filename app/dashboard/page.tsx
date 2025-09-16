@@ -62,7 +62,7 @@ export default function DashboardPage() {
 
         try {
             setLoadingEstacionamiento(true);
-            console.log(`🔍 Cargando detalles del estacionamiento ${estId}`);
+            // cargar detalles de estacionamiento
 
             const response = await fetch(`/api/auth/list-parkings`);
 
@@ -81,25 +81,21 @@ export default function DashboardPage() {
 
                 if (estacionamiento) {
                     setEstacionamientoActual(estacionamiento);
-                    console.log(`✅ Detalles cargados para estacionamiento: ${estacionamiento.est_nombre}`);
+                    // detalles cargados
                 } else {
-                    console.warn(`⚠️ No se encontró el estacionamiento con ID ${estId}`);
-                    // Para empleados, esto podría significar que no tienen asignación activa
-                    console.log(`👷 Posiblemente empleado sin asignación activa`);
+                    // no encontrado
                     setEstacionamientoActual(null);
                 }
             } else {
-                console.warn('⚠️ No se encontraron estacionamientos');
+                // no se encontraron estacionamientos
                 setEstacionamientoActual(null);
             }
         } catch (error) {
-            console.error('❌ Error cargando detalles del estacionamiento:', error);
+            // error de carga
             setEstacionamientoActual(null);
 
             // Si hay un error específico, lo mostramos
-            if (error instanceof Error) {
-                console.error('Detalle del error:', error.message);
-            }
+            if (error instanceof Error) { /* noop */ }
         } finally {
             setLoadingEstacionamiento(false);
         }
