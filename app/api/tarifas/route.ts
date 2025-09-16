@@ -1,19 +1,8 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createClient, copyResponseCookies } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         // Obtener est_id de los parámetros de la URL
@@ -74,11 +63,7 @@ export async function GET(request: NextRequest) {
             success: true,
             tarifas: resultado
         })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado obteniendo tarifas:', err)
@@ -87,18 +72,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         // Obtener est_id de los parámetros de la URL
@@ -184,11 +158,7 @@ export async function POST(request: NextRequest) {
             message: 'Tarifas guardadas correctamente',
             tarifas_actualizadas: tarifasParaUpsert.length
         })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado guardando tarifas:', err)

@@ -1,26 +1,12 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
 // GET: Obtener tarifas del usuario
 export async function GET(request: NextRequest) {
   // userId ya no es requerido; las tarifas se leen desde 'tarifas' del esquema español
   new URL(request.url).searchParams.get("userId");
 
-  let response = NextResponse.next()
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name) { return request.cookies.get(name)?.value },
-        set(name, value, options) {
-          response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options })
-        },
-        remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-      }
-    }
-  )
+  const { supabase, response } = createClient(request)
 
   const defaultRates = { Auto: 0, Moto: 0, Camioneta: 0 };
   const url = new URL(request.url)
@@ -39,8 +25,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo tarifas:', error);
       // Devolver tarifas por defecto si hay error (ya no hay fallback a tablas en inglés)
       const jsonResponse = NextResponse.json({ rates: defaultRates });
-      response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-      return jsonResponse;
+      return copyResponseCookies(response, jsonResponse);
     }
 
     // Elegir la última por segmento
@@ -56,8 +41,7 @@ export async function GET(request: NextRequest) {
     Object.entries(latestBySeg).forEach(([seg, price]) => { result[mapSegToType(seg)] = Number(price) });
 
     const jsonResponse = NextResponse.json({ rates: result });
-    response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error('Unexpected error fetching rates:', err);
     return NextResponse.json({ rates: defaultRates });
@@ -72,18 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Se requieren tarifas' }, { status: 400 });
     }
 
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name) { return request.cookies.get(name)?.value },
-          set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-          remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-        }
-      }
-    )
+    const { supabase, response } = createClient(request)
 
     const mapTypeToSeg = (t: string) => t === 'Moto' ? 'MOT' : t === 'Camioneta' ? 'CAM' : 'AUT';
     const mapModalidad = (m?: string) => {
@@ -95,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
     const tiptar = mapModalidad(modalidad);
-    if (![1,2,3].includes(tiptar)) {
+    if (![1, 2, 3].includes(tiptar)) {
       return NextResponse.json({ error: 'tiptar_nro inválido' }, { status: 400 })
     }
 
@@ -118,8 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const jsonResponse = NextResponse.json({ success: true, rates });
-    response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error('Unexpected error updating rates:', err);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

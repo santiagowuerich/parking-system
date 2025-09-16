@@ -1,44 +1,11 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import type { VehicleType } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   // userId ya no es obligatorio; capacidad ahora se deriva de 'estacionamientos' (est_id=1) y plazas
 
-  // Crear la respuesta inicial
-  let response = NextResponse.next()
-
-  // Crear el cliente de Supabase
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name) {
-          return request.cookies.get(name)?.value
-        },
-        set(name, value, options) {
-          response.cookies.set({
-            name,
-            value,
-            path: '/',
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            ...options
-          })
-        },
-        remove(name) {
-          response.cookies.set({
-            name,
-            value: '',
-            path: '/',
-            expires: new Date(0)
-          })
-        }
-      }
-    }
-  )
+  const { supabase, response } = createClient(request)
 
   try {
     // Opción simple: devolver capacidad total del estacionamiento 1 y derivar por tipo desde plazas
@@ -64,14 +31,7 @@ export async function GET(request: NextRequest) {
     // Si no hay datos, devolver valores por defecto
     if (!plazas) {
       const jsonResponse = NextResponse.json({ capacity: { Auto: 0, Moto: 0, Camioneta: 0 } });
-
-      // Copiar las cookies de la respuesta temporal a la respuesta final
-      response.cookies.getAll().forEach(cookie => {
-        const { name, value, ...options } = cookie
-        jsonResponse.cookies.set({ name, value, ...options })
-      })
-
-      return jsonResponse;
+      return copyResponseCookies(response, jsonResponse);
     }
 
     // Convertir el array a un objeto
@@ -89,13 +49,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Copiar las cookies de la respuesta temporal a la respuesta final
-    response.cookies.getAll().forEach(cookie => {
-      const { name, value, ...options } = cookie
-      jsonResponse.cookies.set({ name, value, ...options })
-    })
-
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error("Unexpected error fetching capacity:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
@@ -109,40 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Se requiere capacidad' }, { status: 400 });
     }
 
-    // Crear la respuesta inicial
-    let response = NextResponse.next()
-
-    // Crear el cliente de Supabase
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name) {
-            return request.cookies.get(name)?.value
-          },
-          set(name, value, options) {
-            response.cookies.set({
-              name,
-              value,
-              path: '/',
-              httpOnly: true,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              ...options
-            })
-          },
-          remove(name) {
-            response.cookies.set({
-              name,
-              value: '',
-              path: '/',
-              expires: new Date(0)
-            })
-          }
-        }
-      }
-    )
+    const { supabase, response } = createClient(request)
 
     // Ajustar capacidad total del estacionamiento 1
     const total = Number(capacity.Auto || 0) + Number(capacity.Moto || 0) + Number(capacity.Camioneta || 0);
@@ -162,13 +83,7 @@ export async function POST(request: NextRequest) {
     // Nota: Para capacidad por tipo idealmente se gestionan filas en 'plazas'.
     const jsonResponse = NextResponse.json({ success: true, capacity });
 
-    // Copiar las cookies de la respuesta temporal a la respuesta final
-    response.cookies.getAll().forEach(cookie => {
-      const { name, value, ...options } = cookie
-      jsonResponse.cookies.set({ name, value, ...options })
-    })
-
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error("Unexpected error updating capacity:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
