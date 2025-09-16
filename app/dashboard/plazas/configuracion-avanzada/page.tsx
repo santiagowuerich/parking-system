@@ -55,7 +55,7 @@ interface Action {
 
 const ConfiguracionAvanzadaPage: React.FC = () => {
     // Obtener el contexto de autenticación
-    const { estId, user, loading: authLoading } = useAuth();
+    const { estId, user } = useAuth();
 
     // Estados principales
     const [loading, setLoading] = useState(true);
@@ -80,13 +80,13 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
     // Cargar datos iniciales cuando estId esté disponible
     useEffect(() => {
-        if (!authLoading && user && estId) {
+        if (user && estId) {
             cargarDatosIniciales();
-        } else if (!authLoading && !estId) {
+        } else if (!estId) {
             // Si no hay estacionamiento asignado, mostrar mensaje
             setLoading(false);
         }
-    }, [authLoading, user, estId]);
+    }, [user, estId]);
 
     const cargarDatosIniciales = async () => {
         if (!estId) {
@@ -448,17 +448,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
         }
     }, [acciones, indiceAccionActual, zonaActual, cargarPlazasZona, estId]);
 
-    // Mostrar loading mientras se carga la autenticación
-    if (authLoading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                    <p className="text-muted-foreground">Verificando autenticación...</p>
-                </div>
-            </div>
-        );
-    }
 
     // Mostrar mensaje si no hay usuario autenticado
     if (!user) {

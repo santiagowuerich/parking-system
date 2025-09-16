@@ -115,17 +115,8 @@ export default function OperatorPanel({
   const [filterPlate, setFilterPlate] = useState<string>("")
   const [filterVehicleType, setFilterVehicleType] = useState<VehicleType | 'Todos'>("Todos")
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") {
-        toast.error("La sesión ha expirado. Por favor, inicie sesión nuevamente.")
-      }
-    })
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [supabase])
+  // El AuthContext ya maneja todos los eventos de autenticación
+  // No necesitamos duplicar onAuthStateChange aquí
 
   // Función reutilizable para recargar el estado de plazas
   const reloadPlazas = async () => {

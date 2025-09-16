@@ -186,9 +186,9 @@ export async function POST(request: NextRequest) {
         // 5. Crear tarifas básicas por defecto (opcional)
         const tarifasToCreate = [
             // Tarifas por hora (tiptar_nro = 1)
-            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'AUT', tar_f_desde: new Date().toISOString(), tar_precio: 500, tar_fraccion: 1, pla_tipo: 'Normal' },
-            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'MOT', tar_f_desde: new Date().toISOString(), tar_precio: 300, tar_fraccion: 1, pla_tipo: 'Normal' },
-            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'CAM', tar_f_desde: new Date().toISOString(), tar_precio: 700, tar_fraccion: 1, pla_tipo: 'Normal' },
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'AUT', tar_f_desde: new Date().toISOString(), tar_precio: 500, tar_fraccion: 1 },
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'MOT', tar_f_desde: new Date().toISOString(), tar_precio: 300, tar_fraccion: 1 },
+            { est_id: nextEstId, tiptar_nro: 1, catv_segmento: 'CAM', tar_f_desde: new Date().toISOString(), tar_precio: 700, tar_fraccion: 1 },
         ];
 
         const { error: tarifasError } = await supabase

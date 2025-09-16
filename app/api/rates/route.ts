@@ -1,38 +1,23 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
 // GET: Obtener tarifas del usuario
 export async function GET(request: NextRequest) {
   // userId ya no es requerido; las tarifas se leen desde 'tarifas' del esquema español
   new URL(request.url).searchParams.get("userId");
 
-  let response = NextResponse.next()
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name) { return request.cookies.get(name)?.value },
-        set(name, value, options) {
-          response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options })
-        },
-        remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-      }
-    }
-  )
+  const { supabase, response } = createClient(request)
 
   const defaultRates = { Auto: 0, Moto: 0, Camioneta: 0 };
   const url = new URL(request.url)
   const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
 
   try {
-    // Leer últimas tarifas por segmento para Hora (tiptar_nro=1) y pla_tipo='Normal' del est_id=1
+    // Leer últimas tarifas por segmento para Hora (tiptar_nro=1) del est_id
     const { data, error } = await supabase
       .from('tarifas')
-      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro, pla_tipo')
+      .select('catv_segmento, tar_precio, tar_f_desde, tiptar_nro')
       .eq('tiptar_nro', 1)
-      .eq('pla_tipo', 'Normal')
       .eq('est_id', estId)
       .order('tar_f_desde', { ascending: false });
 
@@ -40,8 +25,7 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo tarifas:', error);
       // Devolver tarifas por defecto si hay error (ya no hay fallback a tablas en inglés)
       const jsonResponse = NextResponse.json({ rates: defaultRates });
-      response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-      return jsonResponse;
+      return copyResponseCookies(response, jsonResponse);
     }
 
     // Elegir la última por segmento
@@ -57,8 +41,7 @@ export async function GET(request: NextRequest) {
     Object.entries(latestBySeg).forEach(([seg, price]) => { result[mapSegToType(seg)] = Number(price) });
 
     const jsonResponse = NextResponse.json({ rates: result });
-    response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error('Unexpected error fetching rates:', err);
     return NextResponse.json({ rates: defaultRates });
@@ -68,23 +51,12 @@ export async function GET(request: NextRequest) {
 // POST: Actualizar tarifas del usuario
 export async function POST(request: NextRequest) {
   try {
-    const { rates, modalidad, tipoPlaza } = await request.json();
+    const { rates, modalidad } = await request.json();
     if (!rates) {
       return NextResponse.json({ error: 'Se requieren tarifas' }, { status: 400 });
     }
 
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name) { return request.cookies.get(name)?.value },
-          set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-          remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-        }
-      }
-    )
+    const { supabase, response } = createClient(request)
 
     const mapTypeToSeg = (t: string) => t === 'Moto' ? 'MOT' : t === 'Camioneta' ? 'CAM' : 'AUT';
     const mapModalidad = (m?: string) => {
@@ -93,21 +65,11 @@ export async function POST(request: NextRequest) {
       if (mm.includes('mens')) return 3; // Mensual
       return 1; // Hora (default)
     }
-    const mapPla = (p?: string) => {
-      const pp = (p || '').toLowerCase();
-      if (pp.includes('vip')) return 'VIP';
-      if (pp.includes('reserv')) return 'Reservada';
-      return 'Normal';
-    }
 
     const now = new Date().toISOString();
     const tiptar = mapModalidad(modalidad);
-    const pla = mapPla(tipoPlaza);
-    if (![1,2,3].includes(tiptar)) {
+    if (![1, 2, 3].includes(tiptar)) {
       return NextResponse.json({ error: 'tiptar_nro inválido' }, { status: 400 })
-    }
-    if (!['Normal','VIP','Reservada'].includes(pla)) {
-      return NextResponse.json({ error: 'pla_tipo inválido' }, { status: 400 })
     }
 
     const url = new URL(request.url)
@@ -119,8 +81,7 @@ export async function POST(request: NextRequest) {
       catv_segmento: mapTypeToSeg(vehType),
       tar_f_desde: now,
       tar_precio: Number(price),
-      tar_fraccion: 1,
-      pla_tipo: pla
+      tar_fraccion: 1
     }));
 
     const { error: insertError } = await supabase.from('tarifas').insert(inserts);
@@ -130,8 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const jsonResponse = NextResponse.json({ success: true, rates });
-    response.cookies.getAll().forEach(c=>{ const {name,value,...opt}=c; jsonResponse.cookies.set({name,value,...opt}) });
-    return jsonResponse;
+    return copyResponseCookies(response, jsonResponse);
   } catch (err) {
     console.error('Unexpected error updating rates:', err);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });

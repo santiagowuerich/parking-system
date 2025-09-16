@@ -1,20 +1,9 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createClient, copyResponseCookies } from '@/lib/supabase/client'
 
 // GET: Obtener todas las plantillas con sus características
 export async function GET(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         const url = new URL(request.url)
@@ -71,11 +60,7 @@ export async function GET(request: NextRequest) {
         })
 
         const jsonResponse = NextResponse.json({ plantillas: plantillasFormateadas })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado obteniendo plantillas:', err)
@@ -85,18 +70,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Crear nueva plantilla
 export async function POST(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         const { est_id, nombre_plantilla, catv_segmento, caracteristica_ids } = await request.json()
@@ -230,11 +204,7 @@ export async function POST(request: NextRequest) {
         }
 
         const jsonResponse = NextResponse.json({ plantilla })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado creando plantilla:', err)
@@ -244,18 +214,7 @@ export async function POST(request: NextRequest) {
 
 // PUT: Actualizar plantilla existente
 export async function PUT(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         const { plantilla_id, nombre_plantilla, catv_segmento, caracteristica_ids } = await request.json()
@@ -413,11 +372,7 @@ export async function PUT(request: NextRequest) {
         }
 
         const jsonResponse = NextResponse.json({ plantilla })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado actualizando plantilla:', err)
@@ -427,18 +382,7 @@ export async function PUT(request: NextRequest) {
 
 // DELETE: Eliminar plantilla
 export async function DELETE(request: NextRequest) {
-    let response = NextResponse.next()
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name) { return request.cookies.get(name)?.value },
-                set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-                remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-            }
-        }
-    )
+    const { supabase, response } = createClient(request)
 
     try {
         const { plantilla_id } = await request.json()
@@ -459,11 +403,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         const jsonResponse = NextResponse.json({ success: true, message: 'Plantilla eliminada exitosamente' })
-        response.cookies.getAll().forEach(c => {
-            const { name, value, ...opt } = c
-            jsonResponse.cookies.set({ name, value, ...opt })
-        })
-        return jsonResponse
+        return copyResponseCookies(response, jsonResponse)
 
     } catch (err: any) {
         console.error('Error inesperado eliminando plantilla:', err)

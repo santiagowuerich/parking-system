@@ -38,7 +38,7 @@ interface ParkingStatusWidgetProps {
 }
 
 export default function ParkingStatusWidget({ className, collapsed = false }: ParkingStatusWidgetProps) {
-    const { estId, parkedVehicles, parkingCapacity } = useAuth();
+    const { estId, parkedVehicles, parkingCapacity, userRole, roleLoading } = useAuth();
     const [estacionamientoActual, setEstacionamientoActual] = useState<EstacionamientoDetalle | null>(null);
     const [loadingEstacionamiento, setLoadingEstacionamiento] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -88,21 +88,21 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
         setRefreshing(false);
     };
 
-    // Cargar detalles del estacionamiento cuando estId cambie
+    // Cargar detalles del estacionamiento cuando estId cambie (guard)
     useEffect(() => {
-        cargarDetallesEstacionamiento();
-    }, [estId]);
-
-    // Actualización automática cada 30 segundos
-    useEffect(() => {
+        if (roleLoading) return;
         if (!estId) return;
+        cargarDetallesEstacionamiento();
+    }, [estId, roleLoading]);
 
-        const interval = setInterval(() => {
-            cargarDetallesEstacionamiento();
-        }, 30000); // 30 segundos
-
-        return () => clearInterval(interval);
-    }, [estId]);
+    // Desactivar polling automático para evitar loops
+    // useEffect(() => {
+    //     if (!estId) return;
+    //     const interval = setInterval(() => {
+    //         cargarDetallesEstacionamiento();
+    //     }, 30000);
+    //     return () => clearInterval(interval);
+    // }, [estId]);
 
     // Calcular estadísticas en tiempo real
     const totalSpaces = parkingCapacity ?

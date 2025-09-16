@@ -5,12 +5,14 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
+import { logger, createTimer } from "@/lib/logger";
 
 type SignUpParams = {
   email: string;
@@ -55,8 +57,10 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 
 export const AuthContext = createContext<{
   user: User | null;
-  loading: boolean;
   estId: number | null;
+  userRole: 'owner' | 'playero' | null;
+  roleLoading: boolean;
+  invalidateRoleCache: () => void;
   rates: Record<VehicleType, number> | null;
   userSettings: UserSettings | null;
   parkedVehicles: Vehicle[] | null;
@@ -77,10 +81,13 @@ export const AuthContext = createContext<{
   setEstId: (id: number | null) => void;
   ensureParkingSetup: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  clearAuthCompletely: () => Promise<void>;
 }>({
   user: null,
-  loading: true,
   estId: null,
+  userRole: null,
+  roleLoading: false,
+  invalidateRoleCache: () => { },
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -101,11 +108,18 @@ export const AuthContext = createContext<{
   setEstId: () => { },
   ensureParkingSetup: async () => { },
   signInWithGoogle: async () => { },
+  clearAuthCompletely: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
+  const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
+  const [loadingData, setLoadingData] = useState(false); // Guard para fetchUserData
+  const [isInitialized, setIsInitialized] = useState(false); // Flag para saber si ya se inicializó
+  const [lastUserId, setLastUserId] = useState<string | null>(null); // Para detectar cambios reales de usuario
   const [rates, setRates] = useState<Record<VehicleType, number> | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [parkedVehicles, setParkedVehicles] = useState<Vehicle[] | null>(null);
@@ -123,7 +137,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     try {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
@@ -137,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
   // Función para inicializar tarifas base del sistema (sólo una vez)
@@ -359,8 +371,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
   const fetchUserData = async () => {
-    if (!user?.id || estId === null) return;
+    if (!user?.id || estId === null || loadingData || isNavigating) return;
 
+    setLoadingData(true);
     setLoadingUserData(true);
     try {
       // Obtener datos que pueden venir de caché
@@ -414,6 +427,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingCapacity({ Auto: 0, Moto: 0, Camioneta: 0 });
     } finally {
       setLoadingUserData(false);
+      setLoadingData(false);
     }
   };
 
@@ -440,23 +454,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No eliminamos INIT_RATES_DONE, ya que es independiente del usuario
   };
 
+  // Función para limpiar completamente la autenticación (útil para errores de token)
+  const clearAuthCompletely = async () => {
+    try {
+      console.log('🧹 Limpiando autenticación completamente...');
+
+      // Cerrar sesión en Supabase
+      await supabase.auth.signOut({ scope: 'global' });
+
+      // Limpiar estado local
+      setUser(null);
+      setUserRole(null);
+      setLastUserId(null);
+
+      // Limpiar caché
+      clearCache();
+
+      // Limpiar localStorage adicional
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('parking_est_id');
+        sessionStorage.clear();
+      }
+
+      console.log('✅ Autenticación limpiada completamente');
+    } catch (error) {
+      console.error('Error limpiando autenticación:', error);
+    }
+  };
+
+
   // Efecto para manejar redirecciones basadas en autenticación
   useEffect(() => {
-    if (!loading) {
+    // Solo redirigir cuando estemos inicializados
+    if (isInitialized) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
+
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
+        // Redirigir inmediatamente si tenemos usuario autenticado
         router.push("/");
       }
     }
-  }, [user, loading, pathname, router]);
+  }, [user, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
     initializeRates();
   }, []);
+
+
 
   useEffect(() => {
     console.log(`🎯 estId cambió a: ${estId}`);
@@ -592,7 +641,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (ownerResponse.ok) {
             const ownerData = await ownerResponse.json();
-            if (ownerData.has_parking && ownerData.est_id) {
+            if (ownerData && ownerData.has_parking && ownerData.est_id) {
               console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
               setEstId(ownerData.est_id);
               if (typeof window !== 'undefined') {
@@ -644,28 +693,121 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]);
 
-  // Efecto separado para cargar datos cuando estId esté disponible
-  useEffect(() => {
-    if (user?.id && estId !== null) {
-      fetchUserData();
+
+  // Función para obtener el rol del usuario
+  const fetchUserRole = async () => {
+    if (!user?.id || isLoadingRole) return;
+
+    setIsLoadingRole(true);
+    setRoleLoading(true);
+
+    try {
+      // Verificar cache primero
+      const cachedRole = localStorage.getItem('user_role');
+      if (cachedRole) {
+        try {
+          const { role, timestamp } = JSON.parse(cachedRole);
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            setUserRole(role);
+            setRoleLoading(false);
+            setIsLoadingRole(false);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('user_role');
+        }
+      }
+
+      // Consultar API
+      const response = await fetch('/api/auth/get-role');
+      if (response.ok) {
+        const data = await response.json();
+        const role = data.role;
+
+        if (role === 'owner' || role === 'playero') {
+          setUserRole(role);
+          localStorage.setItem('user_role', JSON.stringify({
+            role,
+            timestamp: Date.now()
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error obteniendo rol:', error);
+    } finally {
+      setRoleLoading(false);
+      setIsLoadingRole(false);
     }
-  }, [user?.id, estId]);
+  };
+
+  // Efecto para cargar rol del usuario - solo cuando cambia el ID del usuario
+  useEffect(() => {
+    if (!user?.id) {
+      setUserRole(null);
+      setRoleLoading(false);
+      setIsLoadingRole(false);
+      return;
+    }
+
+    // Solo cargar rol si no tenemos uno o si cambió el usuario
+    const cachedRole = localStorage.getItem('user_role');
+    if (cachedRole && userRole) {
+      // Ya tenemos rol, no recargar innecesariamente
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetchUserRole();
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
+
+  // Efecto separado: no cargar datos hasta que tengamos rol y estId
+  useEffect(() => {
+    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (roleLoading || !userRole) return; // esperar a rol
+
+    const timeoutId = setTimeout(() => {
+      fetchUserData();
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+  }, [user?.id, estId, userRole, roleLoading]);
 
   useEffect(() => {
     let mounted = true;
+    let hasInitialized = false;
 
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted) {
           setUser(session?.user ?? null);
+          setLastUserId(session?.user?.id ?? null);
+          setIsInitialized(true);
+          hasInitialized = true;
+
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error initializing auth:", error);
-      } finally {
-        if (mounted) {
-          setLoading(false);
+
+        // Si es un error de refresh token, limpiar completamente la sesión
+        if (error?.code === 'refresh_token_not_found' ||
+          error?.message?.includes('Invalid Refresh Token')) {
+          console.log('🧹 Limpiando tokens inválidos...');
+          try {
+            await supabase.auth.signOut({ scope: 'global' });
+          } catch (signOutError) {
+            console.error("Error during cleanup:", signOutError);
+          }
+
+          // Limpiar estado local
+          setUser(null);
+          setLastUserId(null);
+          clearCache();
         }
+
       }
     };
 
@@ -674,18 +816,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
+      // Solo manejar eventos críticos de autenticación
       if (event === "SIGNED_OUT") {
         setUser(null);
-        clearCache(); // Limpiar caché al cerrar sesión
+        setLastUserId(null);
+        clearCache();
         router.push("/auth/login");
+      } else if (event === "SIGNED_IN" && session?.user) {
+        setUser(session.user);
+        setLastUserId(session.user.id);
       } else if (session?.user) {
         setUser(session.user);
+        setLastUserId(session.user.id);
       } else {
         setUser(null);
+        setLastUserId(null);
       }
-      setLoading(false);
     });
 
+    // Inicializar ANTES de establecer el listener
     initializeAuth();
 
     return () => {
@@ -695,7 +844,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, router]);
 
   const signUp = async ({ email, password, name }: SignUpParams) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -715,26 +863,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // El estacionamiento se creará cuando el usuario inicie sesión por primera vez
       }
     } finally {
-      setLoading(false);
     }
   };
 
   const signIn = async ({ email, password }: SignInParams) => {
-    setLoading(true);
+    const timer = createTimer('AuthContext.signIn');
+ // Activar loading inmediatamente para evitar flash
     try {
+      // Limpiar cualquier sesión previa antes de iniciar sesión
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+        clearCache();
+      } catch (cleanupError) {
+        // Ignorar errores de limpieza
+        console.log('Cleanup antes de login:', cleanupError);
+      }
+
+      // Inicio de sesión
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
-    } finally {
-      setLoading(false);
+
+      // Login OK
+      // Forzar refetch de rol después de iniciar sesión
+      try {
+        localStorage.removeItem('user_role');
+      } catch { }
+      setUserRole(null);
+      timer.end();
+      // Mantener loading=true, onAuthStateChange lo manejará
+    } catch (error) {
+      // Solo en caso de error, asegurar que loading sea false
+      throw error;
     }
   };
 
   const requestPasswordReset = async ({ email }: PasswordResetRequestParams) => {
-    setLoading(true);
     try {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
@@ -746,24 +913,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
 
   const updatePassword = async ({ newPassword }: PasswordUpdateParams) => {
-    setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
       // Primero limpiar el estado local y caché
       setUser(null);
@@ -817,19 +980,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/auth/login");
       }
     } finally {
-      setLoading(false);
     }
   };
 
-  if (loading) {
-    return null; // O un componente de carga si lo prefieres
-  }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading,
         estId,
         rates,
         userSettings,
@@ -851,6 +1009,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEstId,
         ensureParkingSetup,
         signInWithGoogle,
+        userRole,
+        roleLoading,
+        invalidateRoleCache: () => {
+          localStorage.removeItem('user_role');
+          setUserRole(null);
+          setRoleLoading(false);
+        },
+        clearAuthCompletely,
       }}
     >
       {children}

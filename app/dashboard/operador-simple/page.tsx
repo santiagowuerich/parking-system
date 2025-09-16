@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import OperatorPanel from "@/components/operator-panel";
 import { useAuth } from "@/lib/auth-context";
+import { useUserRole } from "@/lib/use-user-role";
 import { createBrowserClient } from "@supabase/ssr";
 import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
+import { useRouter } from "next/navigation";
 
 type ExitInfo = {
     vehicle: Vehicle;
@@ -22,6 +24,19 @@ type ExitInfo = {
 
 export default function OperadorSimplePage() {
     const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity } = useAuth();
+    const { isEmployee, loading: roleLoading } = useUserRole();
+    const router = useRouter();
+
+    // Verificar que el usuario sea empleado con debounce
+    useEffect(() => {
+        if (!roleLoading && isEmployee === false) {
+            const timeoutId = setTimeout(() => {
+                router.push('/dashboard');
+            }, 2000); // Debounce extendido de 2 segundos
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [isEmployee, roleLoading, router]);
     const [parking, setParking] = useState<Parking | null>(null);
     const [rates, setRates] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -45,31 +60,35 @@ export default function OperadorSimplePage() {
         }
     }, [parkedVehicles, parkingCapacity, estId, rates]);
 
-    // Cargar tarifas
+    // Cargar tarifas con debounce
     useEffect(() => {
-        const loadRates = async () => {
-            if (!estId) return;
+        if (!estId) return;
 
-            try {
-                const supabase = createBrowserClient(
-                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-                );
+        const timeoutId = setTimeout(() => {
+            const loadRates = async () => {
+                try {
+                    const supabase = createBrowserClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+                    );
 
-                const { data, error } = await supabase
-                    .from('tarifas')
-                    .select('*')
-                    .eq('est_id', estId);
+                    const { data, error } = await supabase
+                        .from('tarifas')
+                        .select('*')
+                        .eq('est_id', estId);
 
-                if (error) throw error;
+                    if (error) throw error;
 
-                setRates(data || []);
-            } catch (error) {
-                console.error("Error al cargar tarifas:", error);
-            }
-        };
+                    setRates(data || []);
+                } catch (error) {
+                    console.error("Error al cargar tarifas:", error);
+                }
+            };
 
-        loadRates();
+            loadRates();
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
     }, [estId]);
 
     // Cargar estado de plazas (básico para operaciones)
@@ -114,18 +133,27 @@ export default function OperadorSimplePage() {
         }
     };
 
-    // Cargar estado inicial
+    // Cargar estado inicial con debounce
     useEffect(() => {
-        const initializeData = async () => {
-            setLoading(true);
-            await Promise.all([
-                fetchPlazasStatus(),
-                fetchPlazasCompletas()
-            ]);
+        if (!estId) {
             setLoading(false);
-        };
+            return;
+        }
 
-        initializeData();
+        const timeoutId = setTimeout(() => {
+            const initializeData = async () => {
+                setLoading(true);
+                await Promise.all([
+                    fetchPlazasStatus(),
+                    fetchPlazasCompletas()
+                ]);
+                setLoading(false);
+            };
+
+            initializeData();
+        }, 400); // Debounce de 400ms
+
+        return () => clearTimeout(timeoutId);
     }, [estId]);
 
     // Calcular espacios disponibles

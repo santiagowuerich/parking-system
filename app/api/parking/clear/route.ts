@@ -1,13 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from "next/server";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(request: Request) {
   try {
     const { license_plate } = await request.json();
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = supabaseAdmin;
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || undefined
 

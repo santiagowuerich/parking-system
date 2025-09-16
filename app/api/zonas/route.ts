@@ -1,5 +1,5 @@
 // app/api/zonas/route.ts - Sistema simplificado usando pla_zona
-import { createClient } from "@/lib/supabase/client";
+import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextResponse, type NextRequest } from 'next/server'
 
 // GET: Obtener zonas o información específica de una zona
@@ -194,12 +194,7 @@ export async function GET(request: NextRequest) {
                 success: true,
                 zona: zonaResponse
             });
-
-            response.cookies.getAll().forEach((c: any) => {
-                const { name, value, ...opt } = c;
-                json.cookies.set({ name, value, ...opt })
-            });
-            return json;
+            return copyResponseCookies(response, json);
         }
 
         // Si no se especifica zona, obtener todas las zonas únicas
@@ -239,11 +234,7 @@ export async function GET(request: NextRequest) {
         console.log('📊 Zonas encontradas:', { total: zonas.length });
 
         const json = NextResponse.json({ zonas });
-        response.cookies.getAll().forEach((c: any) => {
-            const { name, value, ...opt } = c;
-            json.cookies.set({ name, value, ...opt })
-        });
-        return json;
+        return copyResponseCookies(response, json);
 
     } catch (err: any) {
         console.error('❌ Error en GET /api/zonas:', err);
@@ -278,11 +269,7 @@ export async function PUT(request: NextRequest) {
             success: true,
             message: `Zona renombrada de "${zona_antigua}" a "${zona_nueva}"`
         });
-        response.cookies.getAll().forEach((c: any) => {
-            const { name, value, ...opt } = c;
-            json.cookies.set({ name, value, ...opt })
-        });
-        return json;
+        return copyResponseCookies(response, json);
 
     } catch (err: any) {
         console.error('Error en PUT /api/zonas:', err);

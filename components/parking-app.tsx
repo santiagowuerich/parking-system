@@ -31,7 +31,6 @@ type ExitInfo = {
 export default function ParkingApp() {
   const {
     user,
-    loading: authLoading,
     loadingUserData,
     parkedVehicles: contextParkedVehicles,
     parkingHistory: contextParkingHistory,
@@ -1054,7 +1053,7 @@ export default function ParkingApp() {
     );
   }
 
-  if (authLoading || loadingUserData) {
+  if (loadingUserData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-16 h-16 animate-spin" />

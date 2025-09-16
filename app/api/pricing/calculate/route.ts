@@ -1,5 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createClient, copyResponseCookies } from '@/lib/supabase/client'
+import { nameToSegment } from '@/lib/utils'
 
 /**
  * API Endpoint para calcular tarifas de estacionamiento
@@ -47,18 +48,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  */
 
 export async function POST(request: NextRequest) {
-  let response = NextResponse.next()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name) { return request.cookies.get(name)?.value },
-        set(name, value, options) { response.cookies.set({ name, value, path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', ...options }) },
-        remove(name) { response.cookies.set({ name, value: '', path: '/', expires: new Date(0) }) }
-      }
-    }
-  )
+  const { supabase, response } = createClient(request)
 
   try {
     const body = await request.json()
@@ -68,7 +58,8 @@ export async function POST(request: NextRequest) {
     const tarifaTipo = String(body?.tarifa_tipo || 'hora') // Tipo de tarifa a usar
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
-    const plaRaw = String(body?.pla_tipo || 'Normal')
+    // La columna pla_tipo ya no existe, usar valor por defecto
+    const plaRaw = 'Normal'
     const allowedPla = ['Normal', 'VIP', 'Reservada']
     const pla = allowedPla.includes(plaRaw) ? plaRaw : 'Normal'
 
@@ -82,7 +73,7 @@ export async function POST(request: NextRequest) {
     const minutes = ms / (1000 * 60)
     const hours = Math.max(1, Math.ceil(minutes / 60))
 
-    const seg = vehicleType === 'Moto' ? 'MOT' : vehicleType === 'Camioneta' ? 'CAM' : 'AUT'
+    const seg = nameToSegment(vehicleType)
 
     // Determinar el tipo de tarifa basado en el parámetro tarifa_tipo
     let tiptar = 1; // Por defecto hora
@@ -115,7 +106,7 @@ export async function POST(request: NextRequest) {
           .select('tar_precio, tar_fraccion')
           .eq('est_id', estId)
           .eq('tiptar_nro', tiptar)
-          .eq('pla_tipo', pla)
+          // La columna pla_tipo ya no existe
           .eq('plantilla_id', plazaData.plantilla_id)
           .order('tar_f_desde', { ascending: false })
           .limit(1);
@@ -132,7 +123,7 @@ export async function POST(request: NextRequest) {
         .select('tar_precio, tar_fraccion')
         .eq('est_id', estId)
         .eq('tiptar_nro', tiptar)
-        .eq('pla_tipo', pla)
+        // La columna pla_tipo ya no existe
         .eq('catv_segmento', seg)
         .order('tar_f_desde', { ascending: false })
         .limit(1);
@@ -168,8 +159,7 @@ export async function POST(request: NextRequest) {
       rate: basePrice,
       tarifa_tipo: tarifaTipo
     })
-    response.cookies.getAll().forEach(c => { const { name, value, ...opt } = c; json.cookies.set({ name, value, ...opt }) })
-    return json
+    return copyResponseCookies(response, json)
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }

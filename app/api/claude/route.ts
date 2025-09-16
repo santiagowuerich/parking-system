@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // Expresión regular para detectar comandos de modificación de precio
 const priceModificationRegex = /(?:modifica|modificar|cambia|cambiar|actualiza|actualizar|pon|poner|establece|establecer|setea|setear|configura|configurar|ajusta|ajustar|define|definir|fija|fijar)\s+(?:el|la)?\s*(?:(?:tarifa|precio|costo|valor|tasa|importe|monto)(?:\s+(?:del?|de\s+l(?:a|as|os)))?)?\s+(auto|carro|automóvil|coche|vehículo|automovil|vehiculo|moto|motocicleta|camioneta|van|pickup|camión|camion)s?\s+(?:a|por|en|hasta|como|de)?\s+\$?\s*(\d+(?:\.\d{1,2})?)/i;
@@ -14,15 +15,10 @@ const parkedVehiclesQueryRegex = /(?:cuántos|cuantos|qué|que|cuáles|cuales|di
 const availabilityModificationRegex = /(?:che\s+)?(?:cambia|modifica|actualiza|establece|pon|setea|define|tengo|hay|asignar|fijar|ponele|metele|dame|habilita|ajusta|agregale|cambiá|modificá|actualizá|poné|seteá|definí|asigná|fijá|ajustá|habilitá|agregá|quiero\s+tener)\s+(?:.*?\s+)?\b(autos?|carros?|coches?|vehículos?|motos?|motocicletas?|camionetas?|vans?|pickups?)\b(?:\s+.*?)?\s+(\d+)(?:\s+(?:espacios?|lugares?|plazas?|boxes?|cocheras?|puestos?))?/i;
 
 function getSupabaseClient(): SupabaseClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Supabase URL or Service Role Key is not defined in environment variables.");
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  return supabaseAdmin as unknown as SupabaseClient;
 }
 
-const mapVehToSeg = (vehicleType: string): 'AUT'|'MOT'|'CAM' | null => {
+const mapVehToSeg = (vehicleType: string): 'AUT' | 'MOT' | 'CAM' | null => {
   const vt = vehicleType.toLowerCase();
   if (/moto|motocicleta/.test(vt)) return 'MOT';
   if (/camioneta|van|pickup|camión|camion/.test(vt)) return 'CAM';
@@ -37,7 +33,7 @@ async function upsertTarifaHora(estId: number, vehicleType: string, price: numbe
     return { success: false, message: `Tipo de vehículo no reconocido: ${vehicleType}` };
   }
   const now = new Date().toISOString();
-  const row = { est_id: estId, tiptar_nro: 1, catv_segmento: seg, tar_f_desde: now, tar_precio: Number(price), tar_fraccion: 1, pla_tipo: 'Normal' };
+  const row = { est_id: estId, tiptar_nro: 1, catv_segmento: seg, tar_f_desde: now, tar_precio: Number(price), tar_fraccion: 1 };
   const { error } = await supabase.from('tarifas').insert([row]);
   if (error) return { success: false, message: `Error al actualizar tarifa: ${error.message}` };
   return { success: true, message: `Tarifa por hora para ${vehicleType} actualizada a $${price} (Normal).` };
@@ -83,7 +79,7 @@ async function getCurrentRates(estId: number) {
       .select('catv_segmento, tar_precio, tar_f_desde')
       .eq('est_id', estId)
       .eq('tiptar_nro', 1)
-      .eq('pla_tipo', 'Normal')
+      // .eq('pla_tipo', 'Normal') - columna ya no existe
       .order('tar_f_desde', { ascending: false });
     if (error) {
       return { success: false, message: `Error al obtener tarifas: ${error.message}` };
@@ -171,20 +167,20 @@ export async function POST(request: NextRequest) {
         aiResponse = 'No pude entender correctamente el tipo de vehículo o el precio. Por favor, intenta de nuevo con un formato como "modificar auto a $10".';
       }
     } else if (availabilityModificationMatch) {
-        console.log('✅ Es un comando de modificación de disponibilidad');
-        const vehicleType = availabilityModificationMatch[1];
-        const totalSpaces = parseInt(availabilityModificationMatch[2], 10);
+      console.log('✅ Es un comando de modificación de disponibilidad');
+      const vehicleType = availabilityModificationMatch[1];
+      const totalSpaces = parseInt(availabilityModificationMatch[2], 10);
 
-        console.log('Tipo de vehículo detectado (disponibilidad):', vehicleType);
-        console.log('Total espacios detectados:', totalSpaces);
+      console.log('Tipo de vehículo detectado (disponibilidad):', vehicleType);
+      console.log('Total espacios detectados:', totalSpaces);
 
-        if (vehicleType && !isNaN(totalSpaces)) {
-          const result = await syncPlazasPorTipo(estId, vehicleType, totalSpaces);
-          aiResponse = result.message;
-          console.log('Resultado de updateUserCapacity:', result);
-        } else {
-          aiResponse = 'No pude entender correctamente el tipo de vehículo o el número de espacios. Por favor, intenta de nuevo con un formato como "establece la capacidad de motos a 20 espacios".';
-        }
+      if (vehicleType && !isNaN(totalSpaces)) {
+        const result = await syncPlazasPorTipo(estId, vehicleType, totalSpaces);
+        aiResponse = result.message;
+        console.log('Resultado de updateUserCapacity:', result);
+      } else {
+        aiResponse = 'No pude entender correctamente el tipo de vehículo o el número de espacios. Por favor, intenta de nuevo con un formato como "establece la capacidad de motos a 20 espacios".';
+      }
     } else {
       console.log('❌ No es un comando de modificación de precio ni disponibilidad');
 
@@ -221,8 +217,8 @@ export async function POST(request: NextRequest) {
 
             const apiKey = process.env.CLAUDE_API_KEY;
             if (!apiKey) {
-               console.error("Error: CLAUDE_API_KEY no está configurada.");
-               throw new Error("API key de Claude no configurada.");
+              console.error("Error: CLAUDE_API_KEY no está configurada.");
+              throw new Error("API key de Claude no configurada.");
             }
 
 
@@ -241,11 +237,11 @@ export async function POST(request: NextRequest) {
               })
             });
 
-             if (!response.ok) {
-               const errorBody = await response.text();
-               console.error(`Error ${response.status} de Claude API: ${errorBody}`);
-               throw new Error(`Error de Claude API: ${response.statusText}`);
-             }
+            if (!response.ok) {
+              const errorBody = await response.text();
+              console.error(`Error ${response.status} de Claude API: ${errorBody}`);
+              throw new Error(`Error de Claude API: ${response.statusText}`);
+            }
 
 
             const data = await response.json();
@@ -255,13 +251,13 @@ export async function POST(request: NextRequest) {
             if (data.content && data.content.length > 0 && data.content[0].text) {
               aiResponse = data.content[0].text;
             } else {
-               console.warn("Respuesta de Claude API no tuvo contenido esperado:", data);
+              console.warn("Respuesta de Claude API no tuvo contenido esperado:", data);
               aiResponse = "Lo siento, no pude procesar tu consulta con el asistente en este momento.";
             }
           } catch (error) {
             console.error('Error al llamar a Claude API:', error);
             // Devuelve el mensaje de error específico si es una instancia de Error
-             const errorMessage = (error instanceof Error) ? error.message : "Error desconocido";
+            const errorMessage = (error instanceof Error) ? error.message : "Error desconocido";
             aiResponse = `Ocurrió un error al procesar tu mensaje con el asistente externo: ${errorMessage}. Por favor, inténtalo de nuevo más tarde.`;
           }
         }

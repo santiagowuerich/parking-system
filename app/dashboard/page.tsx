@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,10 @@ import {
     Loader2
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useUserRole } from "@/lib/use-user-role";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { useRouter } from "next/navigation";
+// DebugEstacionamiento removido para solucionar loop infinito
 
 interface EstacionamientoDetalle {
     est_id: number;
@@ -39,7 +42,8 @@ interface EstacionamientoDetalle {
 
 export default function DashboardPage() {
     const { user, estId, parkedVehicles, parkingCapacity } = useAuth();
-    const [isOwner, setIsOwner] = useState<boolean | null>(null);
+    const { isOwner, isEmployee, loading: roleLoading } = useUserRole();
+    const router = useRouter();
     const [stats, setStats] = useState({
         totalVehicles: 0,
         availableSpaces: 0,
@@ -58,7 +62,7 @@ export default function DashboardPage() {
 
         try {
             setLoadingEstacionamiento(true);
-            console.log(`🔍 Cargando detalles del estacionamiento ${estId}`);
+            // cargar detalles de estacionamiento
 
             const response = await fetch(`/api/auth/list-parkings`);
 
@@ -77,25 +81,21 @@ export default function DashboardPage() {
 
                 if (estacionamiento) {
                     setEstacionamientoActual(estacionamiento);
-                    console.log(`✅ Detalles cargados para estacionamiento: ${estacionamiento.est_nombre}`);
+                    // detalles cargados
                 } else {
-                    console.warn(`⚠️ No se encontró el estacionamiento con ID ${estId}`);
-                    // Para empleados, esto podría significar que no tienen asignación activa
-                    console.log(`👷 Posiblemente empleado sin asignación activa`);
+                    // no encontrado
                     setEstacionamientoActual(null);
                 }
             } else {
-                console.warn('⚠️ No se encontraron estacionamientos');
+                // no se encontraron estacionamientos
                 setEstacionamientoActual(null);
             }
         } catch (error) {
-            console.error('❌ Error cargando detalles del estacionamiento:', error);
+            // error de carga
             setEstacionamientoActual(null);
 
             // Si hay un error específico, lo mostramos
-            if (error instanceof Error) {
-                console.error('Detalle del error:', error.message);
-            }
+            if (error instanceof Error) { /* noop */ }
         } finally {
             setLoadingEstacionamiento(false);
         }
@@ -116,37 +116,25 @@ export default function DashboardPage() {
         }
     }, [parkedVehicles, parkingCapacity]);
 
-    // Determinar si el usuario es dueño
+    // Redirigir empleados al dashboard de operador SOLO cuando el rol esté resuelto
     useEffect(() => {
-        const checkUserRole = async () => {
-            if (!user?.email) return;
+        if (roleLoading) return;
+        if (isEmployee) {
+            router.push('/dashboard/operador-simple');
+        }
+    }, [isEmployee, roleLoading, router]);
 
-            try {
-                const checkResponse = await fetch('/api/auth/get-parking-id');
-                if (checkResponse.ok) {
-                    const checkData = await checkResponse.json();
-                    setIsOwner(checkData.has_parking);
-                } else {
-                    // Si no puede obtener estacionamientos propios, verificar si es empleado
-                    const employeeResponse = await fetch('/api/auth/get-employee-parking');
-                    if (employeeResponse.ok) {
-                        const employeeData = await employeeResponse.json();
-                        setIsOwner(!employeeData.has_assignment); // Si es empleado, no es dueño
-                    } else {
-                        setIsOwner(false);
-                    }
-                }
-            } catch (error) {
-                console.error('Error determinando rol del usuario:', error);
-                setIsOwner(false);
-            }
-        };
-
-        checkUserRole();
-    }, [user]);
-
-    // Cargar detalles del estacionamiento cuando estId cambie
+    // Evitar llamadas repetidas: sólo 1 fetch por estId (independiente del rol)
+    const lastFetchedEstIdRef = useRef<number | null>(null);
     useEffect(() => {
+        if (!estId) {
+            setEstacionamientoActual(null);
+            lastFetchedEstIdRef.current = null;
+            return;
+        }
+        if (lastFetchedEstIdRef.current === estId) return; // ya obtenido
+
+        lastFetchedEstIdRef.current = estId;
         cargarDetallesEstacionamiento();
     }, [estId]);
 
@@ -165,7 +153,7 @@ export default function DashboardPage() {
             title: "Gestionar Tarifas",
             description: "Configurar precios",
             icon: DollarSign,
-            href: "/gestion-tarifas",
+            href: "/dashboard/tarifas",
             color: "bg-green-500",
             showForOwners: true,
             showForEmployees: true
@@ -174,19 +162,28 @@ export default function DashboardPage() {
             title: "Plantillas",
             description: "Administrar plantillas",
             icon: Settings,
-            href: "/gestion-plantillas",
+            href: "/dashboard/plantillas",
             color: "bg-purple-500",
             showForOwners: true,
             showForEmployees: false
         },
         {
-            title: "Google Maps",
-            description: "Configurar ubicación",
-            icon: ParkingCircle,
-            href: "/google-maps-setup",
+            title: "Empleados",
+            description: "Gestionar empleados",
+            icon: Users,
+            href: "/dashboard/empleados",
             color: "bg-orange-500",
-            showForOwners: false, // Ocultar para dueños
-            showForEmployees: true
+            showForOwners: true,
+            showForEmployees: false
+        },
+        {
+            title: "Pagos",
+            description: "Configurar métodos de pago",
+            icon: DollarSign,
+            href: "/dashboard/configuracion-pagos",
+            color: "bg-yellow-500",
+            showForOwners: true,
+            showForEmployees: false
         },
         {
             title: "Configurar Zona",
@@ -219,9 +216,24 @@ export default function DashboardPage() {
         // Si aún no sabemos el rol, mostrar todas las acciones
         if (isOwner === null) return true;
 
-        // Mostrar según el rol del usuario
+        // Mostrar según el rol del usuario usando las propiedades showForOwners y showForEmployees
         return isOwner ? action.showForOwners : action.showForEmployees;
     });
+
+    // Mostrar loading mientras se determina el rol del usuario
+    if (roleLoading || isOwner === null) {
+        return (
+            <DashboardLayout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-600">Cargando dashboard...</p>
+                        <p className="text-sm text-gray-500 mt-1">Determinando permisos del usuario</p>
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout>
@@ -421,6 +433,11 @@ export default function DashboardPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Componente de Debug - Temporalmente deshabilitado para evitar loops */}
+                {/* <div className="mt-6">
+                    <DebugEstacionamiento />
+                </div> */}
             </div>
         </DashboardLayout>
     );

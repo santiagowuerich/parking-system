@@ -34,7 +34,7 @@ interface ConfiguracionZona {
 
 const ConfiguracionZonaPage: React.FC = () => {
     const router = useRouter();
-    const { estId, user, loading: authLoading, setEstId } = useAuth();
+    const { estId, user, setEstId } = useAuth();
 
     // Estados del formulario
     const [zonaNombre, setZonaNombre] = useState<string>('');
@@ -64,8 +64,14 @@ const ConfiguracionZonaPage: React.FC = () => {
     const [zonaDuplicada, setZonaDuplicada] = useState<boolean>(false);
 
     // Obtener el parámetro de zona de la URL
-    const searchParams = new URLSearchParams(window.location.search);
-    const zonaParametro = searchParams.get('zona');
+    const [zonaParametro, setZonaParametro] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const searchParams = new URLSearchParams(window.location.search);
+            setZonaParametro(searchParams.get('zona'));
+        }
+    }, []);
 
     // Sincronización simple: mantener totalEditable actualizado
     React.useEffect(() => {
@@ -83,10 +89,10 @@ const ConfiguracionZonaPage: React.FC = () => {
 
     // Cargar zonas existentes cuando el estId esté disponible
     React.useEffect(() => {
-        if (estId && !authLoading) {
+        if (estId) {
             cargarZonasExistentes();
         }
-    }, [estId, authLoading]);
+    }, [estId]);
 
     // Verificar zona en tiempo real cuando cambie el nombre
     React.useEffect(() => {
@@ -163,17 +169,6 @@ const ConfiguracionZonaPage: React.FC = () => {
         }
     };
 
-    // Validar que el usuario esté autenticado y tenga estacionamiento
-    if (authLoading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-                    <p className="text-gray-600">Cargando...</p>
-                </div>
-            </div>
-        );
-    }
 
     if (!user) {
         return (
@@ -187,7 +182,7 @@ const ConfiguracionZonaPage: React.FC = () => {
         );
     }
 
-    if (!estId && !authLoading) {
+    if (!estId) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">

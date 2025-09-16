@@ -17,7 +17,7 @@ export function formatCurrency(amount: number): string {
 export function formatTime(date: Date): string {
   // Asegurarnos de que la fecha sea un objeto Date válido
   const dateObj = new Date(date);
-  
+
   // Ajustar a la zona horaria local
   return dateObj.toLocaleString('es-AR', {
     year: 'numeric',
@@ -47,5 +47,17 @@ export function formatDuration(ms: number): string {
 export function calculateFee(hours: number, rate: number): number {
   const effectiveHours = Math.ceil(hours);
   return Math.max(1, effectiveHours) * rate;
+}
+
+// Mapear segmento <-> nombre humano
+export function segmentToName(segment?: string): "Auto" | "Moto" | "Camioneta" {
+  return segment === 'MOT' ? 'Moto' : segment === 'CAM' ? 'Camioneta' : 'Auto'
+}
+
+export function nameToSegment(name?: string): 'AUT' | 'MOT' | 'CAM' {
+  const n = (name || '').toLowerCase()
+  if (n === 'moto') return 'MOT'
+  if (n === 'camioneta') return 'CAM'
+  return 'AUT'
 }
 

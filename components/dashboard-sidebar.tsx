@@ -33,9 +33,10 @@ import {
     Monitor
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useRole } from "@/lib/use-role";
+import { useUserRole } from "@/lib/use-user-role";
 import { useTheme } from "next-themes";
 import ParkingStatusWidget from "./ParkingStatusWidget";
+// Debug component removed to prevent loops
 
 interface SidebarProps {
     className?: string;
@@ -65,6 +66,12 @@ const employeeNavigationItems = [
 
 // Elementos de navegación para dueños
 const ownerNavigationItems = [
+    {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        description: "Panel principal de control"
+    },
     {
         title: "Panel de Operador",
         href: "/dashboard/operador-simple",
@@ -114,6 +121,12 @@ const ownerNavigationItems = [
         description: "Gestionar plantillas de plazas"
     },
     {
+        title: "Panel de Administrador",
+        href: "/dashboard/panel-administrador",
+        icon: Shield,
+        description: "Administración avanzada del sistema"
+    },
+    {
         title: "Perfil",
         href: "/account/security",
         icon: User,
@@ -127,41 +140,29 @@ const ownerNavigationItems = [
     }
 ];
 
-// Elementos de navegación para conductores
-const driverNavigationItems = [
-    {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-        description: "Vista general del sistema"
-    },
-    {
-        title: "Perfil",
-        href: "/account/security",
-        icon: User,
-        description: "Configuración de cuenta"
-    }
-];
 
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, signOut } = useAuth();
-    const { role, isPlayero, isOwner, isConductor } = useRole();
+    const { user, signOut, userRole, roleLoading } = useAuth();
+    const { role, isEmployee, isOwner } = useUserRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
 
     // Seleccionar elementos de navegación según el rol
     const getNavigationItems = () => {
+        // Mientras carga el rol o aún no está resuelto, no restrinjas: muestra opciones de owner
+        if (roleLoading || role == null) {
+            return ownerNavigationItems;
+        }
         if (isOwner) {
             return ownerNavigationItems;
-        } else if (isPlayero) {
-            return employeeNavigationItems;
-        } else if (isConductor) {
-            return driverNavigationItems;
         }
-        // Por defecto, mostrar elementos limitados
-        return employeeNavigationItems;
+        if (isEmployee) {
+            return employeeNavigationItems;
+        }
+        // Fallback seguro
+        return ownerNavigationItems;
     };
 
     const navigationItems = getNavigationItems();
@@ -239,7 +240,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
             {/* Navigation */}
             <ScrollArea className="flex-1 px-3 py-4">
-                {/* Widget de estado del estacionamiento */}
+                {/* Widget compacto con nombre de estacionamiento */}
                 <div className="mb-4">
                     <ParkingStatusWidget collapsed={collapsed} />
                 </div>
