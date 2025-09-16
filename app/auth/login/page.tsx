@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { signIn, signInWithGoogle, loading: authLoading } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const router = useRouter();
   const search = useSearchParams();
   const resetOk = search?.get('reset') === 'ok';
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn({ email, password });
-      // El AuthContext maneja automáticamente la redirección y el loading
+      router.push("/dashboard");
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
         setError("Email o contraseña incorrectos.");
@@ -30,19 +30,21 @@ export default function LoginPage() {
       } else {
         setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.");
       }
-      setLoading(false); // Solo resetear loading en caso de error
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    setLoading(true);
     setError(null);
+    setLoading(true);
     try {
       await signInWithGoogle();
-      // El AuthContext maneja automáticamente la redirección y el loading
+      router.push("/dashboard");
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
-      setLoading(false); // Solo resetear loading en caso de error
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,10 +93,10 @@ export default function LoginPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             type="submit"
-            disabled={loading || authLoading}
+            disabled={loading}
             className="w-full py-2 bg-[#2563eb] text-white font-semibold rounded-md hover:bg-[#174ea6] transition disabled:opacity-50"
           >
-            {(loading || authLoading) ? "Iniciando..." : "Iniciar Sesión"}
+            {loading ? "Iniciando..." : "Iniciar Sesión"}
           </button>
         </form>
         {/* Separador */}
@@ -107,7 +109,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={loading || authLoading}
+          disabled={loading}
           className="w-full py-2 flex items-center justify-center border border-gray-300 rounded-md bg-white hover:bg-gray-100 transition mb-2"
         >
           <svg width="20" height="20" viewBox="0 0 48 48" className="mr-2">
@@ -133,5 +135,20 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

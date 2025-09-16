@@ -13,7 +13,6 @@ import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
 import { logger, createTimer } from "@/lib/logger";
-import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 
 type SignUpParams = {
   email: string;
@@ -58,7 +57,6 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 
 export const AuthContext = createContext<{
   user: User | null;
-  loading: boolean;
   estId: number | null;
   userRole: 'owner' | 'playero' | null;
   roleLoading: boolean;
@@ -86,7 +84,6 @@ export const AuthContext = createContext<{
   clearAuthCompletely: () => Promise<void>;
 }>({
   user: null,
-  loading: true,
   estId: null,
   userRole: null,
   roleLoading: false,
@@ -116,7 +113,6 @@ export const AuthContext = createContext<{
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
@@ -141,7 +137,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     try {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
@@ -155,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
   // Función para inicializar tarifas base del sistema (sólo una vez)
@@ -472,7 +466,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setUserRole(null);
       setLastUserId(null);
-      setLoading(false);
 
       // Limpiar caché
       clearCache();
@@ -490,10 +483,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+
   // Efecto para manejar redirecciones basadas en autenticación
   useEffect(() => {
-    // Solo redirigir cuando no estemos cargando Y estemos inicializados
-    if (!loading && isInitialized) {
+    // Solo redirigir cuando estemos inicializados
+    if (isInitialized) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
 
@@ -504,12 +498,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/");
       }
     }
-  }, [user, loading, isInitialized, pathname, router]);
+  }, [user, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
     initializeRates();
   }, []);
+
 
 
   useEffect(() => {
@@ -698,17 +693,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]);
 
-  // Efecto para terminar el loading cuando se complete la inicialización
-  useEffect(() => {
-    // Terminar loading si usuario autenticado y no cargando rol
-    if (user?.id && !roleLoading) {
-      const timeoutId = setTimeout(() => {
-        setLoading(false);
-      }, 200);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [user?.id, roleLoading]);
 
   // Función para obtener el rol del usuario
   const fetchUserRole = async () => {
@@ -756,7 +740,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Efecto para cargar rol del usuario
+  // Efecto para cargar rol del usuario - solo cuando cambia el ID del usuario
   useEffect(() => {
     if (!user?.id) {
       setUserRole(null);
@@ -765,12 +749,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Solo cargar rol si no tenemos uno o si cambió el usuario
+    const cachedRole = localStorage.getItem('user_role');
+    if (cachedRole && userRole) {
+      // Ya tenemos rol, no recargar innecesariamente
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       fetchUserRole();
     }, 800);
 
     return () => clearTimeout(timeoutId);
-  }, [user?.id]);
+  }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
   useEffect(() => {
@@ -797,10 +788,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsInitialized(true);
           hasInitialized = true;
 
-          // Solo terminar loading si no hay usuario
-          if (!session?.user) {
-            setLoading(false);
-          }
         }
       } catch (error: any) {
         console.error("Error initializing auth:", error);
@@ -821,9 +808,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearCache();
         }
 
-        if (mounted) {
-          setLoading(false);
-        }
       }
     };
 
@@ -832,34 +816,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      // Solo manejar eventos reales de autenticación, ignorar eventos de foco/visibilidad
+      // Solo manejar eventos críticos de autenticación
       if (event === "SIGNED_OUT") {
         setUser(null);
         setLastUserId(null);
-        clearCache(); // Limpiar caché al cerrar sesión
+        clearCache();
         router.push("/auth/login");
-        setLoading(false);
       } else if (event === "SIGNED_IN" && session?.user) {
-        // Solo activar loading para login real (usuario diferente)
-        const isDifferentUser = lastUserId !== session.user.id;
-
-        if (isDifferentUser) {
-          console.log('🔄 Login real detectado para usuario:', session.user.id);
-          setLoading(true);
-        } else {
-          console.log('🔄 Mismo usuario, no activar loading');
-        }
-
         setUser(session.user);
         setLastUserId(session.user.id);
       } else if (session?.user) {
-        // Solo actualizar usuario sin cambiar loading
         setUser(session.user);
         setLastUserId(session.user.id);
       } else {
         setUser(null);
         setLastUserId(null);
-        setLoading(false);
       }
     });
 
@@ -873,7 +844,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, router]);
 
   const signUp = async ({ email, password, name }: SignUpParams) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -893,13 +863,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // El estacionamiento se creará cuando el usuario inicie sesión por primera vez
       }
     } finally {
-      setLoading(false);
     }
   };
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
-    // No poner loading=true aquí, dejar que onAuthStateChange maneje el estado
+ // Activar loading inmediatamente para evitar flash
     try {
       // Limpiar cualquier sesión previa antes de iniciar sesión
       try {
@@ -925,16 +894,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch { }
       setUserRole(null);
       timer.end();
-      // No cambiar loading aquí, onAuthStateChange lo manejará
+      // Mantener loading=true, onAuthStateChange lo manejará
     } catch (error) {
       // Solo en caso de error, asegurar que loading sea false
-      setLoading(false);
       throw error;
     }
   };
 
   const requestPasswordReset = async ({ email }: PasswordResetRequestParams) => {
-    setLoading(true);
     try {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
@@ -946,24 +913,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
 
   const updatePassword = async ({ newPassword }: PasswordUpdateParams) => {
-    setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
       if (error) throw error;
     } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
       // Primero limpiar el estado local y caché
       setUser(null);
@@ -1017,19 +980,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/auth/login");
       }
     } finally {
-      setLoading(false);
     }
   };
 
-  if (loading) {
-    return <FullScreenLoader title="Iniciando sesión..." subtitle="Preparando tu panel" />;
-  }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading,
         estId,
         rates,
         userSettings,

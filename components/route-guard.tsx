@@ -22,13 +22,13 @@ export function RouteGuard({
   showAccessDenied = true,
   fallback
 }: RouteGuardProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const isUnknown = role === null;
   const router = useRouter();
 
   // Loading state
-  if (authLoading || roleLoading) {
+  if (roleLoading) {
     return fallback || (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center space-y-4">
