@@ -56,6 +56,12 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [newParkingAddress, setNewParkingAddress] = useState("");
     const MAX_PARKINGS_PER_USER = 5;
 
+    useEffect(() => {
+        if (loading) return;
+        if (estacionamientos.length === 0) {
+            fetchParkings();
+        }
+    }, [fetchParkings, loading, estacionamientos.length]);
     const createNewParking = async () => {
         if (!newParkingName.trim()) {
             // El error se maneja localmente ya que es específico del formulario

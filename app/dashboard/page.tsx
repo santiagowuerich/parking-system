@@ -26,22 +26,19 @@ import { useRouter } from "next/navigation";
 interface EstacionamientoDetalle {
     est_id: number;
     est_nombre: string;
-    est_prov: string;
-    est_locali: string;
-    est_direc: string;
+    est_prov?: string;
+    est_locali?: string;
+    est_direc?: string;
     est_capacidad: number;
-    est_latitud?: number;
-    est_longitud?: number;
-    est_telefono?: string;
-    est_email?: string;
-    est_descripcion?: string;
-    plazas_totales_reales: number;
-    plazas_disponibles_reales: number;
+    plazas_total: number;
+    plazas_libres: number;
     plazas_ocupadas: number;
+    ingreso_hoy?: number;
+    vehiculos_activos?: number;
 }
 
 export default function DashboardPage() {
-    const { user, estId, parkedVehicles, parkingCapacity } = useAuth();
+    const { user, estId, parkedVehicles, parkingCapacity, parkings, fetchUserData } = useAuth();
     const { isOwner, isEmployee, loading: roleLoading } = useUserRole();
     const router = useRouter();
     const [stats, setStats] = useState({
@@ -50,56 +47,9 @@ export default function DashboardPage() {
         totalSpaces: 0,
         todayRevenue: 0
     });
-    const [estacionamientoActual, setEstacionamientoActual] = useState<EstacionamientoDetalle | null>(null);
-    const [loadingEstacionamiento, setLoadingEstacionamiento] = useState(false);
 
-    // Función para cargar detalles del estacionamiento actual
-    const cargarDetallesEstacionamiento = async () => {
-        if (!estId) {
-            setEstacionamientoActual(null);
-            return;
-        }
-
-        try {
-            setLoadingEstacionamiento(true);
-            // cargar detalles de estacionamiento
-
-            const response = await fetch(`/api/auth/list-parkings`);
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-                throw new Error(`Error al cargar detalles del estacionamiento: ${errorData.error || response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            if (data.estacionamientos && data.estacionamientos.length > 0) {
-                // Buscar el estacionamiento actual por est_id
-                const estacionamiento = data.estacionamientos.find(
-                    (est: EstacionamientoDetalle) => est.est_id === estId
-                );
-
-                if (estacionamiento) {
-                    setEstacionamientoActual(estacionamiento);
-                    // detalles cargados
-                } else {
-                    // no encontrado
-                    setEstacionamientoActual(null);
-                }
-            } else {
-                // no se encontraron estacionamientos
-                setEstacionamientoActual(null);
-            }
-        } catch (error) {
-            // error de carga
-            setEstacionamientoActual(null);
-
-            // Si hay un error específico, lo mostramos
-            if (error instanceof Error) { /* noop */ }
-        } finally {
-            setLoadingEstacionamiento(false);
-        }
-    };
+    // Obtener el estacionamiento actual desde el estado centralizado
+    const estacionamientoActual = parkings.find(p => p.est_id === estId) || null;
 
     useEffect(() => {
         if (parkedVehicles && parkingCapacity) {
@@ -124,19 +74,14 @@ export default function DashboardPage() {
         }
     }, [isEmployee, roleLoading, router]);
 
-    // Evitar llamadas repetidas: sólo 1 fetch por estId (independiente del rol)
-    const lastFetchedEstIdRef = useRef<number | null>(null);
-    useEffect(() => {
-        if (!estId) {
-            setEstacionamientoActual(null);
-            lastFetchedEstIdRef.current = null;
-            return;
-        }
-        if (lastFetchedEstIdRef.current === estId) return; // ya obtenido
+    // Ya no necesitamos hacer fetch adicional - usamos el estado centralizado de parkings
 
-        lastFetchedEstIdRef.current = estId;
-        cargarDetallesEstacionamiento();
-    }, [estId]);
+    // Cargar datos del usuario cuando el dashboard se monte
+    useEffect(() => {
+        if (estId && !roleLoading) {
+            fetchUserData();
+        }
+    }, [estId, roleLoading, fetchUserData]);
 
     // Filtrar acciones según el rol del usuario
     const quickActions = [
@@ -263,9 +208,6 @@ export default function DashboardPage() {
                                         <span className="font-medium text-blue-900">
                                             {estacionamientoActual?.est_nombre || 'Cargando estacionamiento...'}
                                         </span>
-                                        {loadingEstacionamiento && (
-                                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                                        )}
                                         {estId && (
                                             <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
                                                 ID: {estId}
@@ -283,19 +225,19 @@ export default function DashboardPage() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-green-600 font-medium">
-                                                    🟢 {estacionamientoActual.plazas_disponibles_reales}
+                                                    🟢 {estacionamientoActual.plazas_libres || 0}
                                                 </span>
                                                 <span className="text-red-600 font-medium">
-                                                    🔴 {estacionamientoActual.plazas_ocupadas}
+                                                    🔴 {estacionamientoActual.plazas_ocupadas || 0}
                                                 </span>
                                                 <span className="text-blue-600 font-medium">
-                                                    📊 {estacionamientoActual.plazas_totales_reales}
+                                                    📊 {estacionamientoActual.plazas_total || 0}
                                                 </span>
                                             </div>
                                         </div>
                                     )}
 
-                                    {!estacionamientoActual && !loadingEstacionamiento && (
+                                    {!estacionamientoActual && (
                                         <div className="text-sm text-blue-700">
                                             {estId ? 'No se pudo cargar la información del estacionamiento' : 'No hay estacionamiento asignado'}
                                         </div>

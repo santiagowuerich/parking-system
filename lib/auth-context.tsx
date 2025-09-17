@@ -223,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parkedData = await parkedResponse.json();
         setParkedVehicles(Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : []);
       } else {
-        console.error("Error al cargar vehículos estacionados");
+        logger.error("Error al cargar vehículos estacionados");
         setParkedVehicles([]);
       }
     } catch (error) {
@@ -429,23 +429,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parkedData = await parkedResponse.json();
         setParkedVehicles(Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : []);
       } else {
-        console.error("Error al cargar vehículos estacionados");
+        logger.error("Error al cargar vehículos estacionados");
         setParkedVehicles([]);
       }
 
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
-        console.log('✅ Datos del historial recibidos en fetchUserData:', {
-          count: historyData.history?.length || 0,
-          data: historyData.history?.slice(0, 2) // Mostrar primeros 2 para debug
-        });
+        logger.debug(`Historial cargado: ${historyData.history?.length || 0} registros`);
         setParkingHistory(Array.isArray(historyData.history) ? historyData.history : []);
       } else {
-        console.error("❌ Error al cargar historial de estacionamiento en fetchUserData");
+        logger.error("Error al cargar historial de estacionamiento");
         setParkingHistory([]);
       }
     } catch (error) {
-      console.error("Error general al cargar datos del usuario:", error);
+      logger.error("Error general al cargar datos del usuario:", error);
       setRates({ Auto: 0, Moto: 0, Camioneta: 0 });
       setUserSettings({
         mercadopagoApiKey: "",
@@ -795,9 +792,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
+  // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
   useEffect(() => {
     if (!user?.id || estId === null || loadingData || isNavigating) return;
     if (roleLoading || !userRole) return; // esperar a rol
+
+    // Solo hacer carga automática si estamos en páginas que lo necesitan
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const shouldAutoLoad = !currentPath.includes('/dashboard'); // El dashboard maneja sus propios datos
+
+    if (!shouldAutoLoad) return;
 
     const timeoutId = setTimeout(() => {
       fetchUserData();
