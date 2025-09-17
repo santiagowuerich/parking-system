@@ -1,6 +1,7 @@
 // app/api/parking/history/route.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from "next/server";
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,21 +55,17 @@ export async function GET(request: NextRequest) {
       // @ts-ignore
       query = query.eq('est_id', estId)
     }
-    console.log('🔍 Ejecutando query del historial para est_id:', estId);
+    logger.debug(`Ejecutando query del historial para est_id: ${estId}`);
     const { data, error } = await query
 
     if (error) {
-      console.error("❌ Error fetching history:", error);
+      logger.error("Error fetching history:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     // Asegurarse de que data sea un arreglo
     const historyData = Array.isArray(data) ? data : [];
-    console.log('📊 Datos del historial encontrados:', {
-      count: historyData.length,
-      estId,
-      firstItems: historyData.slice(0, 3)
-    });
+    logger.debug(`Historial cargado: ${historyData.length} registros para est_id: ${estId}`);
     
     const jsonResponse = NextResponse.json({ history: historyData });
 
@@ -80,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     return jsonResponse;
   } catch (err) {
-    console.error("Unexpected error fetching history:", err);
+    logger.error("Unexpected error fetching history:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

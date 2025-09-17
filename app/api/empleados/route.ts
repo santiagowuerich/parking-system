@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createAuthenticatedSupabaseClient } from "@/lib/supabase/server";
+import { logger } from '@/lib/logger';
 
 // GET - Obtener empleados de un estacionamiento
 export async function GET(request: NextRequest) {
@@ -214,16 +215,14 @@ export async function GET(request: NextRequest) {
 // POST - Crear nuevo empleado
 export async function POST(request: NextRequest) {
     try {
-        console.log('🔄 Iniciando creación de empleado');
+        logger.debug('Iniciando creación de empleado');
         const supabase = await createAuthenticatedSupabaseClient();
         const body = await request.json();
-        console.log('📦 Datos recibidos:', JSON.stringify(body, null, 2));
+        logger.debug(`Creando empleado para: ${body?.email || 'email no especificado'}`);
 
         // Obtener el usuario autenticado
-        console.log('🔐 Verificando autenticación...');
         const { data: { user }, error: authError } = await supabase.auth.getUser();
-        console.log('👤 Usuario autenticado:', user ? user.email : 'null');
-        console.log('❌ Error de auth:', authError);
+        logger.debug(`Usuario autenticado: ${user ? user.email : 'null'}`);
 
         if (authError || !user) {
             return NextResponse.json(

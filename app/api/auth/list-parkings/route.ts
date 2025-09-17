@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     try {
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
             .single();
 
         const isDueno = !duenoError && duenoCheck !== null;
-        console.log(`👤 Usuario ${userEmail} es ${isDueno ? 'DUEÑO' : 'EMPLEADO'}`);
+        logger.debug(`Usuario ${userEmail} es ${isDueno ? 'DUEÑO' : 'EMPLEADO'}`);
 
         let estacionamientosBasicos: any[];
         let estacionamientosError: any;
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        console.log(`📋 Usuario ${userEmail} tiene ${estacionamientosData?.length || 0} estacionamiento(s)`);
+        logger.debug(`Usuario ${userEmail} tiene ${estacionamientosData?.length || 0} estacionamiento(s)`);
 
         return NextResponse.json({
             estacionamientos: estacionamientosData || [],
