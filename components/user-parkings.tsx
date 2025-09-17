@@ -42,6 +42,7 @@ interface UserParkingsProps {
 export default function UserParkings({ onSelectParking, currentEstId }: UserParkingsProps) {
     // Usar estado centralizado del AuthContext
     const {
+        user: authUser,
         parkings: estacionamientos,
         parkingsUser: usuario,
         parkingsLoading: loading,
@@ -54,14 +55,25 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [creating, setCreating] = useState(false);
     const [newParkingName, setNewParkingName] = useState("");
     const [newParkingAddress, setNewParkingAddress] = useState("");
+    const [addressConfirmed, setAddressConfirmed] = useState<boolean>(false);
+    // Campos detallados de dirección obtenidos del autocompletado
+    const [newParkingProvince, setNewParkingProvince] = useState<string>("Por configurar");
+    const [newParkingLocality, setNewParkingLocality] = useState<string>("Por configurar");
+    const [newParkingPostalCode, setNewParkingPostalCode] = useState<string>("");
+    const [newParkingLat, setNewParkingLat] = useState<number | null>(null);
+    const [newParkingLng, setNewParkingLng] = useState<number | null>(null);
+    const [newParkingFullAddress, setNewParkingFullAddress] = useState<string>("");
     const MAX_PARKINGS_PER_USER = 5;
 
+    // Evitar bucle de recarga cuando no hay estacionamientos
+    // Solo intentamos cargar una vez al montar el componente
+    const [requestedOnce, setRequestedOnce] = useState(false);
     useEffect(() => {
-        if (loading) return;
-        if (estacionamientos.length === 0) {
-            fetchParkings();
-        }
-    }, [fetchParkings, loading, estacionamientos.length]);
+        if (requestedOnce) return;
+        setRequestedOnce(true);
+        fetchParkings();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const createNewParking = async () => {
         if (!newParkingName.trim()) {
             // El error se maneja localmente ya que es específico del formulario
@@ -105,6 +117,34 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         setCreating(true);
 
         try {
+            // Si el usuario no confirmó seleccionando de la lista, intentar resolver con geocodificación
+            if (!addressConfirmed) {
+                try {
+                    const resp = await fetch('/api/geocoding/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: newParkingAddress, region: 'ar' })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success && Array.isArray(data.results) && data.results.length > 0) {
+                        const suggestion = data.results[0];
+                        setNewParkingFullAddress(suggestion.formatted_address);
+                        setNewParkingLocality(suggestion.components.locality || suggestion.components.city || 'Por configurar');
+                        setNewParkingProvince(suggestion.components.state || 'Por configurar');
+                        setNewParkingPostalCode(suggestion.components.postal_code || '');
+                        setNewParkingLat(suggestion.latitud ?? null);
+                        setNewParkingLng(suggestion.longitud ?? null);
+                    } else {
+                        alert('Seleccioná una dirección de la lista para continuar.');
+                        setCreating(false);
+                        return;
+                    }
+                } catch (_) {
+                    alert('No se pudo validar la dirección. Seleccioná una de la lista.');
+                    setCreating(false);
+                    return;
+                }
+            }
             // Primera estrategia: endpoint principal
             console.log('🚀 Intentando crear estacionamiento con endpoint principal...');
             let response = await fetch('/api/auth/create-new-parking', {
@@ -114,8 +154,14 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 },
                 body: JSON.stringify({
                     name: newParkingName.trim(),
-                    email: usuario?.email,
-                    direccion: newParkingAddress.trim()
+                    email: usuario?.email || authUser?.email,
+                    direccion: newParkingAddress.trim(),
+                    est_prov: newParkingProvince,
+                    est_locali: newParkingLocality,
+                    est_codigo_postal: newParkingPostalCode,
+                    est_latitud: newParkingLat,
+                    est_longitud: newParkingLng,
+                    est_direccion_completa: newParkingFullAddress || newParkingAddress.trim()
                 }),
             });
 
@@ -129,7 +175,14 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                     },
                     body: JSON.stringify({
                         name: newParkingName.trim(),
-                        email: usuario?.email
+                        email: usuario?.email || authUser?.email,
+                        direccion: newParkingAddress.trim(),
+                        est_prov: newParkingProvince,
+                        est_locali: newParkingLocality,
+                        est_codigo_postal: newParkingPostalCode,
+                        est_latitud: newParkingLat,
+                        est_longitud: newParkingLng,
+                        est_direccion_completa: newParkingFullAddress || newParkingAddress.trim()
                     }),
                 });
             }
@@ -144,6 +197,13 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 // Limpiar el formulario
                 setNewParkingName("");
                 setNewParkingAddress("");
+                setNewParkingProvince("Por configurar");
+                setNewParkingLocality("Por configurar");
+                setNewParkingPostalCode("");
+                setNewParkingLat(null);
+                setNewParkingLng(null);
+                setNewParkingFullAddress("");
+                setAddressConfirmed(false);
                 setShowCreateForm(false);
 
                 // Seleccionar automáticamente el nuevo estacionamiento si se creó
@@ -329,10 +389,36 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                 value={newParkingAddress}
                                                 onChange={(value) => {
                                                     setNewParkingAddress(value);
+                                                    setAddressConfirmed(false);
                                                 }}
                                                 onSelect={(place) => {
                                                     console.log('📍 Dirección completa seleccionada:', place);
-                                                    // Aquí puedes extraer información adicional del lugar si es necesario
+                                                    // Extraer y guardar campos relevantes automáticamente
+                                                    const components = place.address_components || [];
+                                                    const getComp = (types: string[]) => {
+                                                        const c = components.find((comp: any) => types.some((t: string) => comp.types.includes(t)));
+                                                        return c?.long_name || '';
+                                                    };
+                                                    const streetName = getComp(['route']);
+                                                    const streetNumber = getComp(['street_number']);
+                                                    const locality = getComp(['locality', 'sublocality']);
+                                                    const city = getComp(['administrative_area_level_2']);
+                                                    const state = getComp(['administrative_area_level_1']);
+                                                    const postal = getComp(['postal_code']);
+                                                    const formatted = place.formatted_address || `${streetName} ${streetNumber}`.trim();
+                                                    setNewParkingFullAddress(formatted);
+                                                    setNewParkingLocality(locality || city || 'Por configurar');
+                                                    setNewParkingProvince(state || 'Por configurar');
+                                                    setNewParkingPostalCode(postal || '');
+                                                    const latVal = typeof place?.geometry?.location?.lat === 'function'
+                                                        ? (place.geometry.location.lat() as number)
+                                                        : null;
+                                                    const lngVal = typeof place?.geometry?.location?.lng === 'function'
+                                                        ? (place.geometry.location.lng() as number)
+                                                        : null;
+                                                    setNewParkingLat(latVal);
+                                                    setNewParkingLng(lngVal);
+                                                    setAddressConfirmed(true);
                                                 }}
                                                 placeholder="Ej: Av. Libertador 1234, Buenos Aires"
                                                 error={error && error.includes("dirección") ? error : undefined}

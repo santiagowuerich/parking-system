@@ -3,7 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     try {
-        const { name, email, direccion } = await request.json();
+        const {
+            name,
+            email,
+            direccion,
+            est_prov,
+            est_locali,
+            est_codigo_postal,
+            est_latitud,
+            est_longitud,
+            est_direccion_completa
+        } = await request.json();
 
         if (!name || !email) {
             return NextResponse.json(
@@ -153,9 +163,13 @@ export async function POST(request: NextRequest) {
             .from('estacionamientos')
             .insert({
                 est_id: nextEstId,
-                est_prov: 'Por configurar',
-                est_locali: 'Por configurar',
+                est_prov: est_prov || 'Por configurar',
+                est_locali: est_locali || 'Por configurar',
                 est_direc: direccionLimpia, // Usar la dirección proporcionada
+                est_direccion_completa: est_direccion_completa || direccionLimpia,
+                est_latitud: typeof est_latitud === 'number' ? est_latitud : null,
+                est_longitud: typeof est_longitud === 'number' ? est_longitud : null,
+                est_codigo_postal: est_codigo_postal || null,
                 est_nombre: name,
                 est_capacidad: 0, // Sin capacidad inicial
                 due_id: usuarioId,
