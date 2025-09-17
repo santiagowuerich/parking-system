@@ -28,6 +28,7 @@ import type { ParkingHistory, VehicleType } from "@/lib/types"
 import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
 import { toast } from "@/components/ui/use-toast"
+import { ParkingDataTable, type Column, type ActionButton } from "@/components/ui/parking-data-table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/lib/auth-context"
 import { createBrowserClient } from "@supabase/ssr"
@@ -640,69 +641,41 @@ export default function AdminPanel({
             </DialogContent>
           </Dialog>
 
-          {filteredHistory.length === 0 ? (
-            <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay operaciones registradas</p>
-          ) : (
-            <div className="overflow-x-auto mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow className="dark:border-zinc-800">
-                    {/* Columna de selección oculta */}
-                    <TableHead className="w-[50px] hidden" />
-                    <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
-                    <TableHead className="dark:text-zinc-400">Tipo</TableHead>
-                    <TableHead className="dark:text-zinc-400">Entrada</TableHead>
-                    <TableHead className="dark:text-zinc-400">Salida</TableHead>
-                    <TableHead className="dark:text-zinc-400">Duración</TableHead>
-                    <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
-                    <TableHead className="dark:text-zinc-400">Método de Pago</TableHead>
-                    <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredHistory.length > 0 ? (
-                    filteredHistory.map((entry, index) => (
-                      <TableRow key={String(entry.id ?? `entry-${index}`)} className="dark:border-zinc-800">
-                        {/* celda de selección oculta */}
-                        <TableCell className="hidden" />
-                        <TableCell className="dark:text-zinc-100">{entry.license_plate}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{entry.type}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.entry_time)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatArgentineTimeWithDayjs(entry.exit_time)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatDuration(entry.duration)}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{formatCurrency(entry.fee)}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-black text-white hover:bg-gray-800 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600">
-                            {entry.payment_method || "N/A"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            {/* Editar y Eliminar removidos por requerimiento */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleReenter(entry)}
-                              className="text-primary hover:text-primary hover:bg-primary/10 dark:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                              title="Reingresar vehículo"
-                            >
-                              <ArrowLeft className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow className="dark:border-zinc-800">
-                      <TableCell colSpan={9} className="h-24 text-center dark:text-zinc-500">
-                        No hay resultados.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          <ParkingDataTable
+            data={filteredHistory.map(entry => ({
+              id: entry.id,
+              license_plate: entry.license_plate,
+              type: entry.type,
+              entry_time: formatArgentineTimeWithDayjs(entry.entry_time),
+              exit_time: formatArgentineTimeWithDayjs(entry.exit_time),
+              duration: formatDuration(entry.duration),
+              fee: formatCurrency(entry.fee),
+              payment_method: (
+                <Badge className="bg-black text-white hover:bg-gray-800 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600">
+                  {entry.payment_method || "N/A"}
+                </Badge>
+              )
+            }))}
+            columns={[
+              { key: 'license_plate', label: 'Matrícula' },
+              { key: 'type', label: 'Tipo' },
+              { key: 'entry_time', label: 'Entrada' },
+              { key: 'exit_time', label: 'Salida' },
+              { key: 'duration', label: 'Duración' },
+              { key: 'fee', label: 'Tarifa' },
+              { key: 'payment_method', label: 'Método de Pago' }
+            ]}
+            actions={[
+              {
+                icon: <ArrowLeft className="h-4 w-4" />,
+                onClick: handleReenter,
+                title: "Reingresar vehículo",
+                variant: 'ghost',
+                className: "text-primary hover:text-primary hover:bg-primary/10 dark:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+              }
+            ]}
+            emptyMessage="No hay operaciones registradas"
+          />
         </CardContent>
       </Card>
 

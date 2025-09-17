@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ModalShell } from "@/components/ui/modal-shell"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2, DollarSign } from "lucide-react"
@@ -208,117 +209,101 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                    <DialogTitle className="text-gray-900">
-                        Definir tarifas • {template?.nombre_plantilla}
-                    </DialogTitle>
-                    {template && (
-                        <p className="text-sm text-gray-600">
-                            Vehículo: {getVehicleTypeDisplay(template.catv_segmento)}
-                        </p>
-                    )}
-                </DialogHeader>
-
-                <div className="space-y-6">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                            <span className="text-gray-600">Cargando precios existentes...</span>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Precio por Hora */}
-                            <div className="space-y-2">
-                                <Label htmlFor="hora" className="text-gray-700 flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4" />
-                                    Por hora
-                                </Label>
-                                <Input
-                                    id="hora"
-                                    type="text"
-                                    placeholder="0.00"
-                                    value={prices.hora}
-                                    onChange={(e) => handlePriceChange('hora', e.target.value)}
-                                    className="text-right"
-                                    disabled={saving}
-                                />
-                            </div>
-
-                            {/* Precio por Día */}
-                            <div className="space-y-2">
-                                <Label htmlFor="dia" className="text-gray-700 flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4" />
-                                    Por día
-                                </Label>
-                                <Input
-                                    id="dia"
-                                    type="text"
-                                    placeholder="0.00"
-                                    value={prices.dia}
-                                    onChange={(e) => handlePriceChange('dia', e.target.value)}
-                                    className="text-right"
-                                    disabled={saving}
-                                />
-                            </div>
-
-                            {/* Precio por Mes */}
-                            <div className="space-y-2">
-                                <Label htmlFor="mes" className="text-gray-700 flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4" />
-                                    Por mes
-                                </Label>
-                                <Input
-                                    id="mes"
-                                    type="text"
-                                    placeholder="0.00"
-                                    value={prices.mes}
-                                    onChange={(e) => handlePriceChange('mes', e.target.value)}
-                                    className="text-right"
-                                    disabled={saving}
-                                />
-                            </div>
-
-                            {/* Precio por Semana */}
-                            <div className="space-y-2">
-                                <Label htmlFor="semana" className="text-gray-700 flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4" />
-                                    Por semana
-                                </Label>
-                                <Input
-                                    id="semana"
-                                    type="text"
-                                    placeholder="0.00"
-                                    value={prices.semana}
-                                    onChange={(e) => handlePriceChange('semana', e.target.value)}
-                                    className="text-right"
-                                    disabled={saving}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="flex justify-end gap-3 pt-4 border-t">
-                        <Button
-                            variant="outline"
-                            onClick={onClose}
+        <ModalShell
+            open={isOpen}
+            onOpenChange={onClose}
+            title={`Definir tarifas • ${template?.nombre_plantilla}`}
+            description={template ? `Vehículo: ${getVehicleTypeDisplay(template.catv_segmento)}` : undefined}
+            maxWidth="md"
+            primaryButton={{
+                label: saving ? 'Guardando...' : 'Guardar tarifas',
+                onClick: handleSave,
+                disabled: saving || loading,
+                loading: saving
+            }}
+            secondaryButton={{
+                label: 'Cancelar',
+                onClick: onClose,
+                disabled: saving
+            }}
+        >
+            {loading ? (
+                <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span className="text-gray-600">Cargando precios existentes...</span>
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 gap-4">
+                    {/* Precio por Hora */}
+                    <div className="space-y-2">
+                        <Label htmlFor="hora" className="text-gray-700 flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            Por hora
+                        </Label>
+                        <Input
+                            id="hora"
+                            type="text"
+                            placeholder="0.00"
+                            value={prices.hora}
+                            onChange={(e) => handlePriceChange('hora', e.target.value)}
+                            className="text-right"
                             disabled={saving}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={handleSave}
-                            disabled={saving || loading}
-                            className="bg-blue-600 hover:bg-blue-700"
-                        >
-                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            {saving ? 'Guardando...' : 'Guardar tarifas'}
-                        </Button>
+                        />
+                    </div>
+
+                    {/* Precio por Día */}
+                    <div className="space-y-2">
+                        <Label htmlFor="dia" className="text-gray-700 flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            Por día
+                        </Label>
+                        <Input
+                            id="dia"
+                            type="text"
+                            placeholder="0.00"
+                            value={prices.dia}
+                            onChange={(e) => handlePriceChange('dia', e.target.value)}
+                            className="text-right"
+                            disabled={saving}
+                        />
+                    </div>
+
+                    {/* Precio por Mes */}
+                    <div className="space-y-2">
+                        <Label htmlFor="mes" className="text-gray-700 flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            Por mes
+                        </Label>
+                        <Input
+                            id="mes"
+                            type="text"
+                            placeholder="0.00"
+                            value={prices.mes}
+                            onChange={(e) => handlePriceChange('mes', e.target.value)}
+                            className="text-right"
+                            disabled={saving}
+                        />
+                    </div>
+
+                    {/* Precio por Semana */}
+                    <div className="space-y-2">
+                        <Label htmlFor="semana" className="text-gray-700 flex items-center gap-1">
+                            <DollarSign className="h-4 w-4" />
+                            Por semana
+                        </Label>
+                        <Input
+                            id="semana"
+                            type="text"
+                            placeholder="0.00"
+                            value={prices.semana}
+                            onChange={(e) => handlePriceChange('semana', e.target.value)}
+                            className="text-right"
+                            disabled={saving}
+                        />
                     </div>
                 </div>
-            </DialogContent>
-        </Dialog>
+            )}
+        </ModalShell>
     );
 }
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FormField } from '@/components/ui/form-field';
 import {
     Dialog,
     DialogContent,
@@ -353,19 +354,16 @@ export function ZoneManager() {
                         <DialogTitle className="dark:text-zinc-100">Crear Zona Nueva</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <div>
-                            <Label htmlFor="create-zone-name">Nombre de la Zona:</Label>
-                            <Input
-                                id="create-zone-name"
-                                placeholder="ej: ZONA A, Planta Baja, Sector Norte"
-                                value={createZoneData.nombre}
-                                onChange={(e) => setCreateZoneData({
-                                    ...createZoneData,
-                                    nombre: e.target.value
-                                })}
-                                className="dark:bg-zinc-800 dark:border-zinc-700"
-                            />
-                        </div>
+                        <FormField
+                            id="create-zone-name"
+                            label="Nombre de la Zona:"
+                            value={createZoneData.nombre}
+                            onChange={(value) => setCreateZoneData({
+                                ...createZoneData,
+                                nombre: value
+                            })}
+                            placeholder="ej: ZONA A, Planta Baja, Sector Norte"
+                        />
 
                         <div className="space-y-3">
                             <Label className="dark:text-zinc-400">Cantidad de Plazas a Crear:</Label>

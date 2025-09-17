@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { SectionCard } from "@/components/ui/section-card";
 import { useToast } from "@/components/ui/use-toast";
 import { MapPin, Search, Save, Loader2, Phone, Mail, Building2, Clock, Timer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -455,14 +456,19 @@ export default function ParkingConfig() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Información Básica */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-gray-900 flex items-center gap-2">
-                            <Building2 className="h-5 w-5" />
-                            Información Básica
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                <SectionCard
+                    title="Información Básica"
+                    icon={<Building2 className="h-5 w-5" />}
+                    actions={[
+                        {
+                            label: 'Guardar',
+                            onClick: saveConfig,
+                            icon: <Save className="h-4 w-4" />,
+                            disabled: saving
+                        }
+                    ]}
+                >
+                    <div className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="nombre" className="text-gray-700">Nombre del Estacionamiento</Label>
                             <Input
@@ -521,8 +527,8 @@ export default function ParkingConfig() {
                                 </Select>
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </SectionCard>
 
                 {/* Contacto */}
                 <Card>

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import type { VehicleType } from "@/lib/types";
+import { segmentToName } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   // userId ya no es obligatorio; capacidad ahora se deriva de 'estacionamientos' (est_id=1) y plazas
@@ -35,9 +36,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Convertir el array a un objeto
-    const mapSegToType = (seg?: string) => seg === 'MOT' ? 'Moto' : seg === 'CAM' ? 'Camioneta' : 'Auto';
     const capacity = Object.entries(counts).reduce((acc: Record<string, number>, [seg, n]) => {
-      acc[mapSegToType(seg)] = n as number;
+      acc[segmentToName(seg as string)] = n as number;
       return acc;
     }, { Auto: 0, Moto: 0, Camioneta: 0 });
 

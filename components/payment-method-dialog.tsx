@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { PaymentMethodButton, PAYMENT_METHODS } from "@/components/ui/payment-method-button";
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -140,66 +141,16 @@ export function PaymentMethodDialog({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {enabledMethods.includes('Efectivo') && (
-              <Button
-                variant="outline"
-                onClick={() => onSelectMethod("efectivo")}
-                className="h-24 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center">
-                  <span className="text-2xl mb-2">💵</span>
-                  <span>Efectivo</span>
-                </div>
-              </Button>
-            )}
-            {enabledMethods.includes('Transferencia') && (
-              <Button
-                variant="outline"
-                onClick={() => onSelectMethod("transferencia")}
-                className="h-24 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center">
-                  <span className="text-2xl mb-2">🏦</span>
-                  <span>Transferencia</span>
-                </div>
-              </Button>
-            )}
-            {enabledMethods.includes('MercadoPago') && (
-              <Button
-                variant="outline"
-                onClick={() => onSelectMethod("mercadopago")}
-                className="h-24 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center">
-                  <span className="text-2xl mb-2">💳</span>
-                  <span>Mercado Pago</span>
-                </div>
-              </Button>
-            )}
-            {enabledMethods.includes('QR') && (
-              <Button
-                variant="outline"
-                onClick={() => onSelectMethod("qr")}
-                className="h-24 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center">
-                  <span className="text-2xl mb-2">📱</span>
-                  <span>Código QR</span>
-                </div>
-              </Button>
-            )}
-            {enabledMethods.includes('Link de Pago') && (
-              <Button
-                variant="outline"
-                onClick={() => onSelectMethod("link_pago")}
-                className="h-24 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center">
-                  <span className="text-2xl mb-2">🔗</span>
-                  <span>Link de Pago</span>
-                </div>
-              </Button>
-            )}
+            {PAYMENT_METHODS.map(method => (
+              <PaymentMethodButton
+                key={method.id}
+                method={{
+                  ...method,
+                  enabled: enabledMethods.includes(method.name)
+                }}
+                onClick={onSelectMethod}
+              />
+            ))}
             {enabledMethods.length === 0 && !loadingMethods && (
               <div className="col-span-2 text-center py-8">
                 <div className="text-blue-600 mb-2">

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form-field";
 import { Loader2 } from "lucide-react";
 import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2 } from "lucide-react";
 import ParkingConfig from "./parking-config";
@@ -321,26 +322,22 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                         </div>
 
                                         <div className="space-y-3">
-                                            <div>
-                                                <Label htmlFor="parking-name" className="text-gray-600">
-                                                    Nombre del Estacionamiento *
-                                                </Label>
-                                                <Input
-                                                    id="parking-name"
-                                                    type="text"
-                                                    placeholder="Ej: Estacionamiento Centro"
-                                                    value={newParkingName}
-                                                    onChange={(e) => {
-                                                        setNewParkingName(e.target.value);
-                                                        // Limpiar error cuando el usuario empiece a escribir
-                                                        if (error && error.includes("nombre")) {
-                                                            setError(null);
-                                                        }
-                                                    }}
-                                                    className="bg-gray-100 border-gray-200 text-gray-900 mt-1"
-                                                    disabled={creating}
-                                                />
-                                            </div>
+                                            <FormField
+                                                id="parking-name"
+                                                label="Nombre del Estacionamiento"
+                                                value={newParkingName}
+                                                onChange={(value) => {
+                                                    setNewParkingName(value);
+                                                    // Limpiar error cuando el usuario empiece a escribir
+                                                    if (error && error.includes("nombre")) {
+                                                        setError(null);
+                                                    }
+                                                }}
+                                                placeholder="Ej: Estacionamiento Centro"
+                                                required
+                                                disabled={creating}
+                                                error={error && error.includes("nombre") ? error : undefined}
+                                            />
 
                                             <AddressAutocomplete
                                                 value={newParkingAddress}

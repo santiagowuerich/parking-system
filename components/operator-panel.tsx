@@ -25,6 +25,8 @@ import { SimpleVehicleList } from "./SimpleVehicleList"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { Settings } from 'lucide-react'
+import { ParkingDataTable, type Column, type ActionButton } from "@/components/ui/parking-data-table"
+import { FormField } from "@/components/ui/form-field"
 
 // Importar dayjs y plugins
 import dayjs from 'dayjs'
@@ -604,16 +606,13 @@ export default function OperatorPanel({
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="licensePlate" className="dark:text-zinc-400">Matrícula</Label>
-                <Input
-                  id="licensePlate"
-                  value={licensePlate}
-                  onChange={(e) => setLicensePlate(e.target.value)}
-                  placeholder="Ej: ABC123"
-                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                />
-              </div>
+              <FormField
+                id="licensePlate"
+                label="Matrícula"
+                value={licensePlate}
+                onChange={setLicensePlate}
+                placeholder="Ej: ABC123"
+              />
 
               <div className="space-y-2">
                 <Label className="dark:text-zinc-400">Seleccionar Plaza (determina el tipo de vehículo)</Label>
@@ -714,65 +713,45 @@ export default function OperatorPanel({
             </div>
           </div>
 
-          {parking.parkedVehicles.length === 0 ? (
-            <p className="text-center text-gray-500 py-4 dark:text-zinc-500">No hay vehículos estacionados actualmente</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="dark:border-zinc-800">
-                  <TableHead className="dark:text-zinc-400">Matrícula</TableHead>
-                  <TableHead className="dark:text-zinc-400">Tipo</TableHead>
-                  <TableHead className="dark:text-zinc-400">Plaza</TableHead>
-                  <TableHead className="dark:text-zinc-400">Hora de Entrada</TableHead>
-                  <TableHead className="dark:text-zinc-400">Tarifa Acordada</TableHead>
-                  <TableHead className="text-right dark:text-zinc-400">Acción</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {parking.parkedVehicles
-                  .filter(v => (filterVehicleType === 'Todos' || v.type === filterVehicleType) &&
-                    (!filterPlate || v.license_plate.toLowerCase().includes(filterPlate.toLowerCase())))
-                  .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime())
-                  .map((vehicle) => {
-                    let formattedTime = formatArgentineTimeWithDayjs(vehicle.entry_time);
-
-                    return (
-                      <TableRow key={vehicle.license_plate + vehicle.entry_time} className="dark:border-zinc-800">
-                        <TableCell className="dark:text-zinc-100">{vehicle.license_plate}</TableCell>
-                        <TableCell className="dark:text-zinc-100">{vehicle.type}</TableCell>
-                        <TableCell className="dark:text-zinc-100">
-                          {vehicle.plaza_number ? (
-                            <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
-                              Plaza {vehicle.plaza_number}
-                            </span>
-                          ) : (
-                            <span className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                              Sin plaza asignada
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="dark:text-zinc-100">{formattedTime}</TableCell>
-                        <TableCell className="dark:text-zinc-100">
-                          {/* TODO: Mostrar tarifa acordada cuando esté disponible */}
-                          <span className="text-xs text-gray-500">Pendiente</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleExit(vehicle)}
-                            disabled={processingExit === vehicle.license_plate}
-                            className="dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
-                          >
-                            {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          )}
+          <ParkingDataTable
+            data={parking.parkedVehicles
+              .filter(v => (filterVehicleType === 'Todos' || v.type === filterVehicleType) &&
+                (!filterPlate || v.license_plate.toLowerCase().includes(filterPlate.toLowerCase())))
+              .sort((a, b) => new Date(b.entry_time).getTime() - new Date(a.entry_time).getTime())
+              .map(vehicle => ({
+                id: vehicle.license_plate + vehicle.entry_time,
+                license_plate: vehicle.license_plate,
+                type: vehicle.type,
+                plaza: vehicle.plaza_number ? (
+                  <span className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded text-sm">
+                    Plaza {vehicle.plaza_number}
+                  </span>
+                ) : (
+                  <span className="bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                    Sin plaza asignada
+                  </span>
+                ),
+                entry_time: formatArgentineTimeWithDayjs(vehicle.entry_time),
+                tariff: <span className="text-xs text-gray-500">Pendiente</span>
+              }))}
+            columns={[
+              { key: 'license_plate', label: 'Matrícula' },
+              { key: 'type', label: 'Tipo' },
+              { key: 'plaza', label: 'Plaza' },
+              { key: 'entry_time', label: 'Hora de Entrada' },
+              { key: 'tariff', label: 'Tarifa Acordada' }
+            ]}
+            actions={[
+              {
+                icon: processingExit === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Registrar Salida',
+                onClick: handleExit,
+                title: "Registrar Salida",
+                variant: 'destructive',
+                className: "dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
+              }
+            ]}
+            emptyMessage="No hay vehículos estacionados actualmente"
+          />
         </CardContent>
       </Card>
 

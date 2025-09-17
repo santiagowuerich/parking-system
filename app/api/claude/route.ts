@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SupabaseClient } from "@supabase/supabase-js";
+import { nameToSegment, segmentToName } from "@/lib/utils";
 import { supabaseAdmin } from "@/lib/supabase";
 
 // Expresión regular para detectar comandos de modificación de precio
@@ -19,11 +20,7 @@ function getSupabaseClient(): SupabaseClient {
 }
 
 const mapVehToSeg = (vehicleType: string): 'AUT' | 'MOT' | 'CAM' | null => {
-  const vt = vehicleType.toLowerCase();
-  if (/moto|motocicleta/.test(vt)) return 'MOT';
-  if (/camioneta|van|pickup|camión|camion/.test(vt)) return 'CAM';
-  if (/auto|carro|coche|vehículo|automovil|vehiculo|automóvil/.test(vt)) return 'AUT';
-  return null;
+  try { return nameToSegment(vehicleType) } catch { return null }
 };
 
 async function upsertTarifaHora(estId: number, vehicleType: string, price: number) {
@@ -89,8 +86,7 @@ async function getCurrentRates(estId: number) {
     }
     const latestBySeg: Record<string, number> = {};
     for (const row of data) { if (latestBySeg[row.catv_segmento] == null) latestBySeg[row.catv_segmento] = Number(row.tar_precio); }
-    const segToName = (s: string) => (s === 'MOT' ? 'Moto' : s === 'CAM' ? 'Camioneta' : 'Auto');
-    const lines = Object.entries(latestBySeg).map(([seg, price]) => `${segToName(seg)}: $${Number(price).toFixed(2)}`);
+    const lines = Object.entries(latestBySeg).map(([seg, price]) => `${segmentToName(seg)}: $${Number(price).toFixed(2)}`);
     return { success: true, message: `Tarifas por Hora (Normal):\n${lines.join('\n')}` };
   } catch (error) {
     return { success: false, message: `Error al obtener tarifas: ${(error as Error).message}` };

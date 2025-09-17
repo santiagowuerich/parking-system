@@ -417,11 +417,7 @@ async function handleGridSync(supabase: any, response: any, body: any) {
         synced,
         errors
     });
-    response.cookies.getAll().forEach((c: any) => {
-        const { name, value, ...opt } = c;
-        json.cookies.set({ name, value, ...opt })
-    });
-    return json;
+    return copyResponseCookies(response, json);
 }
 
 // Función auxiliar para manejar creación de zona
@@ -603,11 +599,7 @@ async function handleZoneCreation(supabase: any, response: any, body: any) {
         message: `Zona "${zona_nombre}" creada exitosamente con ${totalPlazas} plazas nuevas (${numeroInicio}-${numeroFin})`
     });
 
-    response.cookies.getAll().forEach((c: any) => {
-        const { name, value, ...opt } = c;
-        json.cookies.set({ name, value, ...opt })
-    });
-    return json;
+    return copyResponseCookies(response, json);
 }
 
 // DELETE: Eliminar una zona (reasignar plazas a GENERAL)
