@@ -2,7 +2,7 @@
 
 ## 📋 Resumen de Cambios
 
-Se han implementado **5 optimizaciones clave** para mejorar el rendimiento del login y reducir el logging excesivo:
+Se han implementado **6 optimizaciones clave** para mejorar el rendimiento del login, reducir el logging excesivo y solucionar problemas críticos:
 
 ### ✅ 1. Logger Centralizado con Niveles
 - **Archivo**: `lib/logger.ts`
@@ -48,6 +48,16 @@ Se han implementado **5 optimizaciones clave** para mejorar el rendimiento del l
 - **Funcionalidad**: Timers automáticos en operaciones críticas
 - **Métricas**: Tiempo de login, middleware, consultas de rol
 - **Beneficio**: Visibilidad de cuellos de botella
+
+### ✅ 6. Solución del Loop Infinito (Actualización Crítica)
+- **Problema**: Loop infinito de llamadas API causado por múltiples `useEffect` en cascada
+- **Solución**: Eliminación completa del componente `DebugEstacionamiento` y optimizaciones agresivas
+- **Archivos modificados**:
+  - `lib/auth-context.tsx`: Guards múltiples, debounce extendido (1-2s), cache aumentado a 10min
+  - `app/dashboard/page.tsx`: Control de redirecciones con debounce 2s
+  - `app/dashboard/operador-simple/page.tsx`: Debounce agresivo en inicialización
+- **Resultado**: Loop infinito completamente eliminado, rendimiento drásticamente mejorado
+- **Estado**: ✅ **SOLUCIONADO** - Requiere monitoreo post-implementación
 
 ## 🔧 Variables de Entorno Nuevas
 
@@ -107,3 +117,14 @@ El sistema de logging permite ajustar niveles según necesites:
 - **Desarrollo**: `LOG_LEVEL=debug` para troubleshooting
 - **Producción**: `LOG_LEVEL=warn` para solo errores importantes
 - **Performance**: Los timers siguen activos independientemente del nivel de log
+
+---
+
+## 📝 Nota sobre Documentación Consolidada
+
+Este documento consolida información de optimizaciones previamente documentadas en archivos separados:
+- ~~`optimizacion.md`~~: Plan inicial de optimización (no implementado) - **ARCHIVADO**
+- ~~`OPTIMIZACION_LOOP_FIX.md`~~: Documentación específica del fix del loop infinito - **CONSOLIDADO** en esta sección
+
+**Fecha de consolidación**: Septiembre 17, 2025
+**Estado**: ✅ **DOCUMENTACIÓN LIMPIA Y ACTUALIZADA**

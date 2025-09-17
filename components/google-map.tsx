@@ -32,219 +32,237 @@ export default function GoogleMap({
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const maxRetries = 3;
+    const [isDomReady, setIsDomReady] = useState(false);
 
-    useEffect(() => {
-        const loadGoogleMaps = () => {
-            console.log('🔍 Iniciando carga de Google Maps...');
+    // Función para inicializar el mapa cuando todo esté listo
+    const initializeMap = () => {
+        // Verificar que el contenedor esté disponible
+        if (!mapRef.current) {
+            console.error('❌ Referencia al contenedor del mapa no encontrada');
+            // Reintentar después de un breve delay
+            setTimeout(() => {
+                if (mapRef.current) {
+                    initializeMap();
+                } else {
+                    setError('Contenedor del mapa no disponible. Intenta recargar la página.');
+                }
+            }, 200);
+            return;
+        }
 
-            // Verificar API key
-            const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-            if (!apiKey || apiKey === 'TU_API_KEY_AQUI' || apiKey === 'TU_API_KEY_REAL') {
-                console.error('❌ API key de Google Maps no configurada o es placeholder');
-                setError('API key de Google Maps no configurada. Ve a /google-maps-setup para configurarla.');
-                return;
-            }
+        // Verificar que Google Maps esté completamente cargado
+        if (!window.google || !window.google.maps || !window.google.maps.Map) {
+            console.error('❌ Google Maps API no está completamente cargada');
+            setError('Google Maps no está completamente cargado. Esperando...');
+            setTimeout(() => initializeMap(), 300);
+            return;
+        }
 
-            console.log('✅ API key encontrada:', apiKey.substring(0, 10) + '...');
+        try {
+            console.log('🗺️ Inicializando mapa con coordenadas:', { latitude, longitude });
 
-            // Verificar si la API ya está completamente cargada
-            if (window.google && window.google.maps && window.google.maps.Map) {
-                console.log('✅ Google Maps ya cargado completamente, inicializando mapa...');
-                // Usar setTimeout para asegurar que el DOM esté listo
-                setTimeout(() => initializeMap(), 100);
-                return;
-            }
+            // Coordenadas por defecto (Buenos Aires)
+            const defaultCenter = { lat: -34.6037, lng: -58.3816 };
 
-            // Verificar si ya está cargando
-            if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-                console.log('⏳ Script de Google Maps ya existe, esperando carga...');
-                const checkLoaded = () => {
-                    if (window.google && window.google.maps && window.google.maps.Map) {
-                        console.log('✅ Google Maps cargado completamente desde script existente');
-                        initializeMap();
-                    } else {
-                        // Timeout más largo para esperar carga completa
-                        setTimeout(checkLoaded, 200);
+            // Usar las coordenadas proporcionadas o las por defecto
+            const center = latitude && longitude
+                ? { lat: latitude, lng: longitude }
+                : defaultCenter;
+
+            console.log('📍 Centro del mapa:', center);
+
+            // Crear el mapa con opciones más robustas
+            const mapOptions = {
+                zoom: latitude && longitude ? 16 : 12,
+                center: center,
+                mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+                styles: [
+                    {
+                        "featureType": "all",
+                        "elementType": "geometry.fill",
+                        "stylers": [{ "color": "#1f2937" }]
+                    },
+                    {
+                        "featureType": "all",
+                        "elementType": "labels.text.fill",
+                        "stylers": [{ "color": "#ffffff" }]
+                    },
+                    {
+                        "featureType": "road",
+                        "elementType": "geometry",
+                        "stylers": [{ "color": "#374151" }]
                     }
-                };
-                checkLoaded();
-                return;
-            }
-
-            // Cargar script de Google Maps con configuración optimizada
-            console.log('📡 Cargando script de Google Maps...');
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly&callback=initGoogleMap`;
-            script.async = true;
-            script.defer = true;
-
-            script.onload = () => {
-                console.log('📦 Script de Google Maps cargado');
-                // Esperar un poco más para asegurar que la API esté completamente inicializada
-                setTimeout(() => {
-                    if (window.google && window.google.maps && window.google.maps.Map) {
-                        console.log('✅ Google Maps API completamente disponible');
-                        initializeMap();
-                    } else {
-                        console.error('❌ Google Maps API no disponible después de timeout');
-                        setError('Error: Google Maps no se cargó correctamente. Intenta recargar la página.');
-                    }
-                }, 500);
+                ],
+                // Opciones adicionales para mejor estabilidad
+                disableDefaultUI: false,
+                zoomControl: true,
+                mapTypeControl: false,
+                scaleControl: true,
+                streetViewControl: false,
+                rotateControl: false,
+                fullscreenControl: true
             };
 
-            script.onerror = (error) => {
-                console.error('❌ Error cargando script de Google Maps:', error);
-                setError(`Error cargando Google Maps API. Verifica tu API key.`);
-            };
+            const map = new window.google.maps.Map(mapRef.current, mapOptions);
 
-            document.head.appendChild(script);
-        };
+            console.log('✅ Mapa creado exitosamente');
 
-        const initializeMap = () => {
-            // Verificar que el contenedor esté disponible
-            if (!mapRef.current) {
-                console.error('❌ Referencia al contenedor del mapa no encontrada');
-                // Reintentar después de un breve delay
-                setTimeout(() => {
-                    if (mapRef.current) {
-                        initializeMap();
-                    } else {
-                        setError('Contenedor del mapa no disponible. Intenta recargar la página.');
-                    }
-                }, 200);
-                return;
-            }
+            // Agregar marcador si hay coordenadas
+            if (latitude && longitude) {
+                console.log('📍 Agregando marcador en:', { lat: latitude, lng: longitude });
 
-            // Verificar que Google Maps esté completamente cargado
-            if (!window.google || !window.google.maps || !window.google.maps.Map) {
-                console.error('❌ Google Maps API no está completamente cargada');
-                setError('Google Maps no está completamente cargado. Esperando...');
-                setTimeout(() => initializeMap(), 300);
-                return;
-            }
-
-            try {
-                console.log('🗺️ Inicializando mapa con coordenadas:', { latitude, longitude });
-
-                // Coordenadas por defecto (Buenos Aires)
-                const defaultCenter = { lat: -34.6037, lng: -58.3816 };
-
-                // Usar las coordenadas proporcionadas o las por defecto
-                const center = latitude && longitude
-                    ? { lat: latitude, lng: longitude }
-                    : defaultCenter;
-
-                console.log('📍 Centro del mapa:', center);
-
-                // Crear el mapa con opciones más robustas
-                const mapOptions = {
-                    zoom: latitude && longitude ? 16 : 12,
-                    center: center,
-                    mapTypeId: window.google.maps.MapTypeId.ROADMAP,
-                    styles: [
-                        {
-                            "featureType": "all",
-                            "elementType": "geometry.fill",
-                            "stylers": [{ "color": "#1f2937" }]
-                        },
-                        {
-                            "featureType": "all",
-                            "elementType": "labels.text.fill",
-                            "stylers": [{ "color": "#ffffff" }]
-                        },
-                        {
-                            "featureType": "road",
-                            "elementType": "geometry",
-                            "stylers": [{ "color": "#374151" }]
-                        }
-                    ],
-                    // Opciones adicionales para mejor estabilidad
-                    disableDefaultUI: false,
-                    zoomControl: true,
-                    mapTypeControl: false,
-                    scaleControl: true,
-                    streetViewControl: false,
-                    rotateControl: false,
-                    fullscreenControl: true
+                const markerOptions = {
+                    position: { lat: latitude, lng: longitude },
+                    map: map,
+                    title: markerTitle,
+                    icon: {
+                        path: window.google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#3b82f6',
+                        fillOpacity: 1,
+                        strokeColor: '#1d4ed8',
+                        strokeWeight: 2
+                    },
+                    animation: window.google.maps.Animation.DROP
                 };
 
-                const map = new window.google.maps.Map(mapRef.current, mapOptions);
+                const marker = new window.google.maps.Marker(markerOptions);
 
-                console.log('✅ Mapa creado exitosamente');
+                console.log('✅ Marcador agregado');
 
-                // Agregar marcador si hay coordenadas
-                if (latitude && longitude) {
-                    console.log('📍 Agregando marcador en:', { lat: latitude, lng: longitude });
-
-                    const markerOptions = {
-                        position: { lat: latitude, lng: longitude },
-                        map: map,
-                        title: markerTitle,
-                        icon: {
-                            path: window.google.maps.SymbolPath.CIRCLE,
-                            scale: 10,
-                            fillColor: '#3b82f6',
-                            fillOpacity: 1,
-                            strokeColor: '#1d4ed8',
-                            strokeWeight: 2
-                        },
-                        animation: window.google.maps.Animation.DROP
-                    };
-
-                    const marker = new window.google.maps.Marker(markerOptions);
-
-                    console.log('✅ Marcador agregado');
-
-                    // Info window con dirección
-                    if (address) {
-                        const infoWindow = new window.google.maps.InfoWindow({
-                            content: `
+                // Info window con dirección
+                if (address) {
+                    const infoWindow = new window.google.maps.InfoWindow({
+                        content: `
                                 <div style="color: #000; padding: 8px; max-width: 200px;">
                                   <h4 style="margin: 0 0 8px 0; font-weight: bold;">${markerTitle}</h4>
                                   <p style="margin: 0; font-size: 14px; word-wrap: break-word;">${address}</p>
                                 </div>
                               `
-                        });
+                    });
 
-                        marker.addListener('click', () => {
-                            infoWindow.open(map, marker);
-                        });
-                    }
-                } else {
-                    console.log('ℹ️ No hay coordenadas específicas, mostrando mapa general de Buenos Aires');
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+                }
+            } else {
+                console.log('ℹ️ No hay coordenadas específicas, mostrando mapa general de Buenos Aires');
+            }
+
+            setIsLoaded(true);
+            setError(null);
+            console.log('🎉 Mapa inicializado completamente');
+
+        } catch (err) {
+            console.error("❌ Error inicializando mapa:", err);
+            setError(`Error inicializando el mapa: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+        }
+    };
+
+    // useEffect vacío para mantener dependencias consistentes
+    useEffect(() => {
+        // Este useEffect se mantiene para consistencia de dependencias
+        // pero la lógica real se movió al useEffect que depende de isDomReady
+    }, [latitude, longitude, address, markerTitle]);
+
+    // useEffect para esperar que el DOM esté listo
+    useEffect(() => {
+        if (mapRef.current && !isDomReady) {
+            console.log('🏠 Contenedor del mapa detectado, marcando DOM como listo');
+            setIsDomReady(true);
+        }
+    }, [mapRef.current, isDomReady]);
+
+    // useEffect para cargar Google Maps cuando el DOM esté listo
+    useEffect(() => {
+        if (isDomReady) {
+            console.log('🚀 DOM listo, iniciando carga de Google Maps');
+            const loadGoogleMaps = () => {
+                console.log('🔍 Iniciando carga de Google Maps...');
+
+                // Verificar API key
+                const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+                if (!apiKey || apiKey === 'TU_API_KEY_AQUI' || apiKey === 'TU_API_KEY_REAL') {
+                    console.error('❌ API key de Google Maps no configurada o es placeholder');
+                    setError('API key de Google Maps no configurada. Ve a /google-maps-setup para configurarla.');
+                    return;
                 }
 
-                setIsLoaded(true);
+                console.log('✅ API key encontrada:', apiKey.substring(0, 10) + '...');
+
+                // Verificar si la API ya está completamente cargada
+                if (window.google && window.google.maps && window.google.maps.Map) {
+                    console.log('✅ Google Maps ya cargado completamente, inicializando mapa...');
+                    initializeMap();
+                    return;
+                }
+
+                // Verificar si ya está cargando
+                if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+                    console.log('⏳ Script de Google Maps ya existe, esperando carga...');
+                    const checkLoaded = () => {
+                        if (window.google && window.google.maps && window.google.maps.Map) {
+                            console.log('✅ Google Maps cargado completamente desde script existente');
+                            initializeMap();
+                        } else {
+                            // Timeout más largo para esperar carga completa
+                            setTimeout(checkLoaded, 200);
+                        }
+                    };
+                    checkLoaded();
+                    return;
+                }
+
+                // Cargar script de Google Maps con configuración optimizada
+                console.log('📡 Cargando script de Google Maps...');
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly&callback=initGoogleMap`;
+                script.async = true;
+                script.defer = true;
+
+                script.onload = () => {
+                    console.log('📦 Script de Google Maps cargado');
+                    // Esperar un poco más para asegurar que la API esté completamente inicializada
+                    setTimeout(() => {
+                        if (window.google && window.google.maps && window.google.maps.Map) {
+                            console.log('✅ Google Maps API completamente disponible');
+                            initializeMap();
+                        } else {
+                            console.error('❌ Google Maps API no disponible después de timeout');
+                            setError('Error: Google Maps no se cargó correctamente. Intenta recargar la página.');
+                        }
+                    }, 500);
+                };
+
+                script.onerror = (error) => {
+                    console.error('❌ Error cargando script de Google Maps:', error);
+                    setError(`Error cargando Google Maps API. Verifica tu API key.`);
+                };
+
+                document.head.appendChild(script);
+            };
+
+            const handleRetry = () => {
+                console.log(`🔄 Reintentando carga de Google Maps (${retryCount + 1}/${maxRetries})`);
+                setRetryCount(prev => prev + 1);
                 setError(null);
-                console.log('🎉 Mapa inicializado completamente');
+                setIsLoaded(false);
 
-            } catch (err) {
-                console.error("❌ Error inicializando mapa:", err);
-                setError(`Error inicializando el mapa: ${err instanceof Error ? err.message : 'Error desconocido'}`);
-            }
-        };
+                // Limpiar scripts existentes
+                const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+                if (existingScript) {
+                    existingScript.remove();
+                }
 
-        const handleRetry = () => {
-            console.log(`🔄 Reintentando carga de Google Maps (${retryCount + 1}/${maxRetries})`);
-            setRetryCount(prev => prev + 1);
-            setError(null);
-            setIsLoaded(false);
-
-            // Limpiar scripts existentes
-            const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-            if (existingScript) {
-                existingScript.remove();
-            }
+                loadGoogleMaps();
+            };
 
             loadGoogleMaps();
-        };
 
-        loadGoogleMaps();
-
-        // Exponer función de reintento para uso externo
-        (window as any).retryGoogleMaps = handleRetry;
-
-    }, [latitude, longitude, address, markerTitle, retryCount]);
+            // Exponer función de reintento para uso externo
+            (window as any).retryGoogleMaps = handleRetry;
+        }
+    }, [isDomReady, retryCount]);
 
     const handleRetryClick = () => {
         console.log('🔄 Usuario solicitó reintento');

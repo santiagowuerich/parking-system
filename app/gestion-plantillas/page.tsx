@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,17 +10,55 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Edit, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useCaracteristicas } from "@/lib/hooks/use-caracteristicas";
 import type { Caracteristica, Plantilla, PlantillaForm } from "@/lib/types";
 import { DuplicateTemplateDialog } from "@/components/duplicate-template-dialog";
 
 export default function GestionPlantillasPage() {
     const { estId } = useAuth();
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     // Estados para los datos
-    const [allCaracteristicas, setAllCaracteristicas] = useState<Caracteristica[]>([]);
+    const { caracteristicas: allCaracteristicas, loading: loadingCaracteristicas, error: errorCaracteristicas } = useCaracteristicas();
     const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
+    const [loadingPlantillas, setLoadingPlantillas] = useState(false);
+
+    // Estado de carga general (características + plantillas)
+    const loading = loadingCaracteristicas || loadingPlantillas;
+
+    // useCallback para evitar doble montaje en modo desarrollo
+    const loadInitialDataCallback = useCallback(async () => {
+        if (!estId || loadingCaracteristicas) return; // Evitar llamadas duplicadas
+
+        try {
+            setLoadingPlantillas(true);
+
+            // Solo cargar plantillas (características se cargan automáticamente con el hook)
+            const plantillasRes = await fetch(`/api/plantillas?est_id=${estId}`);
+
+            // Procesar plantillas
+            if (!plantillasRes.ok) {
+                throw new Error('Error al cargar plantillas');
+            }
+            const plantillasData = await plantillasRes.json();
+            setPlantillas(plantillasData.plantillas || []);
+
+        } catch (error: any) {
+            console.error('Error cargando datos iniciales:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error.message || "Error al cargar los datos"
+            });
+        } finally {
+            setLoadingPlantillas(false);
+        }
+    }, [estId, loadingCaracteristicas, toast]);
+
+    // Carga inicial de datos
+    useEffect(() => {
+        loadInitialDataCallback();
+    }, [loadInitialDataCallback]);
 
     // Estado para el formulario
     const [currentTemplate, setCurrentTemplate] = useState<PlantillaForm>({
@@ -41,40 +79,6 @@ export default function GestionPlantillasPage() {
         existingTemplate: { plantilla_id: 0, nombre_plantilla: '' },
         newTemplateName: ''
     });
-
-    // Carga inicial de datos
-    useEffect(() => {
-        loadInitialData();
-    }, [estId]);
-
-    const loadInitialData = async () => {
-        if (!estId) return;
-
-        try {
-            setLoading(true);
-
-            // Cargar características
-            const caracteristicasRes = await fetch('/api/caracteristicas');
-            if (!caracteristicasRes.ok) {
-                throw new Error('Error al cargar características');
-            }
-            const caracteristicasData = await caracteristicasRes.json();
-            setAllCaracteristicas(caracteristicasData.caracteristicas || []);
-
-            // Cargar plantillas
-            await loadPlantillas();
-
-        } catch (error: any) {
-            console.error('Error cargando datos iniciales:', error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: error.message || "Error al cargar los datos"
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const loadPlantillas = async () => {
         if (!estId) return;

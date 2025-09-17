@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import type { VehicleType } from "@/lib/types";
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   // userId ya no es obligatorio; capacidad ahora se deriva de 'estacionamientos' (est_id=1) y plazas
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     if (e1 || e2) {
       const err = e1 || e2;
-      console.error('Error obteniendo capacidad:', err);
+      logger.error('Error obteniendo capacidad:', err);
       return NextResponse.json({ error: err!.message }, { status: 500 });
     }
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
-    console.error("Unexpected error fetching capacity:", err);
+    logger.error("Unexpected error fetching capacity:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
       .eq('est_id', estId);
 
     if (updError) {
-      console.error('Error actualizando capacidad total:', updError);
+      logger.error('Error actualizando capacidad total:', updError);
       return NextResponse.json({ error: updError.message }, { status: 500 });
     }
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
-    console.error("Unexpected error updating capacity:", err);
+    logger.error("Unexpected error updating capacity:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 } 

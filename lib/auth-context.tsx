@@ -13,6 +13,7 @@ import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
 import { logger, createTimer } from "@/lib/logger";
+import { useParkings } from "@/lib/hooks/use-parkings";
 
 type SignUpParams = {
   email: string;
@@ -68,6 +69,15 @@ export const AuthContext = createContext<{
   parkingCapacity: Record<VehicleType, number> | null;
   loadingUserData: boolean;
   initRatesDone: boolean;
+  // Estado centralizado de parkings
+  parkings: any[];
+  parkingsUser: any;
+  parkingsLoading: boolean;
+  parkingsError: string | null;
+  fetchParkings: () => Promise<any[]>;
+  refreshParkings: () => Promise<any[]>;
+  getParkingById: (estId: number) => any;
+  clearParkings: () => void;
   signUp: (params: SignUpParams) => Promise<void>;
   signIn: (params: SignInParams) => Promise<void>;
   signOut: () => Promise<void>;
@@ -88,6 +98,15 @@ export const AuthContext = createContext<{
   userRole: null,
   roleLoading: false,
   invalidateRoleCache: () => { },
+  // Estado por defecto de parkings
+  parkings: [],
+  parkingsUser: null,
+  parkingsLoading: false,
+  parkingsError: null,
+  fetchParkings: async () => [],
+  refreshParkings: async () => [],
+  getParkingById: () => null,
+  clearParkings: () => { },
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -130,6 +149,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [estId, setEstId] = useState<number | null>(null); // No asignar por defecto hasta verificar
   const router = useRouter();
   const pathname = usePathname();
+
+  // Hook centralizado para gestionar parkings
+  const {
+    parkings,
+    user: parkingsUser,
+    loading: parkingsLoading,
+    error: parkingsError,
+    fetchParkings,
+    refreshParkings,
+    getParkingById,
+    clearParkings
+  } = useParkings();
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -192,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parkedData = await parkedResponse.json();
         setParkedVehicles(Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : []);
       } else {
-        console.error("Error al cargar vehículos estacionados");
+        logger.error("Error al cargar vehículos estacionados");
         setParkedVehicles([]);
       }
     } catch (error) {
@@ -232,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Función para obtener los datos de tarifas
-  const fetchRates = async () => {
+  const fetchRates = useCallback(async () => {
     if (!user?.id || estId === null) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -264,10 +295,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error general al cargar tarifas:", error);
       return { Auto: 0, Moto: 0, Camioneta: 0 };
     }
-  };
+  }, [user?.id, estId]);
 
   // Función para obtener los datos de configuración del usuario
-  const fetchUserSettings = async () => {
+  const fetchUserSettings = useCallback(async () => {
     if (!user?.id) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -314,10 +345,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bankAccountAlias: "",
       };
     }
-  };
+  }, [user?.id]);
 
   // Función para obtener los datos de capacidad
-  const fetchCapacity = async () => {
+  const fetchCapacity = useCallback(async () => {
     if (!user?.id || estId === null) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -353,7 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error general al cargar capacidad del estacionamiento:", error);
       return { Auto: 0, Moto: 0, Camioneta: 0 };
     }
-  };
+  }, [user?.id, estId]);
 
   // Función para refrescar solo la capacidad
   const refreshCapacity = async () => {
@@ -370,7 +401,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     if (!user?.id || estId === null || loadingData || isNavigating) return;
 
     setLoadingData(true);
@@ -398,23 +429,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parkedData = await parkedResponse.json();
         setParkedVehicles(Array.isArray(parkedData.parkedVehicles) ? parkedData.parkedVehicles : []);
       } else {
-        console.error("Error al cargar vehículos estacionados");
+        logger.error("Error al cargar vehículos estacionados");
         setParkedVehicles([]);
       }
 
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
-        console.log('✅ Datos del historial recibidos en fetchUserData:', {
-          count: historyData.history?.length || 0,
-          data: historyData.history?.slice(0, 2) // Mostrar primeros 2 para debug
-        });
+        logger.debug(`Historial cargado: ${historyData.history?.length || 0} registros`);
         setParkingHistory(Array.isArray(historyData.history) ? historyData.history : []);
       } else {
-        console.error("❌ Error al cargar historial de estacionamiento en fetchUserData");
+        logger.error("Error al cargar historial de estacionamiento");
         setParkingHistory([]);
       }
     } catch (error) {
-      console.error("Error general al cargar datos del usuario:", error);
+      logger.error("Error general al cargar datos del usuario:", error);
       setRates({ Auto: 0, Moto: 0, Camioneta: 0 });
       setUserSettings({
         mercadopagoApiKey: "",
@@ -429,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoadingUserData(false);
       setLoadingData(false);
     }
-  };
+  }, [user?.id, estId, isNavigating, fetchRates, fetchUserSettings, fetchCapacity]);
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
@@ -495,7 +523,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
         // Redirigir inmediatamente si tenemos usuario autenticado
-        router.push("/");
+        router.push("/dashboard/parking");
       }
     }
   }, [user, isInitialized, pathname, router]);
@@ -764,9 +792,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
+  // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
   useEffect(() => {
     if (!user?.id || estId === null || loadingData || isNavigating) return;
     if (roleLoading || !userRole) return; // esperar a rol
+
+    // Solo hacer carga automática si estamos en páginas que lo necesitan
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const shouldAutoLoad = !currentPath.includes('/dashboard'); // El dashboard maneja sus propios datos
+
+    if (!shouldAutoLoad) return;
 
     const timeoutId = setTimeout(() => {
       fetchUserData();
@@ -868,7 +903,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
- // Activar loading inmediatamente para evitar flash
+    // Activar loading inmediatamente para evitar flash
     try {
       // Limpiar cualquier sesión previa antes de iniciar sesión
       try {
@@ -1016,6 +1051,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserRole(null);
           setRoleLoading(false);
         },
+        // Estado centralizado de parkings
+        parkings,
+        parkingsUser,
+        parkingsLoading,
+        parkingsError,
+        fetchParkings,
+        refreshParkings,
+        getParkingById,
+        clearParkings,
         clearAuthCompletely,
       }}
     >

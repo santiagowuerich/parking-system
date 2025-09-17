@@ -38,62 +38,23 @@ interface ParkingStatusWidgetProps {
 }
 
 export default function ParkingStatusWidget({ className, collapsed = false }: ParkingStatusWidgetProps) {
-    const { estId, parkedVehicles, parkingCapacity, userRole, roleLoading } = useAuth();
-    const [estacionamientoActual, setEstacionamientoActual] = useState<EstacionamientoDetalle | null>(null);
-    const [loadingEstacionamiento, setLoadingEstacionamiento] = useState(false);
+    const { estId, parkedVehicles, parkingCapacity, userRole, roleLoading, parkings, fetchParkings } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
 
-    // Función para cargar detalles del estacionamiento actual
-    const cargarDetallesEstacionamiento = async () => {
-        if (!estId) {
-            setEstacionamientoActual(null);
-            return;
-        }
-
-        try {
-            setLoadingEstacionamiento(true);
-            const response = await fetch(`/api/auth/list-parkings`);
-
-            if (!response.ok) {
-                throw new Error('Error al cargar detalles del estacionamiento');
-            }
-
-            const data = await response.json();
-
-            if (data.estacionamientos && data.estacionamientos.length > 0) {
-                const estacionamiento = data.estacionamientos.find(
-                    (est: EstacionamientoDetalle) => est.est_id === estId
-                );
-
-                if (estacionamiento) {
-                    setEstacionamientoActual(estacionamiento);
-                } else {
-                    setEstacionamientoActual(null);
-                }
-            } else {
-                setEstacionamientoActual(null);
-            }
-        } catch (error) {
-            console.error('Error cargando detalles del estacionamiento:', error);
-            setEstacionamientoActual(null);
-        } finally {
-            setLoadingEstacionamiento(false);
-        }
-    };
+    // Obtener estacionamiento actual desde AuthContext
+    const estacionamientoActual = parkings.find(p => p.est_id === estId) || null;
 
     // Función para refrescar datos
     const handleRefresh = async () => {
         setRefreshing(true);
-        await cargarDetallesEstacionamiento();
-        setRefreshing(false);
+        try {
+            await fetchParkings();
+        } catch (error) {
+            console.error('Error refrescando datos del estacionamiento:', error);
+        } finally {
+            setRefreshing(false);
+        }
     };
-
-    // Cargar detalles del estacionamiento cuando estId cambie (guard)
-    useEffect(() => {
-        if (roleLoading) return;
-        if (!estId) return;
-        cargarDetallesEstacionamiento();
-    }, [estId, roleLoading]);
 
     // Desactivar polling automático para evitar loops
     // useEffect(() => {
@@ -125,19 +86,7 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
         );
     }
 
-    if (loadingEstacionamiento) {
-        return (
-            <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <Loader2 className="h-1.5 w-1.5 animate-spin flex-shrink-0" />
-                        <span className="text-sm text-gray-500">Cargando...</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // No necesitamos estado de carga separado ya que los datos vienen del AuthContext
 
     if (!estacionamientoActual) {
         return (

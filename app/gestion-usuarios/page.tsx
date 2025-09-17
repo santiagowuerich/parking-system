@@ -39,7 +39,7 @@ const DIAS_SEMANA = [
 ];
 
 export default function GestionUsuariosPage() {
-    const { estId, user } = useAuth();
+    const { estId, user, userRole } = useAuth();
 
     // Estados principales
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -73,7 +73,6 @@ export default function GestionUsuariosPage() {
             estado: string;
         };
     } | null>(null);
-    const [userRole, setUserRole] = useState<'dueno' | 'empleado' | null>(null);
 
     // Cargar turnos una sola vez
     useEffect(() => {
@@ -81,42 +80,23 @@ export default function GestionUsuariosPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Evitar cargas repetidas: clave por usuario/estId
+    // Evitar cargas repetidas: clave por usuario/estId/rol
     const lastLoadKeyRef = useRef<string | null>(null);
     useEffect(() => {
-        if (!user) return;
-        const key = `${user.id || 'no-user'}-${estId ?? 'no-est'}`;
+        if (!user || !userRole) return;
+        const key = `${user.id || 'no-user'}-${estId ?? 'no-est'}-${userRole}`;
         if (lastLoadKeyRef.current === key) return;
         lastLoadKeyRef.current = key;
-        determineUserRoleAndLoadEmpleados();
-    }, [user, estId]);
 
-    // Determinar el rol del usuario y cargar empleados apropiadamente
-    const determineUserRoleAndLoadEmpleados = async () => {
-        if (!user?.email) return;
-
-        try {
-            // Verificar si el usuario es dueño
-            const response = await fetch('/api/auth/get-parking-id');
-            const parkingData = await response.json();
-
-            if (parkingData.has_parking) {
-                // Usuario es DUEÑO
-                setUserRole('dueno');
-                console.log('👑 Usuario identificado como DUEÑO');
-                loadEmpleadosAsDueno();
-            } else {
-                // Usuario podría ser EMPLEADO
-                setUserRole('empleado');
-                console.log('👷 Usuario identificado como EMPLEADO');
-                loadEmpleadosAsEmpleado();
-            }
-        } catch (error) {
-            console.error('Error determinando rol del usuario:', error);
-            setUserRole('empleado'); // Por defecto asumir empleado
+        // Cargar empleados basado en el rol del usuario
+        if (userRole === 'owner') {
+            console.log('👑 Usuario identificado como DUEÑO');
+            loadEmpleadosAsDueno();
+        } else if (userRole === 'playero') {
+            console.log('👷 Usuario identificado como EMPLEADO');
             loadEmpleadosAsEmpleado();
         }
-    };
+    }, [user, estId, userRole]);
 
     const loadEmpleadosAsDueno = async () => {
         // iniciar carga de empleados como dueño
@@ -229,7 +209,7 @@ export default function GestionUsuariosPage() {
 
     const handleSaveUser = async () => {
         // Los empleados no pueden crear ni editar empleados
-        if (userRole === 'empleado') {
+        if (userRole === 'playero') {
             toast({
                 variant: "destructive",
                 title: "Acceso denegado",
@@ -239,7 +219,7 @@ export default function GestionUsuariosPage() {
         }
 
         // Validar que tengamos el estId del contexto para dueños
-        if (userRole === 'dueno' && !estId) {
+        if (userRole === 'owner' && !estId) {
             toast({
                 variant: "destructive",
                 title: "Error",
@@ -316,7 +296,11 @@ export default function GestionUsuariosPage() {
             setModalOpen(false);
             handleNewUser();
             console.log('🔄 Llamando a loadEmpleados después de crear empleado...');
-            await determineUserRoleAndLoadEmpleados();
+            if (userRole === 'owner') {
+                await loadEmpleadosAsDueno();
+            } else if (userRole === 'playero') {
+                await loadEmpleadosAsEmpleado();
+            }
             console.log('✅ Lista recargada después de crear empleado');
         } else {
             toast({
@@ -331,7 +315,7 @@ export default function GestionUsuariosPage() {
 
     const handleDeleteUser = async (usuId: number) => {
         // Los empleados no pueden eliminar empleados
-        if (userRole === 'empleado') {
+        if (userRole === 'playero') {
             toast({
                 variant: "destructive",
                 title: "Acceso denegado",
@@ -351,7 +335,11 @@ export default function GestionUsuariosPage() {
                 title: "Éxito",
                 description: "Empleado eliminado correctamente"
             });
-            await determineUserRoleAndLoadEmpleados();
+            if (userRole === 'owner') {
+                await loadEmpleadosAsDueno();
+            } else if (userRole === 'playero') {
+                await loadEmpleadosAsEmpleado();
+            }
         } else {
             toast({
                 variant: "destructive",
@@ -435,10 +423,10 @@ export default function GestionUsuariosPage() {
         <div className="container mx-auto p-6 max-w-7xl bg-white min-h-screen">
             <div className="mb-6">
                 <h1 className="text-3xl font-bold text-gray-900">
-                    {userRole === 'dueno' ? 'Gestión de Empleados' : 'Mi Asignación'}
+                    {userRole === 'owner' ? 'Gestión de Empleados' : 'Mi Asignación'}
                 </h1>
                 <p className="text-gray-600 mt-1">
-                    {userRole === 'dueno'
+                    {userRole === 'owner'
                         ? 'Administra los empleados de tu estacionamiento actual, sus datos y disponibilidad'
                         : 'Visualiza tu asignación actual como empleado'
                     }
@@ -450,16 +438,23 @@ export default function GestionUsuariosPage() {
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-gray-900">
-                            {userRole === 'dueno' ? 'Listado de empleados' : 'Mi asignación'}
+                            {userRole === 'owner' ? 'Listado de empleados' : 'Mi asignación'}
                         </CardTitle>
                         <div className="flex gap-2">
-                            {userRole === 'dueno' && (
+                            {userRole === 'owner' && (
                                 <Button onClick={handleNewUser} size="sm" className="bg-blue-600 hover:bg-blue-700">
                                     <UserPlus className="h-4 w-4 mr-2" />
                                     Nuevo Empleado
                                 </Button>
                             )}
-                            <Button onClick={() => { lastLoadKeyRef.current = null; determineUserRoleAndLoadEmpleados(); }} variant="outline" size="sm">
+                            <Button onClick={() => {
+                                lastLoadKeyRef.current = null;
+                                if (userRole === 'owner') {
+                                    loadEmpleadosAsDueno();
+                                } else if (userRole === 'playero') {
+                                    loadEmpleadosAsEmpleado();
+                                }
+                            }} variant="outline" size="sm">
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Actualizar
                             </Button>
@@ -496,10 +491,10 @@ export default function GestionUsuariosPage() {
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Nombre</th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Email</th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">
-                                        {userRole === 'dueno' ? 'Disponibilidad' : 'Estacionamiento'}
+                                        {userRole === 'owner' ? 'Disponibilidad' : 'Estacionamiento'}
                                     </th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
-                                    {userRole === 'dueno' && (
+                                    {userRole === 'owner' && (
                                         <th className="py-4 px-4 text-right text-sm font-bold text-gray-900">Acciones</th>
                                     )}
                                 </tr>
@@ -507,13 +502,13 @@ export default function GestionUsuariosPage() {
                             <tbody>
                                 {empleadosFiltrados.length === 0 ? (
                                     <tr className="bg-white">
-                                        <td colSpan={userRole === 'dueno' ? 5 : 4} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                        <td colSpan={userRole === 'owner' ? 5 : 4} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
                                             {empleados.length === 0
-                                                ? (userRole === 'dueno'
+                                                ? (userRole === 'owner'
                                                     ? "No hay empleados registrados en este estacionamiento. Crea el primero haciendo clic en 'Nuevo Empleado'."
                                                     : "No tienes asignaciones activas en ningún estacionamiento."
                                                 )
-                                                : (userRole === 'dueno'
+                                                : (userRole === 'owner'
                                                     ? "No se encontraron empleados con los filtros aplicados."
                                                     : "No se encontraron asignaciones con los filtros aplicados."
                                                 )
@@ -530,7 +525,7 @@ export default function GestionUsuariosPage() {
                                                 {empleado.email || 'Sin email'}
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
-                                                {userRole === 'dueno' ? (
+                                                {userRole === 'owner' ? (
                                                     <div className="max-w-48 truncate" title={formatearDisponibilidad(empleado.disponibilidad)}>
                                                         {formatearDisponibilidad(empleado.disponibilidad)}
                                                     </div>
@@ -545,7 +540,7 @@ export default function GestionUsuariosPage() {
                                                     {empleado.estado}
                                                 </Badge>
                                             </td>
-                                            {userRole === 'dueno' && (
+                                            {userRole === 'owner' && (
                                                 <td className="py-4 px-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <Button

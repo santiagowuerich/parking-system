@@ -1,5 +1,6 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (error) {
-        console.error("Error fetching user settings:", error);
+        logger.error("Error fetching user settings:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     const jsonResponse = NextResponse.json(responseData);
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
-    console.error("Unexpected error fetching user settings:", err);
+    logger.error("Unexpected error fetching user settings:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       .upsert(dataToUpsert, { onConflict: 'user_id' });
 
     if (upsertError) {
-      console.error("Error updating user settings:", upsertError);
+      logger.error("Error updating user settings:", upsertError);
       return NextResponse.json({ error: upsertError.message }, { status: 500 });
     }
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
     });
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
-    console.error("Unexpected error updating user settings:", err);
+    logger.error("Unexpected error updating user settings:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 } 

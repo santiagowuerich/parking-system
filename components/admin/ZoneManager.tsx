@@ -1,7 +1,8 @@
-// components/admin/ZoneManager.tsx - Sistema simplificado usando pla_zona
+// components/admin/ZoneManager.tsx - Gestión simplificada de zonas
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useZoneManagement } from '@/lib/hooks/use-zone-management';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,27 +17,12 @@ import {
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, Edit } from 'lucide-react';
 
-interface Zona {
-    id: number;
-    nombre: string;
-    est_id: number;
-}
-
 export function ZoneManager() {
     const { estId } = useAuth();
-    const [zonas, setZonas] = useState<Zona[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { zonas, loading, fetchZonas, createZoneWithPlazas, renameZone, deleteZone, assignPlazasToZone } = useZoneManagement(estId);
 
-    // Si no hay estId, no cargar las zonas
-    if (estId === null) {
-        return (
-            <div className="text-center py-8">
-                <p className="text-zinc-400">Configurando estacionamiento...</p>
-            </div>
-        );
-    }
-    const [newZoneName, setNewZoneName] = useState('');
-    const [editingZone, setEditingZone] = useState<Zona | null>(null);
+    // Estados locales del componente
+    const [editingZone, setEditingZone] = useState<any | null>(null);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedZoneForAssign, setSelectedZoneForAssign] = useState<string>('');
     const [selectedPlazas, setSelectedPlazas] = useState<number[]>([]);
@@ -48,49 +34,23 @@ export function ZoneManager() {
         capacidad: { Auto: 0, Moto: 0, Camioneta: 0 }
     });
 
-    const fetchZonas = async () => {
-        if (estId === null) return;
-        setLoading(true);
-        try {
-            const response = await fetch(`/api/zonas?est_id=${estId}`);
-            if (!response.ok) throw new Error('Error al cargar zonas');
-            const data = await response.json();
-
-            // Asegurar que siempre tengamos un array válido
-            const zonasArray = Array.isArray(data.zonas) ? data.zonas : [];
-            setZonas(zonasArray);
-
-            console.log('📊 Zonas cargadas:', zonasArray);
-        } catch (error: any) {
-            console.error('❌ Error al cargar zonas:', error);
-            toast.error('Error', { description: error.message });
-            setZonas([]); // Asegurar array vacío en caso de error
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (estId) {
-            fetchZonas();
-        }
-    }, [estId]);
+    // Si no hay estId, mostrar mensaje de configuración
+    if (estId === null) {
+        return (
+            <div className="text-center py-8">
+                <p className="text-zinc-400">Configurando estacionamiento...</p>
+            </div>
+        );
+    }
 
     const handleRenameZone = async () => {
         if (!editingZone || !editingZone.nombre.trim()) return;
 
         try {
-            const response = await fetch('/api/zonas', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    zona_antigua: zonas.find(z => z.id === editingZone.id)?.nombre,
-                    zona_nueva: editingZone.nombre,
-                    est_id: estId
-                }),
-            });
+            const zonaAntigua = zonas.find(z => z.id === editingZone.id)?.nombre;
+            if (!zonaAntigua) return;
 
-            if (!response.ok) throw new Error('No se pudo renombrar la zona');
+            await renameZone(zonaAntigua, editingZone.nombre);
 
             setEditingZone(null);
             fetchZonas();
@@ -104,14 +64,7 @@ export function ZoneManager() {
         if (!confirm(`¿Seguro que quieres eliminar la zona "${zonaNombre}"? Las plazas serán reasignadas a la zona "GENERAL".`)) return;
 
         try {
-            const response = await fetch('/api/zonas', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ zona_nombre: zonaNombre, est_id: estId }),
-            });
-
-            if (!response.ok) throw new Error('No se pudo eliminar la zona');
-
+            await deleteZone(zonaNombre);
             fetchZonas();
             toast.success('Zona eliminada', { description: 'Las plazas fueron reasignadas a GENERAL' });
         } catch (error: any) {
@@ -120,23 +73,12 @@ export function ZoneManager() {
     };
 
     const handleAssignPlazas = async () => {
-        if (!selectedZoneForAssign || selectedPlazas.length === 0) {
-            toast.error('Selecciona una zona y al menos una plaza');
-            return;
-        }
-
         try {
-            const response = await fetch('/api/zonas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    zona_nombre: selectedZoneForAssign,
-                    plaza_numeros: selectedPlazas,
-                    est_id: estId
-                }),
+            await assignPlazasToZone({
+                zona_nombre: selectedZoneForAssign,
+                plaza_numeros: selectedPlazas,
+                est_id: estId!
             });
-
-            if (!response.ok) throw new Error('No se pudieron asignar las plazas');
 
             setIsAssignModalOpen(false);
             setSelectedPlazas([]);
@@ -149,36 +91,14 @@ export function ZoneManager() {
     };
 
     const handleCreateZoneWithPlazas = async () => {
-        if (!createZoneData.nombre.trim()) {
-            toast.error('Ingresa un nombre para la zona');
-            return;
-        }
-
-        const totalPlazas = Object.values(createZoneData.capacidad).reduce((a, b) => a + b, 0);
-        if (totalPlazas === 0) {
-            toast.error('Especifica al menos una plaza para crear');
-            return;
-        }
-
         try {
-            const response = await fetch('/api/zonas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    zona_nombre: createZoneData.nombre,
-                    est_id: estId,
-                    capacidad: createZoneData.capacidad
-                }),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) throw new Error(result.error || 'No se pudo crear la zona');
+            const result = await createZoneWithPlazas(createZoneData);
 
             setIsCreateModalOpen(false);
             setCreateZoneData({ nombre: '', capacidad: { Auto: 0, Moto: 0, Camioneta: 0 } });
             fetchZonas();
 
+            const totalPlazas = Object.values(createZoneData.capacidad).reduce((a, b) => a + b, 0);
             toast.success('¡Zona creada exitosamente!', {
                 description: result.message || `${totalPlazas} plazas generadas automáticamente`
             });

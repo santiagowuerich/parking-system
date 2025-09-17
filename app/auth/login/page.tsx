@@ -21,7 +21,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await signIn({ email, password });
-      router.push("/dashboard");
+      router.push("/dashboard/parking");
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
         setError("Email o contraseña incorrectos.");
@@ -40,7 +40,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      router.push("/dashboard");
+      router.push("/dashboard/parking");
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
     } finally {

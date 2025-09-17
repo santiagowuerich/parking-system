@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Pencil, Trash2, ArrowLeft, Filter, CheckCircle2 } from "lucide-react"
 import type { ParkingHistory, VehicleType } from "@/lib/types"
-import { formatCurrency, formatTime, formatDuration } from "@/lib/utils"
+import { formatCurrency, formatTime, formatDuration, formatArgentineTimeWithDayjs } from "@/lib/utils"
 import HistoryFilters from "./history-filters"
 import { toast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -35,16 +35,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Chatbot } from './ui/chatbot'
 import { ZoneManager } from './admin/ZoneManager'
 
-// --- Importar y configurar Day.js --- 
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-dayjs.extend(utc)
-dayjs.extend(timezone)
-// -----------------------------------
 
 interface AdminPanelProps {
   history: ParkingHistory[]
@@ -68,21 +60,6 @@ interface AdminPanelProps {
   onReenterVehicle?: (entry: ParkingHistory) => Promise<void>
 }
 
-// --- Función de formato con Day.js --- 
-const formatArgentineTimeWithDayjs = (dateString: string | Date | null | undefined): string => {
-  if (!dateString) return "N/A"; // Manejar nulos/undefined
-  try {
-    const dateUtc = dayjs.utc(dateString);
-    if (!dateUtc.isValid()) {
-      return "Fecha inválida";
-    }
-    return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
-  } catch (error) {
-    console.error("Error formateando fecha con Day.js en AdminPanel:", error);
-    return "Error";
-  }
-};
-// ---------------------------------------
 
 export default function AdminPanel({
   history,
