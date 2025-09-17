@@ -447,6 +447,12 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                 </div>
                                             </CardHeader>
                                             <CardContent className="pt-0">
+                                                {/* Dirección del estacionamiento arriba de "0 disponibles" */}
+                                                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                                    <MapPin className="h-4 w-4 text-gray-400" />
+                                                    <span className="text-sm">{estacionamiento.est_direc}</span>
+                                                </div>
+
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                                     <div className="flex items-center gap-2 text-gray-600">
                                                         <MapPin className="h-4 w-4 text-gray-400" />
@@ -471,12 +477,11 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     </div>
                                                     <div className="flex items-center gap-2 text-gray-600">
                                                         <Clock className="h-4 w-4 text-gray-400" />
-                                                        <span>{estacionamiento.est_horario_funcionamiento}h funcionamiento</span>
+                                                        <span>{estacionamiento.est_horario_funcionamiento || 24}h funcionamiento</span>
                                                     </div>
                                                 </div>
                                                 <div className="mt-3 text-gray-500 text-xs">
-                                                    <p>{estacionamiento.est_direc}</p>
-                                                    <p>Tolerancia: {estacionamiento.est_tolerancia_min} minutos</p>
+                                                    <p>Tolerancia: {estacionamiento.est_tolerancia_min || 0} minutos</p>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                         <span className="text-green-400">Datos calculados en tiempo real</span>
