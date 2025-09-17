@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { toast } from 'sonner';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useZoneManagement } from '@/lib/hooks/use-zone-management';
 
 // Tipos para la API
 interface Zona {
@@ -35,6 +36,7 @@ interface ConfiguracionZona {
 const ConfiguracionZonaPage: React.FC = () => {
     const router = useRouter();
     const { estId, user, setEstId } = useAuth();
+    const { checkZoneExists, loadZoneInfo, configureZoneComplete } = useZoneManagement(estId);
 
     // Estados del formulario
     const [zonaNombre, setZonaNombre] = useState<string>('');
@@ -85,7 +87,7 @@ const ConfiguracionZonaPage: React.FC = () => {
         if (zonaParametro && estId) {
             cargarInformacionZona(zonaParametro);
         }
-    }, [zonaParametro, estId]);
+    }, [zonaParametro, estId, loadZoneInfo]);
 
     // Cargar zonas existentes cuando el estId esté disponible
     React.useEffect(() => {
@@ -119,19 +121,9 @@ const ConfiguracionZonaPage: React.FC = () => {
         }
     };
 
-    // Función para verificar si una zona ya existe
+    // Función para verificar si una zona ya existe (usando hook)
     const verificarZonaExistente = async (nombreZona: string): Promise<boolean> => {
-        try {
-            const response = await fetch(`/api/zonas?est_id=${estId}`);
-            if (response.ok) {
-                const data = await response.json();
-                return data.zonas?.some((zona: any) => zona.zona_nombre === nombreZona) || false;
-            }
-            return false;
-        } catch (error) {
-            console.error('Error verificando zona existente:', error);
-            return false;
-        }
+        return await checkZoneExists(nombreZona);
     };
 
     // Función para verificar zona en tiempo real
@@ -264,19 +256,7 @@ const ConfiguracionZonaPage: React.FC = () => {
                 configuracion.cantidad_plazas = cantidadPlazas;
             }
 
-            const response = await fetch('/api/zonas/configurar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(configuracion)
-            });
-
-            const responseData = await response.json();
-
-            if (!response.ok) {
-                throw new Error(responseData.error || 'Error al crear la zona');
-            }
+            const responseData = await configureZoneComplete(configuracion);
 
             toast.success(responseData.message || "Zona creada exitosamente");
 
@@ -313,38 +293,25 @@ const ConfiguracionZonaPage: React.FC = () => {
             setLoading(true);
             console.log(`🔍 Cargando información de zona "${zonaNombre}"`);
 
-            const response = await fetch(`/api/zonas?zona=${encodeURIComponent(zonaNombre)}&est_id=${estId!}`);
+            const zona = await loadZoneInfo(zonaNombre);
 
-            if (!response.ok) {
-                throw new Error('Error al cargar información de la zona');
+            // Pre-llenar el formulario con la información existente
+            setZonaNombre(zona.zona_nombre);
+            setCantidadPlazas(zona.total_plazas);
+            setTotalEditable(zona.total_plazas);
+
+            // Si se detectó un layout, activarlo
+            if (zona.filas_detectadas > 1) {
+                setUsarLayout(true);
+                setFilas(zona.filas_detectadas);
+                setColumnas(zona.columnas_detectadas);
             }
 
-            const data = await response.json();
+            console.log(`✅ Información cargada: ${zona.total_plazas} plazas, ${zona.filas_detectadas}x${zona.columnas_detectadas} layout`);
+            console.log('📊 Estadísticas:', zona.estadisticas);
 
-            if (data.success && data.zona) {
-                const zona = data.zona;
-
-                // Pre-llenar el formulario con la información existente
-                setZonaNombre(zona.zona_nombre);
-                setCantidadPlazas(zona.total_plazas);
-                setTotalEditable(zona.total_plazas);
-
-                // Si se detectó un layout, activarlo
-                if (zona.filas_detectadas > 1) {
-                    setUsarLayout(true);
-                    setFilas(zona.filas_detectadas);
-                    setColumnas(zona.columnas_detectadas);
-                }
-
-                console.log(`✅ Información cargada: ${zona.total_plazas} plazas, ${zona.filas_detectadas}x${zona.columnas_detectadas} layout`);
-                console.log('📊 Estadísticas:', zona.estadisticas);
-
-                // Mostrar mensaje informativo
-                toast.success(`Información cargada: Zona "${zonaNombre}" tiene ${zona.total_plazas} plazas configuradas`);
-            } else {
-                console.error('❌ Respuesta inesperada:', data);
-                toast.error("No se pudo cargar la información de la zona");
-            }
+            // Mostrar mensaje informativo
+            toast.success(`Información cargada: Zona "${zonaNombre}" tiene ${zona.total_plazas} plazas configuradas`);
         } catch (error) {
             console.error('❌ Error cargando zona:', error);
             toast.error("Error al cargar la información de la zona");

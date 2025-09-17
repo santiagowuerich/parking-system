@@ -17,7 +17,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { OperatorChat } from './operator-chat'
 import { ThemeToggle } from "./theme-toggle"
 import { useAuth } from "@/lib/auth-context"
 import { ZonaEstacionamiento } from "./ZonaEstacionamiento"
@@ -26,17 +25,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge'
 import { Settings } from 'lucide-react'
 
-// Importar dayjs y plugins
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-
-// Extender dayjs con los plugins
-dayjs.extend(utc)
-dayjs.extend(timezone)
 
 import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types"
-import { formatCurrency, formatTime } from "@/lib/utils"
+import { formatCurrency, formatTime, formatArgentineTimeWithDayjs } from "@/lib/utils"
 
 interface ExitInfo {
   vehicle: Vehicle
@@ -220,21 +211,6 @@ export default function OperatorPanel({
     }
   }
 
-  // --- Función auxiliar con Day.js --- 
-  const formatArgentineTimeWithDayjs = (dateString: string | Date): string => {
-    try {
-      // Asegurar que dayjs interprete la fecha como UTC si es un string ISO
-      const dateUtc = dayjs.utc(dateString);
-      if (!dateUtc.isValid()) {
-        return "Fecha inválida";
-      }
-      // Convertir a la zona horaria de Argentina y formatear
-      return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
-    } catch (error) {
-      console.error("Error formateando fecha con Day.js:", error);
-      return "Error de formato";
-    }
-  };
 
   // Obtener plazas libres para el selector
   const getPlazasLibres = () => {

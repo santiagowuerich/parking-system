@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/use-toast";
+import { usePaymentMethods } from "@/lib/hooks/use-payment-methods";
 import { Loader2, CreditCard, Settings, FileText, Wallet, Banknote, QrCode, Link } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -38,12 +39,9 @@ interface UserSettings {
 
 export default function ConfiguracionPagosPage() {
     const { estId, user } = useAuth();
+    const { paymentMethods, loading: methodsLoading, togglePaymentMethod } = usePaymentMethods(estId);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    // Estados para métodos de pago
-    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-    const [methodsLoading, setMethodsLoading] = useState(false);
 
     // Estados para historial de tarifas
     const [tariffHistory, setTariffHistory] = useState<TariffHistory>({});
@@ -88,17 +86,7 @@ export default function ConfiguracionPagosPage() {
         }
     };
 
-    const loadPaymentMethods = async () => {
-        try {
-            const response = await fetch(`/api/payment/methods?est_id=${estId}`);
-            if (response.ok) {
-                const data = await response.json();
-                setPaymentMethods(data.methods || []);
-            }
-        } catch (error) {
-            console.error('Error loading payment methods:', error);
-        }
-    };
+    // Los métodos de pago se cargan automáticamente con el hook usePaymentMethods
 
     const loadTariffHistory = async () => {
         try {
@@ -153,36 +141,14 @@ export default function ConfiguracionPagosPage() {
         }
     };
 
-    const togglePaymentMethod = async (method: string) => {
-        try {
-            setMethodsLoading(true);
-            const response = await fetch(`/api/payment/methods?est_id=${estId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    method,
-                    enabled: !paymentMethods.find(m => m.method === method)?.enabled
-                })
-            });
+    const handleTogglePaymentMethod = async (methodName: string) => {
+        const currentMethod = paymentMethods.find(m => m.method === methodName);
+        if (!currentMethod) return;
 
-            if (response.ok) {
-                await loadPaymentMethods();
-                toast({
-                    title: "Éxito",
-                    description: `Método ${method} actualizado correctamente`
-                });
-            } else {
-                throw new Error('Error al actualizar método');
-            }
+        try {
+            await togglePaymentMethod(methodName, !currentMethod.enabled);
         } catch (error) {
-            console.error('Error toggling payment method:', error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Error al actualizar el método de pago"
-            });
-        } finally {
-            setMethodsLoading(false);
+            // El hook ya maneja los toasts de error
         }
     };
 
@@ -313,7 +279,7 @@ export default function ConfiguracionPagosPage() {
                                         </div>
                                         <Switch
                                             checked={method.enabled}
-                                            onCheckedChange={() => togglePaymentMethod(method.method)}
+                                            onCheckedChange={() => handleTogglePaymentMethod(method.method)}
                                             disabled={methodsLoading || ((method.method === 'QR' || method.method === 'Link de Pago') && !hasMercadoPagoKey)}
                                         />
                                     </div>

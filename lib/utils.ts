@@ -1,5 +1,11 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+import timezone from "dayjs/plugin/timezone"
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -59,5 +65,20 @@ export function nameToSegment(name?: string): 'AUT' | 'MOT' | 'CAM' {
   if (n === 'moto') return 'MOT'
   if (n === 'camioneta') return 'CAM'
   return 'AUT'
+}
+
+// Formatear fecha/hora argentina con Day.js
+export function formatArgentineTimeWithDayjs(dateString: string | Date | null | undefined): string {
+  if (!dateString) return "N/A"; // Manejar nulos/undefined
+  try {
+    const dateUtc = dayjs.utc(dateString);
+    if (!dateUtc.isValid()) {
+      return "Fecha inválida";
+    }
+    return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
+  } catch (error) {
+    console.error("Error formateando fecha con Day.js:", error);
+    return "Error";
+  }
 }
 
