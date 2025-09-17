@@ -1,3 +1,74 @@
+-- Función RPC para listar estacionamientos de usuario con métricas agregadas
+-- Reduce múltiples roundtrips a una sola consulta optimizada
+CREATE OR REPLACE FUNCTION list_user_parkings(p_user_email TEXT)
+RETURNS TABLE (
+    est_id INTEGER,
+    est_nombre TEXT,
+    est_direc TEXT,
+    est_capacidad INTEGER,
+    plazas_total INTEGER,
+    plazas_ocupadas INTEGER,
+    plazas_libres INTEGER,
+    ingreso_hoy NUMERIC,
+    vehiculos_activos INTEGER
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_usuario_id INTEGER;
+BEGIN
+    -- Obtener ID del usuario
+    SELECT usu_id INTO v_usuario_id
+    FROM usuario
+    WHERE usu_email = p_user_email;
+
+    IF v_usuario_id IS NULL THEN
+        RETURN;
+    END IF;
+
+    -- Verificar si es dueño o empleado
+    RETURN QUERY
+    WITH parking_data AS (
+        SELECT
+            e.est_id,
+            e.est_nombre,
+            e.est_direc,
+            e.est_capacidad,
+            e.due_id,
+            -- Conteos de plazas por estado
+            COUNT(CASE WHEN p.pla_estado = 'Ocupada' THEN 1 END) as ocupadas,
+            COUNT(CASE WHEN p.pla_estado = 'Libre' THEN 1 END) as libres,
+            COUNT(p.pla_numero) as total_plazas,
+            -- Vehículos activos (con entrada pero sin salida)
+            COUNT(DISTINCT CASE WHEN vh.fecha_salida IS NULL AND vh.fecha_entrada IS NOT NULL THEN vh.vh_id END) as vehiculos_activos,
+            -- Ingreso del día (solo salidas de hoy)
+            COALESCE(SUM(CASE
+                WHEN vh.fecha_salida::date = CURRENT_DATE
+                THEN vh.vh_monto_abonado
+                ELSE 0
+            END), 0) as ingreso_hoy
+        FROM estacionamientos e
+        LEFT JOIN plazas p ON e.est_id = p.est_id
+        LEFT JOIN vehiculos vh ON e.est_id = vh.est_id AND vh.fecha_salida IS NULL
+        WHERE e.due_id = v_usuario_id
+        GROUP BY e.est_id, e.est_nombre, e.est_direc, e.est_capacidad, e.due_id
+    )
+    SELECT
+        pd.est_id,
+        pd.est_nombre,
+        pd.est_direc,
+        pd.est_capacidad,
+        pd.total_plazas,
+        pd.ocupadas,
+        pd.libres,
+        pd.ingreso_hoy,
+        pd.vehiculos_activos
+    FROM parking_data pd
+    ORDER BY pd.est_id;
+END;
+$$;
+
 -- Función RPC para validar y crear estacionamiento en una sola transacción
 -- Reduce múltiples roundtrips a una sola llamada
 CREATE OR REPLACE FUNCTION create_parking_with_validation(

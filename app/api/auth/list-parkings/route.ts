@@ -66,8 +66,6 @@ export async function GET(request: NextRequest) {
             estacionamientosError = result.error;
         } else {
             // EMPLEADO: obtener solo el estacionamiento asignado
-            console.log(`👷 Buscando asignación para empleado ${usuarioData.usu_id}`);
-
             const { data: asignacionData, error: asignacionError } = await supabase
                 .from('empleados_estacionamiento')
                 .select(`
@@ -91,55 +89,79 @@ export async function GET(request: NextRequest) {
                 .single();
 
             if (asignacionError || !asignacionData) {
-                console.log(`⚠️ Empleado ${usuarioData.usu_id} no tiene asignación activa`);
+                logger.debug(`Empleado ${usuarioData.usu_id} no tiene asignación activa`);
                 estacionamientosBasicos = [];
                 estacionamientosError = asignacionError;
             } else {
-                console.log(`✅ Empleado asignado al estacionamiento: ${asignacionData.estacionamientos?.[0]?.est_id}`);
-                estacionamientosBasicos = asignacionData.estacionamientos ? [asignacionData.estacionamientos] : [];
+                const estacionamientoAsignado = asignacionData.estacionamientos as any;
+                logger.debug(`Empleado asignado al estacionamiento: ${estacionamientoAsignado?.est_id || 'desconocido'}`);
+                estacionamientosBasicos = estacionamientoAsignado ? [estacionamientoAsignado] : [];
                 estacionamientosError = null;
             }
         }
 
         if (estacionamientosError) {
-            console.error("❌ Error obteniendo estacionamientos:", estacionamientosError);
+            logger.error("Error obteniendo estacionamientos:", estacionamientosError);
             return NextResponse.json({ error: "Error consultando estacionamientos" }, { status: 500 });
         }
 
-        // Calcular estadísticas reales para cada estacionamiento (solo si hay estacionamientos)
+        // Usar función RPC optimizada para obtener métricas agregadas
         let estacionamientosData = [];
         if (estacionamientosBasicos && estacionamientosBasicos.length > 0) {
-            estacionamientosData = await Promise.all(
-                estacionamientosBasicos.map(async (est) => {
-                    // Contar plazas totales reales
-                    const { data: plazasTotales, error: plazasError } = await supabase
-                        .from('plazas')
-                        .select('pla_numero, pla_estado')
-                        .eq('est_id', est.est_id);
+            if (isDueno) {
+                // Para dueños: usar función RPC optimizada
+                const { data: parkingData, error: rpcError } = await supabase
+                    .rpc('list_user_parkings', { p_user_email: userEmail });
 
-                    if (plazasError) {
-                        console.error(`❌ Error obteniendo plazas para est_id ${est.est_id}:`, plazasError);
+                if (rpcError) {
+                    logger.error('Error obteniendo estacionamientos con RPC:', rpcError);
+                    estacionamientosData = estacionamientosBasicos.map(est => ({
+                        ...est,
+                        plazas_total: 0,
+                        plazas_ocupadas: 0,
+                        plazas_libres: 0,
+                        ingreso_hoy: 0,
+                        vehiculos_activos: 0
+                    }));
+                } else {
+                    estacionamientosData = parkingData || [];
+                }
+            } else {
+                // Para empleados: calcular métricas básicas (solo un estacionamiento)
+                estacionamientosData = await Promise.all(
+                    estacionamientosBasicos.map(async (est) => {
+                        const { data: plazasData, error: plazasError } = await supabase
+                            .from('plazas')
+                            .select('pla_estado')
+                            .eq('est_id', est.est_id);
+
+                        if (plazasError) {
+                            logger.error(`Error obteniendo plazas para empleado ${est.est_id}:`, plazasError);
+                            return {
+                                ...est,
+                                plazas_total: 0,
+                                plazas_ocupadas: 0,
+                                plazas_libres: 0,
+                                ingreso_hoy: 0,
+                                vehiculos_activos: 0
+                            };
+                        }
+
+                        const total = plazasData?.length || 0;
+                        const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
+                        const libres = total - ocupadas;
+
                         return {
                             ...est,
-                            plazas_totales_reales: 0,
-                            plazas_disponibles_reales: 0,
-                            plazas_ocupadas: 0
+                            plazas_total: total,
+                            plazas_ocupadas: ocupadas,
+                            plazas_libres: libres,
+                            ingreso_hoy: 0, // Empleados no necesitan ver ingresos
+                            vehiculos_activos: ocupadas // Aproximación
                         };
-                    }
-
-                    // Calcular plazas reales
-                    const totalPlazasReales = plazasTotales?.length || 0;
-                    const plazasOcupadas = plazasTotales?.filter(p => p.pla_estado === 'Ocupado').length || 0;
-                    const plazasDisponiblesReales = totalPlazasReales - plazasOcupadas;
-
-                    return {
-                        ...est,
-                        plazas_totales_reales: totalPlazasReales,
-                        plazas_disponibles_reales: plazasDisponiblesReales,
-                        plazas_ocupadas: plazasOcupadas
-                    };
-                })
-            );
+                    })
+                );
+            }
         }
 
         logger.debug(`Usuario ${userEmail} tiene ${estacionamientosData?.length || 0} estacionamiento(s)`);

@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2 } from "lucide-react";
 import ParkingConfig from "./parking-config";
 import AddressAutocomplete from "./address-autocomplete";
+import { useAuth } from "@/lib/auth-context";
 
 interface Estacionamiento {
     est_id: number;
@@ -39,10 +40,15 @@ interface UserParkingsProps {
 }
 
 export default function UserParkings({ onSelectParking, currentEstId }: UserParkingsProps) {
-    const [estacionamientos, setEstacionamientos] = useState<Estacionamiento[]>([]);
-    const [usuario, setUsuario] = useState<Usuario | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    // Usar estado centralizado del AuthContext
+    const {
+        parkings: estacionamientos,
+        parkingsUser: usuario,
+        parkingsLoading: loading,
+        parkingsError: error,
+        fetchParkings
+    } = useAuth();
+
     const [activeTab, setActiveTab] = useState("list");
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [creating, setCreating] = useState(false);
@@ -50,54 +56,33 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [newParkingAddress, setNewParkingAddress] = useState("");
     const MAX_PARKINGS_PER_USER = 5;
 
-    const fetchUserParkings = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('/api/auth/list-parkings');
-
-            if (response.ok) {
-                const data = await response.json();
-                setEstacionamientos(data.estacionamientos || []);
-                setUsuario(data.usuario || null);
-                setError(null);
-            } else {
-                const errorData = await response.json();
-                setError(errorData.error || "Error cargando estacionamientos");
-            }
-        } catch (err) {
-            console.error("Error fetching user parkings:", err);
-            setError("Error de conexión");
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const createNewParking = async () => {
         if (!newParkingName.trim()) {
-            setError("El nombre del estacionamiento es requerido");
+            // El error se maneja localmente ya que es específico del formulario
+            alert("El nombre del estacionamiento es requerido");
             return;
         }
 
         if (!newParkingAddress.trim()) {
-            setError("La dirección del estacionamiento es requerida y debe ser única");
+            alert("La dirección del estacionamiento es requerida y debe ser única");
             return;
         }
 
         // Validación básica de nombre
         if (newParkingName.trim().length < 2) {
-            setError("El nombre debe tener al menos 2 caracteres");
+            alert("El nombre debe tener al menos 2 caracteres");
             return;
         }
 
         // Validación básica de dirección
         if (newParkingAddress.trim().length < 5) {
-            setError("La dirección debe tener al menos 5 caracteres");
+            alert("La dirección debe tener al menos 5 caracteres");
             return;
         }
 
         // Verificar límite de estacionamientos
         if (estacionamientos.length >= MAX_PARKINGS_PER_USER) {
-            setError(`Has alcanzado el límite máximo de estacionamientos (${MAX_PARKINGS_PER_USER})`);
+            alert(`Has alcanzado el límite máximo de estacionamientos (${MAX_PARKINGS_PER_USER})`);
             return;
         }
 
@@ -107,12 +92,11 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         );
 
         if (existingParking) {
-            setError(`Ya tienes un estacionamiento con el nombre "${newParkingName.trim()}"`);
+            alert(`Ya tienes un estacionamiento con el nombre "${newParkingName.trim()}"`);
             return;
         }
 
         setCreating(true);
-        setError(null);
 
         try {
             // Primera estrategia: endpoint principal
@@ -148,8 +132,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 const data = await response.json();
                 console.log('✅ Nuevo estacionamiento creado:', data);
 
-                // Recargar la lista de estacionamientos
-                await fetchUserParkings();
+                // Recargar la lista de estacionamientos usando el contexto centralizado
+                await fetchParkings();
 
                 // Limpiar el formulario
                 setNewParkingName("");
@@ -165,23 +149,20 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 console.error('❌ Error creando estacionamiento:', errorData);
 
                 // Mostrar mensaje de error más específico
-                if (errorData.details) {
-                    setError(`${errorData.error}: ${errorData.details}`);
-                } else {
-                    setError(errorData.error || "Error creando estacionamiento");
-                }
+                const errorMessage = errorData.details
+                    ? `${errorData.error}: ${errorData.details}`
+                    : errorData.error || "Error creando estacionamiento";
+                alert(errorMessage);
             }
         } catch (err) {
             console.error("Error creando estacionamiento:", err);
-            setError("Error de conexión - intenta nuevamente");
+            alert("Error de conexión - intenta nuevamente");
         } finally {
             setCreating(false);
         }
     };
 
-    useEffect(() => {
-        fetchUserParkings();
-    }, []);
+    // El fetching se hace automáticamente por el AuthContext cuando es necesario
 
     if (loading) {
         return (
@@ -199,7 +180,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 <CardContent className="p-6">
                     <p className="text-center text-red-600">{error}</p>
                     <div className="mt-4 text-center">
-                        <Button onClick={fetchUserParkings} variant="outline">
+                        <Button onClick={() => fetchParkings()} variant="outline">
                             Reintentar
                         </Button>
                     </div>
@@ -332,10 +313,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     value={newParkingName}
                                                     onChange={(e) => {
                                                         setNewParkingName(e.target.value);
-                                                        // Limpiar error cuando el usuario empiece a escribir
-                                                        if (error && error.includes("nombre")) {
-                                                            setError(null);
-                                                        }
                                                     }}
                                                     className="bg-gray-100 border-gray-200 text-gray-900 mt-1"
                                                     disabled={creating}
@@ -346,10 +323,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                 value={newParkingAddress}
                                                 onChange={(value) => {
                                                     setNewParkingAddress(value);
-                                                    // Limpiar error cuando el usuario empiece a escribir
-                                                    if (error && error.includes("dirección")) {
-                                                        setError(null);
-                                                    }
                                                 }}
                                                 onSelect={(place) => {
                                                     console.log('📍 Dirección completa seleccionada:', place);
@@ -398,7 +371,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                         setShowCreateForm(false);
                                                         setNewParkingName("");
                                                         setNewParkingAddress("");
-                                                        setError(null);
                                                     }}
                                                     variant="outline"
                                                     disabled={creating}
@@ -422,7 +394,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     Crea tu primer estacionamiento usando el botón "Nuevo Estacionamiento" arriba.
                                     Podrás crear hasta {MAX_PARKINGS_PER_USER} estacionamientos.
                                 </p>
-                                <Button onClick={fetchUserParkings} variant="outline">
+                                <Button onClick={() => fetchParkings()} variant="outline">
                                     Actualizar
                                 </Button>
                             </div>
@@ -477,13 +449,13 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     <div className="flex items-center gap-2 text-gray-600">
                                                         <Building2 className="h-4 w-4 text-gray-400" />
                                                         <span className="font-semibold text-green-400">
-                                                            {estacionamiento.plazas_totales_reales || 0} plazas totales
+                                                            {estacionamiento.plazas_total || 0} plazas totales
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-2 text-gray-600">
                                                         <Users className="h-4 w-4 text-gray-400" />
                                                         <span className="font-semibold text-blue-400">
-                                                            {estacionamiento.plazas_disponibles_reales || 0} disponibles
+                                                            {estacionamiento.plazas_libres || 0} disponibles
                                                         </span>
                                                         {estacionamiento.plazas_ocupadas > 0 && (
                                                             <span className="text-amber-600 text-xs">

@@ -13,6 +13,7 @@ import { User } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { VehicleType, Vehicle, ParkingHistory } from "@/lib/types";
 import { logger, createTimer } from "@/lib/logger";
+import { useParkings } from "@/lib/hooks/use-parkings";
 
 type SignUpParams = {
   email: string;
@@ -68,6 +69,15 @@ export const AuthContext = createContext<{
   parkingCapacity: Record<VehicleType, number> | null;
   loadingUserData: boolean;
   initRatesDone: boolean;
+  // Estado centralizado de parkings
+  parkings: any[];
+  parkingsUser: any;
+  parkingsLoading: boolean;
+  parkingsError: string | null;
+  fetchParkings: () => Promise<any[]>;
+  refreshParkings: () => Promise<any[]>;
+  getParkingById: (estId: number) => any;
+  clearParkings: () => void;
   signUp: (params: SignUpParams) => Promise<void>;
   signIn: (params: SignInParams) => Promise<void>;
   signOut: () => Promise<void>;
@@ -88,6 +98,15 @@ export const AuthContext = createContext<{
   userRole: null,
   roleLoading: false,
   invalidateRoleCache: () => { },
+  // Estado por defecto de parkings
+  parkings: [],
+  parkingsUser: null,
+  parkingsLoading: false,
+  parkingsError: null,
+  fetchParkings: async () => [],
+  refreshParkings: async () => [],
+  getParkingById: () => null,
+  clearParkings: () => { },
   rates: null,
   userSettings: null,
   parkedVehicles: null,
@@ -130,6 +149,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [estId, setEstId] = useState<number | null>(null); // No asignar por defecto hasta verificar
   const router = useRouter();
   const pathname = usePathname();
+
+  // Hook centralizado para gestionar parkings
+  const {
+    parkings,
+    user: parkingsUser,
+    loading: parkingsLoading,
+    error: parkingsError,
+    fetchParkings,
+    refreshParkings,
+    getParkingById,
+    clearParkings
+  } = useParkings();
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -868,7 +899,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
- // Activar loading inmediatamente para evitar flash
+    // Activar loading inmediatamente para evitar flash
     try {
       // Limpiar cualquier sesión previa antes de iniciar sesión
       try {
@@ -1016,6 +1047,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUserRole(null);
           setRoleLoading(false);
         },
+        // Estado centralizado de parkings
+        parkings,
+        parkingsUser,
+        parkingsLoading,
+        parkingsError,
+        fetchParkings,
+        refreshParkings,
+        getParkingById,
+        clearParkings,
         clearAuthCompletely,
       }}
     >
