@@ -134,11 +134,11 @@ export default function GoogleMap({
                 if (address) {
                     const infoWindow = new window.google.maps.InfoWindow({
                         content: `
-                            <div style="color: #000; padding: 8px; max-width: 200px;">
-                              <h4 style="margin: 0 0 8px 0; font-weight: bold;">${markerTitle}</h4>
-                              <p style="margin: 0; font-size: 14px; word-wrap: break-word;">${address}</p>
-                            </div>
-                          `
+                                <div style="color: #000; padding: 8px; max-width: 200px;">
+                                  <h4 style="margin: 0 0 8px 0; font-weight: bold;">${markerTitle}</h4>
+                                  <p style="margin: 0; font-size: 14px; word-wrap: break-word;">${address}</p>
+                                </div>
+                              `
                     });
 
                     marker.addListener('click', () => {

@@ -263,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Función para obtener los datos de tarifas
-  const fetchRates = async () => {
+  const fetchRates = useCallback(async () => {
     if (!user?.id || estId === null) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -295,10 +295,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error general al cargar tarifas:", error);
       return { Auto: 0, Moto: 0, Camioneta: 0 };
     }
-  };
+  }, [user?.id, estId]);
 
   // Función para obtener los datos de configuración del usuario
-  const fetchUserSettings = async () => {
+  const fetchUserSettings = useCallback(async () => {
     if (!user?.id) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -345,10 +345,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bankAccountAlias: "",
       };
     }
-  };
+  }, [user?.id]);
 
   // Función para obtener los datos de capacidad
-  const fetchCapacity = async () => {
+  const fetchCapacity = useCallback(async () => {
     if (!user?.id || estId === null) return null;
 
     // Verificar si hay datos en localStorage y si son recientes
@@ -384,7 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error general al cargar capacidad del estacionamiento:", error);
       return { Auto: 0, Moto: 0, Camioneta: 0 };
     }
-  };
+  }, [user?.id, estId]);
 
   // Función para refrescar solo la capacidad
   const refreshCapacity = async () => {
@@ -401,7 +401,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     if (!user?.id || estId === null || loadingData || isNavigating) return;
 
     setLoadingData(true);
@@ -457,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoadingUserData(false);
       setLoadingData(false);
     }
-  };
+  }, [user?.id, estId, isNavigating, fetchRates, fetchUserSettings, fetchCapacity]);
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
@@ -523,7 +523,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
         // Redirigir inmediatamente si tenemos usuario autenticado
-        router.push("/");
+        router.push("/dashboard/parking");
       }
     }
   }, [user, isInitialized, pathname, router]);

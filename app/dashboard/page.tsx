@@ -81,7 +81,8 @@ export default function DashboardPage() {
         if (estId && !roleLoading) {
             fetchUserData();
         }
-    }, [estId, roleLoading, fetchUserData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [estId, roleLoading]);
 
     // Filtrar acciones según el rol del usuario
     const quickActions = [
