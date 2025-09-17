@@ -196,3 +196,51 @@ EXCEPTION
         );
 END;
 $$;
+
+-- Función RPC para obtener plantillas con características agrupadas
+-- Optimiza el procesamiento moviendo la lógica de agrupamiento a Postgres
+CREATE OR REPLACE FUNCTION get_plantillas_agrupadas(p_est_id INTEGER)
+RETURNS TABLE (
+    plantilla_id INTEGER,
+    nombre_plantilla VARCHAR(100),
+    catv_segmento CHAR(3),
+    est_id INTEGER,
+    caracteristicas JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- Retornar plantillas con características agrupadas directamente desde SQL
+    RETURN QUERY
+    SELECT
+        p.plantilla_id,
+        p.nombre_plantilla,
+        p.catv_segmento,
+        p.est_id,
+        -- Construir JSON con características agrupadas por tipo
+        COALESCE(
+            (SELECT jsonb_object_agg(tipo, valores)
+             FROM (
+                 SELECT
+                     ct.nombre_tipo as tipo,
+                     jsonb_agg(c.valor ORDER BY c.valor) as valores
+                 FROM plantilla_caracteristicas pc
+                 JOIN caracteristicas c ON pc.caracteristica_id = c.caracteristica_id
+                 JOIN caracteristica_tipos ct ON c.tipo_id = ct.tipo_id
+                 WHERE pc.plantilla_id = p.plantilla_id
+                 GROUP BY ct.nombre_tipo
+             ) grouped_types
+            ), '{}'::jsonb
+        ) as caracteristicas
+    FROM plantillas p
+    WHERE p.est_id = p_est_id
+    ORDER BY p.nombre_plantilla;
+END;
+$$;
+
+-- Crear índices para mejorar rendimiento de consultas de plantillas
+CREATE INDEX IF NOT EXISTS idx_plantillas_est_id ON plantillas(est_id);
+CREATE INDEX IF NOT EXISTS idx_plantilla_caracteristicas_plantilla_id ON plantilla_caracteristicas(plantilla_id);
+CREATE INDEX IF NOT EXISTS idx_plantilla_caracteristicas_caracteristica_id ON plantilla_caracteristicas(caracteristica_id);
+CREATE INDEX IF NOT EXISTS idx_caracteristicas_tipo_id ON caracteristicas(tipo_id);

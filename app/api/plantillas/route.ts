@@ -9,55 +9,23 @@ export async function GET(request: NextRequest) {
         const url = new URL(request.url)
         const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || 1
 
-        // Obtener plantillas con sus características usando joins
+        // Usar función RPC optimizada que devuelve plantillas con características agrupadas
         const { data: plantillas, error } = await supabase
-            .from('plantillas')
-            .select(`
-        plantilla_id,
-        nombre_plantilla,
-        catv_segmento,
-        est_id,
-        plantilla_caracteristicas!inner(
-          caracteristica_id,
-          caracteristicas!inner(
-            valor,
-            caracteristica_tipos!inner(
-              nombre_tipo
-            )
-          )
-        )
-      `)
-            .eq('est_id', estId)
-            .order('nombre_plantilla')
+            .rpc('get_plantillas_agrupadas', { p_est_id: estId })
 
         if (error) {
-            console.error('Error obteniendo plantillas:', error)
+            console.error('Error obteniendo plantillas con RPC:', error)
             return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Reorganizar los datos para que sean más fáciles de usar en el frontend
-        const plantillasFormateadas = (plantillas || []).map(plantilla => {
-            const caracteristicas: { [tipo: string]: string[] } = {}
-
-            // Agrupar características por tipo
-            plantilla.plantilla_caracteristicas.forEach((pc: any) => {
-                const tipo = pc.caracteristicas.caracteristica_tipos.nombre_tipo
-                const valor = pc.caracteristicas.valor
-
-                if (!caracteristicas[tipo]) {
-                    caracteristicas[tipo] = []
-                }
-                caracteristicas[tipo].push(valor)
-            })
-
-            return {
-                plantilla_id: plantilla.plantilla_id,
-                nombre_plantilla: plantilla.nombre_plantilla,
-                catv_segmento: plantilla.catv_segmento,
-                est_id: plantilla.est_id,
-                caracteristicas
-            }
-        })
+        // Convertir el JSONB de características a objeto JavaScript para compatibilidad con el frontend
+        const plantillasFormateadas = (plantillas || []).map((plantilla: any) => ({
+            plantilla_id: plantilla.plantilla_id,
+            nombre_plantilla: plantilla.nombre_plantilla,
+            catv_segmento: plantilla.catv_segmento,
+            est_id: plantilla.est_id,
+            caracteristicas: plantilla.caracteristicas || {}
+        }))
 
         const jsonResponse = NextResponse.json({ plantillas: plantillasFormateadas })
         return copyResponseCookies(response, jsonResponse)
