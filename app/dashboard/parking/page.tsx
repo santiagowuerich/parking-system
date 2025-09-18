@@ -5,6 +5,7 @@ import UserParkings from "@/components/user-parkings";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
+
 export default function ParkingDashboardPage() {
     const { estId, setEstId, refreshParkedVehicles, refreshParkingHistory, refreshCapacity } = useAuth();
     const { toast } = useToast();

@@ -1,0 +1,118 @@
+﻿
+> proyecto-facultad@0.1.0 build
+> next build
+
+   Ôû▓ Next.js 15.2.4
+   - Environments: .env.local, .env
+   - Experiments (use with caution):
+     Ô£ô webpackBuildWorker
+     Ô£ô parallelServerCompiles
+     Ô£ô parallelServerBuildTraces
+
+   Creating an optimized production build ...
+ Ô£ô Compiled successfully in 6.0s
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/80) ...
+   Generating static pages (20/80) 
+   Generating static pages (40/80) 
+   Generating static pages (60/80) 
+ Ô£ô Generating static pages (80/80)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                      Size  First Load JS
+Ôöî Ôùï /                                           277 B         101 kB
+Ôö£ Ôùï /_not-found                                 981 B         102 kB
+Ôö£ Ôùï /account/security                          4.4 kB         164 kB
+Ôö£ ãÆ /api/auth/check-data                        277 B         101 kB
+Ôö£ ãÆ /api/auth/cleanup                           277 B         101 kB
+Ôö£ ãÆ /api/auth/create-new-parking                277 B         101 kB
+Ôö£ ãÆ /api/auth/get-employee-parking              277 B         101 kB
+Ôö£ ãÆ /api/auth/get-parking-id                    277 B         101 kB
+Ôö£ ãÆ /api/auth/get-role                          277 B         101 kB
+Ôö£ ãÆ /api/auth/list-parkings                     277 B         101 kB
+Ôö£ ãÆ /api/auth/login                             277 B         101 kB
+Ôö£ ãÆ /api/auth/migrate                           277 B         101 kB
+Ôö£ ãÆ /api/auth/migrate-all-users                 277 B         101 kB
+Ôö£ ãÆ /api/auth/migrate-existing                  277 B         101 kB
+Ôö£ ãÆ /api/auth/register                          277 B         101 kB
+Ôö£ ãÆ /api/auth/register-admin                    277 B         101 kB
+Ôö£ ãÆ /api/auth/setup-parking                     277 B         101 kB
+Ôö£ ãÆ /api/capacity                               277 B         101 kB
+Ôö£ ãÆ /api/capacity/plazas/reset                  277 B         101 kB
+Ôö£ ãÆ /api/capacity/plazas/sync                   277 B         101 kB
+Ôö£ ãÆ /api/caracteristicas                        277 B         101 kB
+Ôö£ ãÆ /api/claude                                 277 B         101 kB
+Ôö£ ãÆ /api/debug/user-status                      277 B         101 kB
+Ôö£ ãÆ /api/empleados                              277 B         101 kB
+Ôö£ ãÆ /api/empleados/estacionamientos             277 B         101 kB
+Ôö£ ãÆ /api/empleados/turnos                       277 B         101 kB
+Ôö£ ãÆ /api/estacionamiento/config                 277 B         101 kB
+Ôö£ ãÆ /api/estacionamientos                       277 B         101 kB
+Ôö£ ãÆ /api/geocoding/search                       277 B         101 kB
+Ôö£ ãÆ /api/google-maps/setup                      277 B         101 kB
+Ôö£ ãÆ /api/parking/[licensePlate]                 277 B         101 kB
+Ôö£ ãÆ /api/parking/cleanup                        277 B         101 kB
+Ôö£ ãÆ /api/parking/clear                          277 B         101 kB
+Ôö£ ãÆ /api/parking/entry                          277 B         101 kB
+Ôö£ ãÆ /api/parking/entry/update                   277 B         101 kB
+Ôö£ ãÆ /api/parking/history                        277 B         101 kB
+Ôö£ ãÆ /api/parking/history/[id]                   277 B         101 kB
+Ôö£ ãÆ /api/parking/init-rates                     277 B         101 kB
+Ôö£ ãÆ /api/parking/log                            277 B         101 kB
+Ôö£ ãÆ /api/parking/parked                         277 B         101 kB
+Ôö£ ãÆ /api/parking/parked/[licensePlate]          277 B         101 kB
+Ôö£ ãÆ /api/parking/payment                        277 B         101 kB
+Ôö£ ãÆ /api/payment/mercadopago                    277 B         101 kB
+Ôö£ ãÆ /api/payment/methods                        277 B         101 kB
+Ôö£ ãÆ /api/plantillas                             277 B         101 kB
+Ôö£ ãÆ /api/plazas                                 277 B         101 kB
+Ôö£ ãÆ /api/plazas/apply                           277 B         101 kB
+Ôö£ ãÆ /api/plazas/status                          277 B         101 kB
+Ôö£ ãÆ /api/pricing/calculate                      277 B         101 kB
+Ôö£ ãÆ /api/rates                                  277 B         101 kB
+Ôö£ ãÆ /api/rates/versions                         277 B         101 kB
+Ôö£ ãÆ /api/tarifas                                277 B         101 kB
+Ôö£ ãÆ /api/user/settings                          277 B         101 kB
+Ôö£ ãÆ /api/zonas                                  277 B         101 kB
+Ôö£ ãÆ /api/zonas/[zona_id]/grid                   277 B         101 kB
+Ôö£ ãÆ /api/zonas/configurar                       277 B         101 kB
+Ôö£ Ôùï /auth/forgot-password                     1.16 kB         148 kB
+Ôö£ Ôùï /auth/login                               2.05 kB         149 kB
+Ôö£ Ôùï /auth/register                            2.19 kB         150 kB
+Ôö£ Ôùï /auth/reset-password                       1.2 kB         149 kB
+Ôö£ Ôùï /configuracion-zona                       1.76 kB         183 kB
+Ôö£ Ôùï /dashboard                                3.31 kB         202 kB
+Ôö£ Ôùï /dashboard/configuracion-pagos            12.7 kB         216 kB
+Ôö£ Ôùï /dashboard/configuracion-zona               307 B         214 kB
+Ôö£ Ôùï /dashboard/empleados                        307 B         217 kB
+Ôö£ Ôùï /dashboard/google-maps                      300 B         203 kB
+Ôö£ Ôùï /dashboard/operador-simple                10.9 kB         224 kB
+Ôö£ Ôùï /dashboard/panel-administrador            12.3 kB         223 kB
+Ôö£ Ôùï /dashboard/parking                        12.7 kB         218 kB
+Ôö£ Ôùï /dashboard/payments                         557 B         101 kB
+Ôö£ Ôùï /dashboard/plantillas                       308 B         215 kB
+Ôö£ Ôùï /dashboard/plazas/configuracion-avanzada  10.4 kB         223 kB
+Ôö£ Ôùï /dashboard/tarifas                          301 B         205 kB
+Ôö£ Ôùï /dashboard/visualizacion-plazas             304 B         205 kB
+Ôö£ Ôùï /gestion-plantillas                       2.66 kB         195 kB
+Ôö£ Ôùï /gestion-tarifas                          2.36 kB         175 kB
+Ôö£ Ôùï /gestion-usuarios                         2.71 kB         197 kB
+Ôö£ Ôùï /google-maps-setup                        2.38 kB         119 kB
+Ôö£ Ôùï /payment/failure                            183 B         104 kB
+Ôö£ Ôùï /payment/pending                            183 B         104 kB
+Ôö£ Ôùï /payment/success                            183 B         104 kB
+Ôöö Ôùï /visualizacion-plazas                      1.8 kB         178 kB
++ First Load JS shared by all                  101 kB
+  Ôö£ chunks/1684-9fe1ac0faf14ae46.js           45.3 kB
+  Ôö£ chunks/4bd1b696-a1ca5c5f9fd706c6.js       53.2 kB
+  Ôöö other shared chunks (total)               2.01 kB
+
+
+ãÆ Middleware                                  65.1 kB
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

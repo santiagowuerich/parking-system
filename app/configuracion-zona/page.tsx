@@ -1,5 +1,6 @@
 'use client';
 
+
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -827,3 +828,4 @@ const ConfiguracionZonaPage: React.FC = () => {
 };
 
 export default ConfiguracionZonaPage;
+
