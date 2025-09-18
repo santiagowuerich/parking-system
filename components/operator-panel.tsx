@@ -337,7 +337,7 @@ export default function OperatorPanel({
                                 } ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
                               onClick={() => {
                                 if (plaza.pla_estado === 'Libre') {
-                                  setPlaNumero(String(plaza.pla_numero));
+                                  handlePlazaSelection(String(plaza.pla_numero));
                                   toast.success(`Plaza ${plaza.pla_numero} seleccionada`, {
                                     description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
                                   });
@@ -425,7 +425,7 @@ export default function OperatorPanel({
           vehiculos={plazasData.vehiculos || []}
           onPlazaClick={(plaza) => {
             if (!plaza.ocupado) {
-              setPlaNumero(String(plaza.numero));
+              handlePlazaSelection(String(plaza.numero));
               toast.success(`Plaza ${plaza.numero} seleccionada`, {
                 description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
               });
@@ -465,7 +465,7 @@ export default function OperatorPanel({
                         description: "Busca el vehículo en la tabla de abajo para darle salida.",
                       });
                     } else {
-                      setPlaNumero(String(plaza.numero));
+                      handlePlazaSelection(String(plaza.numero));
                       toast.success(`Plaza ${plaza.numero} seleccionada`, {
                         description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
                       });

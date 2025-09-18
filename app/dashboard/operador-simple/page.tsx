@@ -24,7 +24,7 @@ type ExitInfo = {
 
 export default function OperadorSimplePage() {
     const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity, fetchUserData } = useAuth();
-    const { canOperateParking, loading: roleLoading } = useUserRole();
+    const { canOperateParking, loading: roleLoading, role } = useUserRole();
     const router = useRouter();
 
     // Verificar que el usuario pueda operar el estacionamiento
@@ -599,7 +599,7 @@ export default function OperadorSimplePage() {
                     plazasData={plazasData}
                     loadingPlazas={loadingPlazas}
                     fetchPlazasStatus={fetchPlazasStatus}
-                    onConfigureZones={handleConfigureZones}
+                    onConfigureZones={role === 'owner' ? handleConfigureZones : null}
                     // Nuevas props para visualización rica
                     plazasCompletas={plazasCompletas}
                     loadingPlazasCompletas={loadingPlazasCompletas}
