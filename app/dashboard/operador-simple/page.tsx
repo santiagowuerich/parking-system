@@ -23,20 +23,28 @@ type ExitInfo = {
 };
 
 export default function OperadorSimplePage() {
-    const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity } = useAuth();
-    const { isEmployee, loading: roleLoading } = useUserRole();
+    const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity, fetchUserData } = useAuth();
+    const { canOperateParking, loading: roleLoading } = useUserRole();
     const router = useRouter();
 
-    // Verificar que el usuario sea empleado con debounce
+    // Verificar que el usuario pueda operar el estacionamiento
     useEffect(() => {
-        if (!roleLoading && isEmployee === false) {
+        if (!roleLoading && !canOperateParking) {
             const timeoutId = setTimeout(() => {
                 router.push('/dashboard');
             }, 2000); // Debounce extendido de 2 segundos
 
             return () => clearTimeout(timeoutId);
         }
-    }, [isEmployee, roleLoading, router]);
+    }, [canOperateParking, roleLoading, router]);
+
+    // Cargar datos del usuario y estacionamiento cuando estén disponibles
+    useEffect(() => {
+        if (user?.id && estId && !roleLoading) {
+            fetchUserData();
+        }
+    }, [user?.id, estId, roleLoading, fetchUserData]);
+
     const [parking, setParking] = useState<Parking | null>(null);
     const [rates, setRates] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -50,7 +58,7 @@ export default function OperadorSimplePage() {
 
     // Inicializar datos del parking
     useEffect(() => {
-        if (parkedVehicles && parkingCapacity && estId) {
+        if (parkedVehicles !== null && parkingCapacity && estId) {
             setParking({
                 capacity: parkingCapacity,
                 parkedVehicles: parkedVehicles,
@@ -511,7 +519,8 @@ export default function OperadorSimplePage() {
         window.location.href = '/dashboard/panel-administrador';
     };
 
-    if (loading) {
+    // Estado de carga general: mientras se cargan datos críticos
+    if (loading || roleLoading || !user || (estId && (!parkedVehicles && !parkingCapacity))) {
         return (
             <DashboardLayout>
                 <div className="p-6">
@@ -526,6 +535,7 @@ export default function OperadorSimplePage() {
         );
     }
 
+    // Si no hay estId después de cargar, mostrar mensaje apropiado según el rol
     if (!estId) {
         return (
             <DashboardLayout>
@@ -533,14 +543,19 @@ export default function OperadorSimplePage() {
                     <div className="text-center py-12">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
                         <p className="text-gray-600 mb-6">
-                            Selecciona un estacionamiento para acceder al panel de operador
+                            {canOperateParking ?
+                                "Selecciona un estacionamiento para acceder al panel de operador" :
+                                "No tienes acceso a estacionamientos disponibles"
+                            }
                         </p>
-                        <button
-                            onClick={() => window.location.href = '/dashboard/parking'}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            Ir a Mis Estacionamientos
-                        </button>
+                        {canOperateParking && (
+                            <button
+                                onClick={() => window.location.href = '/dashboard/parking'}
+                                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Ir a Mis Estacionamientos
+                            </button>
+                        )}
                     </div>
                 </div>
             </DashboardLayout>

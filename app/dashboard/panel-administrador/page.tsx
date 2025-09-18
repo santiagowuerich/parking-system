@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { RouteGuard } from "@/components/route-guard";
 import AdminPanel from "@/components/admin-panel";
 import { useAuth } from "@/lib/auth-context";
 import { createBrowserClient } from "@supabase/ssr";
@@ -193,42 +194,47 @@ export default function PanelAdministradorPage() {
 
     if (loading) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="flex items-center justify-center h-64">
-                        <div className="text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                            <p className="text-gray-600">Cargando panel de administrador...</p>
+            <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
+                <DashboardLayout>
+                    <div className="p-6">
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                                <p className="text-gray-600">Cargando panel de administrador...</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </DashboardLayout>
+                </DashboardLayout>
+            </RouteGuard>
         );
     }
 
     if (!estId) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="text-center py-12">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Administrador</h2>
-                        <p className="text-gray-600 mb-6">
-                            Selecciona un estacionamiento para acceder al panel de administrador
-                        </p>
-                        <button
-                            onClick={() => window.location.href = '/dashboard/parking'}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            Ir a Mis Estacionamientos
-                        </button>
+            <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
+                <DashboardLayout>
+                    <div className="p-6">
+                        <div className="text-center py-12">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Administrador</h2>
+                            <p className="text-gray-600 mb-6">
+                                Selecciona un estacionamiento para acceder al panel de administrador
+                            </p>
+                            <button
+                                onClick={() => window.location.href = '/dashboard/parking'}
+                                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Ir a Mis Estacionamientos
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </DashboardLayout>
+                </DashboardLayout>
+            </RouteGuard>
         );
     }
 
     return (
-        <DashboardLayout>
+        <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
+            <DashboardLayout>
             <div className="p-6">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-gray-900">Panel de Administrador</h1>
@@ -248,5 +254,6 @@ export default function PanelAdministradorPage() {
                 />
             </div>
         </DashboardLayout>
+        </RouteGuard>
     );
 }
