@@ -409,7 +409,17 @@ export default function OperadorSimplePage() {
                         } else {
                             calculatedFee = basePrice + (hourlyRate * (durationHours - 1));
                         }
-                    } else { // DÍA/SEMANA/MES: usar precio fijo
+                    } else if (tiptar === 2) { // DÍA
+                        const durationDays = Math.ceil(durationHours / 24);
+                        calculatedFee = basePrice * durationDays;
+                    } else if (tiptar === 4) { // SEMANA
+                        const durationWeeks = Math.ceil(durationHours / (24 * 7));
+                        calculatedFee = basePrice * durationWeeks;
+                    } else if (tiptar === 3) { // MES
+                        const durationMonths = Math.ceil(durationHours / (24 * 30)); // 30 días por mes
+                        calculatedFee = basePrice * durationMonths;
+                    } else {
+                        // Fallback: usar precio base
                         calculatedFee = basePrice;
                     }
 
