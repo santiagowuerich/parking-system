@@ -45,12 +45,6 @@ interface SidebarProps {
 // Elementos de navegación para empleados
 const employeeNavigationItems = [
     {
-        title: "Dashboard",
-        href: "/dashboard/operador-simple",
-        icon: LayoutDashboard,
-        description: "Panel de operador"
-    },
-    {
         title: "Panel de Operador",
         href: "/dashboard/operador-simple",
         icon: ParkingCircle,
