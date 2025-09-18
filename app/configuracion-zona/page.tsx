@@ -1,8 +1,8 @@
 'use client';
 
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,17 @@ interface ConfiguracionZona {
         modo: 'reiniciar' | 'continuar';
     };
 }
+
+// Componente que usa useSearchParams
+const SearchParamsProvider: React.FC<{ setZonaParametro: (zona: string | null) => void }> = ({ setZonaParametro }) => {
+    const searchParams = useSearchParams();
+
+    React.useEffect(() => {
+        setZonaParametro(searchParams?.get('zona') || null);
+    }, [searchParams, setZonaParametro]);
+
+    return null;
+};
 
 const ConfiguracionZonaPage: React.FC = () => {
     const router = useRouter();
@@ -68,13 +79,6 @@ const ConfiguracionZonaPage: React.FC = () => {
 
     // Obtener el parámetro de zona de la URL
     const [zonaParametro, setZonaParametro] = React.useState<string | null>(null);
-
-    React.useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const searchParams = new URLSearchParams(window.location.search);
-            setZonaParametro(searchParams.get('zona'));
-        }
-    }, []);
 
     // Sincronización simple: mantener totalEditable actualizado
     React.useEffect(() => {
@@ -496,6 +500,9 @@ const ConfiguracionZonaPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <Suspense fallback={null}>
+                <SearchParamsProvider setZonaParametro={setZonaParametro} />
+            </Suspense>
             <div className="p-6 space-y-6">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold">
@@ -827,5 +834,18 @@ const ConfiguracionZonaPage: React.FC = () => {
     );
 };
 
-export default ConfiguracionZonaPage;
+// Wrapper con Suspense para SSR
+export default function ConfiguracionZonaPageWrapper() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-lg text-gray-600">Cargando configuración de zona...</div>
+                </div>
+            </div>
+        }>
+            <ConfiguracionZonaPage />
+        </Suspense>
+    );
+}
 

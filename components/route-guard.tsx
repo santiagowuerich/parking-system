@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "../lib/use-user-role";
@@ -26,9 +26,41 @@ export function RouteGuard({
   const { role, loading: roleLoading } = useUserRole();
   const isUnknown = role === null;
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
 
-  // Loading state
-  if (roleLoading) {
+  // Verificar que estamos en el cliente
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Manejar redirecciones en el cliente
+  useEffect(() => {
+    if (!isClient || roleLoading) return;
+
+    // No authenticated user
+    if (!user) {
+      console.log('🚫 Usuario no autenticado, redirigiendo a login');
+      router.push('/auth/login');
+      return;
+    }
+
+    // User has unknown role (sin showAccessDenied)
+    if (isUnknown && !showAccessDenied) {
+      console.log('❓ Usuario con rol desconocido, redirigiendo a login');
+      router.push('/auth/login');
+      return;
+    }
+
+    // User without required role (sin showAccessDenied)
+    if (role && !allowedRoles.includes(role as 'owner' | 'playero') && !showAccessDenied) {
+      console.log(`🚫 Usuario con rol '${role}' redirigiendo a ${redirectTo}`);
+      router.push(redirectTo);
+      return;
+    }
+  }, [isClient, user, role, isUnknown, roleLoading, router, allowedRoles, redirectTo, showAccessDenied]);
+
+  // Durante SSR o mientras se inicializa el cliente, mostrar loading
+  if (!isClient || roleLoading) {
     return fallback || (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center space-y-4">
@@ -46,9 +78,7 @@ export function RouteGuard({
 
   // No authenticated user
   if (!user) {
-    console.log('🚫 Usuario no autenticado, redirigiendo a login');
-    router.push('/auth/login');
-    return null;
+    return null; // La redirección se maneja en useEffect
   }
 
   // User has unknown role
@@ -94,8 +124,7 @@ export function RouteGuard({
       );
     }
 
-    router.push('/auth/login');
-    return null;
+    return null; // La redirección se maneja en useEffect
   }
 
   // Check if user has required role
@@ -142,8 +171,7 @@ export function RouteGuard({
       );
     }
 
-    router.push(redirectTo);
-    return null;
+    return null; // La redirección se maneja en useEffect
   }
 
   // User has access

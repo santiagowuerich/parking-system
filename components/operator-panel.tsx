@@ -2,6 +2,7 @@
 
 import { createBrowserClient } from "@supabase/ssr"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -81,11 +82,12 @@ export default function OperatorPanel({
   getEstadoColor,
   getEstadoIcon,
 }: OperatorPanelProps) {
+  const router = useRouter();
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const { estId } = useAuth()
+  );
+  const { estId } = useAuth();
   const [plaNumero, setPlaNumero] = useState<string>("")
   const [plazasStatus, setPlazasStatus] = useState<{ [seg: string]: { total: number, occupied: number, free: number, plazas: { pla_numero: number, occupied: boolean }[] } } | null>(null)
   const [selectedPlazasType, setSelectedPlazasType] = useState<{ pla_numero: number, occupied: boolean }[]>([])
@@ -316,7 +318,7 @@ export default function OperatorPanel({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => window.location.href = `/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`}
+                        onClick={() => router.push(`/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`)}
                         className="flex items-center gap-1"
                       >
                         <Settings className="h-3 w-3" />
@@ -694,5 +696,5 @@ export default function OperatorPanel({
       */}
       {/* <OperatorChat /> */}
     </div>
-  )
+  );
 }

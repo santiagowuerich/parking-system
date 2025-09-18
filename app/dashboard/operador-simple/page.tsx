@@ -526,7 +526,7 @@ export default function OperadorSimplePage() {
             description: "Ve al Panel de Administrador para configurar las zonas del estacionamiento"
         });
         // Redirigir al panel de administrador
-        window.location.href = '/dashboard/panel-administrador';
+        router.push('/dashboard/panel-administrador');
     };
 
     // Estado de carga general: mientras se cargan datos críticos
@@ -560,7 +560,7 @@ export default function OperadorSimplePage() {
                         </p>
                         {canOperateParking && (
                             <button
-                                onClick={() => window.location.href = '/dashboard/parking'}
+                                onClick={() => router.push('/dashboard/parking')}
                                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                             >
                                 Ir a Mis Estacionamientos

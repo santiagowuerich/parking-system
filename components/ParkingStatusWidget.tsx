@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ interface ParkingStatusWidgetProps {
 }
 
 export default function ParkingStatusWidget({ className, collapsed = false }: ParkingStatusWidgetProps) {
+    const router = useRouter();
     const { estId, parkedVehicles, parkingCapacity, userRole, roleLoading, parkings, fetchParkings } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
     const [estacionamientoActual, setEstacionamientoActual] = useState<any>(null);
@@ -128,7 +130,7 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
     }
 
     const handleClick = () => {
-        window.location.href = '/dashboard/parking';
+        router.push('/dashboard/parking');
     };
 
     return (
