@@ -522,11 +522,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
-        // Redirigir inmediatamente si tenemos usuario autenticado
-        router.push("/dashboard/parking");
+        // Redirigir según el rol del usuario
+        if (userRole === 'playero') {
+          router.push("/dashboard/operador-simple");
+        } else if (userRole === 'owner') {
+          router.push("/dashboard/parking");
+        } else {
+          // Si aún no tenemos el rol, redirigir al dashboard genérico
+          router.push("/dashboard");
+        }
       }
     }
-  }, [user, isInitialized, pathname, router]);
+  }, [user, userRole, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
