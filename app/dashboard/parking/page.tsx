@@ -1,9 +1,11 @@
 "use client";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { RouteGuard } from "@/components/route-guard";
 import UserParkings from "@/components/user-parkings";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
+
 
 export default function ParkingDashboardPage() {
     const { estId, setEstId, refreshParkedVehicles, refreshParkingHistory, refreshCapacity } = useAuth();
@@ -47,7 +49,8 @@ export default function ParkingDashboardPage() {
     };
 
     return (
-        <DashboardLayout>
+        <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
+            <DashboardLayout>
             <div className="p-6">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-gray-900">Mis Estacionamientos</h1>
@@ -61,5 +64,6 @@ export default function ParkingDashboardPage() {
                 />
             </div>
         </DashboardLayout>
+        </RouteGuard>
     );
 }

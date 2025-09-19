@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { RouteGuard } from "@/components/route-guard";
 import { useRouter } from "next/navigation";
 // DebugEstacionamiento removido para solucionar loop infinito
 

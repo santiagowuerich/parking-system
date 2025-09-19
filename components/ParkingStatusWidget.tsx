@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,11 +39,36 @@ interface ParkingStatusWidgetProps {
 }
 
 export default function ParkingStatusWidget({ className, collapsed = false }: ParkingStatusWidgetProps) {
+    const router = useRouter();
     const { estId, parkedVehicles, parkingCapacity, userRole, roleLoading, parkings, fetchParkings } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
+    const [estacionamientoActual, setEstacionamientoActual] = useState<any>(null);
 
-    // Obtener estacionamiento actual desde AuthContext
-    const estacionamientoActual = parkings.find(p => p.est_id === estId) || null;
+    // Cargar datos del estacionamiento actual
+    useEffect(() => {
+        if (!estId) {
+            setEstacionamientoActual(null);
+            return;
+        }
+
+        // Primero intentar encontrar en parkings
+        const fromParkings = parkings.find(p => p.est_id === estId);
+        if (fromParkings) {
+            setEstacionamientoActual(fromParkings);
+            return;
+        }
+
+        // Si no está en parkings, crear un objeto básico con la información disponible
+        if (parkingCapacity) {
+            setEstacionamientoActual({
+                est_id: estId,
+                est_nombre: `Estacionamiento ${estId}`,
+                est_prov: '',
+                est_locali: '',
+                est_direc: ''
+            });
+        }
+    }, [estId, parkings, parkingCapacity]);
 
     // Función para refrescar datos
     const handleRefresh = async () => {
@@ -88,14 +114,15 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
 
     // No necesitamos estado de carga separado ya que los datos vienen del AuthContext
 
-    if (!estacionamientoActual) {
+    // Si tenemos estId pero no estacionamientoActual ni capacidad, mostrar estado de carga
+    if (estId && !estacionamientoActual && !parkingCapacity) {
         return (
-            <div className={`bg-white border border-red-200 rounded-lg ${className}`}>
+            <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
                 <div className="flex items-center gap-2 px-2 py-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-red-400" />
+                    <Loader2 className="h-3.5 w-3.5 text-gray-400 animate-spin" />
                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-300 flex-shrink-0"></div>
-                        <span className="text-sm text-red-600">Error</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0"></div>
+                        <span className="text-sm text-gray-500">Cargando...</span>
                     </div>
                 </div>
             </div>
@@ -103,7 +130,7 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
     }
 
     const handleClick = () => {
-        window.location.href = '/dashboard/parking';
+        router.push('/dashboard/parking');
     };
 
     return (
@@ -118,7 +145,7 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
                         occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
                         }`}></div>
                     <div className="text-sm font-medium text-gray-900 truncate">
-                        {estacionamientoActual.est_nombre}
+                        {estacionamientoActual?.est_nombre || `Estacionamiento ${estId}`}
                     </div>
                 </div>
             </div>

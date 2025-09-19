@@ -45,12 +45,6 @@ interface SidebarProps {
 // Elementos de navegación para empleados
 const employeeNavigationItems = [
     {
-        title: "Dashboard",
-        href: "/dashboard/operador-simple",
-        icon: LayoutDashboard,
-        description: "Panel de operador"
-    },
-    {
         title: "Panel de Operador",
         href: "/dashboard/operador-simple",
         icon: ParkingCircle,
@@ -151,9 +145,9 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
     // Seleccionar elementos de navegación según el rol
     const getNavigationItems = () => {
-        // Mientras carga el rol o aún no está resuelto, no restrinjas: muestra opciones de owner
-        if (roleLoading || role == null) {
-            return ownerNavigationItems;
+        // Mientras carga el rol, mostrar elementos básicos
+        if (roleLoading) {
+            return employeeNavigationItems; // Mostrar solo opciones básicas mientras carga
         }
         if (isOwner) {
             return ownerNavigationItems;
@@ -161,8 +155,8 @@ export function DashboardSidebar({ className }: SidebarProps) {
         if (isEmployee) {
             return employeeNavigationItems;
         }
-        // Fallback seguro
-        return ownerNavigationItems;
+        // Fallback seguro para empleados si el rol no está claro
+        return employeeNavigationItems;
     };
 
     const navigationItems = getNavigationItems();
