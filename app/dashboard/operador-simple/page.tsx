@@ -609,7 +609,7 @@ export default function OperadorSimplePage() {
                     plazasData={plazasData}
                     loadingPlazas={loadingPlazas}
                     fetchPlazasStatus={fetchPlazasStatus}
-                    onConfigureZones={role === 'owner' ? handleConfigureZones : null}
+                    onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
                     // Nuevas props para visualización rica
                     plazasCompletas={plazasCompletas}
                     loadingPlazasCompletas={loadingPlazasCompletas}
