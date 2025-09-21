@@ -67,12 +67,6 @@ const ownerNavigationItems = [
         description: "Panel principal de control"
     },
     {
-        title: "Panel de Operador",
-        href: "/dashboard/operador-simple",
-        icon: ParkingCircle,
-        description: "Gestión de estacionamientos"
-    },
-    {
         title: "Mis Estacionamientos",
         href: "/dashboard/parking",
         icon: Car,

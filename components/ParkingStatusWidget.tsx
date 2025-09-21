@@ -6,36 +6,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Building2,
-    MapPin,
-    Users,
-    Car,
-    Loader2,
-    RefreshCw,
-    AlertCircle
+  Building2,
+  MapPin,
+  Users,
+  Car,
+  Loader2,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 interface EstacionamientoDetalle {
-    est_id: number;
-    est_nombre: string;
-    est_prov: string;
-    est_locali: string;
-    est_direc: string;
-    est_capacidad: number;
-    est_latitud?: number;
-    est_longitud?: number;
-    est_telefono?: string;
-    est_email?: string;
-    est_descripcion?: string;
-    plazas_totales_reales: number;
-    plazas_disponibles_reales: number;
-    plazas_ocupadas: number;
+  est_id: number;
+  est_nombre: string;
+  est_prov: string;
+  est_locali: string;
+  est_direc: string;
+  est_capacidad: number;
+  est_latitud?: number;
+  est_longitud?: number;
+  est_telefono?: string;
+  est_email?: string;
+  est_descripcion?: string;
+  plazas_totales_reales: number;
+  plazas_disponibles_reales: number;
+  plazas_ocupadas: number;
 }
 
 interface ParkingStatusWidgetProps {
-    className?: string;
-    collapsed?: boolean;
+  className?: string;
+  collapsed?: boolean;
 }
 
 export default function ParkingStatusWidget({ className, collapsed = false }: ParkingStatusWidgetProps) {
@@ -70,47 +70,47 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
         }
     }, [estId, parkings, parkingCapacity]);
 
-    // Función para refrescar datos
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await fetchParkings();
-        } catch (error) {
-            console.error('Error refrescando datos del estacionamiento:', error);
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    // Desactivar polling automático para evitar loops
-    // useEffect(() => {
-    //     if (!estId) return;
-    //     const interval = setInterval(() => {
-    //         cargarDetallesEstacionamiento();
-    //     }, 30000);
-    //     return () => clearInterval(interval);
-    // }, [estId]);
-
-    // Calcular estadísticas en tiempo real
-    const totalSpaces = parkingCapacity ?
-        (parkingCapacity.Auto || 0) + (parkingCapacity.Moto || 0) + (parkingCapacity.Camioneta || 0) : 0;
-    const occupiedSpaces = parkedVehicles?.length || 0;
-    const availableSpaces = Math.max(0, totalSpaces - occupiedSpaces);
-    const occupancyRate = totalSpaces > 0 ? Math.round((occupiedSpaces / totalSpaces) * 100) : 0;
-
-    if (!estId) {
-        return (
-            <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0"></div>
-                        <span className="text-sm text-gray-500">Sin estacionamiento</span>
-                    </div>
-                </div>
-            </div>
-        );
+  // Función para refrescar datos
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchParkings();
+    } catch (error) {
+      console.error("Error refrescando datos del estacionamiento:", error);
+    } finally {
+      setRefreshing(false);
     }
+  };
+
+  // Calcular estadísticas en tiempo real
+  const totalSpaces = parkingCapacity
+    ? (parkingCapacity.Auto || 0) +
+      (parkingCapacity.Moto || 0) +
+      (parkingCapacity.Camioneta || 0)
+    : 0;
+  const occupiedSpaces = parkedVehicles?.length || 0;
+  const availableSpaces = Math.max(0, totalSpaces - occupiedSpaces);
+  const occupancyRate =
+    totalSpaces > 0
+      ? Math.round((occupiedSpaces / totalSpaces) * 100)
+      : 0;
+
+  // --- Estados visuales ---
+
+  // 1) Sin estacionamiento seleccionado
+  if (!estId) {
+    return (
+      <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          <MapPin className="h-3.5 w-3.5 text-gray-400" />
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+            <span className="text-sm text-gray-500">Sin estacionamiento</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
     // No necesitamos estado de carga separado ya que los datos vienen del AuthContext
 
