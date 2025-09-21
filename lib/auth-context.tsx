@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
         process.env.NEXT_PUBLIC_APP_URL ||
-        '';
+        'http://localhost:3000';
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -798,7 +798,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (roleLoading || !userRole) return; // esperar a rol
 
     // Solo hacer carga automática si estamos en páginas que lo necesitan
-    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const currentPath = pathname || '';
     const shouldAutoLoad = !currentPath.includes('/dashboard'); // El dashboard maneja sus propios datos
 
     if (!shouldAutoLoad) return;
@@ -941,7 +941,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const baseUrl =
         (typeof window !== 'undefined' ? window.location.origin : '') ||
         process.env.NEXT_PUBLIC_APP_URL ||
-        '';
+        'http://localhost:3000';
       const redirectTo = `${baseUrl}/auth/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
@@ -989,12 +989,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Error al cerrar sesión:", error);
       }
 
-      // Forzar recarga completa de la página para limpiar cualquier estado residual
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login';
-      } else {
-        router.push("/auth/login");
-      }
+      // Usar router para navegación consistente
+      router.push("/auth/login");
     } catch (error: any) {
       console.error("Error durante el cierre de sesión:", error);
 
@@ -1010,10 +1006,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         });
         sessionStorage.clear();
-        window.location.href = '/auth/login';
-      } else {
-        router.push("/auth/login");
       }
+      router.push("/auth/login");
     } finally {
     }
   };

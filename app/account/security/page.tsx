@@ -1,10 +1,12 @@
 "use client";
 
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuth } from "@/lib/auth-context";
+import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -45,18 +47,20 @@ export default function SecuritySettingsPage() {
 
   if (!user) {
     return (
-      <div className="container mx-auto p-4">
-        <Alert>
-          <AlertDescription>
-            Debe iniciar sesión para gestionar la seguridad de su cuenta.
-          </AlertDescription>
-        </Alert>
-        <div className="mt-4">
-          <Button asChild>
-            <Link href="/auth/login">Ir a iniciar sesión</Link>
-          </Button>
+      <DashboardLayout>
+        <div className="container mx-auto p-4">
+          <Alert>
+            <AlertDescription>
+              Debe iniciar sesión para gestionar la seguridad de su cuenta.
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4">
+            <Button asChild>
+              <Link href="/auth/login">Ir a iniciar sesión</Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
@@ -136,11 +140,12 @@ export default function SecuritySettingsPage() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <DashboardLayout>
+      <div className="container mx-auto p-4 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-semibold dark:text-zinc-100">Seguridad de la cuenta</h1>
         <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
-          <Link href="/">Volver al menú</Link>
+          <Link href="/dashboard">Volver al Dashboard</Link>
         </Button>
       </div>
 
@@ -238,7 +243,8 @@ export default function SecuritySettingsPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }
 
