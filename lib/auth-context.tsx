@@ -518,11 +518,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isInitialized) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
+      const isDashboardRoot = pathname === "/dashboard";
 
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
-        // Redirigir según el rol del usuario
+        // Redirigir según el rol del usuario después del login
         if (userRole === 'playero') {
           router.push("/dashboard/operador-simple");
         } else if (userRole === 'owner') {
@@ -531,6 +532,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Si aún no tenemos el rol, redirigir al dashboard genérico
           router.push("/dashboard");
         }
+      } else if (user && userRole === 'playero' && isDashboardRoot) {
+        // Si es empleado y está en dashboard root, redirigir inmediatamente
+        router.push("/dashboard/operador-simple");
       }
     }
   }, [user, userRole, isInitialized, pathname, router]);
@@ -793,7 +797,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const timeoutId = setTimeout(() => {
       fetchUserRole();
-    }, 800);
+    }, 200);
 
     return () => clearTimeout(timeoutId);
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias

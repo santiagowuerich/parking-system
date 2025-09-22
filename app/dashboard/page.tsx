@@ -68,13 +68,8 @@ export default function DashboardPage() {
         }
     }, [parkedVehicles, parkingCapacity]);
 
-    // Redirigir empleados al dashboard de operador SOLO cuando el rol esté resuelto
-    useEffect(() => {
-        if (roleLoading) return;
-        if (isEmployee) {
-            router.push('/dashboard/operador-simple');
-        }
-    }, [isEmployee, roleLoading, router]);
+    // La redirección de empleados ahora se maneja en el AuthProvider
+    // y en el loading state arriba para evitar race conditions
 
     // Ya no necesitamos hacer fetch adicional - usamos el estado centralizado de parkings
 
@@ -169,14 +164,19 @@ export default function DashboardPage() {
     });
 
     // Mostrar loading mientras se determina el rol del usuario
-    if (roleLoading || isOwner === null) {
+    // Asegurar que tenemos rol resuelto Y que no es un empleado (que debe ir a operador-simple)
+    if (roleLoading || isOwner === null || (isEmployee && !roleLoading)) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                        <p className="text-gray-600">Cargando dashboard...</p>
-                        <p className="text-sm text-gray-500 mt-1">Determinando permisos del usuario</p>
+                        <p className="text-gray-600">
+                            {isEmployee && !roleLoading ? 'Redirigiendo...' : 'Cargando dashboard...'}
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {isEmployee && !roleLoading ? 'Dirigiéndote al panel de operador' : 'Determinando permisos del usuario'}
+                        </p>
                     </div>
                 </div>
             </DashboardLayout>
