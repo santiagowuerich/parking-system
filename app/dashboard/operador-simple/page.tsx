@@ -164,6 +164,77 @@ export default function OperadorSimplePage() {
         return () => clearTimeout(timeoutId);
     }, [estId]);
 
+    // Suscripciones de realtime optimizadas
+    useEffect(() => {
+        if (!estId) return;
+
+        const supabase = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+
+        let updateTimeout: NodeJS.Timeout | null = null;
+
+        // Función de actualización debounced para evitar múltiples llamadas simultaneas
+        const debouncedUpdate = () => {
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+
+            updateTimeout = setTimeout(async () => {
+                try {
+                    console.log('🔄 Ejecutando actualización realtime...');
+
+                    // Actualizar secuencialmente para evitar race conditions
+                    await fetchPlazasStatus();
+                    await fetchPlazasCompletas();
+                    await refreshParkedVehicles();
+
+                    console.log('✅ Actualización realtime completada');
+                } catch (error) {
+                    console.error('❌ Error en actualización realtime:', error);
+                }
+            }, 300); // Debounce de 300ms
+        };
+
+        const channel = supabase.channel(`parking-operator-updates-${estId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'vehicle_movements',
+                filter: `est_id=eq.${estId}`
+            }, (payload) => {
+                console.log('🚗 Vehicle movement detected:', payload);
+                debouncedUpdate();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'plaza_status_changes',
+                filter: `est_id=eq.${estId}`
+            }, (payload) => {
+                console.log('🅿️ Plaza status change detected:', payload);
+                debouncedUpdate();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'ocupacion',
+                filter: `est_id=eq.${estId}`
+            }, (payload) => {
+                console.log('📍 Occupation change detected:', payload);
+                debouncedUpdate();
+            })
+            .subscribe();
+
+        return () => {
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
+            }
+            supabase.removeChannel(channel);
+        };
+    }, [estId]);
+
     // Calcular espacios disponibles
     const getAvailableSpaces = () => {
         if (!parkingCapacity || !parkedVehicles) {
@@ -615,6 +686,7 @@ export default function OperadorSimplePage() {
                     loadingPlazasCompletas={loadingPlazasCompletas}
                     getEstadoColor={getEstadoColor}
                     getEstadoIcon={getEstadoIcon}
+                    refreshParkedVehicles={refreshParkedVehicles}
                 />
 
             </div>

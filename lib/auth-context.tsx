@@ -885,6 +885,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase, router]);
 
+  // Listener para actualizaciones manuales de parkedVehicles
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleUpdateParkedVehicles = (event: CustomEvent) => {
+      console.log('🔄 Actualizando parkedVehicles manualmente:', event.detail);
+      setParkedVehicles(event.detail);
+    };
+
+    window.addEventListener('updateParkedVehicles', handleUpdateParkedVehicles as EventListener);
+
+    return () => {
+      window.removeEventListener('updateParkedVehicles', handleUpdateParkedVehicles as EventListener);
+    };
+  }, []);
+
   const signUp = async ({ email, password, name }: SignUpParams) => {
     try {
       const { data, error } = await supabase.auth.signUp({

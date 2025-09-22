@@ -25,6 +25,10 @@ import { SimpleVehicleList } from "./SimpleVehicleList"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { Settings } from 'lucide-react'
+import PlazaActionsModal from "./plaza-actions-modal"
+import VehicleMovementModal from "./vehicle-movement-modal"
+import EgresoModal from "./egreso-modal"
+import IngresoModal from "./ingreso-modal"
 
 
 import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types"
@@ -64,6 +68,8 @@ interface OperatorPanelProps {
   loadingPlazasCompletas?: boolean
   getEstadoColor?: (estado: string) => string
   getEstadoIcon?: (estado: string) => string
+  // Función para refrescar vehículos estacionados
+  refreshParkedVehicles?: () => Promise<void>
 }
 
 export default function OperatorPanel({
@@ -81,6 +87,7 @@ export default function OperatorPanel({
   loadingPlazasCompletas = false,
   getEstadoColor,
   getEstadoIcon,
+  refreshParkedVehicles,
 }: OperatorPanelProps) {
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -99,17 +106,105 @@ export default function OperatorPanel({
   const [showExitConfirmation, setShowExitConfirmation] = useState(false)
   const [selectedPlaza, setSelectedPlaza] = useState<any>(null)
 
+  // Estados para los nuevos modales
+  const [showActionsModal, setShowActionsModal] = useState(false)
+  const [showMovementModal, setShowMovementModal] = useState(false)
+  const [showEgresoModal, setShowEgresoModal] = useState(false)
+  const [showIngresoModal, setShowIngresoModal] = useState(false)
+  const [selectedPlazaForActions, setSelectedPlazaForActions] = useState<any>(null)
+  const [selectedVehicleForMove, setSelectedVehicleForMove] = useState<Vehicle | null>(null)
+  const [modalLoading, setModalLoading] = useState(false)
+
   // Nueva funcionalidad: Selección de duración mínima
   const [selectedDuration, setSelectedDuration] = useState<string>("hora")
   const [agreedPrice, setAgreedPrice] = useState<number | null>(null)
   const [showDurationSelector, setShowDurationSelector] = useState(false)
+  const [availableTariffs, setAvailableTariffs] = useState<any[]>([])
+
+  // Cargar tarifas de una plantilla específica
+  const loadTariffsForPlaza = async (plantillaId: number) => {
+    try {
+      const response = await fetch(`/api/tarifas?est_id=${estId}`)
+      const data = await response.json()
+
+      let tariffs: any[] = []
+
+      if (data.tarifas && plantillaId > 0) {
+        // Filtrar tarifas por plantilla_id específica
+        const plantillaData = data.tarifas.find((p: any) => p.plantilla_id === plantillaId)
+
+        if (plantillaData && plantillaData.tarifas) {
+          // Convertir las tarifas numéricas a nombres descriptivos
+          tariffs = Object.entries(plantillaData.tarifas).map(([tipo, data]: [string, any]) => ({
+            tar_id: parseInt(tipo),
+            tar_nombre: mapTariffTypeToName(parseInt(tipo)),
+            tar_precio_hora: data.precio
+          }))
+        }
+      }
+
+      // Si no hay tarifas específicas o plantillaId es 0, usar genéricas
+      if (tariffs.length === 0) {
+        console.log('Usando tarifas genéricas por defecto')
+        tariffs = [
+          { tar_id: 1, tar_nombre: 'Hora', tar_precio_hora: 1200 },
+          { tar_id: 2, tar_nombre: 'Día', tar_precio_hora: 8000 },
+          { tar_id: 3, tar_nombre: 'Semana', tar_precio_hora: 40000 },
+          { tar_id: 4, tar_nombre: 'Mensual', tar_precio_hora: 150000 }
+        ]
+      }
+
+      setAvailableTariffs(tariffs)
+      return tariffs
+    } catch (error) {
+      console.error('Error loading tariffs for plaza:', error)
+      return []
+    }
+  }
+
+  // Función para mapear tipos de tarifa numéricos a nombres descriptivos
+  const mapTariffTypeToName = (tipoTarifa: number): string => {
+    switch (tipoTarifa) {
+      case 1: return 'Hora'
+      case 2: return 'Día'
+      case 3: return 'Semana'
+      case 4: return 'Mensual'
+      default: return `Tipo ${tipoTarifa}`
+    }
+  }
 
   // Filtros para la tabla de vehículos estacionados
   const [filterPlate, setFilterPlate] = useState<string>("")
   const [filterVehicleType, setFilterVehicleType] = useState<VehicleType | 'Todos'>("Todos")
 
+  // Estado para movimientos recientes
+  const [recentMovements, setRecentMovements] = useState<any[]>([])
+  const [loadingMovements, setLoadingMovements] = useState(false)
+
+  // Estado para forzar re-render de la visualización cuando cambian los vehículos
+  const [visualizationKey, setVisualizationKey] = useState(0)
+
   // El AuthContext ya maneja todos los eventos de autenticación
   // No necesitamos duplicar onAuthStateChange aquí
+
+  // Función para obtener movimientos recientes
+  const fetchRecentMovements = async () => {
+    setLoadingMovements(true);
+    try {
+      const response = await fetch(`/api/parking/movements?est_id=${estId}&limit=20`);
+      const result = await response.json();
+
+      if (result.success) {
+        setRecentMovements(result.data);
+      } else {
+        console.error('Error fetching movements:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching movements:', error);
+    } finally {
+      setLoadingMovements(false);
+    }
+  };
 
   // Función reutilizable para recargar el estado de plazas
   const reloadPlazas = async () => {
@@ -125,13 +220,36 @@ export default function OperatorPanel({
     } catch { }
   }
 
+  // Inicializar con tarifas vacías (se cargarán cuando se seleccione una plaza)
+  useEffect(() => {
+    setAvailableTariffs([])
+  }, [estId])
+
   // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
-  useEffect(() => { reloadPlazas() }, [estId, selectedType])
+  useEffect(() => {
+    reloadPlazas()
+  }, [estId, selectedType])
 
   // El precio acordado se maneja manualmente por el operador
 
   // Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
   useEffect(() => { reloadPlazas() }, [parking.parkedVehicles.length])
+
+  // Cargar movimientos recientes al montar el componente
+  useEffect(() => {
+    fetchRecentMovements();
+  }, [estId])
+
+  // Actualizar movimientos después de operaciones
+  useEffect(() => {
+    fetchRecentMovements();
+  }, [parking.parkedVehicles.length])
+
+  // Forzar actualización de la visualización cuando cambian los vehículos estacionados
+  useEffect(() => {
+    setVisualizationKey(prev => prev + 1);
+    console.log('🔄 Actualizando visualización por cambio en vehículos estacionados');
+  }, [parking.parkedVehicles])
 
   const handleEntrySubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -254,13 +372,282 @@ export default function OperatorPanel({
     }
   };
 
+  // Calcular zonas disponibles para el modal de movimiento
+  const getAvailableZones = () => {
+    if (!plazasCompletas || plazasCompletas.length === 0) {
+      return [];
+    }
+
+    // Agrupar plazas por zona
+    const zonasMap = new Map<string, any[]>();
+
+    plazasCompletas.forEach(plaza => {
+      const zonaNombre = plaza.pla_zona || 'Sin Zona';
+      if (!zonasMap.has(zonaNombre)) {
+        zonasMap.set(zonaNombre, []);
+      }
+      zonasMap.get(zonaNombre)?.push(plaza);
+    });
+
+    // Convertir a array de ZoneData
+    return Array.from(zonasMap.entries()).map(([nombre, plazas]) => ({
+      nombre,
+      plazas
+    }));
+  };
+
+  // Handler para clicks en plazas
+  const handlePlazaClick = (plaza: any) => {
+    setSelectedPlazaForActions(plaza);
+
+    if (plaza.pla_estado === 'Ocupada') {
+      // Usar la información del vehículo ya sincronizada
+      const vehicle = plaza.vehicle_info || parking.parkedVehicles.find(v => v.plaza_number === plaza.pla_numero);
+      if (vehicle) {
+        setSelectedVehicleForMove(vehicle);
+        setShowActionsModal(true);
+      } else {
+        toast.error('No se encontró vehículo en esta plaza');
+      }
+    } else if (plaza.pla_estado === 'Libre') {
+      // Abrir modal de ingreso para plazas libres
+      setSelectedPlazaForActions(plaza);
+
+      // Cargar tarifas de la plantilla de la plaza
+      if (plaza.plantillas?.plantilla_id) {
+        loadTariffsForPlaza(plaza.plantillas.plantilla_id);
+      } else {
+        // Si no tiene plantilla, usar tarifas genéricas
+        loadTariffsForPlaza(0);
+      }
+
+      setShowIngresoModal(true);
+      toast.success(`Plaza ${plaza.pla_numero} seleccionada para ingreso`);
+    } else if (plaza.pla_estado === 'Mantenimiento' || plaza.pla_estado === 'Reservada') {
+      setShowActionsModal(true); // Para permitir desbloqueo
+    }
+  };
+
+
+  const handleEgresoFromModal = async () => {
+    setShowActionsModal(false);
+    setShowEgresoModal(true);
+  };
+
+  const handleIngresoFromModal = () => {
+    setShowActionsModal(false);
+    setShowIngresoModal(true);
+  };
+
+  const handleMoverVehiculo = () => {
+    setShowActionsModal(false);
+    setShowMovementModal(true);
+  };
+
+  const handleBloquearPlaza = async () => {
+    if (!selectedPlazaForActions) return;
+
+    setModalLoading(true);
+    try {
+      const nuevoEstado = selectedPlazaForActions.pla_estado === 'Mantenimiento' ? 'Libre' : 'Mantenimiento';
+
+      const response = await fetch(`/api/plazas/${selectedPlazaForActions.pla_numero}/status?est_id=${estId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pla_estado: nuevoEstado,
+          razon: nuevoEstado === 'Mantenimiento' ? 'Bloqueo manual' : 'Desbloqueo manual'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cambiar estado de plaza');
+      }
+
+      toast.success(
+        nuevoEstado === 'Mantenimiento'
+          ? `Plaza ${selectedPlazaForActions.pla_numero} bloqueada`
+          : `Plaza ${selectedPlazaForActions.pla_numero} desbloqueada`
+      );
+
+      setShowActionsModal(false);
+      fetchPlazasStatus(); // Actualizar estado de plazas
+    } catch (error) {
+      console.error('Error al cambiar estado de plaza:', error);
+      toast.error('Error al cambiar estado de la plaza');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleConfirmMovement = async (destinoPlaza: any) => {
+    if (!selectedVehicleForMove || !selectedPlazaForActions) return;
+
+    setModalLoading(true);
+    try {
+      const response = await fetch(`/api/parking/move?est_id=${estId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          license_plate: selectedVehicleForMove.license_plate,
+          from_plaza: selectedPlazaForActions.pla_numero,
+          to_plaza: destinoPlaza.pla_numero,
+          move_time: new Date().toISOString(),
+          reason: 'Movimiento manual'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al mover vehículo');
+      }
+
+      const result = await response.json();
+
+      toast.success(
+        `Vehículo ${selectedVehicleForMove.license_plate} movido de plaza ${selectedPlazaForActions.pla_numero} a plaza ${destinoPlaza.pla_numero}`
+      );
+
+      setShowMovementModal(false);
+
+      // Actualización inmediata y secuencial para evitar conflicts
+      try {
+        console.log('🔄 Iniciando actualización post-movimiento...');
+
+        // 1. Actualizar estado de plazas primero
+        await fetchPlazasStatus();
+
+        // 2. Actualizar vehículos estacionados
+        if (refreshParkedVehicles) {
+          await refreshParkedVehicles();
+        }
+
+        // 3. Actualizar movimientos recientes
+        await fetchRecentMovements();
+
+        console.log('✅ Actualización post-movimiento completada');
+
+        // 4. Forzar actualización adicional para asegurar consistencia visual
+        setTimeout(async () => {
+          console.log('🔄 Ejecutando actualización de seguimiento...');
+          if (refreshParkedVehicles) {
+            await refreshParkedVehicles();
+          }
+          await fetchPlazasStatus();
+        }, 300);
+
+      } catch (updateError) {
+        console.warn('❌ Error durante actualización post-movimiento:', updateError);
+        // Fallback: recargar página si las actualizaciones fallan
+        setTimeout(() => {
+          console.log('🔄 Fallback: recargando página...');
+          window.location.reload();
+        }, 1000);
+      }
+
+    } catch (error) {
+      console.error('Error al mover vehículo:', error);
+      toast.error(error instanceof Error ? error.message : 'Error al mover vehículo');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleCloseModals = () => {
+    setShowActionsModal(false);
+    setShowMovementModal(false);
+    setShowEgresoModal(false);
+    setShowIngresoModal(false);
+    setSelectedPlazaForActions(null);
+    setSelectedVehicleForMove(null);
+  };
+
+  const handleConfirmIngreso = async (data: {
+    license_plate: string
+    type: VehicleType
+    plaza_type: string
+    modality: string
+    agreed_price: number
+  }) => {
+    if (!selectedPlazaForActions) return;
+
+    setModalLoading(true);
+    try {
+      await onRegisterEntry({
+        license_plate: data.license_plate,
+        type: data.type,
+        pla_numero: selectedPlazaForActions.pla_numero,
+        duracion_tipo: data.modality.toLowerCase(),
+        precio_acordado: data.agreed_price
+      });
+
+      toast.success(`Vehículo ${data.license_plate} registrado en plaza ${selectedPlazaForActions.pla_numero}`);
+      handleCloseModals();
+
+      // Refrescar datos incluyendo movimientos
+      await Promise.all([
+        fetchPlazasStatus(),
+        refreshParkedVehicles && refreshParkedVehicles(),
+        fetchRecentMovements()
+      ]);
+    } catch (error) {
+      console.error('Error registering entry:', error);
+      toast.error('Error al registrar ingreso');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleConfirmEgreso = async (paymentMethod: string) => {
+    if (!selectedVehicleForMove) return;
+
+    setModalLoading(true);
+    try {
+      await onRegisterExit(selectedVehicleForMove.license_plate);
+      toast.success(`Egreso registrado para ${selectedVehicleForMove.license_plate}`);
+      handleCloseModals();
+
+      // Refrescar datos incluyendo movimientos
+      await Promise.all([
+        fetchPlazasStatus(),
+        refreshParkedVehicles && refreshParkedVehicles(),
+        fetchRecentMovements()
+      ]);
+    } catch (error) {
+      console.error('Error processing exit:', error);
+      toast.error('Error al procesar egreso');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
 
   // Crear visualización rica de zonas usando plazasCompletas
   const crearVisualizacionRica = () => {
     if (!plazasCompletas || plazasCompletas.length === 0) return null;
 
+    // Sincronizar el estado de las plazas con los vehículos estacionados actuales
+    const plazasActualizadas = plazasCompletas.map(plaza => {
+      // Buscar si hay un vehículo en esta plaza
+      const vehicleInPlaza = parking.parkedVehicles.find(v => v.plaza_number === plaza.pla_numero);
+
+      // Actualizar el estado basado en la información real de vehículos
+      const estadoActual = vehicleInPlaza ? 'Ocupada' :
+                          (plaza.pla_estado === 'Ocupada' ? 'Libre' : plaza.pla_estado);
+
+      return {
+        ...plaza,
+        pla_estado: estadoActual,
+        vehicle_info: vehicleInPlaza || null
+      };
+    });
+
     // Agrupar plazas por zona
-    const plazasPorZona = plazasCompletas.reduce((acc: Record<string, any[]>, plaza: any) => {
+    const plazasPorZona = plazasActualizadas.reduce((acc: Record<string, any[]>, plaza: any) => {
       const zonaNombre = plaza.pla_zona || 'Sin Zona';
       if (!acc[zonaNombre]) {
         acc[zonaNombre] = [];
@@ -271,7 +658,7 @@ export default function OperatorPanel({
 
     return (
       <TooltipProvider>
-        <div className="space-y-6">
+        <div key={visualizationKey} className="space-y-6">
           <div className="flex justify-between items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
             <div className="flex items-center gap-4 text-sm">
               <span className="flex items-center gap-2">
@@ -306,13 +693,15 @@ export default function OperatorPanel({
             return (
               <div key={zonaNombre} className="border rounded-lg p-4 dark:border-zinc-800">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold dark:text-zinc-100">🏗️ {zonaNombre}</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold dark:text-zinc-100">🅿️ {zonaNombre}</h3>
+                    <div className="text-sm text-muted-foreground">
+                      Total: {estadisticasZona.total} • Ocupados: {estadisticasZona.ocupadas} • Libres: {estadisticasZona.libres}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">
-                      {estadisticasZona.libres}/{estadisticasZona.total} libres
-                    </Badge>
-                    <Badge variant="outline">
-                      {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupadas
+                    <Badge variant={estadisticasZona.ocupadas > estadisticasZona.total * 0.8 ? "destructive" : "secondary"}>
+                      {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupación
                     </Badge>
                     {onConfigureZones && (
                       <Button
@@ -331,56 +720,62 @@ export default function OperatorPanel({
                 <div className="space-y-2">
                   {filas.map((fila, filaIndex) => (
                     <div key={filaIndex} className="flex gap-2 justify-center">
-                      {fila.map(plaza => (
-                        <Tooltip key={plaza.pla_numero}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md transition-colors duration-200 relative cursor-pointer ${getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400'
-                                } ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
-                              onClick={() => {
-                                if (plaza.pla_estado === 'Libre') {
-                                  handlePlazaSelection(String(plaza.pla_numero));
-                                  toast.success(`Plaza ${plaza.pla_numero} seleccionada`, {
-                                    description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
-                                  });
-                                }
-                              }}
-                            >
-                              <span className="text-xs">{plaza.pla_numero}</span>
-                              {plaza.plantillas && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">P</span>
-                                </div>
-                              )}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <div className="space-y-2">
-                              <div className="font-semibold">Plaza #{plaza.pla_numero}</div>
-                              <div className="text-sm">
-                                <span className="font-medium">Estado:</span> {plaza.pla_estado}
-                              </div>
-                              <div className="text-sm">
-                                <span className="font-medium">Tipo:</span> {plaza.catv_segmento}
-                              </div>
-                              <div className="text-sm">
-                                <span className="font-medium">Zona:</span> {plaza.pla_zona || 'Sin zona'}
-                              </div>
-                              {plaza.plantillas && (
-                                <div className="border-t pt-2 mt-2">
-                                  <div className="text-sm font-medium text-blue-600 mb-1">📋 Plantilla Asignada</div>
-                                  <div className="text-sm">
-                                    <span className="font-medium">Nombre:</span> {plaza.plantillas.nombre_plantilla}
+                      {fila.map(plaza => {
+                        // Usar la información del vehículo ya sincronizada
+                        const vehicleInPlaza = plaza.vehicle_info;
+
+                        return (
+                          <Tooltip key={plaza.pla_numero}>
+                            <TooltipTrigger asChild>
+                              <div
+                                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center text-white font-bold text-xs shadow-md transition-colors duration-200 relative cursor-pointer hover:ring-2 hover:ring-blue-400 ${getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400'
+                                  } ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
+                                onClick={() => handlePlazaClick(plaza)}
+                              >
+                                {plaza.pla_estado === 'Ocupada' && vehicleInPlaza ? (
+                                  // Mostrar patente cuando está ocupada
+                                  <span className="text-xs font-semibold text-center leading-tight">
+                                    {vehicleInPlaza.license_plate}
+                                  </span>
+                                ) : (
+                                  // Mostrar número de plaza cuando está libre
+                                  <span className="text-sm font-bold">{plaza.pla_numero}</span>
+                                )}
+                                {plaza.plantillas && (
+                                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">P</span>
                                   </div>
-                                  <div className="text-sm">
-                                    <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
-                                  </div>
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-2">
+                                <div className="font-semibold">Plaza #{plaza.pla_numero}</div>
+                                <div className="text-sm">
+                                  <span className="font-medium">Estado:</span> {plaza.pla_estado}
                                 </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      ))}
+                                <div className="text-sm">
+                                  <span className="font-medium">Tipo:</span> {plaza.catv_segmento}
+                                </div>
+                                <div className="text-sm">
+                                  <span className="font-medium">Zona:</span> {plaza.pla_zona || 'Sin zona'}
+                                </div>
+                                {plaza.plantillas && (
+                                  <div className="border-t pt-2 mt-2">
+                                    <div className="text-sm font-medium text-blue-600 mb-1">📋 Plantilla Asignada</div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Nombre:</span> {plaza.plantillas.nombre_plantilla}
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
@@ -577,6 +972,68 @@ export default function OperatorPanel({
 
       {/* Panel de "Salida Registrada" eliminado: usamos solo notificación (toast) */}
 
+      {/* Tabla de Últimos Movimientos */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="dark:border-zinc-800">
+                <TableHead className="dark:text-zinc-400">Fecha/Hora</TableHead>
+                <TableHead className="dark:text-zinc-400">Patente</TableHead>
+                <TableHead className="dark:text-zinc-400">Acción</TableHead>
+                <TableHead className="dark:text-zinc-400">Zona</TableHead>
+                <TableHead className="dark:text-zinc-400">Plaza</TableHead>
+                <TableHead className="dark:text-zinc-400">Método</TableHead>
+                <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
+                <TableHead className="text-right dark:text-zinc-400">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingMovements ? (
+                <TableRow className="dark:border-zinc-800">
+                  <TableCell colSpan={8} className="text-center py-4">
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    <span className="ml-2 dark:text-zinc-400">Cargando movimientos...</span>
+                  </TableCell>
+                </TableRow>
+              ) : recentMovements.length === 0 ? (
+                <TableRow className="dark:border-zinc-800">
+                  <TableCell colSpan={8} className="text-center py-4 dark:text-zinc-400">
+                    No hay movimientos recientes
+                  </TableCell>
+                </TableRow>
+              ) : (
+                recentMovements.map((movement) => (
+                  <TableRow key={movement.id} className="dark:border-zinc-800">
+                    <TableCell className="dark:text-zinc-100">{movement.timestamp}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.license_plate}</TableCell>
+                    <TableCell>
+                      <Badge className={
+                        movement.action === 'Ingreso'
+                          ? "bg-green-100 text-green-800"
+                          : movement.action === 'Egreso'
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                      }>
+                        {movement.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
+                    <TableCell className="dark:text-zinc-100">$1200/h</TableCell>
+                    <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       {/* Vehículos estacionados */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
@@ -695,6 +1152,50 @@ export default function OperatorPanel({
       </Card>
       */}
       {/* <OperatorChat /> */}
+
+      {/* Nuevos modales */}
+      <PlazaActionsModal
+        plaza={selectedPlazaForActions}
+        vehicle={selectedVehicleForMove}
+        isOpen={showActionsModal}
+        onClose={handleCloseModals}
+        onIngreso={handleIngresoFromModal}
+        onEgreso={handleEgresoFromModal}
+        onMover={handleMoverVehiculo}
+        onBloquear={handleBloquearPlaza}
+        loading={modalLoading}
+      />
+
+      <VehicleMovementModal
+        vehicle={selectedVehicleForMove}
+        currentPlaza={selectedPlazaForActions}
+        availableZones={getAvailableZones()}
+        plazasDisponibles={plazasCompletas || []}
+        isOpen={showMovementModal}
+        onClose={handleCloseModals}
+        onConfirm={handleConfirmMovement}
+        loading={modalLoading}
+      />
+
+      {/* Nuevos modales específicos */}
+      <EgresoModal
+        vehicle={selectedVehicleForMove}
+        plaza={selectedPlazaForActions}
+        isOpen={showEgresoModal}
+        onClose={handleCloseModals}
+        onConfirm={handleConfirmEgreso}
+        loading={modalLoading}
+      />
+
+      <IngresoModal
+        plaza={selectedPlazaForActions}
+        isOpen={showIngresoModal}
+        onClose={handleCloseModals}
+        onConfirm={handleConfirmIngreso}
+        loading={modalLoading}
+        tarifas={availableTariffs}
+      />
+
     </div>
   );
 }
