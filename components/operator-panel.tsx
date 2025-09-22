@@ -637,7 +637,7 @@ export default function OperatorPanel({
 
       // Actualizar el estado basado en la información real de vehículos
       const estadoActual = vehicleInPlaza ? 'Ocupada' :
-                          (plaza.pla_estado === 'Ocupada' ? 'Libre' : plaza.pla_estado);
+        (plaza.pla_estado === 'Ocupada' ? 'Libre' : plaza.pla_estado);
 
       return {
         ...plaza,
