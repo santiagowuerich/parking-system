@@ -728,43 +728,48 @@ export default function OperadorSimplePage() {
         try {
             console.log('📱 Generando código QR para pago...');
 
-            // Llamar a la API para crear el QR de MercadoPago
-            const response = await fetch('/api/payment/mercadopago/create-qr', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            // Llamar al endpoint principal de MercadoPago con paymentType: 'qr'
+            const response = await fetch("/api/payment/mercadopago", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    amount: data.amount,
-                    vehicleLicensePlate: data.vehicleLicensePlate,
-                    description: `Estacionamiento - ${data.vehicleLicensePlate} - ${formatDuration(data.duration)}`,
-                    estId: data.estId
-                })
+                    licensePlate: data.vehicleLicensePlate,
+                    fee: data.amount,
+                    vehicleType: 'Vehículo', // o determinar del contexto
+                    paymentType: 'qr',
+                    userId: user?.id
+                }),
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Error generando QR');
+                console.error("Error de Mercado Pago:", errorData);
+                throw new Error(errorData.error || "Error al generar el QR de Mercado Pago");
             }
 
-            const qrResult = await response.json();
+            const { qr_code, init_point, id: preferenceId } = await response.json();
 
-            // Actualizar los datos de pago con la información del QR
-            setPaymentData({
-                ...data,
-                paymentId: qrResult.paymentId,
-                preferenceId: qrResult.preferenceId,
-                expiresAt: qrResult.expiresAt
-            });
+            if (qr_code || init_point) {
+                // Preparar datos para el modal QR
+                const qrDialogData = {
+                    qrCode: qr_code || init_point,
+                    qrCodeImage: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr_code || init_point)}`,
+                    preferenceId: preferenceId
+                };
 
-            // Guardar los datos del QR por separado
-            setQrData(qrResult.qrData);
+                // Actualizar estado para mostrar el modal QR
+                setQrData(qrDialogData);
+                setShowQRDialog(true);
 
-            setShowQRDialog(true);
+                // Configurar polling para verificar el estado del pago
+                startPaymentStatusCheck(preferenceId);
+            } else {
+                throw new Error("No se pudo generar el código QR");
+            }
 
             console.log('✅ Código QR generado exitosamente:', {
-                paymentId: qrResult.paymentId,
-                preferenceId: qrResult.preferenceId
+                qr_code: qr_code || init_point,
+                preferenceId
             });
 
         } catch (error) {
@@ -782,16 +787,181 @@ export default function OperadorSimplePage() {
 
     // Procesar pago con link
     const processLinkPago = async (data: PaymentData) => {
-        // TODO: Aquí iría la llamada a la API de MercadoPago para generar link
-        console.log('🔗 Generando link de pago');
-
-        // Por ahora, simular redirección
-        toast({
-            title: "Redirigiendo a MercadoPago",
-            description: "Se abrirá una nueva ventana para completar el pago"
-        });
-
         setShowPaymentSelector(false);
+
+        try {
+            console.log('🔗 Generando link de pago...');
+
+            // Llamar al endpoint principal de MercadoPago con paymentType normal (sin restricciones QR)
+            const response = await fetch("/api/payment/mercadopago", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    licensePlate: data.vehicleLicensePlate,
+                    fee: data.amount,
+                    vehicleType: 'Vehículo',
+                    paymentType: 'regular', // Sin restricciones para link de pago
+                    userId: user?.id
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Error al generar el link de pago");
+            }
+
+            const { init_point } = await response.json();
+            window.open(init_point, '_blank');
+
+            console.log('✅ Link de pago generado exitosamente');
+
+        } catch (error) {
+            console.error('❌ Error generando link de pago:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo generar el link de pago. Intenta con otro método."
+            });
+
+            // Volver al selector de métodos
+            setShowPaymentSelector(true);
+        }
+    };
+
+    // Función para verificar estado del pago
+    const startPaymentStatusCheck = (preferenceId: string) => {
+        console.log('🔄 Iniciando verificación de estado del pago:', preferenceId);
+
+        const checkInterval = setInterval(async () => {
+            try {
+                // Por ahora usamos el endpoint simulado, pero después cambiar a uno real
+                const response = await fetch(`/api/payment/mercadopago/create-qr?preferenceId=${preferenceId}`);
+                if (response.ok) {
+                    const status = await response.json();
+
+                    console.log('📊 Estado del pago:', status);
+
+                    if (status.status === 'approved') {
+                        clearInterval(checkInterval);
+                        console.log('✅ Pago aprobado - procesando salida del vehículo');
+
+                        // Actualizar estado del modal a aprobado
+                        setQRPaymentStatus('aprobado');
+
+                        // Pago aprobado - procesar salida del vehículo después de un breve delay para mostrar el estado aprobado
+                        setTimeout(async () => {
+                            if (paymentData) {
+                                await processVehicleExitAfterPayment(paymentData);
+                            }
+                            toast({
+                                title: "Pago aprobado",
+                                description: "El vehículo puede salir"
+                            });
+                            setShowQRDialog(false);
+                            setShowPaymentSelector(false);
+                        }, 2000); // 2 segundos para mostrar el estado aprobado
+                    } else if (status.status === 'rejected') {
+                        clearInterval(checkInterval);
+                        console.log('❌ Pago rechazado');
+
+                        // Actualizar estado del modal a rechazado
+                        setQRPaymentStatus('rechazado');
+
+                        // Mostrar mensaje después de un breve delay
+                        setTimeout(() => {
+                            toast({
+                                variant: "destructive",
+                                title: "Pago rechazado",
+                                description: "El pago fue rechazado"
+                            });
+                            setShowQRDialog(false);
+                            setShowPaymentSelector(true);
+                        }, 2000);
+                    } else if (status.status === 'expired') {
+                        clearInterval(checkInterval);
+                        console.log('⏰ Pago expirado');
+
+                        // Actualizar estado del modal a expirado
+                        setQRPaymentStatus('expirado');
+
+                        // Mostrar mensaje después de un breve delay
+                        setTimeout(() => {
+                            toast({
+                                variant: "destructive",
+                                title: "Pago expirado",
+                                description: "El tiempo para pagar ha expirado"
+                            });
+                            setShowQRDialog(false);
+                            setShowPaymentSelector(true);
+                        }, 2000);
+                    }
+                }
+            } catch (error) {
+                console.error('Error verificando estado del pago:', error);
+            }
+        }, 5000); // Verificar cada 5 segundos
+
+        // Detener después de 15 minutos
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            console.log('⏰ Verificación de pago detenida por timeout');
+
+            // Actualizar estado del modal a expirado
+            setQRPaymentStatus('expirado');
+
+            // Mostrar mensaje después de un breve delay
+            setTimeout(() => {
+                toast({
+                    variant: "destructive",
+                    title: "Tiempo agotado",
+                    description: "La verificación del pago ha expirado"
+                });
+                setShowQRDialog(false);
+                setShowPaymentSelector(true);
+            }, 2000);
+        }, 15 * 60 * 1000);
+    };
+
+    // Función para procesar la salida del vehículo después del pago aprobado
+    const processVehicleExitAfterPayment = async (data: PaymentData) => {
+        try {
+            console.log('🚗 Procesando salida del vehículo después del pago aprobado');
+
+            // Registrar la salida del vehículo
+            const exitResponse = await fetch('/api/parking/entry', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    licensePlate: data.vehicleLicensePlate,
+                    estId: data.estId,
+                    paymentMethod: data.method,
+                    paymentId: data.paymentId
+                })
+            });
+
+            if (!exitResponse.ok) {
+                throw new Error('Error al registrar la salida del vehículo');
+            }
+
+            // Actualizar la lista de vehículos
+            await refreshParkedVehicles();
+            await refreshCapacity();
+
+            console.log('✅ Salida del vehículo registrada exitosamente');
+
+            toast({
+                title: "Salida registrada",
+                description: `El vehículo ${data.vehicleLicensePlate} puede salir`
+            });
+
+        } catch (error) {
+            console.error('Error procesando salida del vehículo:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Hubo un problema al registrar la salida del vehículo"
+            });
+        }
     };
 
     // Actualizar estado del pago QR
