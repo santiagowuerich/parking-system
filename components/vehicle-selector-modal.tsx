@@ -19,6 +19,12 @@ import {
 import { Label } from "@/components/ui/label"
 import { Vehicle } from "@/lib/types"
 import { Car, Clock } from "lucide-react"
+import dayjs from "dayjs"
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 interface VehicleSelectorModalProps {
   vehicles: Vehicle[]
@@ -45,11 +51,7 @@ export default function VehicleSelectorModal({
   }
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString('es-AR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return dayjs(dateString).tz('America/Argentina/Buenos_Aires').format('HH:mm')
   }
 
   const getVehicleIcon = (type: string) => {
@@ -108,9 +110,9 @@ export default function VehicleSelectorModal({
                 )
                 if (!selectedVehicle) return null
 
-                const entryTime = new Date(selectedVehicle.entry_time)
-                const now = new Date()
-                const durationMs = now.getTime() - entryTime.getTime()
+                const entryTime = dayjs(selectedVehicle.entry_time).tz('America/Argentina/Buenos_Aires')
+                const now = dayjs().tz('America/Argentina/Buenos_Aires')
+                const durationMs = now.diff(entryTime)
                 const hours = Math.floor(durationMs / (1000 * 60 * 60))
                 const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
 

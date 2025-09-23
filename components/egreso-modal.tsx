@@ -22,6 +22,13 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Vehicle } from "@/lib/types"
 import { Loader2, Lock, Clock, CreditCard } from "lucide-react"
+import dayjs from "dayjs"
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+// Extender dayjs con plugins de zona horaria
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 interface PlazaCompleta {
   pla_numero: number
@@ -57,9 +64,10 @@ export default function EgresoModal({
   // Calcular datos cuando se abre el modal
   useEffect(() => {
     if (isOpen && vehicle) {
-      const entryTime = new Date(vehicle.entry_time)
-      const now = new Date()
-      const durationMs = Math.max(0, now.getTime() - entryTime.getTime()) // Asegurar que no sea negativo
+      // Usar dayjs con zona horaria de Argentina para consistencia
+      const entryTime = dayjs(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
+      const now = dayjs().tz('America/Argentina/Buenos_Aires')
+      const durationMs = Math.max(0, now.diff(entryTime)) // Asegurar que no sea negativo
 
       // Calcular duración en formato hh:mm
       const totalMinutes = Math.floor(durationMs / (1000 * 60))

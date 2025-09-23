@@ -927,11 +927,37 @@ export default function OperadorSimplePage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Actualizar la ocupación marcando la salida
+            // 1. Registrar el pago en la tabla pagos
+            const normalizedMethod = data.method === 'efectivo' ? 'Efectivo' :
+                data.method === 'tarjeta' ? 'Tarjeta' :
+                    data.method === 'app' ? 'MercadoPago' :
+                        data.method === 'transferencia' ? 'Transferencia' : 'Efectivo';
+
+            const { data: payment, error: paymentError } = await supabase
+                .from('pagos')
+                .insert([{
+                    pag_monto: data.amount,
+                    pag_h_fh: dayjs().tz('America/Argentina/Buenos_Aires').toISOString(),
+                    est_id: estId,
+                    mepa_metodo: normalizedMethod,
+                    veh_patente: data.vehicleLicensePlate,
+                }])
+                .select()
+                .single();
+
+            if (paymentError) {
+                console.error('Error registrando pago:', paymentError);
+                throw new Error(`Error al registrar el pago: ${paymentError.message}`);
+            }
+
+            console.log('✅ Pago registrado:', payment);
+
+            // 2. Actualizar la ocupación marcando la salida y enlazando el pago
             const { error: updateError } = await supabase
                 .from('ocupacion')
                 .update({
-                    ocu_fh_salida: data.exitTime
+                    ocu_fh_salida: data.exitTime,
+                    pag_nro: payment.pag_nro
                 })
                 .eq('est_id', estId)
                 .eq('veh_patente', data.vehicleLicensePlate)
@@ -1113,24 +1139,24 @@ export default function OperadorSimplePage() {
 
                 <div className="p-6 space-y-6">
                     {/* Panel de Operador Original */}
-                <OperatorPanel
-                    parking={parking}
-                    availableSpaces={getAvailableSpaces()}
-                    onRegisterEntry={registerEntry}
-                    onRegisterExit={handleExit}
-                    exitInfo={exitInfo}
-                    setExitInfo={setExitInfo}
-                    plazasData={plazasData}
-                    loadingPlazas={loadingPlazas}
-                    fetchPlazasStatus={fetchDashboardData}
-                    onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
-                    // Nuevas props para visualización rica
-                    plazasCompletas={plazasCompletas}
-                    loadingPlazasCompletas={loadingPlazasCompletas}
-                    getEstadoColor={getEstadoColor}
-                    getEstadoIcon={getEstadoIcon}
-                    refreshParkedVehicles={refreshParkedVehicles}
-                />
+                    <OperatorPanel
+                        parking={parking}
+                        availableSpaces={getAvailableSpaces()}
+                        onRegisterEntry={registerEntry}
+                        onRegisterExit={handleExit}
+                        exitInfo={exitInfo}
+                        setExitInfo={setExitInfo}
+                        plazasData={plazasData}
+                        loadingPlazas={loadingPlazas}
+                        fetchPlazasStatus={fetchDashboardData}
+                        onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
+                        // Nuevas props para visualización rica
+                        plazasCompletas={plazasCompletas}
+                        loadingPlazasCompletas={loadingPlazasCompletas}
+                        getEstadoColor={getEstadoColor}
+                        getEstadoIcon={getEstadoIcon}
+                        refreshParkedVehicles={refreshParkedVehicles}
+                    />
 
                 </div>
             </div>

@@ -216,9 +216,10 @@ export default function CustomEgresoModal({
   const calculateBasicFee = () => {
     if (!vehicle) return
 
-    const entryTime = new Date(vehicle.entry_time)
-    const now = new Date()
-    const durationMs = Math.max(0, now.getTime() - entryTime.getTime())
+    // Usar dayjs con zona horaria de Argentina para consistencia
+    const entryTime = dayjs(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
+    const now = dayjs().tz('America/Argentina/Buenos_Aires')
+    const durationMs = Math.max(0, now.diff(entryTime))
 
     const totalMinutes = Math.floor(durationMs / (1000 * 60))
     const hours = Math.floor(totalMinutes / 60)

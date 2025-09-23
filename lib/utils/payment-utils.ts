@@ -3,6 +3,13 @@
 
 import { PaymentMethod, PaymentMethodOption, PaymentStatus, PaymentSettings } from '@/lib/types/payment';
 import { PAYMENT_METHODS, PAYMENT_METHOD_COLORS, PAYMENT_STATUS_CONFIG, PAYMENT_TIMEOUTS } from '@/lib/constants/payment-methods';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// Extender dayjs con plugins de zona horaria
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /**
  * Obtiene los métodos de pago disponibles según la configuración
@@ -80,16 +87,18 @@ export function calculatePaymentExpiry(method: PaymentMethod): Date | null {
  */
 export function isPaymentExpired(expiresAt: string | null): boolean {
   if (!expiresAt) return false;
-  return new Date(expiresAt) < new Date();
+  const now = dayjs().tz('America/Argentina/Buenos_Aires');
+  const expiry = dayjs(expiresAt).tz('America/Argentina/Buenos_Aires');
+  return expiry.isBefore(now);
 }
 
 /**
  * Formatea el tiempo restante hasta la expiración
  */
 export function formatTimeUntilExpiry(expiresAt: string): string {
-  const now = new Date();
-  const expiry = new Date(expiresAt);
-  const diffMs = expiry.getTime() - now.getTime();
+  const now = dayjs().tz('America/Argentina/Buenos_Aires');
+  const expiry = dayjs(expiresAt).tz('America/Argentina/Buenos_Aires');
+  const diffMs = expiry.diff(now);
 
   if (diffMs <= 0) return 'Expirado';
 
