@@ -149,118 +149,84 @@ export default function VehicleMovementModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Mover Vehículo
+      <DialogContent className="sm:max-w-lg p-0 rounded-2xl shadow-xl border-0 bg-white">
+        {/* Header compacto */}
+        <div className="px-6 py-4 border-b border-gray-100">
+          <DialogTitle className="text-lg font-semibold text-gray-900">
+            Mover vehículo
           </DialogTitle>
-          <DialogDescription>
-            Selecciona la nueva ubicación para el vehículo
+          <DialogDescription className="text-sm text-gray-600 mt-1">
+            Patente: {vehicle.license_plate} • Plaza actual: {currentPlaza.pla_numero}
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <div className="space-y-4">
-          {/* Información del vehículo actual */}
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-lg">{vehicle.license_plate}</div>
-                  <div className="text-sm text-muted-foreground">{vehicle.type}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Plaza actual</div>
-                  <Badge variant="outline" className="font-semibold">
-                    {currentPlaza.pla_numero}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="px-6 py-4 space-y-4">
 
-          {/* Selector de zona destino */}
+          {/* Zona destino */}
           <div className="space-y-2">
-            <Label>Zona de destino</Label>
+            <Label className="text-sm font-medium text-gray-700">Zona destino</Label>
             <Select value={selectedZone} onValueChange={handleZoneChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona una zona" />
+              <SelectTrigger className="h-12 rounded-xl border-gray-200">
+                <SelectValue placeholder="Elegí una zona (A, B, C...)" />
               </SelectTrigger>
               <SelectContent>
                 {uniqueZones.map((zone) => (
                   <SelectItem key={zone} value={zone}>
-                    📍 {zone}
+                    📍 Zona {zone}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Selector de plaza específica */}
+          {/* Grid de plazas disponibles */}
           {selectedZone && (
-            <div className="space-y-2">
-              <Label>Plaza disponible</Label>
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-gray-700">
+                Plazas disponibles para {vehicle.type}
+              </Label>
               {availablePlazas.length > 0 ? (
-                <Select
-                  value={selectedDestination?.pla_numero.toString() || ""}
-                  onValueChange={handleDestinationChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona la plaza destino" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePlazas.map((plaza) => (
-                      <SelectItem key={plaza.pla_numero} value={plaza.pla_numero.toString()}>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          Plaza {plaza.pla_numero}
-                          <Badge variant="secondary" className="text-xs">
-                            {mapearTipoVehiculo(plaza.catv_segmento)}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-6 gap-2">
+                  {availablePlazas.map((plaza) => (
+                    <button
+                      key={plaza.pla_numero}
+                      onClick={() => setSelectedDestination(plaza)}
+                      className={`
+                        aspect-square rounded-xl font-semibold text-white transition-all duration-200
+                        ${selectedDestination?.pla_numero === plaza.pla_numero
+                          ? 'bg-blue-600 ring-2 ring-blue-300 scale-105'
+                          : 'bg-green-500 hover:bg-green-600 hover:scale-105'
+                        }
+                      `}
+                    >
+                      {plaza.pla_numero}
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-center text-muted-foreground">
-                      <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                      <p>No hay plazas disponibles para {vehicle.type} en {selectedZone}</p>
-                      <p className="text-xs mt-1">Selecciona otra zona</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="text-center py-6 text-gray-500">
+                  <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No hay plazas disponibles para {vehicle.type} en {selectedZone}</p>
+                </div>
               )}
             </div>
           )}
-
-          {/* Vista previa del movimiento */}
-          {selectedDestination && (
-            <Card className="border-green-200 bg-green-50">
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-center gap-3">
-                  <Badge variant="outline">Plaza {currentPlaza.pla_numero}</Badge>
-                  <ArrowRight className="h-4 w-4 text-green-600" />
-                  <Badge className="bg-green-600">Plaza {selectedDestination.pla_numero}</Badge>
-                </div>
-                <p className="text-center text-sm text-green-700 mt-2">
-                  {currentPlaza.pla_zona} → {selectedDestination.pla_zona}
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
+        {/* Botones de acción */}
+        <div className="px-6 pb-6 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-12 rounded-xl border-gray-200 hover:bg-gray-50"
+          >
             Cancelar
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={!selectedDestination || loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="flex-1 h-12 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium shadow-sm transition-all duration-200"
           >
             {loading ? (
               <>
@@ -268,10 +234,7 @@ export default function VehicleMovementModal({
                 Moviendo...
               </>
             ) : (
-              <>
-                <ArrowRight className="mr-2 h-4 w-4" />
-                Confirmar movimiento
-              </>
+              'Confirmar movimiento'
             )}
           </Button>
         </div>
