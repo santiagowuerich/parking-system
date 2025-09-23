@@ -693,8 +693,6 @@ export default function OperadorPage() {
 
     // Procesar pago con QR
     const processQRPago = async (data: PaymentData) => {
-        setShowPaymentSelector(false);
-
         try {
             console.log('📱 Generando código QR para pago...');
 
@@ -725,6 +723,8 @@ export default function OperadorPage() {
                     preferenceId: preferenceId
                 };
 
+                // Cerrar el selector de pagos y mostrar el modal QR
+                setShowPaymentSelector(false);
                 setQrData(qrDialogData);
                 setShowQRDialog(true);
 
@@ -745,7 +745,7 @@ export default function OperadorPage() {
                 title: "Error",
                 description: "No se pudo generar el código QR. Intenta con otro método de pago."
             });
-            setShowPaymentSelector(true);
+            // Mantener el selector de métodos abierto para que puedan elegir otro método
         }
     };
 

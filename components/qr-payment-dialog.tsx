@@ -117,7 +117,7 @@ export default function QRPaymentDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md p-0 rounded-2xl shadow-xl border-0 bg-white">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto p-0 rounded-2xl shadow-xl border-0 bg-white">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100">
           <DialogTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -130,59 +130,21 @@ export default function QRPaymentDialog({
         </div>
 
         <div className="px-6 py-4 space-y-4">
-          {/* Estado del pago */}
-          <Card className={`border ${statusConfig.color}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                {statusConfig.icon}
-                <div>
-                  <div className="font-medium">{statusConfig.title}</div>
-                  <div className="text-sm opacity-80">{statusConfig.description}</div>
-                </div>
-                {canRefresh && onRefreshStatus && (
-                  <button
-                    onClick={onRefreshStatus}
-                    className="ml-auto p-2 rounded-lg hover:bg-white/20 transition-colors"
-                    title="Actualizar estado"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Código QR */}
-          {paymentStatus === 'pendiente' && !isExpired && (
-            <div className="text-center space-y-4">
+          {qrData.qrCodeImage && (
+            <div className="text-center">
               <Card className="border border-gray-200">
-                <CardContent className="p-6">
-                  {qrData.qrCodeImage ? (
-                    <div className="flex justify-center">
-                      <img
-                        src={qrData.qrCodeImage}
-                        alt="Código QR para pagar"
-                        className="w-48 h-48 border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-48 h-48 mx-auto bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center">
-                      <div className="text-center text-gray-500">
-                        <Smartphone className="h-8 w-8 mx-auto mb-2" />
-                        <div className="text-sm">Cargando QR...</div>
-                      </div>
-                    </div>
-                  )}
+                <CardContent className="p-4">
+                  <div className="flex justify-center">
+                    <img
+                      src={qrData.qrCodeImage}
+                      alt="Código QR para pagar"
+                      className="w-50 h-50 border border-gray-200 rounded-lg"
+                    />
+                  </div>
                 </CardContent>
               </Card>
-
-              {/* Tiempo restante */}
-              {timeRemaining && !isExpired && (
-                <Badge variant="outline" className="text-sm">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Expira en {timeRemaining}
-                </Badge>
-              )}
             </div>
           )}
 
@@ -204,22 +166,6 @@ export default function QRPaymentDialog({
             </CardContent>
           </Card>
 
-          {/* Instrucciones */}
-          {paymentStatus === 'pendiente' && !isExpired && (
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-blue-800">
-                  <div className="font-medium mb-2">Cómo pagar:</div>
-                  <ol className="list-decimal list-inside space-y-1 text-xs">
-                    <li>Abrí la app de tu banco o MercadoPago</li>
-                    <li>Escaneá el código QR con la cámara</li>
-                    <li>Confirmá el pago en tu app</li>
-                    <li>Hacé click en "Pago Realizado" cuando termine</li>
-                  </ol>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Mensaje de expiración */}
           {isExpired && (
@@ -244,51 +190,23 @@ export default function QRPaymentDialog({
         </div>
 
         {/* Botones de acción */}
-        <div className="px-6 pb-6">
-          {paymentStatus === 'aprobado' ? (
-            <Button
-              onClick={onPaymentComplete}
-              className="w-full h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium"
-            >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Continuar
-            </Button>
-          ) : paymentStatus === 'rechazado' || isExpired ? (
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                className="flex-1 h-12 rounded-xl border-gray-200 hover:bg-gray-50"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => window.location.reload()}
-                className="flex-1 h-12 rounded-xl bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                Reintentar
-              </Button>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                disabled={loading}
-                className="flex-1 h-12 rounded-xl border-gray-200 hover:bg-gray-50"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={onPaymentComplete}
-                disabled={loading}
-                className="flex-1 h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium"
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Pago Realizado
-              </Button>
-            </div>
-          )}
+        <div className="px-6 pb-6 flex gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-10 rounded-xl border-gray-200 hover:bg-gray-50 text-sm"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={onPaymentComplete}
+            disabled={loading}
+            className="flex-1 h-10 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm"
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Pago Realizado
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
