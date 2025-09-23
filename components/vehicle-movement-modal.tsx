@@ -108,14 +108,28 @@ export default function VehicleMovementModal({
     }
   }, [selectedZone, filterCompatiblePlazas])
 
-  // Reset form when modal opens/closes
+  // Reset form when modal opens/closes y preseleccionar zona actual
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && currentPlaza) {
+      // Preseleccionar la zona actual como predeterminada
+      const currentZone = currentPlaza.pla_zona
+      setSelectedZone(currentZone || "")
+      setSelectedDestination(null)
+
+      // Si hay zona actual, filtrar plazas inmediatamente
+      if (currentZone) {
+        const filtered = filterCompatiblePlazas(currentZone)
+        setAvailablePlazas(filtered)
+      } else {
+        setAvailablePlazas([])
+      }
+    } else if (!isOpen) {
+      // Reset cuando se cierra
       setSelectedZone("")
       setAvailablePlazas([])
       setSelectedDestination(null)
     }
-  }, [isOpen])
+  }, [isOpen, currentPlaza, filterCompatiblePlazas])
 
   const handleConfirm = async () => {
     if (!selectedDestination) return
@@ -167,12 +181,12 @@ export default function VehicleMovementModal({
             <Label className="text-sm font-medium text-gray-700">Zona destino</Label>
             <Select value={selectedZone} onValueChange={handleZoneChange}>
               <SelectTrigger className="h-12 rounded-xl border-gray-200">
-                <SelectValue placeholder="Elegí una zona (A, B, C...)" />
+                <SelectValue placeholder={currentPlaza?.pla_zona ? `Zona actual: ${currentPlaza.pla_zona}` : "Elegí una zona (A, B, C...)"} />
               </SelectTrigger>
               <SelectContent>
                 {uniqueZones.map((zone) => (
                   <SelectItem key={zone} value={zone}>
-                    📍 Zona {zone}
+                    📍 Zona {zone} {zone === currentPlaza?.pla_zona && "(actual)"}
                   </SelectItem>
                 ))}
               </SelectContent>
