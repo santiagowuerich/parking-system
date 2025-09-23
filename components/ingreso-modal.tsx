@@ -42,12 +42,13 @@ interface IngresoModalProps {
   onConfirm: (data: {
     license_plate: string
     type: VehicleType
-    plaza_type: string
+    plaza_number: number
     modality: string
     agreed_price: number
   }) => Promise<void>
   loading?: boolean
   tarifas?: Tarifa[]
+  availablePlazas?: PlazaCompleta[]
 }
 
 const mapearTipoVehiculo = (segmento: string): VehicleType => {
@@ -65,25 +66,45 @@ export default function IngresoModal({
   onClose,
   onConfirm,
   loading = false,
-  tarifas = []
+  tarifas = [],
+  availablePlazas = []
 }: IngresoModalProps) {
   const [licensePlate, setLicensePlate] = useState("")
   const [vehicleType, setVehicleType] = useState<VehicleType>("Auto")
+  const [selectedPlaza, setSelectedPlaza] = useState<number | null>(null)
   const [selectedModality, setSelectedModality] = useState<string>("Hora")
   const [agreedPrice, setAgreedPrice] = useState<number>(0)
 
-  // Set vehicle type based on plaza and initialize when modal opens
-  useEffect(() => {
-    if (isOpen && plaza) {
-      const defaultType = mapearTipoVehiculo(plaza.catv_segmento)
-      setVehicleType(defaultType)
+  // Mapear tipo de vehículo a segmento de base de datos
+  const mapVehicleTypeToSegment = (type: VehicleType): string => {
+    switch (type) {
+      case 'Moto': return 'MOT'
+      case 'Camioneta': return 'CAM'
+      case 'Auto':
+      default: return 'AUT'
+    }
+  }
 
-      // Reset other fields
+  // Obtener plazas disponibles para el tipo de vehículo seleccionado
+  const getAvailablePlazasForVehicleType = (type: VehicleType): PlazaCompleta[] => {
+    const segment = mapVehicleTypeToSegment(type)
+    return availablePlazas.filter(p =>
+      p.pla_estado === 'Libre' &&
+      p.catv_segmento === segment
+    )
+  }
+
+  // Initialize when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      // Reset all fields
       setLicensePlate("")
+      setVehicleType("Auto")
+      setSelectedPlaza(null)
 
       // Set default modality and price based on available tariffs
       let defaultModality = "Hora"
-      let defaultPrice = 1200 // Fallback
+      let defaultPrice = 200 // Fallback
 
       if (tarifas && tarifas.length > 0) {
         const horaTarifa = tarifas.find(t => t.tar_nombre.toLowerCase().includes('hora'))
@@ -96,7 +117,12 @@ export default function IngresoModal({
       setSelectedModality(defaultModality)
       setAgreedPrice(defaultPrice)
     }
-  }, [isOpen, plaza, tarifas])
+  }, [isOpen, tarifas])
+
+  // Update selected plaza when vehicle type changes
+  useEffect(() => {
+    setSelectedPlaza(null) // Reset plaza selection when vehicle type changes
+  }, [vehicleType])
 
   // Update price when modality changes
   useEffect(() => {
@@ -109,12 +135,13 @@ export default function IngresoModal({
   }, [selectedModality, tarifas])
 
   const handleConfirm = async () => {
-    if (!licensePlate.trim()) return
+    if (!licensePlate.trim() || !selectedPlaza) return
 
     try {
       await onConfirm({
         license_plate: licensePlate.trim(),
         type: vehicleType,
+        plaza_number: selectedPlaza,
         modality: selectedModality,
         agreed_price: agreedPrice
       })
@@ -124,9 +151,9 @@ export default function IngresoModal({
     }
   }
 
-  if (!plaza) return null
-
-  const isFormValid = licensePlate.trim().length > 0
+  const isFormValid = licensePlate.trim().length > 0 && selectedPlaza !== null
+  const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
+  const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -134,7 +161,7 @@ export default function IngresoModal({
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Ingreso</DialogTitle>
           <DialogDescription>
-            Registrar nuevo vehículo en plaza {plaza.pla_numero}
+            Registrar nuevo vehículo
           </DialogDescription>
         </DialogHeader>
 
@@ -186,18 +213,35 @@ export default function IngresoModal({
             </Select>
           </div>
 
-          {/* Plaza asignada */}
+          {/* Plaza a asignar */}
           <div className="space-y-2">
-            <Label htmlFor="plaza-assigned">Plaza asignada</Label>
-            <div className="relative">
-              <Input
-                id="plaza-assigned"
-                value={`Plaza ${plaza.pla_numero} - ${plaza.pla_zona || 'Sin zona'}`}
-                readOnly
-                className="bg-muted"
-              />
-              <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            </div>
+            <Label htmlFor="plaza-selector">Plaza asignada</Label>
+            <Select
+              value={selectedPlaza?.toString() || ""}
+              onValueChange={(value) => setSelectedPlaza(Number(value))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar plaza disponible..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availablePlazasForVehicle.length > 0 ? (
+                  availablePlazasForVehicle.map((plaza) => (
+                    <SelectItem key={plaza.pla_numero} value={plaza.pla_numero.toString()}>
+                      Plaza {plaza.pla_numero} - {plaza.pla_zona}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-plazas" disabled>
+                    No hay plazas disponibles para {vehicleType}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {availablePlazasForVehicle.length === 0 && (
+              <p className="text-sm text-red-600">
+                No hay plazas libres para vehículos tipo {vehicleType}
+              </p>
+            )}
           </div>
 
           {/* Precio aplicado */}
@@ -217,6 +261,11 @@ export default function IngresoModal({
             {tarifas && tarifas.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Precio estándar: ${tarifas.find(t => t.tar_nombre === selectedModality)?.tar_precio_hora.toLocaleString()} por {selectedModality.toLowerCase()}
+              </p>
+            )}
+            {selectedPlazaData && (
+              <p className="text-xs text-blue-600">
+                Plaza seleccionada: {selectedPlazaData.pla_numero} - {selectedPlazaData.pla_zona}
               </p>
             )}
           </div>

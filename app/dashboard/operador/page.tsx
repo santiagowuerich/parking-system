@@ -42,6 +42,7 @@ export default function OperadorPage() {
     const [showVehicleSelectorModal, setShowVehicleSelectorModal] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
     const [availableTariffs, setAvailableTariffs] = useState<any[]>([]);
+    const [availablePlazas, setAvailablePlazas] = useState<any[]>([]);
 
     // Estado para tarifas reales del sistema
     const [rates, setRates] = useState<any>(null);
@@ -358,9 +359,38 @@ export default function OperadorPage() {
         }
     };
 
+    // Función para cargar plazas disponibles
+    const loadAvailablePlazas = async () => {
+        if (!estId) return;
+
+        try {
+            const supabase = createBrowserClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            const { data: plazas, error } = await supabase
+                .from('plazas')
+                .select('*')
+                .eq('est_id', estId)
+                .eq('pla_estado', 'Libre');
+
+            if (error) {
+                console.error('Error loading available plazas:', error);
+                return;
+            }
+
+            setAvailablePlazas(plazas || []);
+            console.log('Plazas disponibles cargadas:', plazas?.length || 0);
+        } catch (error) {
+            console.error('Error loading available plazas:', error);
+        }
+    };
+
     // Función para abrir modal de ingreso
     const handleOpenIngresoModal = () => {
         loadTariffs();
+        loadAvailablePlazas();
         setShowIngresoModal(true);
     };
 
@@ -368,7 +398,7 @@ export default function OperadorPage() {
     const handleConfirmIngreso = async (data: {
         license_plate: string
         type: VehicleType
-        plaza_type: string
+        plaza_number: number
         modality: string
         agreed_price: number
     }) => {
@@ -377,16 +407,19 @@ export default function OperadorPage() {
             await registerEntry({
                 license_plate: data.license_plate,
                 type: data.type,
-                pla_numero: 1, // Plaza genérica por ahora
+                pla_numero: data.plaza_number,
                 duracion_tipo: data.modality.toLowerCase(),
                 precio_acordado: data.agreed_price
             });
 
             toast({
                 title: "Entrada registrada",
-                description: `Vehículo ${data.license_plate} registrado exitosamente`
+                description: `Vehículo ${data.license_plate} registrado en plaza ${data.plaza_number}`
             });
             setShowIngresoModal(false);
+
+            // Recargar plazas disponibles después del registro
+            await loadAvailablePlazas();
         } catch (error) {
             console.error('Error registering entry:', error);
             toast({
@@ -985,17 +1018,13 @@ export default function OperadorPage() {
 
             {/* Modal de Ingreso */}
             <IngresoModal
-                plaza={{
-                    pla_numero: 1,
-                    pla_estado: 'Libre',
-                    pla_zona: 'Zona General',
-                    catv_segmento: 'AUT'
-                }}
+                plaza={null} // Ya no es necesario porque se selecciona dinámicamente
                 isOpen={showIngresoModal}
                 onClose={handleCloseModals}
                 onConfirm={handleConfirmIngreso}
                 loading={modalLoading}
                 tarifas={availableTariffs}
+                availablePlazas={availablePlazas}
             />
 
             {/* Modal de Selección de Vehículos */}
