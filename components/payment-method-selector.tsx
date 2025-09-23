@@ -82,15 +82,17 @@ export default function PaymentMethodSelector({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md p-0 rounded-2xl shadow-xl border-0 bg-white">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto p-0 rounded-2xl shadow-xl border-0 bg-white">
         {/* Header - Estilo similar al modal de la imagen */}
         <div className="px-6 py-4">
           <DialogTitle className="text-lg font-semibold text-gray-900 mb-1">
             Egreso
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-600">
-            {paymentData.zone && paymentData.plazaNumber && (
+            {paymentData.zone && paymentData.plazaNumber ? (
               `Plaza zona ${paymentData.zone} • ${paymentData.vehicleLicensePlate}`
+            ) : (
+              `Plaza zona Zona General • ${paymentData.vehicleLicensePlate}`
             )}
           </DialogDescription>
         </div>
@@ -100,38 +102,38 @@ export default function PaymentMethodSelector({
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Patente</label>
-              <div className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 font-medium">
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 font-medium text-sm">
                 {paymentData.vehicleLicensePlate}
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Tiempo estacionado (auto)</label>
-              <div className="w-full p-3 bg-gray-100 rounded-lg text-gray-900">
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
                 {formatDuration(paymentData.duration)}
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Tarifa vigente (auto)</label>
-              <div className="w-full p-3 bg-gray-100 rounded-lg text-gray-900">
-                {formatCurrency(paymentData.calculatedFee)} por hora
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
+                {formatCurrency(paymentData.calculatedFee || paymentData.amount)} por hora
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Total a cobrar (auto)</label>
-              <div className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 font-bold text-lg">
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 font-bold text-base">
                 {formatCurrency(paymentData.amount)}
               </div>
             </div>
           </div>
 
-          {/* Métodos de pago - Botones directos */}
+          {/* Métodos de pago - Grid 2x2 */}
           <div className="space-y-3">
             <label className="text-sm font-medium text-gray-700 block">Método de pago</label>
 
-            <div className="grid gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {availableMethods.map((method) => {
                 const colors = getPaymentMethodColors(method.id)
 
@@ -144,24 +146,23 @@ export default function PaymentMethodSelector({
                     }}
                     disabled={loading}
                     className={`
-                      w-full p-4 rounded-xl border transition-all duration-200 text-left
+                      p-3 rounded-xl border transition-all duration-200 text-left
                       ${colors.button} text-white hover:opacity-90 disabled:opacity-50
+                      min-h-[80px] flex flex-col justify-center
                     `}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <div className="text-xl mb-1">
                         {method.icon}
                       </div>
-                      <div className="flex-1">
-                        <div className="font-medium">
-                          {method.name}
-                        </div>
-                        <div className="text-sm opacity-90">
-                          {method.description}
-                        </div>
+                      <div className="font-medium text-sm">
+                        {method.name}
+                      </div>
+                      <div className="text-xs opacity-90 leading-tight">
+                        {method.description}
                       </div>
                       {loading && selectedMethod === method.id && (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mt-1"></div>
                       )}
                     </div>
                   </button>
@@ -177,7 +178,7 @@ export default function PaymentMethodSelector({
             variant="outline"
             onClick={onClose}
             disabled={loading}
-            className="w-full h-11 rounded-xl border-gray-200 hover:bg-gray-50"
+            className="w-full h-10 rounded-xl border-gray-200 hover:bg-gray-50 text-sm"
           >
             Cancelar
           </Button>

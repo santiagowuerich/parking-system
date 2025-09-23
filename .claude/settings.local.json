@@ -6,7 +6,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm run dev:*)",
       "WebSearch",
-      "WebFetch(domain:www.mercadopago.com.ar)"
+      "WebFetch(domain:www.mercadopago.com.ar)",
+      "WebFetch(domain:www.figma.com)"
     ],
     "deny": [],
     "ask": []

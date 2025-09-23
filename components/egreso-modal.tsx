@@ -59,17 +59,35 @@ export default function EgresoModal({
     if (isOpen && vehicle) {
       const entryTime = new Date(vehicle.entry_time)
       const now = new Date()
-      const durationMs = now.getTime() - entryTime.getTime()
+      const durationMs = Math.max(0, now.getTime() - entryTime.getTime()) // Asegurar que no sea negativo
 
       // Calcular duración en formato hh:mm
-      const hours = Math.floor(durationMs / (1000 * 60 * 60))
-      const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))
+      const totalMinutes = Math.floor(durationMs / (1000 * 60))
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
       const duration = `${hours.toString().padStart(2, '0')} h ${minutes.toString().padStart(2, '0')} min`
 
-      // Calcular tarifa (simplificado - aquí deberías usar tu lógica de tarifas)
-      const baseRate = 1200 // $1200 por hora base
-      const durationHours = durationMs / (1000 * 60 * 60)
-      const total = Math.max(baseRate, Math.round(baseRate * durationHours))
+      // Calcular tarifa corregida - $200 por hora base
+      const baseRate = 200 // $200 por hora base
+      const durationHours = Math.max(0.1, durationMs / (1000 * 60 * 60)) // Mínimo 0.1 horas (6 minutos)
+
+      // Calcular total: mínimo la tarifa base, o proporcional al tiempo
+      let total = Math.round(baseRate * durationHours)
+
+      // Mínimo cobrar la tarifa base completa si estuvo menos de 1 hora
+      if (durationHours < 1) {
+        total = baseRate
+      }
+
+      console.log('🕐 Cálculo de egreso:', {
+        entryTime: entryTime.toISOString(),
+        now: now.toISOString(),
+        durationMs,
+        durationHours,
+        baseRate,
+        total,
+        vehicle: vehicle.license_plate
+      })
 
       setCalculatedData({
         duration,

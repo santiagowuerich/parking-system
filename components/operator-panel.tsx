@@ -27,7 +27,6 @@ import { Badge } from '@/components/ui/badge'
 import { Settings } from 'lucide-react'
 import PlazaActionsModal from "./plaza-actions-modal"
 import VehicleMovementModal from "./vehicle-movement-modal"
-import EgresoModal from "./egreso-modal"
 import IngresoModal from "./ingreso-modal"
 
 
@@ -115,7 +114,6 @@ export default function OperatorPanel({
   // Estados para los nuevos modales
   const [showActionsModal, setShowActionsModal] = useState(false)
   const [showMovementModal, setShowMovementModal] = useState(false)
-  const [showEgresoModal, setShowEgresoModal] = useState(false)
   const [showIngresoModal, setShowIngresoModal] = useState(false)
   const [selectedPlazaForActions, setSelectedPlazaForActions] = useState<any>(null)
   const [selectedVehicleForMove, setSelectedVehicleForMove] = useState<Vehicle | null>(null)
@@ -468,7 +466,17 @@ export default function OperatorPanel({
 
   const handleEgresoFromModal = async () => {
     setShowActionsModal(false);
-    setShowEgresoModal(true);
+
+    // Usar directamente el sistema de métodos de pago avanzado
+    if (selectedVehicleForMove?.license_plate) {
+      setModalLoading(true);
+      try {
+        await onRegisterExit(selectedVehicleForMove.license_plate);
+      } finally {
+        setModalLoading(false);
+        handleCloseModals();
+      }
+    }
   };
 
   const handleIngresoFromModal = () => {
@@ -597,7 +605,6 @@ export default function OperatorPanel({
   const handleCloseModals = () => {
     setShowActionsModal(false);
     setShowMovementModal(false);
-    setShowEgresoModal(false);
     setShowIngresoModal(false);
     setSelectedPlazaForActions(null);
     setSelectedVehicleForMove(null);
@@ -639,28 +646,6 @@ export default function OperatorPanel({
     }
   };
 
-  const handleConfirmEgreso = async (paymentMethod: string) => {
-    if (!selectedVehicleForMove) return;
-
-    setModalLoading(true);
-    try {
-      await onRegisterExit(selectedVehicleForMove.license_plate);
-      toast.success(`Egreso registrado para ${selectedVehicleForMove.license_plate}`);
-      handleCloseModals();
-
-      // Refrescar datos incluyendo movimientos
-      // Refrescar datos (sin movimientos para evitar consultas excesivas)
-      await fetchPlazasStatus();
-      if (refreshParkedVehicles) {
-        await refreshParkedVehicles();
-      }
-    } catch (error) {
-      console.error('Error processing exit:', error);
-      toast.error('Error al procesar egreso');
-    } finally {
-      setModalLoading(false);
-    }
-  };
 
 
   // Crear visualización rica de zonas usando plazasCompletas
@@ -1215,15 +1200,6 @@ export default function OperatorPanel({
       />
 
       {/* Nuevos modales específicos */}
-      <EgresoModal
-        vehicle={selectedVehicleForMove}
-        plaza={selectedPlazaForActions}
-        isOpen={showEgresoModal}
-        onClose={handleCloseModals}
-        onConfirm={handleConfirmEgreso}
-        loading={modalLoading}
-      />
-
       <IngresoModal
         plaza={selectedPlazaForActions}
         isOpen={showIngresoModal}
