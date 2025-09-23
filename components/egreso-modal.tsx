@@ -64,9 +64,17 @@ export default function EgresoModal({
   // Calcular datos cuando se abre el modal
   useEffect(() => {
     if (isOpen && vehicle) {
-      // Usar dayjs con zona horaria de Argentina para consistencia
-      const entryTime = dayjs(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
-      const now = dayjs().tz('America/Argentina/Buenos_Aires')
+      // Los datos en BD están en UTC (timestamp without time zone)
+      // Interpretar como UTC y luego convertir a zona local para cálculo
+      const entryTime = dayjs.utc(vehicle.entry_time).local()
+      const now = dayjs()
+
+      console.log('🕐 Debug egreso-modal:', {
+        entryTimeRaw: vehicle.entry_time,
+        entryTimeParsed: entryTime.format(),
+        now: now.format(),
+        vehicle: vehicle.license_plate
+      })
       const durationMs = Math.max(0, now.diff(entryTime)) // Asegurar que no sea negativo
 
       // Calcular duración en formato hh:mm

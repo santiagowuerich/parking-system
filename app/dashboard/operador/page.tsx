@@ -30,6 +30,30 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+// Componente de reloj pequeño
+const Clock = () => {
+    const [currentTime, setCurrentTime] = useState<string>('');
+
+    useEffect(() => {
+        const updateTime = () => {
+            const now = dayjs().tz('America/Argentina/Buenos_Aires');
+            setCurrentTime(now.format('HH:mm:ss'));
+        };
+
+        updateTime();
+        const interval = setInterval(updateTime, 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-lg border">
+            <span className="text-sm font-medium text-gray-700">🇦🇷</span>
+            <span className="text-sm font-mono text-gray-900">{currentTime}</span>
+        </div>
+    );
+};
+
 export default function OperadorPage() {
     const { user, estId, parkedVehicles, parkingCapacity, fetchUserData, refreshParkedVehicles, refreshCapacity } = useAuth();
     const { canOperateParking, loading: roleLoading } = useUserRole();
@@ -469,8 +493,8 @@ export default function OperadorPage() {
             );
 
             // Calcular duración
-            const entryTime = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
-            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+            const entryTime = dayjs.utc(ocupacion.entry_time).local();
+            const exitTime = dayjs();
             const durationMs = exitTime.diff(entryTime);
             const durationHours = durationMs / (1000 * 60 * 60);
 
@@ -624,8 +648,8 @@ export default function OperadorPage() {
             const feeData = await calculateFeeByTemplate(ocupacion);
 
             // Calcular tarifa
-            const entryTime = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
-            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+            const entryTime = dayjs.utc(ocupacion.entry_time).local();
+            const exitTime = dayjs();
             const durationMs = exitTime.diff(entryTime);
 
             // Preparar datos para el sistema de pagos
@@ -935,25 +959,28 @@ export default function OperadorPage() {
                 {/* Header */}
                 <div className="bg-white">
                     <div className="max-w-7xl mx-auto px-6 py-6">
+                        {/* Reloj en la esquina superior derecha */}
+                        <div className="flex justify-end mb-4">
+                            <Clock />
+                        </div>
+
                         {/* Navegación centrada */}
                         <div className="flex justify-center space-x-4">
                             <button
                                 onClick={() => setActiveTab('ingreso')}
-                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                                    activeTab === 'ingreso'
-                                        ? 'bg-gray-200 text-gray-900'
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
+                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'ingreso'
+                                    ? 'bg-gray-200 text-gray-900'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                    }`}
                             >
                                 Ingreso / Egreso
                             </button>
                             <button
                                 onClick={() => router.push('/dashboard/operador-simple')}
-                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                                    activeTab === 'informacion'
-                                        ? 'bg-gray-200 text-gray-900'
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
+                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'informacion'
+                                    ? 'bg-gray-200 text-gray-900'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                    }`}
                             >
                                 Información
                             </button>

@@ -540,8 +540,8 @@ export default function OperadorSimplePage() {
             }
 
             // Calcular tarifa
-            const entryTime = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
-            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+            const entryTime = dayjs.utc(ocupacion.entry_time).local();
+            const exitTime = dayjs();
             const durationMs = exitTime.diff(entryTime);
             const durationHours = durationMs / (1000 * 60 * 60);
 

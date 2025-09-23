@@ -1207,6 +1207,7 @@ export default function OperatorPanel({
         onConfirm={handleConfirmIngreso}
         loading={modalLoading}
         tarifas={availableTariffs}
+        availablePlazas={plazasCompletas}
       />
 
     </div>

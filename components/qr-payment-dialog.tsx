@@ -140,7 +140,8 @@ export default function QRPaymentDialog({
                     <img
                       src={qrData.qrCodeImage}
                       alt="Código QR para pagar"
-                      className="w-50 h-50 border border-gray-200 rounded-lg"
+                      className="w-50
+                       h-50 border border-gray-200 rounded-lg"
                     />
                   </div>
                 </CardContent>

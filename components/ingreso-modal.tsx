@@ -88,10 +88,17 @@ export default function IngresoModal({
   // Obtener plazas disponibles para el tipo de vehículo seleccionado
   const getAvailablePlazasForVehicleType = (type: VehicleType): PlazaCompleta[] => {
     const segment = mapVehicleTypeToSegment(type)
-    return availablePlazas.filter(p =>
+    const filteredPlazas = availablePlazas.filter(p =>
       p.pla_estado === 'Libre' &&
       p.catv_segmento === segment
     )
+
+    // Si hay una plaza preseleccionada, asegurar que esté en la lista
+    if (plaza && !filteredPlazas.find(p => p.pla_numero === plaza.pla_numero)) {
+      filteredPlazas.push(plaza)
+    }
+
+    return filteredPlazas
   }
 
   // Initialize when modal opens
@@ -99,8 +106,18 @@ export default function IngresoModal({
     if (isOpen) {
       // Reset all fields
       setLicensePlate("")
-      setVehicleType("Auto")
-      setSelectedPlaza(null)
+
+      // Si hay una plaza preseleccionada, usar su información
+      if (plaza) {
+        // Mapear el tipo de vehículo basado en el segmento de la plaza
+        const vehicleTypeFromPlaza = mapearTipoVehiculo(plaza.catv_segmento)
+        setVehicleType(vehicleTypeFromPlaza)
+        setSelectedPlaza(plaza.pla_numero)
+      } else {
+        // Si no hay plaza preseleccionada, usar valores por defecto
+        setVehicleType("Auto")
+        setSelectedPlaza(null)
+      }
 
       // Set default modality and price based on available tariffs
       let defaultModality = "Hora"
@@ -117,12 +134,16 @@ export default function IngresoModal({
       setSelectedModality(defaultModality)
       setAgreedPrice(defaultPrice)
     }
-  }, [isOpen, tarifas])
+  }, [isOpen, tarifas, plaza])
 
   // Update selected plaza when vehicle type changes
   useEffect(() => {
-    setSelectedPlaza(null) // Reset plaza selection when vehicle type changes
-  }, [vehicleType])
+    // Solo resetear la plaza si no hay una plaza preseleccionada
+    // o si la plaza preseleccionada no es compatible con el nuevo tipo de vehículo
+    if (!plaza || mapearTipoVehiculo(plaza.catv_segmento) !== vehicleType) {
+      setSelectedPlaza(null)
+    }
+  }, [vehicleType, plaza])
 
   // Update price when modality changes
   useEffect(() => {

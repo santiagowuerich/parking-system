@@ -89,8 +89,15 @@ export default function CustomEgresoModal({
       }
 
       // Calcular duración
-      const entryTime = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires')
-      const exitTime = dayjs().tz('America/Argentina/Buenos_Aires')
+      const entryTime = dayjs.utc(ocupacion.entry_time).local()
+      const exitTime = dayjs()
+
+      console.log('🕐 Debug custom-egreso-modal:', {
+        entryTimeRaw: ocupacion.entry_time,
+        entryTimeParsed: entryTime.format(),
+        exitTime: exitTime.format(),
+        vehicle: vehicle.license_plate
+      })
       const durationMs = Math.max(0, exitTime.diff(entryTime))
       const durationHours = durationMs / (1000 * 60 * 60)
 
@@ -216,9 +223,17 @@ export default function CustomEgresoModal({
   const calculateBasicFee = () => {
     if (!vehicle) return
 
-    // Usar dayjs con zona horaria de Argentina para consistencia
-    const entryTime = dayjs(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
-    const now = dayjs().tz('America/Argentina/Buenos_Aires')
+    // Los datos en BD están en UTC (timestamp without time zone)
+    // Interpretar como UTC y luego convertir a zona local para cálculo
+    const entryTime = dayjs.utc(vehicle.entry_time).local()
+    const now = dayjs()
+
+    console.log('🕐 Debug calculateBasicFee:', {
+      entryTimeRaw: vehicle.entry_time,
+      entryTimeParsed: entryTime.format(),
+      now: now.format(),
+      vehicle: vehicle.license_plate
+    })
     const durationMs = Math.max(0, now.diff(entryTime))
 
     const totalMinutes = Math.floor(durationMs / (1000 * 60))
