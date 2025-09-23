@@ -87,13 +87,13 @@ export const PAYMENT_METHOD_COLORS = {
     bg: 'bg-purple-100',
     text: 'text-purple-800',
     border: 'border-purple-200',
-    button: 'bg-purple-600 hover:bg-purple-700'
+    button: 'bg-purple-500 hover:bg-purple-600'
   },
   qr: {
-    bg: 'bg-indigo-100',
-    text: 'text-indigo-800',
-    border: 'border-indigo-200',
-    button: 'bg-indigo-600 hover:bg-indigo-700'
+    bg: 'bg-blue-100',
+    text: 'text-blue-800',
+    border: 'border-blue-200',
+    button: 'bg-blue-500 hover:bg-blue-600'
   }
 } as const;
 
