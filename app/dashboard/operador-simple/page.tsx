@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import OperatorPanel from "@/components/operator-panel";
 import { useAuth } from "@/lib/auth-context";
@@ -99,44 +99,53 @@ export default function OperadorSimplePage() {
         return () => clearTimeout(timeoutId);
     }, [estId]);
 
-    // Cargar estado de plazas (básico para operaciones)
-    const fetchPlazasStatus = async () => {
+    // AbortController para cancelar requests previos
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    // Cargar todos los datos consolidados (reemplaza fetchPlazasStatus + fetchPlazasCompletas)
+    const fetchDashboardData = async (source = 'unknown') => {
         if (!estId) return;
+
+        // Cancelar request anterior si existe
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // Crear nuevo AbortController
+        abortControllerRef.current = new AbortController();
 
         try {
             setLoadingPlazas(true);
-            const response = await fetch(`/api/plazas/status?est_id=${estId}`);
+            setLoadingPlazasCompletas(true);
+
+            console.log(`🚀 [${source}] Cargando datos consolidados del dashboard...`);
+            const response = await fetch(`/api/plazas/dashboard?est_id=${estId}`, {
+                signal: abortControllerRef.current.signal
+            });
 
             if (response.ok) {
                 const data = await response.json();
-                setPlazasData(data);
+                console.log(`✅ [${source}] Datos consolidados recibidos:`, {
+                    plazas: data.estadisticas?.total_plazas || 0,
+                    vehiculos: data.vehiculosEstacionados?.length || 0
+                });
+
+                // Actualizar estado de plazas (reemplaza fetchPlazasStatus)
+                setPlazasData(data.status);
+
+                // Actualizar datos completos (reemplaza fetchPlazasCompletas)
+                setPlazasCompletas(data.plazasCompletas || []);
             } else {
-                console.error("Error al cargar estado de plazas");
+                console.error(`❌ [${source}] Error al cargar datos del dashboard`);
             }
         } catch (error) {
-            console.error("Error al cargar estado de plazas:", error);
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.log(`🚫 [${source}] Request cancelado (abortado)`);
+                return; // No es un error real, solo se canceló
+            }
+            console.error(`❌ [${source}] Error al cargar datos del dashboard:`, error);
         } finally {
             setLoadingPlazas(false);
-        }
-    };
-
-    // Cargar datos completos para visualización rica
-    const fetchPlazasCompletas = async () => {
-        if (!estId) return;
-
-        try {
-            setLoadingPlazasCompletas(true);
-            const response = await fetch(`/api/plazas?est_id=${estId}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                setPlazasCompletas(data.plazas || []);
-            } else {
-                console.error("Error al cargar datos completos de plazas");
-            }
-        } catch (error) {
-            console.error("Error al cargar datos completos de plazas:", error);
-        } finally {
             setLoadingPlazasCompletas(false);
         }
     };
@@ -151,10 +160,7 @@ export default function OperadorSimplePage() {
         const timeoutId = setTimeout(() => {
             const initializeData = async () => {
                 setLoading(true);
-                await Promise.all([
-                    fetchPlazasStatus(),
-                    fetchPlazasCompletas()
-                ]);
+                await fetchDashboardData('initial-load'); // Una sola consulta consolidada
                 setLoading(false);
             };
 
@@ -174,27 +180,36 @@ export default function OperadorSimplePage() {
         );
 
         let updateTimeout: NodeJS.Timeout | null = null;
+        let lastUpdateTime = 0;
 
-        // Función de actualización debounced para evitar múltiples llamadas simultaneas
-        const debouncedUpdate = () => {
+        // Función de actualización debounced agresiva para evitar múltiples llamadas simultaneas
+        const debouncedUpdate = (eventType: string) => {
+            const now = Date.now();
+
+            // Si la última actualización fue hace menos de 2 segundos, ignorar
+            if (now - lastUpdateTime < 2000) {
+                console.log(`🚫 [${eventType}] Actualización ignorada (muy reciente: ${now - lastUpdateTime}ms)`);
+                return;
+            }
+
             if (updateTimeout) {
                 clearTimeout(updateTimeout);
             }
 
             updateTimeout = setTimeout(async () => {
                 try {
-                    console.log('🔄 Ejecutando actualización realtime...');
+                    lastUpdateTime = Date.now();
+                    console.log(`🔄 [${eventType}] Ejecutando actualización realtime...`);
 
-                    // Actualizar secuencialmente para evitar race conditions
-                    await fetchPlazasStatus();
-                    await fetchPlazasCompletas();
+                    // Una sola consulta consolidada + refresh básico
+                    await fetchDashboardData(`realtime-${eventType}`);
                     await refreshParkedVehicles();
 
-                    console.log('✅ Actualización realtime completada');
+                    console.log(`✅ [${eventType}] Actualización realtime completada`);
                 } catch (error) {
-                    console.error('❌ Error en actualización realtime:', error);
+                    console.error(`❌ [${eventType}] Error en actualización realtime:`, error);
                 }
-            }, 300); // Debounce de 300ms
+            }, 2000); // Debounce aumentado a 2 segundos
         };
 
         const channel = supabase.channel(`parking-operator-updates-${estId}`)
@@ -205,7 +220,7 @@ export default function OperadorSimplePage() {
                 filter: `est_id=eq.${estId}`
             }, (payload) => {
                 console.log('🚗 Vehicle movement detected:', payload);
-                debouncedUpdate();
+                debouncedUpdate('vehicle-movement');
             })
             .on('postgres_changes', {
                 event: '*',
@@ -214,7 +229,7 @@ export default function OperadorSimplePage() {
                 filter: `est_id=eq.${estId}`
             }, (payload) => {
                 console.log('🅿️ Plaza status change detected:', payload);
-                debouncedUpdate();
+                debouncedUpdate('plaza-status');
             })
             .on('postgres_changes', {
                 event: '*',
@@ -223,13 +238,16 @@ export default function OperadorSimplePage() {
                 filter: `est_id=eq.${estId}`
             }, (payload) => {
                 console.log('📍 Occupation change detected:', payload);
-                debouncedUpdate();
+                debouncedUpdate('ocupacion');
             })
             .subscribe();
 
         return () => {
             if (updateTimeout) {
                 clearTimeout(updateTimeout);
+            }
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
             }
             supabase.removeChannel(channel);
         };
@@ -362,10 +380,7 @@ export default function OperadorSimplePage() {
             }
 
             await refreshParkedVehicles();
-            await Promise.all([
-                fetchPlazasStatus(),
-                fetchPlazasCompletas()
-            ]);
+            await fetchDashboardData('register-entry'); // Una sola consulta consolidada
 
             toast({
                 title: "Entrada registrada",
@@ -529,10 +544,7 @@ export default function OperadorSimplePage() {
             // Actualizar datos
             await refreshParkedVehicles();
             await refreshParkingHistory();
-            await Promise.all([
-                fetchPlazasStatus(),
-                fetchPlazasCompletas()
-            ]);
+            await fetchDashboardData('register-exit'); // Una sola consulta consolidada
 
             // Mostrar información de salida
             setExitInfo({
@@ -679,7 +691,7 @@ export default function OperadorSimplePage() {
                     setExitInfo={setExitInfo}
                     plazasData={plazasData}
                     loadingPlazas={loadingPlazas}
-                    fetchPlazasStatus={fetchPlazasStatus}
+                    fetchPlazasStatus={fetchDashboardData}
                     onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
                     // Nuevas props para visualización rica
                     plazasCompletas={plazasCompletas}

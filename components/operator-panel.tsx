@@ -206,44 +206,75 @@ export default function OperatorPanel({
     }
   };
 
-  // Función reutilizable para recargar el estado de plazas
+  // Función reutilizable para recargar el estado de plazas (ahora usa los datos de props)
   const reloadPlazas = async () => {
     try {
-      const res = await fetch(`/api/plazas/status?est_id=${estId}`)
-      if (res.ok) {
-        const js = await res.json()
-        setPlazasStatus(js.byType)
-        // También mantener el estado para el selector de plazas
-        const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT'
-        setSelectedPlazasType(js.byType?.[seg]?.plazas || [])
-      }
-    } catch { }
+      // Usar fetchPlazasStatus que ahora apunta a fetchDashboardData
+      await fetchPlazasStatus();
+    } catch (err) {
+      console.error('Error recargando plazas:', err)
+    }
   }
+
+  // Sincronizar plazasData (prop) con plazasStatus (estado interno)
+  useEffect(() => {
+    if (plazasData && plazasData.mode === 'simple') {
+      // Convertir datos de la API consolidada al formato esperado por OperatorPanel
+      const transformedData: { [seg: string]: any } = {};
+
+      // Agrupar plazas por tipo de vehículo
+      const plazasPorTipo = plazasData.plazas.reduce((acc: any, plaza: any) => {
+        const tipo = plaza.tipo || 'AUT';
+        if (!acc[tipo]) acc[tipo] = [];
+        acc[tipo].push({
+          pla_numero: plaza.numero,
+          occupied: plaza.ocupado
+        });
+        return acc;
+      }, {});
+
+      // Crear estadísticas por tipo
+      Object.keys(plazasPorTipo).forEach(tipo => {
+        const plazas = plazasPorTipo[tipo];
+        const ocupadas = plazas.filter((p: any) => p.occupied).length;
+        transformedData[tipo] = {
+          total: plazas.length,
+          occupied: ocupadas,
+          free: plazas.length - ocupadas,
+          plazas: plazas
+        };
+      });
+
+      setPlazasStatus(transformedData);
+
+      // Actualizar plazas del tipo seleccionado
+      const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT';
+      setSelectedPlazasType(transformedData[seg]?.plazas || []);
+    }
+  }, [plazasData, selectedType]);
 
   // Inicializar con tarifas vacías (se cargarán cuando se seleccione una plaza)
   useEffect(() => {
     setAvailableTariffs([])
   }, [estId])
 
-  // Cargar al iniciar y al cambiar estacionamiento o tipo seleccionado
-  useEffect(() => {
-    reloadPlazas()
-  }, [estId, selectedType])
+  // ELIMINADO: Cargar al iniciar (ya se maneja desde operador-simple)
+  // Solo se activará manualmente cuando sea necesario
 
   // El precio acordado se maneja manualmente por el operador
 
-  // Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
-  useEffect(() => { reloadPlazas() }, [parking.parkedVehicles.length])
+  // ELIMINADO: Refrescar automáticamente cuando cambia la cantidad de vehículos estacionados
+  // (ya se maneja desde operador-simple con fetchDashboardData)
 
-  // Cargar movimientos recientes al montar el componente
+  // Cargar movimientos recientes solo al montar el componente
   useEffect(() => {
-    fetchRecentMovements();
+    if (estId) {
+      fetchRecentMovements();
+    }
   }, [estId])
 
-  // Actualizar movimientos después de operaciones
-  useEffect(() => {
-    fetchRecentMovements();
-  }, [parking.parkedVehicles.length])
+  // ELIMINADO: Actualizar movimientos después de operaciones
+  // (se maneja manualmente cuando es necesario para evitar polling excesivo)
 
   // Forzar actualización de la visualización cuando cambian los vehículos estacionados
   useEffect(() => {
@@ -526,8 +557,8 @@ export default function OperatorPanel({
           await refreshParkedVehicles();
         }
 
-        // 3. Actualizar movimientos recientes
-        await fetchRecentMovements();
+        // 3. ELIMINADO: Actualizar movimientos recientes (para evitar consultas excesivas)
+        // Los movimientos se actualizarán con el realtime del operador-simple
 
         console.log('✅ Actualización post-movimiento completada');
 
@@ -589,11 +620,11 @@ export default function OperatorPanel({
       handleCloseModals();
 
       // Refrescar datos incluyendo movimientos
-      await Promise.all([
-        fetchPlazasStatus(),
-        refreshParkedVehicles && refreshParkedVehicles(),
-        fetchRecentMovements()
-      ]);
+      // Refrescar datos (sin movimientos para evitar consultas excesivas)
+      await fetchPlazasStatus();
+      if (refreshParkedVehicles) {
+        await refreshParkedVehicles();
+      }
     } catch (error) {
       console.error('Error registering entry:', error);
       toast.error('Error al registrar ingreso');
@@ -612,11 +643,11 @@ export default function OperatorPanel({
       handleCloseModals();
 
       // Refrescar datos incluyendo movimientos
-      await Promise.all([
-        fetchPlazasStatus(),
-        refreshParkedVehicles && refreshParkedVehicles(),
-        fetchRecentMovements()
-      ]);
+      // Refrescar datos (sin movimientos para evitar consultas excesivas)
+      await fetchPlazasStatus();
+      if (refreshParkedVehicles) {
+        await refreshParkedVehicles();
+      }
     } catch (error) {
       console.error('Error processing exit:', error);
       toast.error('Error al procesar egreso');
