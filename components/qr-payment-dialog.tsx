@@ -214,7 +214,7 @@ export default function QRPaymentDialog({
                     <li>Abrí la app de tu banco o MercadoPago</li>
                     <li>Escaneá el código QR con la cámara</li>
                     <li>Confirmá el pago en tu app</li>
-                    <li>El estado se actualizará automáticamente</li>
+                    <li>Hacé click en "Pago Realizado" cuando termine</li>
                   </ol>
                 </div>
               </CardContent>
@@ -279,16 +279,14 @@ export default function QRPaymentDialog({
               >
                 Cancelar
               </Button>
-              {canRefresh && onRefreshStatus && (
-                <Button
-                  onClick={onRefreshStatus}
-                  disabled={loading}
-                  variant="outline"
-                  className="px-4 h-12 rounded-xl border-blue-200 hover:bg-blue-50"
-                >
-                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-              )}
+              <Button
+                onClick={onPaymentComplete}
+                disabled={loading}
+                className="flex-1 h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium"
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Pago Realizado
+              </Button>
             </div>
           )}
         </div>

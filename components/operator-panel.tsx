@@ -33,6 +33,12 @@ import IngresoModal from "./ingreso-modal"
 
 import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types"
 import { formatCurrency, formatTime, formatArgentineTimeWithDayjs } from "@/lib/utils"
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface ExitInfo {
   vehicle: Vehicle
@@ -527,7 +533,7 @@ export default function OperatorPanel({
           license_plate: selectedVehicleForMove.license_plate,
           from_plaza: selectedPlazaForActions.pla_numero,
           to_plaza: destinoPlaza.pla_numero,
-          move_time: new Date().toISOString(),
+          move_time: dayjs().tz('America/Argentina/Buenos_Aires').toISOString(),
           reason: 'Movimiento manual'
         }),
       });

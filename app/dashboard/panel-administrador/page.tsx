@@ -9,6 +9,12 @@ import { useAuth } from "@/lib/auth-context";
 import { createBrowserClient } from "@supabase/ssr";
 import type { ParkingHistory, VehicleType } from "@/lib/types";
 import { toast } from "@/components/ui/use-toast";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export default function PanelAdministradorPage() {
     const { user, estId, parkedVehicles, parkingCapacity, refreshCapacity } = useAuth();
@@ -136,7 +142,7 @@ export default function PanelAdministradorPage() {
                 .insert({
                     est_id: estId,
                     veh_patente: entry.license_plate,
-                    ocu_fh_entrada: new Date().toISOString()
+                    ocu_fh_entrada: dayjs().tz('America/Argentina/Buenos_Aires').toISOString()
                 });
 
             if (ocupacionError) throw ocupacionError;

@@ -12,6 +12,11 @@ import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { useRouter } from "next/navigation";
 import PaymentMethodSelector from "@/components/payment-method-selector";
 import TransferInfoDialog from "@/components/transfer-info-dialog";
@@ -456,12 +461,13 @@ export default function OperadorSimplePage() {
             }
 
             // Registrar la ocupación
+            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
                 .insert({
                     est_id: estId,
                     veh_patente: vehicleData.license_plate,
-                    ocu_fh_entrada: new Date().toISOString(),
+                    ocu_fh_entrada: entryTime,
                     pla_numero: vehicleData.pla_numero,
                     ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
                     ocu_precio_acordado: vehicleData.precio_acordado || 0,
@@ -534,9 +540,9 @@ export default function OperadorSimplePage() {
             }
 
             // Calcular tarifa
-            const entryTime = new Date(ocupacion.entry_time);
-            const exitTime = new Date();
-            const durationMs = exitTime.getTime() - entryTime.getTime();
+            const entryTime = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+            const durationMs = exitTime.diff(entryTime);
             const durationHours = durationMs / (1000 * 60 * 60);
 
             // Calcular tarifa basada en las tarifas configuradas
@@ -761,8 +767,11 @@ export default function OperadorSimplePage() {
                 setQrData(qrDialogData);
                 setShowQRDialog(true);
 
-                // Configurar polling para verificar el estado del pago
-                startPaymentStatusCheck(preferenceId);
+                // Mostrar mensaje informativo
+                toast({
+                    title: "Código QR generado",
+                    description: "Muestre el código QR al cliente para que realice el pago"
+                });
             } else {
                 throw new Error("No se pudo generar el código QR");
             }
@@ -828,119 +837,21 @@ export default function OperadorSimplePage() {
         }
     };
 
-    // Función para verificar estado del pago
-    const startPaymentStatusCheck = (preferenceId: string) => {
-        console.log('🔄 Iniciando verificación de estado del pago:', preferenceId);
-
-        const checkInterval = setInterval(async () => {
-            try {
-                // Por ahora usamos el endpoint simulado, pero después cambiar a uno real
-                const response = await fetch(`/api/payment/mercadopago/create-qr?preferenceId=${preferenceId}`);
-                if (response.ok) {
-                    const status = await response.json();
-
-                    console.log('📊 Estado del pago:', status);
-
-                    if (status.status === 'approved') {
-                        clearInterval(checkInterval);
-                        console.log('✅ Pago aprobado - procesando salida del vehículo');
-
-                        // Actualizar estado del modal a aprobado
-                        setQRPaymentStatus('aprobado');
-
-                        // Pago aprobado - procesar salida del vehículo después de un breve delay para mostrar el estado aprobado
-                        setTimeout(async () => {
-                            if (paymentData) {
-                                await processVehicleExitAfterPayment(paymentData);
-                            }
-                            toast({
-                                title: "Pago aprobado",
-                                description: "El vehículo puede salir"
-                            });
-                            setShowQRDialog(false);
-                            setShowPaymentSelector(false);
-                        }, 2000); // 2 segundos para mostrar el estado aprobado
-                    } else if (status.status === 'rejected') {
-                        clearInterval(checkInterval);
-                        console.log('❌ Pago rechazado');
-
-                        // Actualizar estado del modal a rechazado
-                        setQRPaymentStatus('rechazado');
-
-                        // Mostrar mensaje después de un breve delay
-                        setTimeout(() => {
-                            toast({
-                                variant: "destructive",
-                                title: "Pago rechazado",
-                                description: "El pago fue rechazado"
-                            });
-                            setShowQRDialog(false);
-                            setShowPaymentSelector(true);
-                        }, 2000);
-                    } else if (status.status === 'expired') {
-                        clearInterval(checkInterval);
-                        console.log('⏰ Pago expirado');
-
-                        // Actualizar estado del modal a expirado
-                        setQRPaymentStatus('expirado');
-
-                        // Mostrar mensaje después de un breve delay
-                        setTimeout(() => {
-                            toast({
-                                variant: "destructive",
-                                title: "Pago expirado",
-                                description: "El tiempo para pagar ha expirado"
-                            });
-                            setShowQRDialog(false);
-                            setShowPaymentSelector(true);
-                        }, 2000);
-                    }
-                }
-            } catch (error) {
-                console.error('Error verificando estado del pago:', error);
-            }
-        }, 5000); // Verificar cada 5 segundos
-
-        // Detener después de 15 minutos
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            console.log('⏰ Verificación de pago detenida por timeout');
-
-            // Actualizar estado del modal a expirado
-            setQRPaymentStatus('expirado');
-
-            // Mostrar mensaje después de un breve delay
-            setTimeout(() => {
-                toast({
-                    variant: "destructive",
-                    title: "Tiempo agotado",
-                    description: "La verificación del pago ha expirado"
-                });
-                setShowQRDialog(false);
-                setShowPaymentSelector(true);
-            }, 2000);
-        }, 15 * 60 * 1000);
-    };
 
     // Función para procesar la salida del vehículo después del pago aprobado
     const processVehicleExitAfterPayment = async (data: PaymentData) => {
         try {
             console.log('🚗 Procesando salida del vehículo después del pago aprobado');
 
-            // Registrar la salida del vehículo
-            const exitResponse = await fetch('/api/parking/entry', {
+            // Registrar la salida del vehículo usando el endpoint correcto
+            const exitResponse = await fetch(`/api/parking/${encodeURIComponent(data.vehicleLicensePlate)}`, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    licensePlate: data.vehicleLicensePlate,
-                    estId: data.estId,
-                    paymentMethod: data.method,
-                    paymentId: data.paymentId
-                })
+                headers: { 'Content-Type': 'application/json' }
             });
 
             if (!exitResponse.ok) {
-                throw new Error('Error al registrar la salida del vehículo');
+                const errorData = await exitResponse.json();
+                throw new Error(errorData.error || 'Error al registrar la salida del vehículo');
             }
 
             // Actualizar la lista de vehículos
@@ -1273,16 +1184,22 @@ export default function OperadorSimplePage() {
             <QRPaymentDialog
                 isOpen={showQRDialog}
                 onClose={closePaymentModals}
-                onPaymentComplete={() => {
+                onPaymentComplete={async () => {
+                    // Procesar la salida del vehículo cuando se confirma el pago manualmente
                     if (paymentData) {
-                        finalizeVehicleExit(paymentData);
+                        await processVehicleExitAfterPayment(paymentData);
+                        toast({
+                            title: "Pago confirmado",
+                            description: "El vehículo puede salir"
+                        });
                     }
-                    closePaymentModals();
+                    setShowQRDialog(false);
+                    setShowPaymentSelector(false);
                 }}
                 paymentData={{
                     amount: paymentData?.amount || 0,
                     vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
-                    paymentId: generatePaymentId(),
+                    paymentId: qrData?.preferenceId || generatePaymentId(),
                     duration: paymentData ? formatDuration(paymentData.duration) : '',
                     expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutos
                 }}
@@ -1293,7 +1210,6 @@ export default function OperadorSimplePage() {
                 }}
                 paymentStatus={qrPaymentStatus}
                 loading={paymentLoading}
-                onRefreshStatus={refreshQRPaymentStatus}
             />
         </DashboardLayout>
     );
