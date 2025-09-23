@@ -79,41 +79,25 @@ export default function PlazaActionsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Acciones - Plaza {plaza.pla_numero}
-            <Badge className={getEstadoColor(plaza.pla_estado)}>
-              {plaza.pla_estado}
-            </Badge>
+      <DialogContent className="sm:max-w-sm p-0 rounded-2xl shadow-xl border-0 bg-white">
+        {/* Header compacto */}
+        <div className="px-6 py-4 border-b border-gray-100">
+          <DialogTitle className="text-lg font-semibold text-gray-900">
+            Acciones
           </DialogTitle>
-          <DialogDescription>
-            Zona: {plaza.pla_zona || 'Sin zona'} • Tipo: {tipoVehiculo}
-            {vehicle && (
-              <span className="font-medium text-foreground block mt-1">
-                Vehículo: {vehicle.license_plate}
-              </span>
-            )}
+          <DialogDescription className="text-sm text-gray-600 mt-1">
+            Plaza {plaza.pla_numero} • {vehicle?.license_plate || 'Sin vehículo'}
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <div className="grid grid-cols-2 gap-3 pt-4">
-          {isLibre && onIngreso && (
-            <Button
-              onClick={onIngreso}
-              className="bg-green-600 hover:bg-green-700 text-white col-span-2"
-              disabled={loading}
-            >
-              Ingreso
-            </Button>
-          )}
-
+        {/* Botones principales - Solo Egreso y Mover para plazas ocupadas */}
+        <div className="px-6 pb-6">
           {isOcupada && vehicle && (
-            <>
+            <div className="space-y-3">
               {onEgreso && (
                 <Button
                   onClick={onEgreso}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full h-12 text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 shadow-sm transition-all duration-200"
                   disabled={loading}
                 >
                   Egreso
@@ -122,31 +106,35 @@ export default function PlazaActionsModal({
               {onMover && (
                 <Button
                   onClick={onMover}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  className="w-full h-12 text-white font-medium rounded-xl bg-blue-500 hover:bg-blue-600 shadow-sm transition-all duration-200"
                   disabled={loading}
                 >
                   Mover
                 </Button>
               )}
-            </>
+            </div>
           )}
 
-          {onBloquear && (
-            <Button
-              onClick={onBloquear}
-              variant="outline"
-              className={`${isMantenimiento || isReservada ? 'col-span-2' : ''} border-gray-300 hover:bg-gray-50`}
-              disabled={loading}
-            >
-              {isMantenimiento ? 'Desbloquear' : 'Bloquear'}
-            </Button>
+          {/* Para plazas libres o en mantenimiento */}
+          {(isLibre || isMantenimiento || isReservada) && (
+            <div className="text-center py-4">
+              <p className="text-gray-500 text-sm">
+                {isLibre && 'Plaza libre - Use el formulario de ingreso'}
+                {isMantenimiento && 'Plaza en mantenimiento'}
+                {isReservada && 'Plaza reservada'}
+              </p>
+              {onBloquear && (
+                <Button
+                  onClick={onBloquear}
+                  variant="outline"
+                  className="mt-3 w-full h-10 rounded-xl border-gray-200 hover:bg-gray-50"
+                  disabled={loading}
+                >
+                  {isMantenimiento ? 'Desbloquear' : 'Bloquear'}
+                </Button>
+              )}
+            </div>
           )}
-        </div>
-
-        <div className="flex justify-end pt-4">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
