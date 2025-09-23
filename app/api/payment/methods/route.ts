@@ -54,13 +54,16 @@ export async function GET(request: NextRequest) {
     // Combinar métodos de BD con métodos por defecto, dando prioridad a BD
     const methodsMap = new Map();
 
+    // Si no hay métodos aceptados configurados, habilitar todos por defecto
+    const hasAnyAccepted = acceptedSet.size > 0;
+
     // Primero agregar métodos de BD
     (allMethods || []).forEach(method => {
       if (method.mepa_metodo !== 'MercadoPago') { // Excluir MercadoPago ya que QR lo reemplaza
         methodsMap.set(method.mepa_metodo, {
           method: method.mepa_metodo,
           description: method.mepa_descripcion,
-          enabled: acceptedSet.has(method.mepa_metodo)
+          enabled: hasAnyAccepted ? acceptedSet.has(method.mepa_metodo) : true
         });
       }
     });
@@ -68,9 +71,13 @@ export async function GET(request: NextRequest) {
     // Agregar métodos por defecto si no existen
     defaultMethods.forEach(defaultMethod => {
       if (!methodsMap.has(defaultMethod.method)) {
+        // Si no hay métodos aceptados configurados, habilitar por defecto
+        const hasAnyAccepted = acceptedSet.size > 0;
         methodsMap.set(defaultMethod.method, {
           ...defaultMethod,
-          enabled: acceptedSet.has(defaultMethod.method === 'QR' ? 'MercadoPago' : defaultMethod.method)
+          enabled: hasAnyAccepted ?
+            acceptedSet.has(defaultMethod.method === 'QR' ? 'MercadoPago' : defaultMethod.method) :
+            true // Habilitar por defecto si no hay configuración
         });
       }
     });

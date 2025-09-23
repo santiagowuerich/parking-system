@@ -6,12 +6,17 @@ import OperatorPanel from "@/components/operator-panel";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
 import { createBrowserClient } from "@supabase/ssr";
-import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData } from "@/lib/types";
+import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData, PaymentMethod, PaymentData } from "@/lib/types";
+import type { PaymentStatus } from "@/lib/types/payment";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
 import { useRouter } from "next/navigation";
+import PaymentMethodSelector from "@/components/payment-method-selector";
+import TransferInfoDialog from "@/components/transfer-info-dialog";
+import QRPaymentDialog from "@/components/qr-payment-dialog";
+import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 
 type ExitInfo = {
     vehicle: Vehicle;
@@ -56,6 +61,19 @@ export default function OperadorSimplePage() {
     const [plazasCompletas, setPlazasCompletas] = useState<any[]>([]);
     const [loadingPlazasCompletas, setLoadingPlazasCompletas] = useState(true);
 
+    // Estados para el sistema de pagos
+    const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+    const [showTransferDialog, setShowTransferDialog] = useState(false);
+    const [showQRDialog, setShowQRDialog] = useState(false);
+    const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
+    const [paymentLoading, setPaymentLoading] = useState(false);
+    const [qrPaymentStatus, setQRPaymentStatus] = useState<PaymentStatus>('pendiente');
+    const [qrData, setQrData] = useState<{ qrCode: string, qrCodeImage: string, preferenceId: string } | null>(null);
+
+    // Configuración de métodos de pago
+    const [paymentSettings, setPaymentSettings] = useState<any>(null);
+
     // Inicializar datos del parking
     useEffect(() => {
         if (parkedVehicles !== null && parkingCapacity && estId) {
@@ -97,6 +115,96 @@ export default function OperadorSimplePage() {
         }, 300);
 
         return () => clearTimeout(timeoutId);
+    }, [estId]);
+
+    // Cargar configuración de métodos de pago
+    useEffect(() => {
+        if (!estId) return;
+
+        const loadPaymentSettings = async () => {
+            try {
+                console.log('💳 Cargando configuración de pagos...');
+
+                // Cargar métodos habilitados del estacionamiento
+                const response = await fetch(`/api/payment/methods?est_id=${estId}`);
+                let methodsData: { methods?: Array<{ method: string; enabled: boolean }> } = { methods: [] };
+
+                if (response.ok) {
+                    methodsData = await response.json();
+                    console.log('✅ Métodos de pago cargados:', methodsData.methods);
+                }
+
+                // Cargar configuración del usuario (API keys, datos bancarios)
+                const userResponse = await fetch('/api/user/settings');
+                let userSettings: {
+                    mercadopagoApiKey?: string;
+                    bankAccountCbu?: string;
+                    bankAccountAlias?: string;
+                } = {};
+
+                if (userResponse.ok) {
+                    userSettings = await userResponse.json();
+                    console.log('✅ Configuración de usuario cargada:', {
+                        hasMercadoPago: !!userSettings.mercadopagoApiKey,
+                        hasBankData: !!(userSettings.bankAccountCbu && userSettings.bankAccountAlias),
+                        rawUserSettings: userSettings // Debug completo
+                    });
+                }
+
+                // Convertir el formato del endpoint al formato esperado por getAvailablePaymentMethods
+                const efectivoEnabled = methodsData.methods?.find((m: any) => m.method === 'Efectivo')?.enabled ?? false;
+                const transferenciaEnabled = methodsData.methods?.find((m: any) => m.method === 'Transferencia')?.enabled ?? false;
+                // MercadoPago en BD se mapea tanto a QR como Link de Pago en el frontend
+                // Buscar cualquiera de los métodos de MercadoPago
+                const qrEnabled = methodsData.methods?.find((m: any) => m.method === 'QR')?.enabled ?? false;
+                const linkPagoEnabled = methodsData.methods?.find((m: any) => m.method === 'Link de Pago')?.enabled ?? false;
+                const mercadopagoEnabled = qrEnabled || linkPagoEnabled;
+
+                const settings: any = {
+                    efectivo: { enabled: efectivoEnabled },
+                    transfer: {
+                        enabled: transferenciaEnabled,
+                        cbu: userSettings.bankAccountCbu || '',
+                        alias: userSettings.bankAccountAlias || ''
+                    },
+                    mercadopago: {
+                        enabled: mercadopagoEnabled,
+                        accessToken: userSettings.mercadopagoApiKey || '',
+                        // Para QR solo necesitamos accessToken, para link_pago necesitaríamos publicKey
+                        // Por ahora usamos el mismo accessToken como publicKey para que funcionen ambos
+                        publicKey: userSettings.mercadopagoApiKey || ''
+                    }
+                };
+
+                console.log('🔧 Configuración final de pagos:', {
+                    efectivo: settings.efectivo.enabled,
+                    transferencia: settings.transfer.enabled && !!(settings.transfer.cbu && settings.transfer.alias),
+                    'qr/link_pago': settings.mercadopago.enabled && !!settings.mercadopago.accessToken,
+                    'settings_completos': settings // Debug completo
+                });
+
+                // Debug adicional para QR específicamente
+                console.log('🔍 Debug QR:', {
+                    mercadopagoEnabled,
+                    hasAccessToken: !!settings.mercadopago.accessToken,
+                    hasPublicKey: !!settings.mercadopago.publicKey,
+                    accessToken: settings.mercadopago.accessToken,
+                    publicKey: settings.mercadopago.publicKey
+                });
+
+                setPaymentSettings(settings);
+            } catch (error) {
+                console.error('❌ Error al cargar configuración de pagos:', error);
+                // Configuración por defecto (solo efectivo habilitado)
+                setPaymentSettings({
+                    efectivo: { enabled: true },
+                    transfer: { enabled: false, cbu: '', alias: '' },
+                    mercadopago: { enabled: false, accessToken: '', publicKey: '' }
+                });
+            }
+        };
+
+        loadPaymentSettings();
     }, [estId]);
 
     // AbortController para cancelar requests previos
@@ -396,7 +504,7 @@ export default function OperadorSimplePage() {
         }
     };
 
-    // Registrar salida de vehículo
+    // Iniciar proceso de salida (calcular tarifa y mostrar selector de pago)
     const handleExit = async (licensePlate: string) => {
         if (!estId || !user?.id) {
             toast({
@@ -514,70 +622,299 @@ export default function OperadorSimplePage() {
                 }
             }
 
+            // Preparar datos para el sistema de pagos
+            const paymentInfo: PaymentData = {
+                vehicleLicensePlate: licensePlate,
+                amount: fee,
+                calculatedFee: calculatedFee,
+                agreedFee: agreedPrice > 0 ? agreedPrice : undefined,
+                entryTime: ocupacion.entry_time,
+                exitTime: exitTime.toISOString(),
+                duration: durationMs,
+                method: 'efectivo', // Se actualizará cuando el usuario seleccione
+                estId: estId,
+                plazaNumber: ocupacion.plaza_number,
+                zone: ocupacion.plaza_number ?
+                    plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
+                    undefined
+            };
+
+            setPaymentData(paymentInfo);
+            setShowPaymentSelector(true);
+
+            console.log('💰 Iniciando proceso de pago:', {
+                vehicle: licensePlate,
+                amount: formatCurrency(fee),
+                duration: formatDuration(durationMs)
+            });
+
+        } catch (error) {
+            console.error("Error al iniciar proceso de pago:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo calcular la tarifa del vehículo"
+            });
+        }
+    };
+
+    // Manejar selección de método de pago
+    const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+        if (!paymentData) return;
+
+        setSelectedPaymentMethod(method);
+        setPaymentLoading(true);
+
+        try {
+            // Actualizar método en los datos de pago
+            const updatedPaymentData = { ...paymentData, method };
+            setPaymentData(updatedPaymentData);
+
+            console.log(`💳 Método seleccionado: ${method}`);
+
+            // Procesar según el método seleccionado
+            switch (method) {
+                case 'efectivo':
+                    await processEffectivoPago(updatedPaymentData);
+                    break;
+                case 'transferencia':
+                    await processTransferenciaPago(updatedPaymentData);
+                    break;
+                case 'qr':
+                    await processQRPago(updatedPaymentData);
+                    break;
+                case 'link_pago':
+                    await processLinkPago(updatedPaymentData);
+                    break;
+                default:
+                    throw new Error(`Método de pago no implementado: ${method}`);
+            }
+        } catch (error) {
+            console.error(`Error procesando pago ${method}:`, error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo procesar el método de pago seleccionado"
+            });
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
+    // Procesar pago en efectivo (inmediato)
+    const processEffectivoPago = async (data: PaymentData) => {
+        await finalizeVehicleExit(data);
+        setShowPaymentSelector(false);
+
+        toast({
+            title: "Pago en efectivo",
+            description: `Cobrar ${formatCurrency(data.amount)} al cliente`
+        });
+    };
+
+    // Procesar pago por transferencia
+    const processTransferenciaPago = async (data: PaymentData) => {
+        setShowPaymentSelector(false);
+        setShowTransferDialog(true);
+
+        // TODO: Aquí iría la lógica para obtener la configuración bancaria del estacionamiento
+        console.log('📄 Mostrando información de transferencia');
+    };
+
+    // Procesar pago con QR
+    const processQRPago = async (data: PaymentData) => {
+        setShowPaymentSelector(false);
+
+        try {
+            console.log('📱 Generando código QR para pago...');
+
+            // Llamar a la API para crear el QR de MercadoPago
+            const response = await fetch('/api/payment/mercadopago/create-qr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: data.amount,
+                    vehicleLicensePlate: data.vehicleLicensePlate,
+                    description: `Estacionamiento - ${data.vehicleLicensePlate} - ${formatDuration(data.duration)}`,
+                    estId: data.estId
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error generando QR');
+            }
+
+            const qrResult = await response.json();
+
+            // Actualizar los datos de pago con la información del QR
+            setPaymentData({
+                ...data,
+                paymentId: qrResult.paymentId,
+                preferenceId: qrResult.preferenceId,
+                expiresAt: qrResult.expiresAt
+            });
+
+            // Guardar los datos del QR por separado
+            setQrData(qrResult.qrData);
+
+            setShowQRDialog(true);
+
+            console.log('✅ Código QR generado exitosamente:', {
+                paymentId: qrResult.paymentId,
+                preferenceId: qrResult.preferenceId
+            });
+
+        } catch (error) {
+            console.error('❌ Error generando código QR:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo generar el código QR. Intenta con otro método de pago."
+            });
+
+            // Volver al selector de métodos
+            setShowPaymentSelector(true);
+        }
+    };
+
+    // Procesar pago con link
+    const processLinkPago = async (data: PaymentData) => {
+        // TODO: Aquí iría la llamada a la API de MercadoPago para generar link
+        console.log('🔗 Generando link de pago');
+
+        // Por ahora, simular redirección
+        toast({
+            title: "Redirigiendo a MercadoPago",
+            description: "Se abrirá una nueva ventana para completar el pago"
+        });
+
+        setShowPaymentSelector(false);
+    };
+
+    // Actualizar estado del pago QR
+    const refreshQRPaymentStatus = async () => {
+        if (!qrData?.preferenceId) return;
+
+        setPaymentLoading(true);
+        try {
+            const response = await fetch(`/api/payment/mercadopago/create-qr?preferenceId=${qrData.preferenceId}`);
+            const result = await response.json();
+
+            if (result.success) {
+                setQRPaymentStatus(result.status);
+
+                if (result.status === 'approved') {
+                    toast({
+                        title: "¡Pago aprobado!",
+                        description: "El pago fue procesado exitosamente"
+                    });
+                } else if (result.status === 'rejected') {
+                    toast({
+                        variant: "destructive",
+                        title: "Pago rechazado",
+                        description: "Hubo un problema con el pago"
+                    });
+                } else if (result.status === 'expired') {
+                    toast({
+                        variant: "destructive",
+                        title: "Pago expirado",
+                        description: "El tiempo para pagar ha expirado"
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error verificando estado del pago:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo verificar el estado del pago"
+            });
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
+    // Finalizar salida del vehículo (actualizar DB)
+    const finalizeVehicleExit = async (data: PaymentData) => {
+        if (!estId || !user?.id) return;
+
+        try {
+            const supabase = createBrowserClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
             // Actualizar la ocupación marcando la salida
             const { error: updateError } = await supabase
                 .from('ocupacion')
                 .update({
-                    ocu_fh_salida: exitTime.toISOString()
+                    ocu_fh_salida: data.exitTime
                 })
                 .eq('est_id', estId)
-                .eq('veh_patente', licensePlate)
-                .eq('ocu_fh_entrada', ocupacion.entry_time)
+                .eq('veh_patente', data.vehicleLicensePlate)
+                .eq('ocu_fh_entrada', data.entryTime)
                 .is('ocu_fh_salida', null);
 
             if (updateError) throw updateError;
 
             // Si había una plaza asignada, liberarla
-            if (ocupacion.plaza_number) {
+            if (data.plazaNumber) {
                 const { error: plazaUpdateError } = await supabase
                     .from('plazas')
                     .update({ pla_estado: 'Libre' })
-                    .eq('pla_numero', ocupacion.plaza_number)
+                    .eq('pla_numero', data.plazaNumber)
                     .eq('est_id', estId);
 
                 if (plazaUpdateError) {
                     console.warn('Error liberando plaza:', plazaUpdateError);
-                    // No lanzar error aquí porque la salida ya se registró exitosamente
                 }
             }
 
-            // Actualizar datos
+            // Actualizar datos en la UI
             await refreshParkedVehicles();
             await refreshParkingHistory();
-            await fetchDashboardData('register-exit'); // Una sola consulta consolidada
+            await fetchDashboardData('register-exit');
 
             // Mostrar información de salida
             setExitInfo({
                 vehicle: {
-                    license_plate: ocupacion.license_plate,
-                    type: ocupacion.type,
-                    entry_time: ocupacion.entry_time,
-                    plaza_number: ocupacion.plaza_number
+                    license_plate: data.vehicleLicensePlate,
+                    type: 'Auto', // TODO: obtener tipo real del vehículo
+                    entry_time: data.entryTime,
+                    plaza_number: data.plazaNumber
                 },
-                fee: fee,
-                exitTime: exitTime,
-                duration: formatDuration(durationMs),
-                agreedPrice: agreedPrice > 0 ? agreedPrice : undefined,
-                calculatedFee: calculatedFee
+                fee: data.amount,
+                exitTime: new Date(data.exitTime),
+                duration: formatDuration(data.duration),
+                agreedPrice: data.agreedFee,
+                calculatedFee: data.calculatedFee
             });
 
-            // Mostrar información detallada de la tarifa
-            let toastDescription = `${licensePlate} ha salido exitosamente. `;
-            toastDescription += `Tarifa: $${fee.toFixed(2)}`;
-
-            toast({
-                title: "Salida registrada",
-                description: toastDescription
+            console.log('✅ Salida del vehículo finalizada:', {
+                vehicle: data.vehicleLicensePlate,
+                method: data.method,
+                amount: formatCurrency(data.amount)
             });
 
         } catch (error) {
-            console.error("Error al registrar salida:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "No se pudo registrar la salida del vehículo"
-            });
+            console.error("Error finalizando salida:", error);
+            throw error;
         }
+    };
+
+    // Cerrar modales de pago
+    const closePaymentModals = () => {
+        setShowPaymentSelector(false);
+        setShowTransferDialog(false);
+        setShowQRDialog(false);
+        setPaymentData(null);
+        setSelectedPaymentMethod(null);
+        setPaymentLoading(false);
+        setQrData(null);
+        setQRPaymentStatus('pending');
     };
 
     // Funciones auxiliares para visualización de plazas
@@ -702,6 +1039,92 @@ export default function OperadorSimplePage() {
                 />
 
             </div>
+
+            {/* Modales del sistema de pagos */}
+            <PaymentMethodSelector
+                isOpen={showPaymentSelector}
+                onClose={closePaymentModals}
+                onSelectMethod={handlePaymentMethodSelect}
+                paymentData={paymentData}
+                loading={paymentLoading}
+                paymentSettings={paymentSettings}
+            />
+
+
+            <TransferInfoDialog
+                isOpen={showTransferDialog}
+                onClose={closePaymentModals}
+                onConfirmTransfer={async () => {
+                    if (!paymentData) return;
+
+                    setPaymentLoading(true);
+                    try {
+                        // Log para auditoría del operador confirmando transferencia
+                        console.log('💰 Operador confirmó recepción de transferencia:', {
+                            vehicle: paymentData.vehicleLicensePlate,
+                            amount: formatCurrency(paymentData.amount),
+                            operator: user?.email
+                        });
+
+                        toast({
+                            title: "Transferencia confirmada",
+                            description: `Pago de ${formatCurrency(paymentData.amount)} confirmado por el operador`
+                        });
+
+                        // Finalizar salida del vehículo
+                        await finalizeVehicleExit(paymentData);
+                        closePaymentModals();
+                    } catch (error) {
+                        console.error('Error confirmando transferencia:', error);
+                        toast({
+                            variant: "destructive",
+                            title: "Error",
+                            description: "No se pudo confirmar la transferencia"
+                        });
+                    } finally {
+                        setPaymentLoading(false);
+                    }
+                }}
+                paymentData={{
+                    amount: paymentData?.amount || 0,
+                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                    paymentId: generatePaymentId(),
+                    duration: paymentData ? formatDuration(paymentData.duration) : ''
+                }}
+                transferConfig={{
+                    cbu: '0170020510000001234567', // TODO: Obtener de configuración
+                    alias: 'PARKING.EJEMPLO',
+                    accountHolder: 'Estacionamiento Ejemplo S.A.',
+                    bank: 'Banco Ejemplo'
+                }}
+                loading={paymentLoading}
+            />
+
+            <QRPaymentDialog
+                isOpen={showQRDialog}
+                onClose={closePaymentModals}
+                onPaymentComplete={() => {
+                    if (paymentData) {
+                        finalizeVehicleExit(paymentData);
+                    }
+                    closePaymentModals();
+                }}
+                paymentData={{
+                    amount: paymentData?.amount || 0,
+                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                    paymentId: generatePaymentId(),
+                    duration: paymentData ? formatDuration(paymentData.duration) : '',
+                    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutos
+                }}
+                qrData={qrData || {
+                    qrCode: '',
+                    qrCodeImage: '',
+                    preferenceId: ''
+                }}
+                paymentStatus={qrPaymentStatus}
+                loading={paymentLoading}
+                onRefreshStatus={refreshQRPaymentStatus}
+            />
         </DashboardLayout>
     );
 }

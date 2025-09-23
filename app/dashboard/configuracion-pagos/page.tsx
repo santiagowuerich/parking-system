@@ -72,7 +72,6 @@ export default function ConfiguracionPagosPage() {
         try {
             setLoading(true);
             await Promise.all([
-                loadPaymentMethods(),
                 loadTariffHistory(),
                 loadUserSettings()
             ]);
@@ -250,199 +249,199 @@ export default function ConfiguracionPagosPage() {
 
     return (
         <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
-        <DashboardLayout>
-            <div className="p-6 max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Configuración de Pagos</h1>
-                    <p className="text-gray-600 mt-2">
-                        Gestiona métodos de pago, visualiza historial de tarifas y configura tus credenciales
-                    </p>
-                </div>
+            <DashboardLayout>
+                <div className="p-6 max-w-7xl mx-auto">
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-bold text-gray-900">Configuración de Pagos</h1>
+                        <p className="text-gray-600 mt-2">
+                            Gestiona métodos de pago, visualiza historial de tarifas y configura tus credenciales
+                        </p>
+                    </div>
 
-                <div className="space-y-8">
-                    {/* SECCIÓN 1: MÉTODOS DE PAGO */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <CreditCard className="h-5 w-5" />
-                                Métodos de Pago
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {paymentMethods.map((method) => (
-                                    <div key={method.method} className="flex items-center justify-between p-4 border rounded-lg">
-                                        <div className="flex items-center gap-3">
-                                            {method.method === 'Efectivo' && <Banknote className="h-5 w-5 text-green-600" />}
-                                            {method.method === 'Transferencia' && <Wallet className="h-5 w-5 text-blue-600" />}
-                                            {method.method === 'QR' && <QrCode className="h-5 w-5 text-purple-600" />}
-                                            {method.method === 'Link de Pago' && <Link className="h-5 w-5 text-orange-600" />}
-                                            <div>
-                                                <p className="font-medium">{method.method}</p>
-                                                <p className="text-sm text-gray-500">{method.description}</p>
+                    <div className="space-y-8">
+                        {/* SECCIÓN 1: MÉTODOS DE PAGO */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CreditCard className="h-5 w-5" />
+                                    Métodos de Pago
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {paymentMethods.map((method) => (
+                                        <div key={method.method} className="flex items-center justify-between p-4 border rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                {method.method === 'Efectivo' && <Banknote className="h-5 w-5 text-green-600" />}
+                                                {method.method === 'Transferencia' && <Wallet className="h-5 w-5 text-blue-600" />}
+                                                {method.method === 'QR' && <QrCode className="h-5 w-5 text-purple-600" />}
+                                                {method.method === 'Link de Pago' && <Link className="h-5 w-5 text-orange-600" />}
+                                                <div>
+                                                    <p className="font-medium">{method.method}</p>
+                                                    <p className="text-sm text-gray-500">{method.description}</p>
+                                                </div>
+                                            </div>
+                                            <Switch
+                                                checked={method.enabled}
+                                                onCheckedChange={() => handleTogglePaymentMethod(method.method)}
+                                                disabled={methodsLoading || ((method.method === 'QR' || method.method === 'Link de Pago') && !hasMercadoPagoKey)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                                {!hasMercadoPagoKey && (
+                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <p className="text-sm text-yellow-800">
+                                            ⚠️ Para habilitar QR y Link de Pago, primero configura tu API Key de MercadoPago en la sección de configuraciones.
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* SECCIÓN 2: HISTORIAL DE TARIFAS */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <FileText className="h-5 w-5" />
+                                    Historial de Tarifas
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {Object.keys(tariffHistory).length === 0 ? (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                                        <p>Sin tarifas cargadas</p>
+                                    </div>
+                                ) : (
+                                    Object.entries(tariffHistory).map(([segment, tariffs]) => (
+                                        <div key={segment} className="mb-6">
+                                            <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                {getSegmentName(segment)}
+                                            </h3>
+                                            <div className="overflow-x-auto">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Fecha desde</TableHead>
+                                                            <TableHead>Precio</TableHead>
+                                                            <TableHead>Modalidad</TableHead>
+                                                            <TableHead>Plaza</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {tariffs.map((tariff, index) => (
+                                                            <TableRow key={index}>
+                                                                <TableCell>
+                                                                    {format(new Date(tariff.fecha_desde), "dd/MM/yyyy", { locale: es })}
+                                                                </TableCell>
+                                                                <TableCell className="font-medium">
+                                                                    ${tariff.precio.toFixed(2)}
+                                                                </TableCell>
+                                                                <TableCell>{tariff.modalidad}</TableCell>
+                                                                <TableCell>{tariff.plantilla}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
                                             </div>
                                         </div>
-                                        <Switch
-                                            checked={method.enabled}
-                                            onCheckedChange={() => handleTogglePaymentMethod(method.method)}
-                                            disabled={methodsLoading || ((method.method === 'QR' || method.method === 'Link de Pago') && !hasMercadoPagoKey)}
+                                    ))
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* SECCIÓN 3: CONFIGURACIONES */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* CONFIGURACIÓN MERCADOPAGO */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Settings className="h-5 w-5" />
+                                        MercadoPago
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="mp-key">API Key</Label>
+                                        <Input
+                                            id="mp-key"
+                                            type="password"
+                                            placeholder="APP_USR-xxxxxxxxxxxxxxxxxx"
+                                            value={mercadoPagoKey}
+                                            onChange={(e) => setMercadoPagoKey(e.target.value)}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Obtén tu API Key en el panel de MercadoPago → Credenciales
+                                        </p>
+                                    </div>
+                                    <Button
+                                        onClick={saveMercadoPagoKey}
+                                        disabled={saving}
+                                        className="w-full"
+                                    >
+                                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                        Guardar API Key
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
+                            {/* CONFIGURACIÓN TRANSFERENCIA */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Settings className="h-5 w-5" />
+                                        Transferencia Bancaria
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="bank-holder">Titular de la cuenta</Label>
+                                        <Input
+                                            id="bank-holder"
+                                            placeholder="Nombre completo del titular"
+                                            value={bankHolder}
+                                            onChange={(e) => setBankHolder(e.target.value)}
                                         />
                                     </div>
-                                ))}
-                            </div>
-                            {!hasMercadoPagoKey && (
-                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                    <p className="text-sm text-yellow-800">
-                                        ⚠️ Para habilitar QR y Link de Pago, primero configura tu API Key de MercadoPago en la sección de configuraciones.
-                                    </p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* SECCIÓN 2: HISTORIAL DE TARIFAS */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <FileText className="h-5 w-5" />
-                                Historial de Tarifas
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {Object.keys(tariffHistory).length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">
-                                    <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                                    <p>Sin tarifas cargadas</p>
-                                </div>
-                            ) : (
-                                Object.entries(tariffHistory).map(([segment, tariffs]) => (
-                                    <div key={segment} className="mb-6">
-                                        <h3 className="text-lg font-semibold mb-4 text-gray-900">
-                                            {getSegmentName(segment)}
-                                        </h3>
-                                        <div className="overflow-x-auto">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Fecha desde</TableHead>
-                                                        <TableHead>Precio</TableHead>
-                                                        <TableHead>Modalidad</TableHead>
-                                                        <TableHead>Plaza</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {tariffs.map((tariff, index) => (
-                                                        <TableRow key={index}>
-                                                            <TableCell>
-                                                                {format(new Date(tariff.fecha_desde), "dd/MM/yyyy", { locale: es })}
-                                                            </TableCell>
-                                                            <TableCell className="font-medium">
-                                                                ${tariff.precio.toFixed(2)}
-                                                            </TableCell>
-                                                            <TableCell>{tariff.modalidad}</TableCell>
-                                                            <TableCell>{tariff.plantilla}</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                    <div>
+                                        <Label htmlFor="bank-cbu">CBU/CVU</Label>
+                                        <Input
+                                            id="bank-cbu"
+                                            placeholder="22 dígitos"
+                                            value={bankCbu}
+                                            onChange={(e) => setBankCbu(e.target.value)}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Número de 22 dígitos de tu cuenta bancaria
+                                        </p>
                                     </div>
-                                ))
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* SECCIÓN 3: CONFIGURACIONES */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* CONFIGURACIÓN MERCADOPAGO */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Settings className="h-5 w-5" />
-                                    MercadoPago
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="mp-key">API Key</Label>
-                                    <Input
-                                        id="mp-key"
-                                        type="password"
-                                        placeholder="APP_USR-xxxxxxxxxxxxxxxxxx"
-                                        value={mercadoPagoKey}
-                                        onChange={(e) => setMercadoPagoKey(e.target.value)}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Obtén tu API Key en el panel de MercadoPago → Credenciales
-                                    </p>
-                                </div>
-                                <Button
-                                    onClick={saveMercadoPagoKey}
-                                    disabled={saving}
-                                    className="w-full"
-                                >
-                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                    Guardar API Key
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        {/* CONFIGURACIÓN TRANSFERENCIA */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Settings className="h-5 w-5" />
-                                    Transferencia Bancaria
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="bank-holder">Titular de la cuenta</Label>
-                                    <Input
-                                        id="bank-holder"
-                                        placeholder="Nombre completo del titular"
-                                        value={bankHolder}
-                                        onChange={(e) => setBankHolder(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <Label htmlFor="bank-cbu">CBU/CVU</Label>
-                                    <Input
-                                        id="bank-cbu"
-                                        placeholder="22 dígitos"
-                                        value={bankCbu}
-                                        onChange={(e) => setBankCbu(e.target.value)}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Número de 22 dígitos de tu cuenta bancaria
-                                    </p>
-                                </div>
-                                <div>
-                                    <Label htmlFor="bank-alias">Alias</Label>
-                                    <Input
-                                        id="bank-alias"
-                                        placeholder="ej: juan.perez.001"
-                                        value={bankAlias}
-                                        onChange={(e) => setBankAlias(e.target.value)}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Alias de tu cuenta (opcional)
-                                    </p>
-                                </div>
-                                <Button
-                                    onClick={saveBankData}
-                                    disabled={saving}
-                                    className="w-full"
-                                >
-                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                    Guardar Datos Bancarios
-                                </Button>
-                            </CardContent>
-                        </Card>
+                                    <div>
+                                        <Label htmlFor="bank-alias">Alias</Label>
+                                        <Input
+                                            id="bank-alias"
+                                            placeholder="ej: juan.perez.001"
+                                            value={bankAlias}
+                                            onChange={(e) => setBankAlias(e.target.value)}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Alias de tu cuenta (opcional)
+                                        </p>
+                                    </div>
+                                    <Button
+                                        onClick={saveBankData}
+                                        disabled={saving}
+                                        className="w-full"
+                                    >
+                                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                        Guardar Datos Bancarios
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </DashboardLayout>
+            </DashboardLayout>
         </RouteGuard>
     );
 }
