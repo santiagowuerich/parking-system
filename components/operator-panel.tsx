@@ -725,17 +725,6 @@ export default function OperatorPanel({
                     <Badge variant={estadisticasZona.ocupadas > estadisticasZona.total * 0.8 ? "destructive" : "secondary"}>
                       {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupación
                     </Badge>
-                    {onConfigureZones && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => router.push(`/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`)}
-                        className="flex items-center gap-1"
-                      >
-                        <Settings className="h-3 w-3" />
-                        Configurar
-                      </Button>
-                    )}
                   </div>
                 </div>
 
@@ -814,94 +803,8 @@ export default function OperatorPanel({
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
-      {/* Sistema Híbrido: Vista Simple vs Zonas */}
-      {loadingPlazas || loadingPlazasCompletas ? (
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Cargando...</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-center items-center h-48">
-              <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
-            </div>
-          </CardContent>
-        </Card>
-      ) : plazasCompletas && plazasCompletas.length > 0 ? (
-        // VISTA RICA: Con información completa de plantillas y tooltips
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Visualización de Plazas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {crearVisualizacionRica()}
-          </CardContent>
-        </Card>
-      ) : plazasData?.mode === 'simple' ? (
-        // VISTA SIMPLE: Sin zonas configuradas (fallback)
-        <SimpleVehicleList
-          stats={plazasData.stats}
-          plazas={plazasData.plazas || []}
-          vehiculos={plazasData.vehiculos || []}
-          onPlazaClick={(plaza) => {
-            if (!plaza.ocupado) {
-              handlePlazaSelection(String(plaza.numero));
-              toast.success(`Plaza ${plaza.numero} seleccionada`, {
-                description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
-              });
-            }
-          }}
-          onConfigureZones={onConfigureZones}
-          showConfigureButton={true}
-        />
-      ) : (
-        // VISTA POR ZONAS: Zonas configuradas (fallback)
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Disponibilidad por Zonas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="flex justify-between items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
-                  </span>
-                </div>
-                <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
-                  Actualizar
-                </Button>
-              </div>
-              {plazasData?.zonas?.length > 0 ? plazasData.zonas.map((zona: any) => (
-                <ZonaEstacionamiento
-                  key={zona.nombre}
-                  zona={zona}
-                  onPlazaClick={(plaza) => {
-                    if (plaza.ocupado) {
-                      toast.info(`Plaza ${plaza.numero} está ocupada`, {
-                        description: "Busca el vehículo en la tabla de abajo para darle salida.",
-                      });
-                    } else {
-                      handlePlazaSelection(String(plaza.numero));
-                      toast.success(`Plaza ${plaza.numero} seleccionada`, {
-                        description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
-                      });
-                    }
-                  }}
-                />
-              )) : (
-                <p className="text-center text-zinc-500 py-8">
-                  No hay zonas o plazas configuradas para este estacionamiento.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Formulario de entrada */}
+      {/* 1. REGISTRAR ENTRADA - PRIMERO */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Registrar Entrada</CardTitle>
@@ -992,71 +895,94 @@ export default function OperatorPanel({
         </CardContent>
       </Card>
 
-      {/* Panel de "Salida Registrada" eliminado: usamos solo notificación (toast) */}
-
-      {/* Tabla de Últimos Movimientos */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="dark:border-zinc-800">
-                <TableHead className="dark:text-zinc-400">Fecha/Hora</TableHead>
-                <TableHead className="dark:text-zinc-400">Patente</TableHead>
-                <TableHead className="dark:text-zinc-400">Acción</TableHead>
-                <TableHead className="dark:text-zinc-400">Zona</TableHead>
-                <TableHead className="dark:text-zinc-400">Plaza</TableHead>
-                <TableHead className="dark:text-zinc-400">Método</TableHead>
-                <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
-                <TableHead className="text-right dark:text-zinc-400">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingMovements ? (
-                <TableRow className="dark:border-zinc-800">
-                  <TableCell colSpan={8} className="text-center py-4">
-                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                    <span className="ml-2 dark:text-zinc-400">Cargando movimientos...</span>
-                  </TableCell>
-                </TableRow>
-              ) : recentMovements.length === 0 ? (
-                <TableRow className="dark:border-zinc-800">
-                  <TableCell colSpan={8} className="text-center py-4 dark:text-zinc-400">
-                    No hay movimientos recientes
-                  </TableCell>
-                </TableRow>
-              ) : (
-                recentMovements.map((movement) => (
-                  <TableRow key={movement.id} className="dark:border-zinc-800">
-                    <TableCell className="dark:text-zinc-100">{movement.timestamp}</TableCell>
-                    <TableCell className="dark:text-zinc-100">{movement.license_plate}</TableCell>
-                    <TableCell>
-                      <Badge className={
-                        movement.action === 'Ingreso'
-                          ? "bg-green-100 text-green-800"
-                          : movement.action === 'Egreso'
-                            ? "bg-red-100 text-red-800"
-                            : "bg-blue-100 text-blue-800"
-                      }>
-                        {movement.action}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
-                    <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
-                    <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
-                    <TableCell className="dark:text-zinc-100">$1200/h</TableCell>
-                    <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
-                  </TableRow>
-                ))
+      {/* 2. VISUALIZACIÓN PLAZAS - SEGUNDO */}
+      {loadingPlazas || loadingPlazasCompletas ? (
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Cargando...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center items-center h-48">
+              <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : plazasCompletas && plazasCompletas.length > 0 ? (
+        // VISTA RICA: Con información completa de plantillas y tooltips
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Visualización de Plazas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {crearVisualizacionRica()}
+          </CardContent>
+        </Card>
+      ) : plazasData?.mode === 'simple' ? (
+        // VISTA SIMPLE: Sin zonas configuradas (fallback)
+        <SimpleVehicleList
+          stats={plazasData.stats}
+          plazas={plazasData.plazas || []}
+          vehiculos={plazasData.vehiculos || []}
+          onPlazaClick={(plaza) => {
+            if (!plaza.ocupado) {
+              handlePlazaSelection(String(plaza.numero));
+              toast.success(`Plaza ${plaza.numero} seleccionada`, {
+                description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
+              });
+            }
+          }}
+          onConfigureZones={onConfigureZones}
+          showConfigureButton={true}
+        />
+      ) : (
+        // VISTA POR ZONAS: Zonas configuradas (fallback)
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Disponibilidad por Zonas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
+                  Actualizar
+                </Button>
+              </div>
+              {plazasData?.zonas?.length > 0 ? plazasData.zonas.map((zona: any) => (
+                <ZonaEstacionamiento
+                  key={zona.nombre}
+                  zona={zona}
+                  onPlazaClick={(plaza) => {
+                    if (plaza.ocupado) {
+                      toast.info(`Plaza ${plaza.numero} está ocupada`, {
+                        description: "Busca el vehículo en la tabla de abajo para darle salida.",
+                      });
+                    } else {
+                      handlePlazaSelection(String(plaza.numero));
+                      toast.success(`Plaza ${plaza.numero} seleccionada`, {
+                        description: "Completa la patente y el tipo de vehículo para registrar la entrada.",
+                      });
+                    }
+                  }}
+                />
+              )) : (
+                <p className="text-center text-zinc-500 py-8">
+                  No hay zonas o plazas configuradas para este estacionamiento.
+                </p>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Vehículos estacionados */}
+      {/* 3. VEHÍCULOS ESTACIONADOS - TERCERO */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Vehículos Estacionados</CardTitle>
@@ -1148,6 +1074,68 @@ export default function OperatorPanel({
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      {/* 4. ÚLTIMOS MOVIMIENTOS - ÚLTIMO */}
+      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+        <CardHeader>
+          <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="dark:border-zinc-800">
+                <TableHead className="dark:text-zinc-400">Fecha/Hora</TableHead>
+                <TableHead className="dark:text-zinc-400">Patente</TableHead>
+                <TableHead className="dark:text-zinc-400">Acción</TableHead>
+                <TableHead className="dark:text-zinc-400">Zona</TableHead>
+                <TableHead className="dark:text-zinc-400">Plaza</TableHead>
+                <TableHead className="dark:text-zinc-400">Método</TableHead>
+                <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
+                <TableHead className="text-right dark:text-zinc-400">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingMovements ? (
+                <TableRow className="dark:border-zinc-800">
+                  <TableCell colSpan={8} className="text-center py-4">
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                    <span className="ml-2 dark:text-zinc-400">Cargando movimientos...</span>
+                  </TableCell>
+                </TableRow>
+              ) : recentMovements.length === 0 ? (
+                <TableRow className="dark:border-zinc-800">
+                  <TableCell colSpan={8} className="text-center py-4 dark:text-zinc-400">
+                    No hay movimientos recientes
+                  </TableCell>
+                </TableRow>
+              ) : (
+                recentMovements.map((movement) => (
+                  <TableRow key={movement.id} className="dark:border-zinc-800">
+                    <TableCell className="dark:text-zinc-100">{movement.timestamp}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.license_plate}</TableCell>
+                    <TableCell>
+                      <Badge className={
+                        movement.action === 'Ingreso'
+                          ? "bg-green-100 text-green-800"
+                          : movement.action === 'Egreso'
+                            ? "bg-red-100 text-red-800"
+                            : "bg-blue-100 text-blue-800"
+                      }>
+                        {movement.action}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
+                    <TableCell className="dark:text-zinc-100">$1200/h</TableCell>
+                    <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 

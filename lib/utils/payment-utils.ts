@@ -31,23 +31,19 @@ export function getAvailablePaymentMethods(settings?: PaymentSettings): PaymentM
         console.log(`💵 Efectivo: enabled=${enabled}`);
         return enabled;
       case 'transferencia':
-        enabled = settings.transfer.enabled &&
-          settings.transfer.cbu &&
-          settings.transfer.alias;
-        console.log(`🏦 Transferencia: enabled=${settings.transfer.enabled}, cbu=${!!settings.transfer.cbu}, alias=${!!settings.transfer.alias}, final=${enabled}`);
+        // Para transferencias, solo verificar si está habilitado en el estacionamiento
+        enabled = settings.transfer.enabled;
+        console.log(`🏦 Transferencia: enabled=${settings.transfer.enabled}, final=${enabled}`);
         return enabled;
       case 'qr':
-        // QR solo necesita accessToken (para generar QR desde backend)
-        enabled = settings.mercadopago.enabled &&
-          settings.mercadopago.accessToken;
-        console.log(`📱 QR: enabled=${settings.mercadopago.enabled}, accessToken=${!!settings.mercadopago.accessToken}, final=${enabled}`);
+        // Para QR, solo verificar si está habilitado en el estacionamiento
+        enabled = settings.mercadopago.enabled;
+        console.log(`📱 QR: enabled=${settings.mercadopago.enabled}, final=${enabled}`);
         return enabled;
       case 'link_pago':
-        // Link de pago necesita tanto accessToken como publicKey (para checkout en frontend)
-        enabled = settings.mercadopago.enabled &&
-          settings.mercadopago.accessToken &&
-          settings.mercadopago.publicKey;
-        console.log(`🔗 Link Pago: enabled=${settings.mercadopago.enabled}, accessToken=${!!settings.mercadopago.accessToken}, publicKey=${!!settings.mercadopago.publicKey}, final=${enabled}`);
+        // Para Link de Pago, solo verificar si está habilitado en el estacionamiento
+        enabled = settings.mercadopago.enabled;
+        console.log(`🔗 Link Pago: enabled=${settings.mercadopago.enabled}, final=${enabled}`);
         return enabled;
       default:
         return false;
