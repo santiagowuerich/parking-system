@@ -6,13 +6,13 @@ export async function GET(request: NextRequest) {
     try {
         const { supabase, response } = createClient(request);
         const url = new URL(request.url);
-        const playId = url.searchParams.get('play_id');
+        const usuId = url.searchParams.get('usu_id'); // Cambiado de play_id a usu_id
         const estId = url.searchParams.get('est_id');
         const fechaDesde = url.searchParams.get('fecha_desde');
         const fechaHasta = url.searchParams.get('fecha_hasta');
 
-        if (!playId || !estId) {
-            return NextResponse.json({ error: "play_id y est_id son requeridos" }, { status: 400 });
+        if (!usuId || !estId) {
+            return NextResponse.json({ error: "usu_id y est_id son requeridos" }, { status: 400 });
         }
 
         // Verificar que el usuario tenga acceso
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         const { data: empleado, error: empleadoError } = await supabase
             .from('empleados_estacionamiento')
             .select('play_id, est_id')
-            .eq('play_id', playId)
+            .eq('play_id', usuId) // Cambiado de playId a usuId
             .eq('est_id', estId)
             .eq('activo', true)
             .single();
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         *,
         cajas_empleados(*)
       `)
-            .eq('play_id', playId)
+            .eq('play_id', usuId) // Cambiado de playId a usuId
             .eq('est_id', estId)
             .order('tur_fecha', { ascending: false })
             .order('tur_hora_entrada', { ascending: false });

@@ -2,6 +2,7 @@
 
 
 import { useEffect, useRef, useState } from "react";
+import dayjs from "dayjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Edit, Trash2, UserPlus, Key, RefreshCw } from "lucide-react";
+import { Loader2, Edit, Trash2, UserPlus, Key, RefreshCw, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
     Empleado,
@@ -63,6 +64,10 @@ export default function GestionUsuariosPage() {
     const [contrasenaTemporal, setContrasenaTemporal] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
     const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+    const [turnosModalOpen, setTurnosModalOpen] = useState(false);
+    const [selectedEmpleadoForTurnos, setSelectedEmpleadoForTurnos] = useState<Empleado | null>(null);
+    const [historialTurnos, setHistorialTurnos] = useState<any[]>([]);
+    const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [confirmationMessage, setConfirmationMessage] = useState<{
         title: string;
         description: string;
@@ -350,6 +355,40 @@ export default function GestionUsuariosPage() {
         }
     };
 
+    const handleShowTurnos = async (empleado: Empleado) => {
+        setSelectedEmpleadoForTurnos(empleado);
+        setTurnosModalOpen(true);
+        await loadHistorialTurnos(empleado);
+    };
+
+    const loadHistorialTurnos = async (empleado: Empleado) => {
+        if (!estId || !empleado.usu_id) return;
+
+        setLoadingTurnos(true);
+        try {
+            const params = new URLSearchParams({
+                usu_id: empleado.usu_id.toString(), // Cambiado de play_id a usu_id
+                est_id: estId.toString(),
+                fecha_desde: '2025-01-01', // Desde enero 2025
+                fecha_hasta: new Date().toISOString().split('T')[0] // Hasta hoy
+            });
+
+            const response = await fetch(`/api/turnos/historial?${params}`);
+            if (response.ok) {
+                const data = await response.json();
+                setHistorialTurnos(data.historial || []);
+            } else {
+                console.error('Error al cargar historial de turnos:', response.statusText);
+                setHistorialTurnos([]);
+            }
+        } catch (error) {
+            console.error('Error al cargar historial de turnos:', error);
+            setHistorialTurnos([]);
+        } finally {
+            setLoadingTurnos(false);
+        }
+    };
+
     // Funciones de utilidad
     const toggleDisponibilidad = (diaSemana: number, turnoId: number) => {
         const disponibilidad = usuarioSeleccionado.disponibilidad || [];
@@ -405,6 +444,48 @@ export default function GestionUsuariosPage() {
 
     const getEstadoBadgeVariant = (estado: string) => {
         return estado === 'Activo' ? 'default' : 'destructive';
+    };
+
+    const calcularDuracion = (horaEntrada: string, horaSalida?: string) => {
+        try {
+            // Si viene solo la hora (HH:mm:ss), combinar con fecha actual
+            if (horaEntrada && horaEntrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+                const hoy = dayjs().format('YYYY-MM-DD');
+                const entrada = dayjs(`${hoy} ${horaEntrada}`);
+                const salida = horaSalida ? dayjs(`${hoy} ${horaSalida}`) : dayjs();
+
+                if (!entrada.isValid()) {
+                    console.error('Hora de entrada inválida:', horaEntrada);
+                    return '0h 0m';
+                }
+
+                const duracion = salida.diff(entrada, 'minute');
+                const duracionPositiva = Math.max(0, duracion);
+                const horas = Math.floor(duracionPositiva / 60);
+                const minutos = duracionPositiva % 60;
+
+                return `${horas}h ${minutos}m`;
+            } else {
+                // Si viene con fecha completa
+                const entrada = dayjs(horaEntrada);
+                const salida = horaSalida ? dayjs(horaSalida) : dayjs();
+
+                if (!entrada.isValid()) {
+                    console.error('Hora de entrada inválida:', horaEntrada);
+                    return '0h 0m';
+                }
+
+                const duracion = salida.diff(entrada, 'minute');
+                const duracionPositiva = Math.max(0, duracion);
+                const horas = Math.floor(duracionPositiva / 60);
+                const minutos = duracionPositiva % 60;
+
+                return `${horas}h ${minutos}m`;
+            }
+        } catch (error) {
+            console.error('Error calculando duración:', error, 'Hora entrada:', horaEntrada);
+            return '0h 0m';
+        }
     };
 
     if (loading) {
@@ -496,6 +577,9 @@ export default function GestionUsuariosPage() {
                                     </th>
                                     <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
                                     {userRole === 'owner' && (
+                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300">Turnos</th>
+                                    )}
+                                    {userRole === 'owner' && (
                                         <th className="py-4 px-4 text-right text-sm font-bold text-gray-900">Acciones</th>
                                     )}
                                 </tr>
@@ -503,7 +587,7 @@ export default function GestionUsuariosPage() {
                             <tbody>
                                 {empleadosFiltrados.length === 0 ? (
                                     <tr className="bg-white">
-                                        <td colSpan={userRole === 'owner' ? 5 : 4} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                        <td colSpan={userRole === 'owner' ? 6 : 4} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
                                             {empleados.length === 0
                                                 ? (userRole === 'owner'
                                                     ? "No hay empleados registrados en este estacionamiento. Crea el primero haciendo clic en 'Nuevo Empleado'."
@@ -541,6 +625,20 @@ export default function GestionUsuariosPage() {
                                                     {empleado.estado}
                                                 </Badge>
                                             </td>
+                                            {userRole === 'owner' && (
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleShowTurnos(empleado)}
+                                                        className="text-green-600 hover:text-green-800 hover:bg-green-50 border border-transparent hover:border-green-200 rounded px-2 py-1"
+                                                        title="Ver turnos del empleado"
+                                                    >
+                                                        <Clock className="h-4 w-4 mr-1" />
+                                                        <span className="text-xs font-medium">Turnos</span>
+                                                    </Button>
+                                                </td>
+                                            )}
                                             {userRole === 'owner' && (
                                                 <td className="py-4 px-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
@@ -753,6 +851,115 @@ export default function GestionUsuariosPage() {
                                 disabled={saving}
                             >
                                 Cancelar
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de historial de turnos */}
+            <Dialog open={turnosModalOpen} onOpenChange={setTurnosModalOpen}>
+                <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5" />
+                            Historial de Turnos - {selectedEmpleadoForTurnos?.nombre} {selectedEmpleadoForTurnos?.apellido}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        {selectedEmpleadoForTurnos && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-gray-800 mb-2">Información del Empleado</h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="font-medium text-gray-600">Nombre:</span>
+                                        <p className="text-gray-900">{selectedEmpleadoForTurnos.nombre} {selectedEmpleadoForTurnos.apellido}</p>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-600">Email:</span>
+                                        <p className="text-gray-900">{selectedEmpleadoForTurnos.email || 'Sin email'}</p>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-600">Estado:</span>
+                                        <Badge variant={selectedEmpleadoForTurnos.estado === 'Activo' ? 'default' : 'secondary'}>
+                                            {selectedEmpleadoForTurnos.estado}
+                                        </Badge>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-600">Disponibilidad:</span>
+                                        <p className="text-gray-900">{formatearDisponibilidad(selectedEmpleadoForTurnos.disponibilidad)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full bg-white border-collapse">
+                                <thead>
+                                    <tr className="bg-gradient-to-r from-gray-200 to-gray-300 border-b-2 border-gray-400">
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Fecha</th>
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Hora Entrada</th>
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Hora Salida</th>
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Duración</th>
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Estado</th>
+                                        <th className="py-3 px-4 text-left text-sm font-bold text-gray-900">Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {loadingTurnos ? (
+                                        <tr className="bg-white border-b border-gray-300">
+                                            <td colSpan={6} className="py-8 px-4 text-center text-gray-500">
+                                                <div className="flex items-center justify-center">
+                                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                    Cargando turnos...
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : historialTurnos.length === 0 ? (
+                                        <tr className="bg-white border-b border-gray-300">
+                                            <td colSpan={6} className="py-8 px-4 text-center text-gray-500">
+                                                {selectedEmpleadoForTurnos ?
+                                                    `No hay turnos registrados para ${selectedEmpleadoForTurnos.nombre} ${selectedEmpleadoForTurnos.apellido}` :
+                                                    'Selecciona un empleado para ver sus turnos'
+                                                }
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        historialTurnos.map((turno, index) => (
+                                            <tr key={turno.tur_id || index} className="bg-white border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                <td className="py-4 px-4 text-sm text-gray-900 border-r border-gray-300">
+                                                    {dayjs(turno.tur_fecha).format('DD/MM/YYYY')}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-900 border-r border-gray-300">
+                                                    {turno.tur_hora_entrada}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-900 border-r border-gray-300">
+                                                    {turno.tur_hora_salida || 'En curso'}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-900 border-r border-gray-300">
+                                                    {calcularDuracion(turno.tur_hora_entrada, turno.tur_hora_salida)}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-900 border-r border-gray-300">
+                                                    <Badge variant={turno.tur_estado === 'activo' ? 'default' : 'secondary'}>
+                                                        {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    <div className="max-w-32 truncate" title={turno.tur_observaciones_entrada || 'Sin observaciones'}>
+                                                        {turno.tur_observaciones_entrada || 'Sin observaciones'}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <Button variant="outline" onClick={() => setTurnosModalOpen(false)}>
+                                Cerrar
                             </Button>
                         </div>
                     </div>

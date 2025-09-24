@@ -147,7 +147,7 @@ export default function DashboardPage() {
             showForEmployees: true
         },
         {
-            title: "Configuración Avanzada",
+            title: "Configuración Tipo de Plazas",
             description: "Gestionar plantillas de plazas",
             icon: Settings,
             href: "/dashboard/plazas/configuracion-avanzada",

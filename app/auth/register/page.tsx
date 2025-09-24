@@ -89,7 +89,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="absolute top-8 left-12">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
       </div>
       {/* Card */}
       <div className="w-full max-w-xl bg-white rounded-xl shadow-lg p-10 flex flex-col items-center">
