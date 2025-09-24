@@ -139,8 +139,8 @@ export default function OperadorSimplePage() {
                     console.log('✅ Métodos de pago cargados:', methodsData.methods);
                 }
 
-                // Cargar configuración del usuario (API keys, datos bancarios)
-                const userResponse = await fetch('/api/user/settings');
+                // Cargar configuración del estacionamiento (API keys, datos bancarios)
+                const userResponse = await fetch(`/api/estacionamiento/configuraciones?est_id=${estId}`);
                 let userSettings: {
                     mercadopagoApiKey?: string;
                     bankAccountCbu?: string;
@@ -149,7 +149,7 @@ export default function OperadorSimplePage() {
 
                 if (userResponse.ok) {
                     userSettings = await userResponse.json();
-                    console.log('✅ Configuración de usuario cargada:', {
+                    console.log('✅ Configuración del estacionamiento cargada:', {
                         hasMercadoPago: !!userSettings.mercadopagoApiKey,
                         hasBankData: !!(userSettings.bankAccountCbu && userSettings.bankAccountAlias),
                         rawUserSettings: userSettings // Debug completo

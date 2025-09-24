@@ -7,7 +7,8 @@
       "Bash(npm run dev:*)",
       "WebSearch",
       "WebFetch(domain:www.mercadopago.com.ar)",
-      "WebFetch(domain:www.figma.com)"
+      "WebFetch(domain:www.figma.com)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

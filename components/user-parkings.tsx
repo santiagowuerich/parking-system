@@ -533,29 +533,25 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                 </div>
                                             </CardHeader>
                                             <CardContent className="pt-0">
-                                                {/* Dirección del estacionamiento arriba de "0 disponibles" */}
-                                                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                                {/* Dirección completa */}
+                                                <div className="flex items-center gap-2 text-gray-600 mb-3">
                                                     <MapPin className="h-4 w-4 text-gray-400" />
-                                                    <span className="text-sm">{estacionamiento.est_direc}</span>
+                                                    <span className="text-sm">{estacionamiento.est_direc}, {estacionamiento.est_locali}, {estacionamiento.est_prov}</span>
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                                     <div className="flex items-center gap-2 text-gray-600">
-                                                        <MapPin className="h-4 w-4 text-gray-400" />
-                                                        <span>{estacionamiento.est_prov}, {estacionamiento.est_locali}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-gray-600">
                                                         <Building2 className="h-4 w-4 text-gray-400" />
-                                                        <span className="font-semibold text-green-400">
+                                                        <span className="font-semibold text-green-600">
                                                             {estacionamiento.plazas_total || 0} plazas totales
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-2 text-gray-600">
                                                         <Users className="h-4 w-4 text-gray-400" />
-                                                        <span className="font-semibold text-blue-400">
+                                                        <span className="font-semibold text-blue-600">
                                                             {estacionamiento.plazas_libres || 0} disponibles
                                                         </span>
-                                                        {estacionamiento.plazas_ocupadas > 0 && (
+                                                        {(estacionamiento.plazas_ocupadas > 0) && (
                                                             <span className="text-amber-600 text-xs">
                                                                 ({estacionamiento.plazas_ocupadas} ocupadas)
                                                             </span>
