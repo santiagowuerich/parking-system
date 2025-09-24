@@ -1129,7 +1129,7 @@ export default function OperatorPanel({
                     <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
                     <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
                     <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
-                    <TableCell className="dark:text-zinc-100">$1200/h</TableCell>
+                    <TableCell className="dark:text-zinc-100">{movement.tarifa || '$1200/h'}</TableCell>
                     <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
                   </TableRow>
                 ))
