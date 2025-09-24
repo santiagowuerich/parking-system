@@ -46,6 +46,16 @@ export default function TurnosPage() {
     const [showIniciarModal, setShowIniciarModal] = useState(false);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showHistorial, setShowHistorial] = useState(false);
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    // Actualizar la hora actual cada minuto para que la duración sea dinámica
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 60000); // Actualizar cada minuto
+
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (estId && user) {
@@ -112,14 +122,38 @@ export default function TurnosPage() {
     };
 
     const calcularDuracion = (horaEntrada: string) => {
-        const entrada = dayjs(horaEntrada, 'HH:mm:ss');
-        const ahora = dayjs();
-        const duracion = ahora.diff(entrada, 'minute');
+        try {
+            // Intentar diferentes formatos para la hora de entrada
+            let entrada;
 
-        const horas = Math.floor(duracion / 60);
-        const minutos = duracion % 60;
+            // Si viene solo la hora (HH:mm:ss), combinar con fecha actual
+            if (horaEntrada && horaEntrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+                const hoy = dayjs().format('YYYY-MM-DD');
+                entrada = dayjs(`${hoy} ${horaEntrada}`);
+            } else {
+                // Si viene con fecha completa o timestamp
+                entrada = dayjs(horaEntrada);
+            }
 
-        return `${horas}h ${minutos}m`;
+            // Verificar que la entrada sea válida
+            if (!entrada.isValid()) {
+                console.error('Hora de entrada inválida:', horaEntrada);
+                return '0h 0m';
+            }
+
+            const ahora = dayjs();
+            const duracion = ahora.diff(entrada, 'minute');
+
+            // Asegurar que la duración sea positiva
+            const duracionPositiva = Math.max(0, duracion);
+            const horas = Math.floor(duracionPositiva / 60);
+            const minutos = duracionPositiva % 60;
+
+            return `${horas}h ${minutos}m`;
+        } catch (error) {
+            console.error('Error calculando duración:', error, 'Hora entrada:', horaEntrada);
+            return '0h 0m';
+        }
     };
 
 

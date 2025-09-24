@@ -91,14 +91,38 @@ export default function FinalizarTurnoModal({ isOpen, onClose, onSuccess, turnoA
     const calcularDuracion = () => {
         if (!turnoActivo) return "0h 0m";
 
-        const entrada = dayjs(turnoActivo.tur_hora_entrada, 'HH:mm:ss');
-        const ahora = dayjs();
-        const duracion = ahora.diff(entrada, 'minute');
+        try {
+            // Intentar diferentes formatos para la hora de entrada
+            let entrada;
 
-        const horas = Math.floor(duracion / 60);
-        const minutos = duracion % 60;
+            // Si viene solo la hora (HH:mm:ss), combinar con fecha del turno
+            if (turnoActivo.tur_hora_entrada && turnoActivo.tur_hora_entrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+                const fechaTurno = turnoActivo.tur_fecha || dayjs().format('YYYY-MM-DD');
+                entrada = dayjs(`${fechaTurno} ${turnoActivo.tur_hora_entrada}`);
+            } else {
+                // Si viene con fecha completa o timestamp
+                entrada = dayjs(turnoActivo.tur_hora_entrada);
+            }
 
-        return `${horas}h ${minutos}m`;
+            // Verificar que la entrada sea válida
+            if (!entrada.isValid()) {
+                console.error('Hora de entrada inválida:', turnoActivo.tur_hora_entrada);
+                return '0h 0m';
+            }
+
+            const ahora = dayjs();
+            const duracion = ahora.diff(entrada, 'minute');
+
+            // Asegurar que la duración sea positiva
+            const duracionPositiva = Math.max(0, duracion);
+            const horas = Math.floor(duracionPositiva / 60);
+            const minutos = duracionPositiva % 60;
+
+            return `${horas}h ${minutos}m`;
+        } catch (error) {
+            console.error('Error calculando duración en modal:', error, 'Turno:', turnoActivo);
+            return '0h 0m';
+        }
     };
 
 
