@@ -169,30 +169,32 @@ export default function OperadorSimplePage() {
                     efectivo: { enabled: efectivoEnabled },
                     transfer: {
                         enabled: transferenciaEnabled,
-                        cbu: userSettings.bankAccountCbu || 'NO_CONFIGURADO',
-                        alias: userSettings.bankAccountAlias || 'NO_CONFIGURADO'
+                        cbu: userSettings.bankAccountCbu || '',
+                        alias: userSettings.bankAccountAlias || ''
                     },
                     mercadopago: {
                         enabled: mercadopagoEnabled,
-                        accessToken: userSettings.mercadopagoApiKey || 'NO_CONFIGURADO',
+                        accessToken: userSettings.mercadopagoApiKey || '',
                         // Para QR solo necesitamos accessToken, para link_pago necesitaríamos publicKey
                         // Por ahora usamos el mismo accessToken como publicKey para que funcionen ambos
-                        publicKey: userSettings.mercadopagoApiKey || 'NO_CONFIGURADO'
+                        publicKey: userSettings.mercadopagoApiKey || ''
                     }
                 };
 
                 console.log('🔧 Configuración final de pagos:', {
                     efectivo: settings.efectivo.enabled,
-                    transferencia: settings.transfer.enabled,
-                    mercadopago: settings.mercadopago.enabled,
+                    transferencia: settings.transfer.enabled && !!(settings.transfer.cbu && settings.transfer.alias),
+                    'qr/link_pago': settings.mercadopago.enabled && !!settings.mercadopago.accessToken,
                     'settings_completos': settings // Debug completo
                 });
 
                 // Debug adicional para QR específicamente
                 console.log('🔍 Debug QR:', {
                     mercadopagoEnabled,
-                    transferEnabled: transferenciaEnabled,
-                    effectivoEnabled: efectivoEnabled
+                    hasAccessToken: !!settings.mercadopago.accessToken,
+                    hasPublicKey: !!settings.mercadopago.publicKey,
+                    accessToken: settings.mercadopago.accessToken,
+                    publicKey: settings.mercadopago.publicKey
                 });
 
                 setPaymentSettings(settings);
