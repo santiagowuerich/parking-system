@@ -116,7 +116,7 @@ const ownerNavigationItems = [
         description: "Ver estado de todas las plazas"
     },
     {
-        title: "Configuración Avanzada",
+        title: "Configuración Tipo de Plazas",
         href: "/dashboard/plazas/configuracion-avanzada",
         icon: Settings,
         description: "Gestionar plantillas de plazas"

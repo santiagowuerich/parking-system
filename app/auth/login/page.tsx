@@ -53,7 +53,7 @@ function LoginForm() {
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="mb-8">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqeo</span>
+        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
       </div>
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
