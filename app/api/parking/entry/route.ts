@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // - Si se especifica pla_numero explícitamente, usarlo
     // - Si NO se especifica, usar NULL para representar "sin plaza asignada"
     let plazaNumero = null; // null = sin plaza asignada
-    
+
     if (pla_numero && !isNaN(Number(pla_numero)) && Number(pla_numero) > 0) {
       plazaNumero = Number(pla_numero);
       console.log(`🏁 Plaza especificada: ${plazaNumero}`);
@@ -82,6 +82,22 @@ export async function POST(request: NextRequest) {
         );
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Si se asignó una plaza específica, actualizar su estado a 'Ocupada'
+    if (plazaNumero) {
+      const { error: plazaUpdateError } = await supabase
+        .from('plazas')
+        .update({ pla_estado: 'Ocupada' })
+        .eq('est_id', estId)
+        .eq('pla_numero', plazaNumero);
+
+      if (plazaUpdateError) {
+        console.warn('❌ Error actualizando estado de plaza:', plazaUpdateError);
+        // No fallar la operación principal, pero registrar el error
+      } else {
+        console.log(`✅ Plaza ${plazaNumero} marcada como ocupada`);
+      }
     }
 
     const jsonResponse = NextResponse.json({ success: true, data });

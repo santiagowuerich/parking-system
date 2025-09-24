@@ -30,7 +30,8 @@ import {
     Wallet,
     Moon,
     Sun,
-    Monitor
+    Monitor,
+    Clock
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -49,6 +50,12 @@ const employeeNavigationItems = [
         href: "/dashboard/operador-simple",
         icon: ParkingCircle,
         description: "Gestión de estacionamientos"
+    },
+    {
+        title: "Gestión de Turnos",
+        href: "/dashboard/turnos",
+        icon: Clock,
+        description: "Registrar entrada y salida de turnos"
     },
     {
         title: "Perfil",

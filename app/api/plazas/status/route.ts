@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
 
     const occupiedSet = new Set<number>((ocup || []).map(o => o.pla_numero as number));
 
+
     // 4. Detectar si hay zonas configuradas
     const hasZones = (plazas || []).some(p => p.pla_zona !== null && p.pla_zona !== '');
 

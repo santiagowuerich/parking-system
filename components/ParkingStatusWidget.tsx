@@ -54,12 +54,32 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
         // Primero intentar encontrar en parkings
         const fromParkings = parkings.find(p => p.est_id === estId);
         if (fromParkings) {
+            console.log('✅ Estacionamiento encontrado en parkings:', fromParkings);
             setEstacionamientoActual(fromParkings);
             return;
         }
 
-        // Si no está en parkings, crear un objeto básico con la información disponible
-        if (parkingCapacity) {
+        // Si no está en parkings, intentar cargar datos directamente desde API
+        const cargarNombreEstacionamiento = async () => {
+            try {
+                console.log('🔄 Cargando nombre del estacionamiento desde API...');
+                const response = await fetch(`/api/auth/list-parkings`);
+                const data = await response.json();
+
+                if (data.estacionamientos && data.estacionamientos.length > 0) {
+                    const estacionamiento = data.estacionamientos.find(e => e.est_id === estId);
+                    if (estacionamiento) {
+                        console.log('✅ Estacionamiento encontrado vía API:', estacionamiento.est_nombre);
+                        setEstacionamientoActual(estacionamiento);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error cargando nombre del estacionamiento:', error);
+            }
+
+            // Fallback si no se puede obtener el nombre real
+            console.log('⚠️ Usando fallback para estacionamiento', estId);
             setEstacionamientoActual({
                 est_id: estId,
                 est_nombre: `Estacionamiento ${estId}`,
@@ -67,7 +87,9 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
                 est_locali: '',
                 est_direc: ''
             });
-        }
+        };
+
+        cargarNombreEstacionamiento();
     }, [estId, parkings, parkingCapacity]);
 
     // Función para refrescar datos

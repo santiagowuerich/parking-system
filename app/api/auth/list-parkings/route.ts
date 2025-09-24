@@ -105,76 +105,20 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Error consultando estacionamientos" }, { status: 500 });
         }
 
-        // Usar función RPC optimizada para obtener métricas agregadas
+        // Calcular métricas directamente desde la tabla plazas (mismo método que /api/plazas)
         let estacionamientosData = [];
         if (estacionamientosBasicos && estacionamientosBasicos.length > 0) {
-            if (isDueno) {
-                // Para dueños: usar función RPC optimizada
-                const { data: parkingData, error: rpcError } = await supabase
-                    .rpc('list_user_parkings', { p_user_email: userEmail });
-
-                if (rpcError) {
-                    logger.error('Error obteniendo estacionamientos con RPC:', rpcError);
-                    // Fallback a consultas directas si RPC falla
-                    estacionamientosData = await Promise.all(
-                        estacionamientosBasicos.map(async (est) => {
-                            try {
-                                const { data: plazasData, error: plazasError } = await supabase
-                                    .from('plazas')
-                                    .select('pla_estado')
-                                    .eq('est_id', est.est_id);
-
-                                if (plazasError) {
-                                    logger.error(`Error obteniendo plazas para ${est.est_id}:`, plazasError);
-                                    return {
-                                        ...est,
-                                        plazas_total: 0,
-                                        plazas_ocupadas: 0,
-                                        plazas_libres: 0,
-                                        ingreso_hoy: 0,
-                                        vehiculos_activos: 0
-                                    };
-                                }
-
-                                const total = plazasData?.length || 0;
-                                const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
-                                const libres = total - ocupadas;
-
-                                return {
-                                    ...est,
-                                    plazas_total: total,
-                                    plazas_ocupadas: ocupadas,
-                                    plazas_libres: libres,
-                                    ingreso_hoy: 0,
-                                    vehiculos_activos: ocupadas
-                                };
-                            } catch (error) {
-                                logger.error(`Error procesando estacionamiento ${est.est_id}:`, error);
-                                return {
-                                    ...est,
-                                    plazas_total: 0,
-                                    plazas_ocupadas: 0,
-                                    plazas_libres: 0,
-                                    ingreso_hoy: 0,
-                                    vehiculos_activos: 0
-                                };
-                            }
-                        })
-                    );
-                } else {
-                    estacionamientosData = parkingData || [];
-                }
-            } else {
-                // Para empleados: calcular métricas básicas (solo un estacionamiento)
-                estacionamientosData = await Promise.all(
-                    estacionamientosBasicos.map(async (est) => {
+            // Usar consulta directa para todos los casos (dueños y empleados)
+            estacionamientosData = await Promise.all(
+                estacionamientosBasicos.map(async (est) => {
+                    try {
                         const { data: plazasData, error: plazasError } = await supabase
                             .from('plazas')
                             .select('pla_estado')
                             .eq('est_id', est.est_id);
 
                         if (plazasError) {
-                            logger.error(`Error obteniendo plazas para empleado ${est.est_id}:`, plazasError);
+                            logger.error(`Error obteniendo plazas para ${est.est_id}:`, plazasError);
                             return {
                                 ...est,
                                 plazas_total: 0,
@@ -189,17 +133,29 @@ export async function GET(request: NextRequest) {
                         const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
                         const libres = total - ocupadas;
 
+                        logger.debug(`Estacionamiento ${est.est_id}: ${total} total, ${ocupadas} ocupadas, ${libres} libres`);
+
                         return {
                             ...est,
                             plazas_total: total,
                             plazas_ocupadas: ocupadas,
                             plazas_libres: libres,
-                            ingreso_hoy: 0, // Empleados no necesitan ver ingresos
-                            vehiculos_activos: ocupadas // Aproximación
+                            ingreso_hoy: 0,
+                            vehiculos_activos: ocupadas
                         };
-                    })
-                );
-            }
+                    } catch (error) {
+                        logger.error(`Error procesando estacionamiento ${est.est_id}:`, error);
+                        return {
+                            ...est,
+                            plazas_total: 0,
+                            plazas_ocupadas: 0,
+                            plazas_libres: 0,
+                            ingreso_hoy: 0,
+                            vehiculos_activos: 0
+                        };
+                    }
+                })
+            );
         }
 
         logger.debug(`Usuario ${userEmail} tiene ${estacionamientosData?.length || 0} estacionamiento(s)`);

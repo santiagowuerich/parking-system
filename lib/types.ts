@@ -19,7 +19,9 @@ export interface ParkingHistory extends Omit<Vehicle, 'entry_time'> {
   exit_time: string
   duration: number // en milisegundos
   fee: number
-  payment_method: string
+  payment_method: 'efectivo' | 'transferencia' | 'link_pago' | 'qr'
+  payment_id?: string
+  payment_status?: 'pendiente' | 'aprobado' | 'rechazado' | 'expirado' | 'cancelado'
 }
 
 export interface Parking {
@@ -53,4 +55,7 @@ export interface PlantillaForm {
   catv_segmento: 'AUT' | 'MOT' | 'CAM'
   caracteristica_ids: number[]
 }
+
+// Re-exportar tipos de pago
+export * from './types/payment';
 

@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Car, Bike, Truck, Settings } from "lucide-react";
 import { formatTime } from "@/lib/utils";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface Vehicle {
     license_plate: string;
@@ -61,9 +67,17 @@ export function SimpleVehicleList({
     };
 
     const formatDuration = (entryTime: string) => {
-        const now = new Date();
-        const entry = new Date(entryTime);
-        const diffMs = now.getTime() - entry.getTime();
+        // Los datos en BD están en UTC (timestamp without time zone)
+        // Interpretar como UTC y luego convertir a zona local para cálculo
+        const now = dayjs();
+        const entry = dayjs.utc(entryTime).local();
+        const diffMs = now.diff(entry);
+
+        // Evitar tiempos negativos
+        if (diffMs < 0) {
+            return '0m';
+        }
+
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 

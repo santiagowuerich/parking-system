@@ -518,15 +518,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isInitialized) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
+      const isDashboardRoot = pathname === "/dashboard";
 
       if (!user && !isAuthRoute) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
-        // Redirigir inmediatamente si tenemos usuario autenticado
-        router.push("/dashboard/parking");
+        // Redirigir según el rol del usuario después del login
+        if (userRole === 'playero') {
+          router.push("/dashboard/operador-simple");
+        } else if (userRole === 'owner') {
+          router.push("/dashboard/parking");
+        } else {
+          // Si aún no tenemos el rol, redirigir al dashboard genérico
+          router.push("/dashboard");
+        }
+      } else if (user && userRole === 'playero' && isDashboardRoot) {
+        // Si es empleado y está en dashboard root, redirigir inmediatamente
+        router.push("/dashboard/operador-simple");
       }
     }
-  }, [user, isInitialized, pathname, router]);
+  }, [user, userRole, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
@@ -786,7 +797,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const timeoutId = setTimeout(() => {
       fetchUserRole();
-    }, 800);
+    }, 200);
 
     return () => clearTimeout(timeoutId);
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
@@ -877,6 +888,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [supabase, router]);
+
+  // Listener para actualizaciones manuales de parkedVehicles
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleUpdateParkedVehicles = (event: CustomEvent) => {
+      console.log('🔄 Actualizando parkedVehicles manualmente:', event.detail);
+      setParkedVehicles(event.detail);
+    };
+
+    window.addEventListener('updateParkedVehicles', handleUpdateParkedVehicles as EventListener);
+
+    return () => {
+      window.removeEventListener('updateParkedVehicles', handleUpdateParkedVehicles as EventListener);
+    };
+  }, []);
 
   const signUp = async ({ email, password, name }: SignUpParams) => {
     try {
