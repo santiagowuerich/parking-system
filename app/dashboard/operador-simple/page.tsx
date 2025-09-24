@@ -23,6 +23,30 @@ import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 
+// Componente de reloj pequeño
+const Clock = () => {
+    const [currentTime, setCurrentTime] = useState<string>('');
+
+    useEffect(() => {
+        const updateTime = () => {
+            const now = dayjs().tz('America/Argentina/Buenos_Aires');
+            setCurrentTime(now.format('HH:mm:ss'));
+        };
+
+        updateTime();
+        const interval = setInterval(updateTime, 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-lg border">
+            <span className="text-sm font-medium text-gray-700">🇦🇷</span>
+            <span className="text-sm font-mono text-gray-900">{currentTime}</span>
+        </div>
+    );
+};
+
 type ExitInfo = {
     vehicle: Vehicle;
     fee: number;
@@ -1120,6 +1144,11 @@ export default function OperadorSimplePage() {
                 {/* Header */}
                 <div className="bg-white">
                     <div className="max-w-7xl mx-auto px-6 py-6">
+                        {/* Reloj en la esquina superior derecha */}
+                        <div className="flex justify-end mb-4">
+                            <Clock />
+                        </div>
+
                         {/* Navegación centrada */}
                         <div className="flex justify-center space-x-4">
                             <button
