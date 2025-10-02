@@ -226,7 +226,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     return (
         <div className={cn(
             "flex h-full flex-col border-r bg-card",
-            collapsed ? "w-16" : "w-64",
+            collapsed ? "w-16" : "w-72",
             className
         )}>
             {/* Header */}
@@ -297,7 +297,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <ScrollArea className={cn("flex-1", collapsed ? "px-1 py-4" : "px-3 py-4")}>
+            <ScrollArea className={cn("flex-1", collapsed ? "px-1 py-4" : "px-4 py-4")}>
                 <TooltipProvider delayDuration={0}>
                     {/* Widget compacto con nombre de estacionamiento - solo visible cuando está expandido */}
                     {!collapsed && (
@@ -330,7 +330,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                                     <Button
                                                         variant={isActive ? "secondary" : "ghost"}
                                                         className={cn(
-                                                            "w-full h-11 flex items-center justify-center p-0 rounded-md",
+                                                            "w-full h-11 flex items-center justify-center p-0 rounded-lg mx-1",
                                                             isActive && "bg-secondary"
                                                         )}
                                                     >
@@ -376,7 +376,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                             <Button
                                                 variant={isActive ? "secondary" : "ghost"}
                                                 className={cn(
-                                                    "w-full h-11 flex items-center justify-center p-0 rounded-md",
+                                                    "w-full h-11 flex items-center justify-center p-0 rounded-lg mx-1",
                                                     isActive && "bg-secondary"
                                                 )}
                                                 onClick={() => handleNavigation(item.href)}
@@ -397,7 +397,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     <Button
                                         variant={isActive && !hasSubItems ? "secondary" : "ghost"}
                                         className={cn(
-                                            "w-full justify-start h-auto p-3 px-3",
+                                            "w-full justify-start h-auto p-3 px-3 rounded-lg mx-1",
                                             isActive && !hasSubItems && "bg-secondary"
                                         )}
                                         onClick={() => {
@@ -428,7 +428,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                                         key={subItem.href}
                                                         variant={isSubActive ? "secondary" : "ghost"}
                                                         className={cn(
-                                                            "w-full justify-start p-2",
+                                                            "w-full justify-start p-2 rounded-lg",
                                                             isSubActive && "bg-secondary"
                                                         )}
                                                         onClick={() => handleNavigation(subItem.href)}
@@ -457,7 +457,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                         {collapsed && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <div className="w-full h-11 flex items-center justify-center cursor-pointer hover:bg-accent rounded-md transition-colors">
+                                    <div className="w-full h-11 flex items-center justify-center cursor-pointer hover:bg-accent rounded-lg transition-colors">
                                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                                             <User className="h-4 w-4 text-primary" />
                                         </div>
@@ -473,7 +473,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                 <TooltipTrigger asChild>
                                     <Button
                                         variant="ghost"
-                                        className="w-full h-11 flex items-center justify-center p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 rounded-md"
+                                        className="w-full h-11 flex items-center justify-center p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg"
                                         onClick={handleLogout}
                                     >
                                         <LogOut className="h-5 w-5" />

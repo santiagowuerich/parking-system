@@ -122,12 +122,12 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
 
     if (!estId) {
         return (
-            <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0"></div>
-                        <span className="text-sm text-gray-500">Sin estacionamiento</span>
+            <div className={`bg-card border rounded-lg ${className}`}>
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-2 h-2 rounded-full bg-muted-foreground/30 flex-shrink-0"></div>
+                        <span className="text-sm text-muted-foreground">Sin estacionamiento</span>
                     </div>
                 </div>
             </div>
@@ -139,12 +139,12 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
     // Si tenemos estId pero no estacionamientoActual ni capacidad, mostrar estado de carga
     if (estId && !estacionamientoActual && !parkingCapacity) {
         return (
-            <div className={`bg-white border border-gray-200 rounded-lg ${className}`}>
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                    <Loader2 className="h-3.5 w-3.5 text-gray-400 animate-spin" />
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0"></div>
-                        <span className="text-sm text-gray-500">Cargando...</span>
+            <div className={`bg-card border rounded-lg ${className}`}>
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                    <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-2 h-2 rounded-full bg-muted-foreground/30 flex-shrink-0"></div>
+                        <span className="text-sm text-muted-foreground">Cargando...</span>
                     </div>
                 </div>
             </div>
@@ -157,18 +157,18 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
 
     return (
         <div
-            className={`bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer ${className}`}
+            className={`bg-card border rounded-lg hover:bg-accent/80 transition-colors cursor-pointer shadow-sm ${className}`}
             onClick={handleClick}
         >
-            <div className="flex items-center gap-2 px-2 py-1.5">
-                <MapPin className="h-3.5 w-3.5 text-gray-600 flex-shrink-0" />
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${occupancyRate >= 90 ? 'bg-red-500' :
+            <div className="flex items-center gap-2 px-3 py-2.5">
+                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${occupancyRate >= 90 ? 'bg-red-500' :
                         occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
                         }`}></div>
-                    <div className="text-sm font-medium text-gray-900 truncate">
+                    <span className="text-sm font-medium text-foreground truncate">
                         {estacionamientoActual?.est_nombre || `Estacionamiento ${estId}`}
-                    </div>
+                    </span>
                 </div>
             </div>
         </div>
