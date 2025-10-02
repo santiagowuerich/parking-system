@@ -66,6 +66,10 @@ const employeeNavigationItems = [
             {
                 title: "Información",
                 href: "/dashboard/operador-simple"
+            },
+            {
+                title: "Movimientos",
+                href: "/dashboard/movimientos"
             }
         ]
     },
@@ -104,6 +108,10 @@ const ownerNavigationItems = [
             {
                 title: "Información",
                 href: "/dashboard/operador-simple"
+            },
+            {
+                title: "Movimientos",
+                href: "/dashboard/movimientos"
             }
         ]
     },
