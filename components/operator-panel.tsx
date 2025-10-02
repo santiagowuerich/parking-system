@@ -14,8 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
+import { CheckCircle2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ThemeToggle } from "./theme-toggle"
@@ -100,16 +99,10 @@ export default function OperatorPanel({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
   const { estId } = useAuth();
-  const [plaNumero, setPlaNumero] = useState<string>("")
   const [plazasStatus, setPlazasStatus] = useState<{ [seg: string]: { total: number, occupied: number, free: number, plazas: { pla_numero: number, occupied: boolean }[] } } | null>(null)
   const [selectedPlazasType, setSelectedPlazasType] = useState<{ pla_numero: number, occupied: boolean }[]>([])
 
-  const [licensePlate, setLicensePlate] = useState("")
-  const [selectedType, setSelectedType] = useState<VehicleType>("Auto")
-  const [error, setError] = useState("")
   const [processingExit, setProcessingExit] = useState<string | null>(null)
-  const [showExitConfirmation, setShowExitConfirmation] = useState(false)
-  const [selectedPlaza, setSelectedPlaza] = useState<any>(null)
 
   // Estados para los nuevos modales
   const [showActionsModal, setShowActionsModal] = useState(false)
@@ -118,12 +111,6 @@ export default function OperatorPanel({
   const [selectedPlazaForActions, setSelectedPlazaForActions] = useState<any>(null)
   const [selectedVehicleForMove, setSelectedVehicleForMove] = useState<Vehicle | null>(null)
   const [modalLoading, setModalLoading] = useState(false)
-
-  // Nueva funcionalidad: Selección de duración mínima
-  const [selectedDuration, setSelectedDuration] = useState<string>("hora")
-  const [agreedPrice, setAgreedPrice] = useState<number | null>(null)
-  const [showDurationSelector, setShowDurationSelector] = useState(false)
-  const [availableTariffs, setAvailableTariffs] = useState<any[]>([])
 
   // Cargar tarifas de una plantilla específica
   const loadTariffsForPlaza = async (plantillaId: number) => {
@@ -158,7 +145,6 @@ export default function OperatorPanel({
         ]
       }
 
-      setAvailableTariffs(tariffs)
       return tariffs
     } catch (error) {
       console.error('Error loading tariffs for plaza:', error)
@@ -251,16 +237,12 @@ export default function OperatorPanel({
 
       setPlazasStatus(transformedData);
 
-      // Actualizar plazas del tipo seleccionado
-      const seg = selectedType === 'Moto' ? 'MOT' : selectedType === 'Camioneta' ? 'CAM' : 'AUT';
-      setSelectedPlazasType(transformedData[seg]?.plazas || []);
+      // Actualizar plazas del tipo seleccionado (simplificado)
+      setSelectedPlazasType([]);
     }
-  }, [plazasData, selectedType]);
+  }, [plazasData]);
 
-  // Inicializar con tarifas vacías (se cargarán cuando se seleccione una plaza)
-  useEffect(() => {
-    setAvailableTariffs([])
-  }, [estId])
+  // Inicializar estado (ya no se usa availableTariffs)
 
   // ELIMINADO: Cargar al iniciar (ya se maneja desde operador-simple)
   // Solo se activará manualmente cuando sea necesario
@@ -286,65 +268,6 @@ export default function OperatorPanel({
     console.log('🔄 Actualizando visualización por cambio en vehículos estacionados');
   }, [parking.parkedVehicles])
 
-  const handleEntrySubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-
-    if (!licensePlate.trim()) {
-      setError("La matrícula es obligatoria")
-      return
-    }
-
-    if (parking.parkedVehicles.some((v) => v.license_plate === licensePlate)) {
-      setError("Ya existe un vehículo con esta matrícula en el estacionamiento")
-      return
-    }
-
-    // Ahora es obligatorio seleccionar una plaza
-    if (!selectedPlaza) {
-      setError("Debe seleccionar una plaza")
-      return
-    }
-
-    // Verificar que la plaza esté realmente libre
-    if (selectedPlaza.pla_estado !== 'Libre') {
-      setError(`La plaza ${selectedPlaza.pla_numero} ya no está disponible`)
-      return
-    }
-
-    // El tipo de vehículo se determina automáticamente por la plaza
-    const chosen = selectedPlaza.pla_numero;
-
-    if (!chosen || chosen <= 0) {
-      setError("Número de plaza inválido")
-      return
-    }
-
-    console.log('🏁 Registrando entrada:', {
-      license_plate: licensePlate,
-      type: selectedType,
-      pla_numero: chosen,
-      plaNumeroSelected: plaNumero,
-      selectedPlaza: selectedPlaza
-    });
-
-    onRegisterEntry({
-      license_plate: licensePlate,
-      type: selectedType,
-      pla_numero: chosen,
-      duracion_tipo: selectedDuration,
-      precio_acordado: agreedPrice || 0,
-    })
-
-    // Limpiar formulario
-    setLicensePlate("")
-    setSelectedType("Auto")
-    setPlaNumero("")
-    setSelectedPlaza(null)
-    setShowDurationSelector(false)
-    setAgreedPrice(null)
-    setSelectedDuration("hora")
-  }
 
   const handleExit = async (vehicle: Vehicle) => {
     if (processingExit === vehicle.license_plate) return
@@ -366,34 +289,15 @@ export default function OperatorPanel({
     ).sort((a, b) => a.pla_numero - b.pla_numero);
   };
 
-  // Función para manejar selección de plaza
+  // Función para manejar selección de plaza (simplificada, solo para mostrar información)
   const handlePlazaSelection = (plazaNumero: string) => {
-    setPlaNumero(plazaNumero);
-
     if (plazaNumero) {
       // Encontrar la plaza seleccionada
       const plaza = plazasCompletas.find(p => p.pla_numero === Number(plazaNumero));
-      setSelectedPlaza(plaza);
-
       if (plaza) {
-        // Si la plaza tiene plantilla, usar el tipo de vehículo de la plantilla
-        if (plaza.plantillas && plaza.plantillas.catv_segmento) {
-          const tipoVehiculo = mapearTipoVehiculo(plaza.plantillas.catv_segmento);
-          setSelectedType(tipoVehiculo);
-        }
-        // Si no tiene plantilla, usar el tipo de vehículo de la plaza
-        else if (plaza.catv_segmento) {
-          const tipoVehiculo = mapearTipoVehiculo(plaza.catv_segmento);
-          setSelectedType(tipoVehiculo);
-        }
-
-        // Activar selector de duración cuando se selecciona una plaza
-        setShowDurationSelector(true);
+        // Solo mostrar información, no cambiar tipos ni activar selectores
+        toast.success(`Plaza ${plaza.pla_numero} seleccionada`);
       }
-    } else {
-      setSelectedPlaza(null);
-      setShowDurationSelector(false);
-      setAgreedPrice(null);
     }
   };
 
@@ -800,102 +704,7 @@ export default function OperatorPanel({
 
   return (
     <div className="relative flex flex-col gap-4 p-4">
-      <div className="absolute top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
-
-      {/* 1. REGISTRAR ENTRADA - PRIMERO */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Registrar Entrada</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleEntrySubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive" className="dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="licensePlate" className="dark:text-zinc-400">Matrícula</Label>
-                <Input
-                  id="licensePlate"
-                  value={licensePlate}
-                  onChange={(e) => setLicensePlate(e.target.value)}
-                  placeholder="Ej: ABC123"
-                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="dark:text-zinc-400">Seleccionar Plaza (determina el tipo de vehículo)</Label>
-                <Select value={plaNumero} onValueChange={handlePlazaSelection}>
-                  <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                    <SelectValue placeholder={getPlazasLibres().length > 0 ? `Elegir plaza (${getPlazasLibres().length} disponibles)` : 'No hay plazas libres'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getPlazasLibres().map(plaza => (
-                      <SelectItem key={`plaza-${plaza.pla_numero}`} value={String(plaza.pla_numero)}>
-                        <div className="flex items-center gap-2">
-                          <span>Plaza #{plaza.pla_numero}</span>
-                          {plaza.plantillas && (
-                            <Badge variant="secondary" className="text-xs">
-                              {mapearTipoVehiculo(plaza.plantillas.catv_segmento)} - {plaza.plantillas.nombre_plantilla}
-                            </Badge>
-                          )}
-                          {!plaza.plantillas && plaza.catv_segmento && (
-                            <Badge variant="outline" className="text-xs">
-                              {mapearTipoVehiculo(plaza.catv_segmento)}
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedPlaza && (
-                  <p className="text-xs text-blue-400">
-                    Tipo de vehículo: {selectedType}
-                    {selectedPlaza.plantillas && ` (plantilla: ${selectedPlaza.plantillas.nombre_plantilla})`}
-                  </p>
-                )}
-              </div>
-
-              {/* Selector de duración mínima */}
-              {showDurationSelector && (
-                <div className="space-y-2">
-                  <Label className="dark:text-zinc-400">Duración Mínima</Label>
-                  <Select value={selectedDuration} onValueChange={setSelectedDuration}>
-                    <SelectTrigger className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100">
-                      <SelectValue placeholder="Seleccionar duración" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hora">1 Hora</SelectItem>
-                      <SelectItem value="dia">1 Día (24 horas)</SelectItem>
-                      <SelectItem value="semana">1 Semana (7 días)</SelectItem>
-                      <SelectItem value="mes">1 Mes (30 días)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full dark:bg-white dark:text-black dark:hover:bg-gray-200"
-              disabled={!selectedPlaza}
-            >
-              {selectedPlaza ? `Registrar Entrada en Plaza ${selectedPlaza.pla_numero}` : 'Seleccionar Plaza para Continuar'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* 2. VISUALIZACIÓN PLAZAS - SEGUNDO */}
+      {/* 1. VISUALIZACIÓN PLAZAS - PRIMERO */}
       {loadingPlazas || loadingPlazasCompletas ? (
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
@@ -982,7 +791,7 @@ export default function OperatorPanel({
         </Card>
       )}
 
-      {/* 3. VEHÍCULOS ESTACIONADOS - TERCERO */}
+      {/* 2. VEHÍCULOS ESTACIONADOS - SEGUNDO */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Vehículos Estacionados</CardTitle>
@@ -1077,7 +886,8 @@ export default function OperatorPanel({
         </CardContent>
       </Card>
 
-      {/* 4. ÚLTIMOS MOVIMIENTOS - ÚLTIMO */}
+      {/* 3. ÚLTIMOS MOVIMIENTOS - ELIMINADO - Se moverá a su propia página */}
+      {/*
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
@@ -1138,6 +948,7 @@ export default function OperatorPanel({
           </Table>
         </CardContent>
       </Card>
+      */}
 
       {/* Espacios Disponibles */}
       {/* 
@@ -1194,7 +1005,7 @@ export default function OperatorPanel({
         onClose={handleCloseModals}
         onConfirm={handleConfirmIngreso}
         loading={modalLoading}
-        tarifas={availableTariffs}
+        tarifas={[]}
         availablePlazas={plazasCompletas}
       />
 

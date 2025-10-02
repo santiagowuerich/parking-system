@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { DashboardLayout } from "@/components/dashboard-layout";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import OperatorPanel from "@/components/operator-panel";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -23,29 +23,6 @@ import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 
-// Componente de reloj pequeño
-const Clock = () => {
-    const [currentTime, setCurrentTime] = useState<string>('');
-
-    useEffect(() => {
-        const updateTime = () => {
-            const now = dayjs().tz('America/Argentina/Buenos_Aires');
-            setCurrentTime(now.format('HH:mm:ss'));
-        };
-
-        updateTime();
-        const interval = setInterval(updateTime, 1000);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    return (
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-lg border">
-            <span className="text-sm font-medium text-gray-700">🇦🇷</span>
-            <span className="text-sm font-mono text-gray-900">{currentTime}</span>
-        </div>
-    );
-};
 
 type ExitInfo = {
     vehicle: Vehicle;
@@ -565,7 +542,7 @@ export default function OperadorSimplePage() {
 
             // Calcular tarifa
             const entryTime = dayjs.utc(ocupacion.entry_time).local();
-            const exitTime = dayjs();
+            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
             const durationMs = exitTime.diff(entryTime);
             const durationHours = durationMs / (1000 * 60 * 60);
 
@@ -1082,204 +1059,199 @@ export default function OperadorSimplePage() {
     // Estado de carga general: mientras se cargan datos críticos
     if (loading || roleLoading || !user || (estId && (!parkedVehicles && !parkingCapacity))) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="flex items-center justify-center h-64">
-                        <div className="text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                            <p className="text-gray-600">Cargando panel de operador...</p>
+            <div className="flex h-screen bg-background">
+                <DashboardSidebar />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <main className="flex-1 overflow-auto">
+                        <div className="p-6">
+                            <div className="flex items-center justify-center h-64">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                                    <p className="text-gray-600">Cargando panel de operador...</p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </main>
                 </div>
-            </DashboardLayout>
+            </div>
         );
     }
 
     // Si no hay estId después de cargar, mostrar mensaje apropiado según el rol
     if (!estId) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="text-center py-12">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
-                        <p className="text-gray-600 mb-6">
-                            {canOperateParking ?
-                                "Selecciona un estacionamiento para acceder al panel de operador" :
-                                "No tienes acceso a estacionamientos disponibles"
-                            }
-                        </p>
-                        {canOperateParking && (
-                            <button
-                                onClick={() => router.push('/dashboard/parking')}
-                                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                Ir a Mis Estacionamientos
-                            </button>
-                        )}
-                    </div>
+            <div className="flex h-screen bg-background">
+                <DashboardSidebar />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <main className="flex-1 overflow-auto">
+                        <div className="p-6">
+                            <div className="text-center py-12">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
+                                <p className="text-gray-600 mb-6">
+                                    {canOperateParking ?
+                                        "Selecciona un estacionamiento para acceder al panel de operador" :
+                                        "No tienes acceso a estacionamientos disponibles"
+                                    }
+                                </p>
+                                {canOperateParking && (
+                                    <button
+                                        onClick={() => router.push('/dashboard/parking')}
+                                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        Ir a Mis Estacionamientos
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </main>
                 </div>
-            </DashboardLayout>
+            </div>
         );
     }
 
     if (!parking) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="text-center py-12">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
-                        <p className="text-gray-600 mb-6">
-                            Cargando datos del estacionamiento...
-                        </p>
-                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-                    </div>
+            <div className="flex h-screen bg-background">
+                <DashboardSidebar />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <main className="flex-1 overflow-auto">
+                        <div className="p-6">
+                            <div className="text-center py-12">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
+                                <p className="text-gray-600 mb-6">
+                                    Cargando datos del estacionamiento...
+                                </p>
+                                <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                            </div>
+                        </div>
+                    </main>
                 </div>
-            </DashboardLayout>
+            </div>
         );
     }
 
     return (
-        <DashboardLayout>
-            <div className="min-h-screen bg-white">
-                {/* Header */}
-                <div className="bg-white">
-                    <div className="max-w-7xl mx-auto px-6 py-6">
-                        {/* Reloj en la esquina superior derecha */}
-                        <div className="flex justify-end mb-4">
-                            <Clock />
-                        </div>
+        <div className="flex h-screen bg-background">
+            <DashboardSidebar />
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <main className="flex-1 overflow-auto">
+                    <div className="min-h-screen bg-white">
+                        <div className="p-6 space-y-6">
+                            {/* Panel de Operador Original */}
+                            <OperatorPanel
+                                parking={parking}
+                                availableSpaces={getAvailableSpaces()}
+                                onRegisterEntry={registerEntry}
+                                onRegisterExit={handleExit}
+                                exitInfo={exitInfo}
+                                setExitInfo={setExitInfo}
+                                plazasData={plazasData}
+                                loadingPlazas={loadingPlazas}
+                                fetchPlazasStatus={fetchDashboardData}
+                                onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
+                                // Nuevas props para visualización rica
+                                plazasCompletas={plazasCompletas}
+                                loadingPlazasCompletas={loadingPlazasCompletas}
+                                getEstadoColor={getEstadoColor}
+                                getEstadoIcon={getEstadoIcon}
+                                refreshParkedVehicles={refreshParkedVehicles}
+                            />
 
-                        {/* Navegación centrada */}
-                        <div className="flex justify-center space-x-4">
-                            <button
-                                onClick={() => router.push('/dashboard/operador')}
-                                className="px-6 py-3 rounded-lg font-medium transition-colors text-gray-600 hover:text-gray-900"
-                            >
-                                Ingreso / Egreso
-                            </button>
-                            <button
-                                className="px-6 py-3 rounded-lg font-medium transition-colors bg-gray-200 text-gray-900"
-                            >
-                                Información
-                            </button>
                         </div>
                     </div>
-                </div>
 
-                <div className="p-6 space-y-6">
-                    {/* Panel de Operador Original */}
-                    <OperatorPanel
-                        parking={parking}
-                        availableSpaces={getAvailableSpaces()}
-                        onRegisterEntry={registerEntry}
-                        onRegisterExit={handleExit}
-                        exitInfo={exitInfo}
-                        setExitInfo={setExitInfo}
-                        plazasData={plazasData}
-                        loadingPlazas={loadingPlazas}
-                        fetchPlazasStatus={fetchDashboardData}
-                        onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
-                        // Nuevas props para visualización rica
-                        plazasCompletas={plazasCompletas}
-                        loadingPlazasCompletas={loadingPlazasCompletas}
-                        getEstadoColor={getEstadoColor}
-                        getEstadoIcon={getEstadoIcon}
-                        refreshParkedVehicles={refreshParkedVehicles}
+                    {/* Modales del sistema de pagos */}
+                    <PaymentMethodSelector
+                        isOpen={showPaymentSelector}
+                        onClose={closePaymentModals}
+                        onSelectMethod={handlePaymentMethodSelect}
+                        paymentData={paymentData}
+                        loading={paymentLoading}
+                        paymentSettings={paymentSettings}
                     />
 
-                </div>
+
+                    <TransferInfoDialog
+                        isOpen={showTransferDialog}
+                        onClose={closePaymentModals}
+                        onConfirmTransfer={async () => {
+                            if (!paymentData) return;
+
+                            setPaymentLoading(true);
+                            try {
+                                // Log para auditoría del operador confirmando transferencia
+                                console.log('💰 Operador confirmó recepción de transferencia:', {
+                                    vehicle: paymentData.vehicleLicensePlate,
+                                    amount: formatCurrency(paymentData.amount),
+                                    operator: user?.email
+                                });
+
+                                toast({
+                                    title: "Transferencia confirmada",
+                                    description: `Pago de ${formatCurrency(paymentData.amount)} confirmado por el operador`
+                                });
+
+                                // Finalizar salida del vehículo
+                                await finalizeVehicleExit(paymentData);
+                                closePaymentModals();
+                            } catch (error) {
+                                console.error('Error confirmando transferencia:', error);
+                                toast({
+                                    variant: "destructive",
+                                    title: "Error",
+                                    description: "No se pudo confirmar la transferencia"
+                                });
+                            } finally {
+                                setPaymentLoading(false);
+                            }
+                        }}
+                        paymentData={{
+                            amount: paymentData?.amount || 0,
+                            vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                            paymentId: generatePaymentId(),
+                            duration: paymentData ? formatDuration(paymentData.duration) : ''
+                        }}
+                        transferConfig={{
+                            cbu: '0170020510000001234567', // TODO: Obtener de configuración
+                            alias: 'PARKING.EJEMPLO',
+                            accountHolder: 'Estacionamiento Ejemplo S.A.',
+                            bank: 'Banco Ejemplo'
+                        }}
+                        loading={paymentLoading}
+                    />
+
+                    <QRPaymentDialog
+                        isOpen={showQRDialog}
+                        onClose={closePaymentModals}
+                        onPaymentComplete={async () => {
+                            // Procesar la salida del vehículo cuando se confirma el pago manualmente
+                            if (paymentData) {
+                                await processVehicleExitAfterPayment(paymentData);
+                                toast({
+                                    title: "Pago confirmado",
+                                    description: "El vehículo puede salir"
+                                });
+                            }
+                            setShowQRDialog(false);
+                            setShowPaymentSelector(false);
+                        }}
+                        paymentData={{
+                            amount: paymentData?.amount || 0,
+                            vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                            paymentId: qrData?.preferenceId || generatePaymentId(),
+                            duration: paymentData ? formatDuration(paymentData.duration) : '',
+                            expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutos
+                        }}
+                        qrData={qrData || {
+                            qrCode: '',
+                            qrCodeImage: '',
+                            preferenceId: ''
+                        }}
+                        paymentStatus={qrPaymentStatus}
+                        loading={paymentLoading}
+                    />
+                </main>
             </div>
-
-            {/* Modales del sistema de pagos */}
-            <PaymentMethodSelector
-                isOpen={showPaymentSelector}
-                onClose={closePaymentModals}
-                onSelectMethod={handlePaymentMethodSelect}
-                paymentData={paymentData}
-                loading={paymentLoading}
-                paymentSettings={paymentSettings}
-            />
-
-
-            <TransferInfoDialog
-                isOpen={showTransferDialog}
-                onClose={closePaymentModals}
-                onConfirmTransfer={async () => {
-                    if (!paymentData) return;
-
-                    setPaymentLoading(true);
-                    try {
-                        // Log para auditoría del operador confirmando transferencia
-                        console.log('💰 Operador confirmó recepción de transferencia:', {
-                            vehicle: paymentData.vehicleLicensePlate,
-                            amount: formatCurrency(paymentData.amount),
-                            operator: user?.email
-                        });
-
-                        toast({
-                            title: "Transferencia confirmada",
-                            description: `Pago de ${formatCurrency(paymentData.amount)} confirmado por el operador`
-                        });
-
-                        // Finalizar salida del vehículo
-                        await finalizeVehicleExit(paymentData);
-                        closePaymentModals();
-                    } catch (error) {
-                        console.error('Error confirmando transferencia:', error);
-                        toast({
-                            variant: "destructive",
-                            title: "Error",
-                            description: "No se pudo confirmar la transferencia"
-                        });
-                    } finally {
-                        setPaymentLoading(false);
-                    }
-                }}
-                paymentData={{
-                    amount: paymentData?.amount || 0,
-                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
-                    paymentId: generatePaymentId(),
-                    duration: paymentData ? formatDuration(paymentData.duration) : ''
-                }}
-                transferConfig={{
-                    cbu: '0170020510000001234567', // TODO: Obtener de configuración
-                    alias: 'PARKING.EJEMPLO',
-                    accountHolder: 'Estacionamiento Ejemplo S.A.',
-                    bank: 'Banco Ejemplo'
-                }}
-                loading={paymentLoading}
-            />
-
-            <QRPaymentDialog
-                isOpen={showQRDialog}
-                onClose={closePaymentModals}
-                onPaymentComplete={async () => {
-                    // Procesar la salida del vehículo cuando se confirma el pago manualmente
-                    if (paymentData) {
-                        await processVehicleExitAfterPayment(paymentData);
-                        toast({
-                            title: "Pago confirmado",
-                            description: "El vehículo puede salir"
-                        });
-                    }
-                    setShowQRDialog(false);
-                    setShowPaymentSelector(false);
-                }}
-                paymentData={{
-                    amount: paymentData?.amount || 0,
-                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
-                    paymentId: qrData?.preferenceId || generatePaymentId(),
-                    duration: paymentData ? formatDuration(paymentData.duration) : '',
-                    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutos
-                }}
-                qrData={qrData || {
-                    qrCode: '',
-                    qrCodeImage: '',
-                    preferenceId: ''
-                }}
-                paymentStatus={qrPaymentStatus}
-                loading={paymentLoading}
-            />
-        </DashboardLayout>
+        </div>
     );
 }
