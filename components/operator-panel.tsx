@@ -704,12 +704,6 @@ export default function OperatorPanel({
 
   return (
     <div className="relative flex flex-col gap-4 p-4">
-      <div className="absolute top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
-
-      {/* REGISTRAR ENTRADA - ELIMINADO POR EL USUARIO */}
-
       {/* 1. VISUALIZACIÓN PLAZAS - PRIMERO */}
       {loadingPlazas || loadingPlazasCompletas ? (
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">

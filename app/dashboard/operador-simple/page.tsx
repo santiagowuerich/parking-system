@@ -1139,33 +1139,8 @@ export default function OperadorSimplePage() {
     }
 
     return (
-        <DashboardLayout>
+        <DashboardLayout clockComponent={<Clock />}>
             <div className="min-h-screen bg-white">
-                {/* Header */}
-                <div className="bg-white">
-                    <div className="max-w-7xl mx-auto px-6 py-6">
-                        {/* Reloj en la esquina superior derecha */}
-                        <div className="flex justify-end mb-4">
-                            <Clock />
-                        </div>
-
-                        {/* Navegación centrada */}
-                        <div className="flex justify-center space-x-4">
-                            <button
-                                onClick={() => router.push('/dashboard/operador')}
-                                className="px-6 py-3 rounded-lg font-medium transition-colors text-gray-600 hover:text-gray-900"
-                            >
-                                Ingreso / Egreso
-                            </button>
-                            <button
-                                className="px-6 py-3 rounded-lg font-medium transition-colors bg-gray-200 text-gray-900"
-                            >
-                                Información
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <div className="p-6 space-y-6">
                     {/* Panel de Operador Original */}
                     <OperatorPanel

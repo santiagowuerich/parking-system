@@ -963,28 +963,6 @@ export default function OperadorPage() {
                         <div className="flex justify-end mb-4">
                             <Clock />
                         </div>
-
-                        {/* Navegación centrada */}
-                        <div className="flex justify-center space-x-4">
-                            <button
-                                onClick={() => setActiveTab('ingreso')}
-                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'ingreso'
-                                    ? 'bg-gray-200 text-gray-900'
-                                    : 'text-gray-600 hover:text-gray-900'
-                                    }`}
-                            >
-                                Ingreso / Egreso
-                            </button>
-                            <button
-                                onClick={() => router.push('/dashboard/operador-simple')}
-                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${activeTab === 'informacion'
-                                    ? 'bg-gray-200 text-gray-900'
-                                    : 'text-gray-600 hover:text-gray-900'
-                                    }`}
-                            >
-                                Información
-                            </button>
-                        </div>
                     </div>
                 </div>
 

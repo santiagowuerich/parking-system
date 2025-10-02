@@ -31,7 +31,9 @@ import {
     Moon,
     Sun,
     Monitor,
-    Clock
+    Clock,
+    ChevronDown,
+    ChevronUp
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -47,15 +49,25 @@ interface SidebarProps {
 const employeeNavigationItems = [
     {
         title: "Panel de Operador",
-        href: "/dashboard/operador-simple",
+        href: "/dashboard/operador",
         icon: ParkingCircle,
-        description: "Gestión de estacionamientos"
+        description: "Gestión de estacionamientos",
+        subItems: [
+            {
+                title: "Ingreso/Egreso",
+                href: "/dashboard/operador"
+            },
+            {
+                title: "Información",
+                href: "/dashboard/operador-simple"
+            }
+        ]
     },
     {
         title: "Gestión de Turnos",
         href: "/dashboard/turnos",
         icon: Clock,
-        description: "Registrar entrada y salida de turnos"
+        description: "Registrar entrada y salida de turno"
     },
     {
         title: "Perfil",
@@ -75,9 +87,19 @@ const ownerNavigationItems = [
     },
     {
         title: "Panel de Operador",
-        href: "/dashboard/operador-simple",
+        href: "/dashboard/operador",
         icon: ParkingCircle,
-        description: "Gestión de estacionamientos"
+        description: "Gestión de estacionamientos",
+        subItems: [
+            {
+                title: "Ingreso/Egreso",
+                href: "/dashboard/operador"
+            },
+            {
+                title: "Información",
+                href: "/dashboard/operador-simple"
+            }
+        ]
     },
     {
         title: "Mis Estacionamientos",
@@ -149,6 +171,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const { role, isEmployee, isOwner } = useUserRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
+    const [expandedItems, setExpandedItems] = useState<string[]>(["Panel de Operador"]);
 
     // Seleccionar elementos de navegación según el rol
     const getNavigationItems = () => {
@@ -175,6 +198,14 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const handleLogout = async () => {
         await signOut();
         router.push('/auth/login');
+    };
+
+    const toggleExpanded = (title: string) => {
+        setExpandedItems(prev =>
+            prev.includes(title)
+                ? prev.filter(item => item !== title)
+                : [...prev, title]
+        );
     };
 
 
@@ -246,31 +277,67 @@ export function DashboardSidebar({ className }: SidebarProps) {
                     <ParkingStatusWidget collapsed={collapsed} />
                 </div>
 
-                <div className="space-y-2">
-                    {navigationItems.map((item) => {
+                <div className="space-y-1">
+                    {navigationItems.map((item: any) => {
                         const Icon = item.icon;
+                        const isExpanded = expandedItems.includes(item.title);
+                        const hasSubItems = item.subItems && item.subItems.length > 0;
                         const isActive = pathname === item.href ||
                             (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
                         return (
-                            <Button
-                                key={`${item.href}-${item.title}`}
-                                variant={isActive ? "secondary" : "ghost"}
-                                className={cn(
-                                    "w-full justify-start h-auto p-3",
-                                    collapsed ? "px-2" : "px-3",
-                                    isActive && "bg-secondary"
-                                )}
-                                onClick={() => handleNavigation(item.href)}
-                            >
-                                <Icon className={cn("h-5 w-5 shrink-0", collapsed ? "mr-0" : "mr-3")} />
-                                {!collapsed && (
-                                    <div className="flex flex-col items-start">
-                                        <span className="text-sm font-medium">{item.title}</span>
-                                        <span className="text-xs text-muted-foreground">{item.description}</span>
+                            <div key={`${item.href}-${item.title}`} className="space-y-1">
+                                <Button
+                                    variant={isActive && !hasSubItems ? "secondary" : "ghost"}
+                                    className={cn(
+                                        "w-full justify-start h-auto p-3",
+                                        collapsed ? "px-2" : "px-3",
+                                        isActive && !hasSubItems && "bg-secondary"
+                                    )}
+                                    onClick={() => {
+                                        if (hasSubItems && !collapsed) {
+                                            toggleExpanded(item.title);
+                                        } else {
+                                            handleNavigation(item.href);
+                                        }
+                                    }}
+                                >
+                                    <Icon className={cn("h-5 w-5 shrink-0", collapsed ? "mr-0" : "mr-3")} />
+                                    {!collapsed && (
+                                        <>
+                                            <div className="flex flex-col items-start flex-1">
+                                                <span className="text-sm font-medium">{item.title}</span>
+                                                <span className="text-xs text-muted-foreground">{item.description}</span>
+                                            </div>
+                                            {hasSubItems && (
+                                                isExpanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />
+                                            )}
+                                        </>
+                                    )}
+                                </Button>
+
+                                {/* Subitems */}
+                                {hasSubItems && isExpanded && !collapsed && (
+                                    <div className="ml-8 space-y-1">
+                                        {item.subItems.map((subItem: any) => {
+                                            const isSubActive = pathname === subItem.href;
+                                            return (
+                                                <Button
+                                                    key={subItem.href}
+                                                    variant={isSubActive ? "secondary" : "ghost"}
+                                                    className={cn(
+                                                        "w-full justify-start p-2",
+                                                        isSubActive && "bg-secondary"
+                                                    )}
+                                                    onClick={() => handleNavigation(subItem.href)}
+                                                >
+                                                    <span className="text-sm">{subItem.title}</span>
+                                                </Button>
+                                            );
+                                        })}
                                     </div>
                                 )}
-                            </Button>
+                            </div>
                         );
                     })}
                 </div>
