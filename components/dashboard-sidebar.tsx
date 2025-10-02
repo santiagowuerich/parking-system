@@ -13,6 +13,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
     LayoutDashboard,
     Car,
     Settings,
@@ -216,14 +222,17 @@ export function DashboardSidebar({ className }: SidebarProps) {
             className
         )}>
             {/* Header */}
-            <div className="flex h-16 items-center justify-between px-4 border-b">
+            <div className={cn(
+                "flex h-16 items-center border-b",
+                collapsed ? "justify-center px-2" : "justify-between px-4"
+            )}>
                 {!collapsed && (
                     <div className="flex items-center gap-2">
                         <ParkingCircle className="h-6 w-6 text-primary" />
                         <span className="font-semibold text-lg">Parqueo</span>
                     </div>
                 )}
-                <div className="flex items-center gap-1">
+                <div className={cn("flex items-center gap-1", collapsed && "flex-col gap-2")}>
                     {/* Dropdown de cambio de tema */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -255,115 +264,229 @@ export function DashboardSidebar({ className }: SidebarProps) {
                     </DropdownMenu>
 
                     {/* Botón de colapsar/expandir */}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCollapsed(!collapsed)}
-                        className="h-8 w-8 p-0"
-                    >
-                        {collapsed ? (
-                            <ChevronRight className="h-4 w-4" />
-                        ) : (
-                            <ChevronLeft className="h-4 w-4" />
-                        )}
-                    </Button>
+                    <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setCollapsed(!collapsed)}
+                                    className="h-8 w-8 p-0"
+                                >
+                                    {collapsed ? (
+                                        <ChevronRight className="h-4 w-4" />
+                                    ) : (
+                                        <ChevronLeft className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                                <p>{collapsed ? "Expandir menú" : "Colapsar menú"}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
             </div>
 
             {/* Navigation */}
-            <ScrollArea className="flex-1 px-3 py-4">
-                {/* Widget compacto con nombre de estacionamiento */}
-                <div className="mb-4">
-                    <ParkingStatusWidget collapsed={collapsed} />
-                </div>
-
-                <div className="space-y-1">
-                    {navigationItems.map((item: any) => {
-                        const Icon = item.icon;
-                        const isExpanded = expandedItems.includes(item.title);
-                        const hasSubItems = item.subItems && item.subItems.length > 0;
-                        const isActive = pathname === item.href ||
-                            (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-                        return (
-                            <div key={`${item.href}-${item.title}`} className="space-y-1">
-                                <Button
-                                    variant={isActive && !hasSubItems ? "secondary" : "ghost"}
-                                    className={cn(
-                                        "w-full justify-start h-auto p-3",
-                                        collapsed ? "px-2" : "px-3",
-                                        isActive && !hasSubItems && "bg-secondary"
-                                    )}
-                                    onClick={() => {
-                                        if (hasSubItems && !collapsed) {
-                                            toggleExpanded(item.title);
-                                        } else {
-                                            handleNavigation(item.href);
-                                        }
-                                    }}
-                                >
-                                    <Icon className={cn("h-5 w-5 shrink-0", collapsed ? "mr-0" : "mr-3")} />
-                                    {!collapsed && (
-                                        <>
-                                            <div className="flex flex-col items-start flex-1">
-                                                <span className="text-sm font-medium">{item.title}</span>
-                                                <span className="text-xs text-muted-foreground">{item.description}</span>
-                                            </div>
-                                            {hasSubItems && (
-                                                isExpanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />
-                                            )}
-                                        </>
-                                    )}
-                                </Button>
-
-                                {/* Subitems */}
-                                {hasSubItems && isExpanded && !collapsed && (
-                                    <div className="ml-8 space-y-1">
-                                        {item.subItems.map((subItem: any) => {
-                                            const isSubActive = pathname === subItem.href;
-                                            return (
-                                                <Button
-                                                    key={subItem.href}
-                                                    variant={isSubActive ? "secondary" : "ghost"}
-                                                    className={cn(
-                                                        "w-full justify-start p-2",
-                                                        isSubActive && "bg-secondary"
-                                                    )}
-                                                    onClick={() => handleNavigation(subItem.href)}
-                                                >
-                                                    <span className="text-sm">{subItem.title}</span>
-                                                </Button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <Separator className="my-4" />
-
-                {/* User Info */}
-                <div className={cn("space-y-2", collapsed && "text-center")}>
+            <ScrollArea className={cn("flex-1", collapsed ? "px-1 py-4" : "px-3 py-4")}>
+                <TooltipProvider delayDuration={0}>
+                    {/* Widget compacto con nombre de estacionamiento - solo visible cuando está expandido */}
                     {!collapsed && (
-                        <div className="px-3 py-2">
-                            <p className="text-sm font-medium">{user?.email}</p>
-                            <p className="text-xs text-muted-foreground">Usuario activo</p>
+                        <div className="mb-4">
+                            <ParkingStatusWidget collapsed={collapsed} />
                         </div>
                     )}
-                    <Button
-                        variant="ghost"
-                        className={cn(
-                            "w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50",
-                            collapsed ? "px-2" : "px-3"
+
+                    <div className={cn(collapsed ? "space-y-1" : "space-y-1")}>
+                        {navigationItems.map((item: any) => {
+                            const Icon = item.icon;
+                            const isExpanded = expandedItems.includes(item.title);
+                            const hasSubItems = item.subItems && item.subItems.length > 0;
+
+                            // Verificar si algún subitem está activo
+                            const hasActiveSubItem = hasSubItems && item.subItems.some((subItem: any) => pathname === subItem.href);
+
+                            // Un item está activo si coincide su href O si tiene un subitem activo
+                            const isActive = pathname === item.href ||
+                                (item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
+                                hasActiveSubItem;
+
+                            // Si está colapsado y tiene subitems, mostrar dropdown con tooltip
+                            if (collapsed && hasSubItems) {
+                                return (
+                                    <Tooltip key={`${item.href}-${item.title}`}>
+                                        <DropdownMenu>
+                                            <TooltipTrigger asChild>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant={isActive ? "secondary" : "ghost"}
+                                                        className={cn(
+                                                            "w-full h-11 flex items-center justify-center p-0 rounded-md",
+                                                            isActive && "bg-secondary"
+                                                        )}
+                                                    >
+                                                        <Icon className="h-5 w-5" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" sideOffset={10}>
+                                                <p>{item.title}</p>
+                                            </TooltipContent>
+                                            <DropdownMenuContent
+                                                side="right"
+                                                align="start"
+                                                className="w-56"
+                                                sideOffset={8}
+                                            >
+                                                <div className="px-2 py-1.5 text-sm font-semibold border-b mb-1">
+                                                    {item.title}
+                                                </div>
+                                                {item.subItems.map((subItem: any) => {
+                                                    const isSubActive = pathname === subItem.href;
+                                                    return (
+                                                        <DropdownMenuItem
+                                                            key={subItem.href}
+                                                            onClick={() => handleNavigation(subItem.href)}
+                                                            className={cn(isSubActive && "bg-secondary")}
+                                                        >
+                                                            {subItem.title}
+                                                        </DropdownMenuItem>
+                                                    );
+                                                })}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </Tooltip>
+                                );
+                            }
+
+                            // Si está colapsado sin subitems, mostrar con tooltip
+                            if (collapsed && !hasSubItems) {
+                                return (
+                                    <Tooltip key={`${item.href}-${item.title}`}>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant={isActive ? "secondary" : "ghost"}
+                                                className={cn(
+                                                    "w-full h-11 flex items-center justify-center p-0 rounded-md",
+                                                    isActive && "bg-secondary"
+                                                )}
+                                                onClick={() => handleNavigation(item.href)}
+                                            >
+                                                <Icon className="h-5 w-5" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" sideOffset={10}>
+                                            <p>{item.title}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                );
+                            }
+
+                            // Vista expandida
+                            return (
+                                <div key={`${item.href}-${item.title}`} className="space-y-1">
+                                    <Button
+                                        variant={isActive && !hasSubItems ? "secondary" : "ghost"}
+                                        className={cn(
+                                            "w-full justify-start h-auto p-3 px-3",
+                                            isActive && !hasSubItems && "bg-secondary"
+                                        )}
+                                        onClick={() => {
+                                            if (hasSubItems) {
+                                                toggleExpanded(item.title);
+                                            } else {
+                                                handleNavigation(item.href);
+                                            }
+                                        }}
+                                    >
+                                        <Icon className="h-5 w-5 shrink-0 mr-3" />
+                                        <div className="flex flex-col items-start flex-1">
+                                            <span className="text-sm font-medium">{item.title}</span>
+                                            <span className="text-xs text-muted-foreground">{item.description}</span>
+                                        </div>
+                                        {hasSubItems && (
+                                            isExpanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />
+                                        )}
+                                    </Button>
+
+                                    {/* Subitems */}
+                                    {hasSubItems && isExpanded && (
+                                        <div className="ml-8 space-y-1">
+                                            {item.subItems.map((subItem: any) => {
+                                                const isSubActive = pathname === subItem.href;
+                                                return (
+                                                    <Button
+                                                        key={subItem.href}
+                                                        variant={isSubActive ? "secondary" : "ghost"}
+                                                        className={cn(
+                                                            "w-full justify-start p-2",
+                                                            isSubActive && "bg-secondary"
+                                                        )}
+                                                        onClick={() => handleNavigation(subItem.href)}
+                                                    >
+                                                        <span className="text-sm">{subItem.title}</span>
+                                                    </Button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <Separator className="my-4" />
+
+                    {/* User Info */}
+                    <div className="space-y-1">
+                        {!collapsed && (
+                            <div className="px-3 py-2">
+                                <p className="text-sm font-medium">{user?.email}</p>
+                                <p className="text-xs text-muted-foreground">Usuario activo</p>
+                            </div>
                         )}
-                        onClick={handleLogout}
-                    >
-                        <LogOut className={cn("h-4 w-4 shrink-0", collapsed ? "mr-0" : "mr-2")} />
-                        {!collapsed && <span className="text-sm">Cerrar sesión</span>}
-                    </Button>
-                </div>
+                        {collapsed && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="w-full h-11 flex items-center justify-center cursor-pointer hover:bg-accent rounded-md transition-colors">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <User className="h-4 w-4 text-primary" />
+                                        </div>
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" sideOffset={10}>
+                                    <p className="text-xs">{user?.email}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                        {collapsed ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full h-11 flex items-center justify-center p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 rounded-md"
+                                        onClick={handleLogout}
+                                    >
+                                        <LogOut className="h-5 w-5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" sideOffset={10}>
+                                    <p>Cerrar sesión</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        ) : (
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 px-3"
+                                onClick={handleLogout}
+                            >
+                                <LogOut className="h-4 w-4 shrink-0 mr-2" />
+                                <span className="text-sm">Cerrar sesión</span>
+                            </Button>
+                        )}
+                    </div>
+                </TooltipProvider>
             </ScrollArea>
         </div>
     );

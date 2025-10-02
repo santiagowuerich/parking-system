@@ -74,6 +74,8 @@ interface OperatorPanelProps {
   getEstadoIcon?: (estado: string) => string
   // Función para refrescar vehículos estacionados
   refreshParkedVehicles?: () => Promise<void>
+  // Tab activo para mostrar/ocultar secciones
+  activeTab?: string
 }
 
 export default function OperatorPanel({
@@ -92,6 +94,7 @@ export default function OperatorPanel({
   getEstadoColor,
   getEstadoIcon,
   refreshParkedVehicles,
+  activeTab = "plazas",
 }: OperatorPanelProps) {
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -704,7 +707,9 @@ export default function OperatorPanel({
 
   return (
     <div className="relative flex flex-col gap-4 p-4">
-      {/* 1. VISUALIZACIÓN PLAZAS - PRIMERO */}
+      {/* 1. VISUALIZACIÓN PLAZAS - Mostrar solo si activeTab === "plazas" */}
+      {activeTab === "plazas" && (
+        <>
       {loadingPlazas || loadingPlazasCompletas ? (
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
@@ -790,8 +795,11 @@ export default function OperatorPanel({
           </CardContent>
         </Card>
       )}
+        </>
+      )}
 
-      {/* 2. VEHÍCULOS ESTACIONADOS - SEGUNDO */}
+      {/* 2. VEHÍCULOS ESTACIONADOS - Mostrar solo si activeTab === "vehiculos" */}
+      {activeTab === "vehiculos" && (
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Vehículos Estacionados</CardTitle>
@@ -885,8 +893,10 @@ export default function OperatorPanel({
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* 3. ÚLTIMOS MOVIMIENTOS - ÚLTIMO */}
+      {/* 3. ÚLTIMOS MOVIMIENTOS - Mostrar solo si activeTab === "movimientos" */}
+      {activeTab === "movimientos" && (
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
@@ -947,6 +957,7 @@ export default function OperatorPanel({
           </Table>
         </CardContent>
       </Card>
+      )}
 
       {/* Espacios Disponibles */}
       {/* 

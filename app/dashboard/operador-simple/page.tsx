@@ -60,6 +60,7 @@ export default function OperadorSimplePage() {
     const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity, fetchUserData } = useAuth();
     const { canOperateParking, loading: roleLoading, role } = useUserRole();
     const router = useRouter();
+    const [activeTab, setActiveTab] = useState<string>("plazas");
 
     // Verificar que el usuario pueda operar el estacionamiento
     useEffect(() => {
@@ -1139,7 +1140,12 @@ export default function OperadorSimplePage() {
     }
 
     return (
-        <DashboardLayout clockComponent={<Clock />}>
+        <DashboardLayout
+            clockComponent={<Clock />}
+            showOperatorTabs={true}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+        >
             <div className="min-h-screen bg-white">
                 <div className="p-6 space-y-6">
                     {/* Panel de Operador Original */}
@@ -1160,6 +1166,7 @@ export default function OperadorSimplePage() {
                         getEstadoColor={getEstadoColor}
                         getEstadoIcon={getEstadoIcon}
                         refreshParkedVehicles={refreshParkedVehicles}
+                        activeTab={activeTab}
                     />
 
                 </div>
