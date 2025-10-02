@@ -44,42 +44,44 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header con información del estacionamiento y reloj */}
-                <div className="border-b bg-card px-6 py-3 flex justify-between items-center">
-                    {/* Información del estacionamiento */}
-                    {estacionamientoActual && (
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                    <h2 className="text-sm font-semibold">
-                                        {estacionamientoActual.est_nombre}
-                                    </h2>
-                                    <p className="text-xs text-muted-foreground">
-                                        {estacionamientoActual.est_direc}
-                                    </p>
+                <div className="border-b bg-card">
+                    <div className="px-6 py-3 flex justify-between items-center">
+                        {/* Información del estacionamiento */}
+                        {estacionamientoActual && (
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                        <h2 className="text-sm font-semibold">
+                                            {estacionamientoActual.est_nombre}
+                                        </h2>
+                                        <p className="text-xs text-muted-foreground">
+                                            {estacionamientoActual.est_direc}
+                                        </p>
+                                    </div>
                                 </div>
+                                {totalSpaces > 0 && (
+                                    <div className="flex items-center gap-2 ml-4">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full",
+                                            occupancyRate >= 90 ? 'bg-red-500' :
+                                            occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
+                                        )} />
+                                        <span className="text-xs text-muted-foreground">
+                                            {occupiedSpaces}/{totalSpaces} ocupados ({occupancyRate}%)
+                                        </span>
+                                    </div>
+                                )}
                             </div>
-                            {totalSpaces > 0 && (
-                                <div className="flex items-center gap-2 ml-4">
-                                    <div className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        occupancyRate >= 90 ? 'bg-red-500' :
-                                        occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
-                                    )} />
-                                    <span className="text-xs text-muted-foreground">
-                                        {occupiedSpaces}/{totalSpaces} ocupados ({occupancyRate}%)
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
 
-                    {/* Reloj (opcional) */}
-                    {clockComponent && (
-                        <div>
-                            {clockComponent}
-                        </div>
-                    )}
+                        {/* Reloj (opcional) */}
+                        {clockComponent && (
+                            <div>
+                                {clockComponent}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Content Area */}

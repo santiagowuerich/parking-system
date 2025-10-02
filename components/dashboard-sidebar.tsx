@@ -302,7 +302,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                     {/* Widget compacto con nombre de estacionamiento - solo visible cuando está expandido */}
                     {!collapsed && (
                         <div className="mb-4">
-                            <ParkingStatusWidget collapsed={collapsed} />
+                            <ParkingStatusWidget />
                         </div>
                     )}
 
