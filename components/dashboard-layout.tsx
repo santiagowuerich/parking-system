@@ -44,8 +44,8 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header con información del estacionamiento y reloj */}
-                <div className="border-b bg-card">
-                    <div className="px-6 py-3 flex justify-between items-center">
+                <div className="border-b bg-card h-16 flex items-center">
+                    <div className="px-6 py-3 flex justify-between items-center w-full">
                         {/* Información del estacionamiento */}
                         {estacionamientoActual && (
                             <div className="flex items-center gap-3">
@@ -65,7 +65,7 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
                                         <div className={cn(
                                             "w-2 h-2 rounded-full",
                                             occupancyRate >= 90 ? 'bg-red-500' :
-                                            occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
+                                                occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
                                         )} />
                                         <span className="text-xs text-muted-foreground">
                                             {occupiedSpaces}/{totalSpaces} ocupados ({occupancyRate}%)
@@ -77,7 +77,7 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
 
                         {/* Reloj (opcional) */}
                         {clockComponent && (
-                            <div>
+                            <div className="flex items-center">
                                 {clockComponent}
                             </div>
                         )}

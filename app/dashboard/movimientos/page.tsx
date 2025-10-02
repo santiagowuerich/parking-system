@@ -7,7 +7,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sun, ChevronLeft } from "lucide-react";
 import { formatArgentineTimeWithDayjs } from "@/lib/utils";
 
 // Componente Clock
@@ -32,8 +32,12 @@ const Clock = () => {
     };
 
     return (
-        <div className="text-sm font-mono">
-            AR {formatTime(time)}
+        <div className="flex items-center gap-2">
+            <Sun className="h-4 w-4 text-yellow-500" />
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-mono text-foreground">
+                AR {formatTime(time)}
+            </span>
         </div>
     );
 };

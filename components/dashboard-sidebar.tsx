@@ -247,7 +247,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 w-8 p-0"
+                                className="h-8 w-8 p-0 flex items-center justify-center"
                                 title="Cambiar tema"
                             >
                                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -279,7 +279,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setCollapsed(!collapsed)}
-                                    className="h-8 w-8 p-0"
+                                    className="h-8 w-8 p-0 flex items-center justify-center"
                                 >
                                     {collapsed ? (
                                         <ChevronRight className="h-4 w-4" />
@@ -306,7 +306,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                         </div>
                     )}
 
-                    <div className={cn(collapsed ? "space-y-1" : "space-y-1")}>
+                    <div className={cn(collapsed ? "space-y-1" : "space-y-2")}>
                         {navigationItems.map((item: any) => {
                             const Icon = item.icon;
                             const isExpanded = expandedItems.includes(item.title);
@@ -444,7 +444,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                         })}
                     </div>
 
-                    <Separator className="my-4" />
+                    <Separator className="my-6" />
 
                     {/* User Info */}
                     <div className="space-y-1">
