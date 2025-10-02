@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DashboardLayout } from "@/components/dashboard-layout";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
 import { useRouter } from "next/navigation";
@@ -922,210 +922,215 @@ export default function OperadorPage() {
 
     if (loading || roleLoading) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="flex items-center justify-center h-64">
-                        <div className="text-center">
-                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                            <p className="text-gray-600">Cargando panel de operador...</p>
+            <div className="flex h-screen bg-background">
+                <DashboardSidebar />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <main className="flex-1 overflow-auto">
+                        <div className="p-6">
+                            <div className="flex items-center justify-center h-64">
+                                <div className="text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+                                    <p className="text-gray-600">Cargando panel de operador...</p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </main>
                 </div>
-            </DashboardLayout>
+            </div>
         );
     }
 
     if (!estId) {
         return (
-            <DashboardLayout>
-                <div className="p-6">
-                    <div className="text-center py-12">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
-                        <p className="text-gray-600 mb-6">
-                            Selecciona un estacionamiento para acceder al panel de operador
-                        </p>
-                        <Button onClick={() => router.push('/dashboard/parking')}>
-                            Ir a Mis Estacionamientos
-                        </Button>
-                    </div>
+            <div className="flex h-screen bg-background">
+                <DashboardSidebar />
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    <main className="flex-1 overflow-auto">
+                        <div className="p-6">
+                            <div className="text-center py-12">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">Panel de Operador</h2>
+                                <p className="text-gray-600 mb-6">
+                                    Selecciona un estacionamiento para acceder al panel de operador
+                                </p>
+                                <Button onClick={() => router.push('/dashboard/parking')}>
+                                    Ir a Mis Estacionamientos
+                                </Button>
+                            </div>
+                        </div>
+                    </main>
                 </div>
-            </DashboardLayout>
+            </div>
         );
     }
 
     return (
-        <DashboardLayout>
-            <div className="min-h-screen bg-white">
-                {/* Header */}
-                <div className="bg-white">
-                    <div className="max-w-7xl mx-auto px-6 py-6">
-                        {/* Reloj en la esquina superior derecha */}
-                        <div className="flex justify-end mb-4">
-                            <Clock />
-                        </div>
-                    </div>
-                </div>
+        <div className="flex h-screen bg-background">
+            <DashboardSidebar />
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <main className="flex-1 overflow-auto">
+                    <div className="min-h-screen bg-white">
+                        {/* Main Content */}
+                        <div className="max-w-7xl mx-auto px-6 py-16">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
 
-                {/* Main Content */}
-                <div className="max-w-7xl mx-auto px-6 py-16">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                                {/* Tarjeta de Ingreso */}
+                                <div
+                                    className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 border-2 border-green-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                    onClick={handleOpenIngresoModal}
+                                >
+                                    {/* Círculo con flecha */}
+                                    <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mb-8">
+                                        <ArrowLeft className="w-8 h-8 text-white" />
+                                    </div>
 
-                        {/* Tarjeta de Ingreso */}
-                        <div
-                            className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 border-2 border-green-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
-                            onClick={handleOpenIngresoModal}
-                        >
-                            {/* Círculo con flecha */}
-                            <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mb-8">
-                                <ArrowLeft className="w-8 h-8 text-white" />
-                            </div>
+                                    {/* Título */}
+                                    <h2 className="text-4xl font-bold text-green-800 mb-4">INGRESO</h2>
 
-                            {/* Título */}
-                            <h2 className="text-4xl font-bold text-green-800 mb-4">INGRESO</h2>
+                                    {/* Descripción */}
+                                    <p className="text-green-700 text-center mb-8 text-lg">
+                                        Registrar entrada de vehículo
+                                    </p>
 
-                            {/* Descripción */}
-                            <p className="text-green-700 text-center mb-8 text-lg">
-                                Registrar entrada de vehículo
-                            </p>
+                                    {/* Badge con información */}
+                                    <div className="bg-green-600 text-white px-6 py-3 rounded-full font-medium">
+                                        {totalAvailable} espacios disponibles
+                                    </div>
+                                </div>
 
-                            {/* Badge con información */}
-                            <div className="bg-green-600 text-white px-6 py-3 rounded-full font-medium">
-                                {totalAvailable} espacios disponibles
-                            </div>
-                        </div>
+                                {/* Tarjeta de Egreso */}
+                                <div
+                                    className="bg-gradient-to-br from-red-100 to-red-200 rounded-3xl p-8 border-2 border-red-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                    onClick={handleOpenEgresoModal}
+                                >
+                                    {/* Círculo con flecha */}
+                                    <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
+                                        <ArrowRight className="w-8 h-8 text-white" />
+                                    </div>
 
-                        {/* Tarjeta de Egreso */}
-                        <div
-                            className="bg-gradient-to-br from-red-100 to-red-200 rounded-3xl p-8 border-2 border-red-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
-                            onClick={handleOpenEgresoModal}
-                        >
-                            {/* Círculo con flecha */}
-                            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
-                                <ArrowRight className="w-8 h-8 text-white" />
-                            </div>
+                                    {/* Título */}
+                                    <h2 className="text-4xl font-bold text-red-800 mb-4">EGRESO</h2>
 
-                            {/* Título */}
-                            <h2 className="text-4xl font-bold text-red-800 mb-4">EGRESO</h2>
+                                    {/* Descripción */}
+                                    <p className="text-red-700 text-center mb-8 text-lg">
+                                        Registrar salida de vehículo
+                                    </p>
 
-                            {/* Descripción */}
-                            <p className="text-red-700 text-center mb-8 text-lg">
-                                Registrar salida de vehículo
-                            </p>
-
-                            {/* Badge con información */}
-                            <div className="bg-red-600 text-white px-6 py-3 rounded-full font-medium">
-                                {availableSpaces.total.occupied} vehículos estacionados
+                                    {/* Badge con información */}
+                                    <div className="bg-red-600 text-white px-6 py-3 rounded-full font-medium">
+                                        {availableSpaces.total.occupied} vehículos estacionados
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+
+                    {/* Modal de Ingreso */}
+                    <IngresoModal
+                        plaza={null} // Ya no es necesario porque se selecciona dinámicamente
+                        isOpen={showIngresoModal}
+                        onClose={handleCloseModals}
+                        onConfirm={handleConfirmIngreso}
+                        loading={modalLoading}
+                        tarifas={availableTariffs}
+                        availablePlazas={availablePlazas}
+                    />
+
+                    {/* Modal de Selección de Vehículos */}
+                    <VehicleSelectorModal
+                        vehicles={vehiclesList}
+                        isOpen={showVehicleSelectorModal}
+                        onClose={handleCloseModals}
+                        onSelectVehicle={handleVehicleSelection}
+                    />
+
+                    {/* Modales del sistema de pagos */}
+                    <PaymentMethodSelector
+                        isOpen={showPaymentSelector}
+                        onClose={closePaymentModals}
+                        onSelectMethod={handlePaymentMethodSelect}
+                        paymentData={paymentData}
+                        loading={paymentLoading}
+                        paymentSettings={paymentSettings}
+                    />
+
+                    <TransferInfoDialog
+                        isOpen={showTransferDialog}
+                        onClose={closePaymentModals}
+                        onConfirmTransfer={async () => {
+                            if (!paymentData) return;
+
+                            setPaymentLoading(true);
+                            try {
+                                console.log('💰 Operador confirmó recepción de transferencia:', {
+                                    vehicle: paymentData.vehicleLicensePlate,
+                                    amount: formatCurrency(paymentData.amount),
+                                    operator: user?.email
+                                });
+
+                                toast({
+                                    title: "Transferencia confirmada",
+                                    description: `Pago de ${formatCurrency(paymentData.amount)} confirmado por el operador`
+                                });
+
+                                await finalizeVehicleExit(paymentData);
+                                closePaymentModals();
+                            } catch (error) {
+                                console.error('Error confirmando transferencia:', error);
+                                toast({
+                                    variant: "destructive",
+                                    title: "Error",
+                                    description: "No se pudo confirmar la transferencia"
+                                });
+                            } finally {
+                                setPaymentLoading(false);
+                            }
+                        }}
+                        paymentData={{
+                            amount: paymentData?.amount || 0,
+                            vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                            paymentId: generatePaymentId(),
+                            duration: paymentData ? formatDuration(paymentData.duration) : ''
+                        }}
+                        transferConfig={{
+                            cbu: '0170020510000001234567',
+                            alias: 'PARKING.EJEMPLO',
+                            accountHolder: 'Estacionamiento Ejemplo S.A.',
+                            bank: 'Banco Ejemplo'
+                        }}
+                        loading={paymentLoading}
+                    />
+
+                    <QRPaymentDialog
+                        isOpen={showQRDialog}
+                        onClose={closePaymentModals}
+                        onPaymentComplete={async () => {
+                            if (paymentData) {
+                                await finalizeVehicleExit(paymentData);
+                                toast({
+                                    title: "Pago confirmado",
+                                    description: "El vehículo puede salir"
+                                });
+                            }
+                            setShowQRDialog(false);
+                            setShowPaymentSelector(false);
+                        }}
+                        paymentData={{
+                            amount: paymentData?.amount || 0,
+                            vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
+                            paymentId: qrData?.preferenceId || generatePaymentId(),
+                            duration: paymentData ? formatDuration(paymentData.duration) : '',
+                            expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+                        }}
+                        qrData={qrData || {
+                            qrCode: '',
+                            qrCodeImage: '',
+                            preferenceId: ''
+                        }}
+                        paymentStatus={qrPaymentStatus}
+                        loading={paymentLoading}
+                    />
+                </main>
             </div>
-
-            {/* Modal de Ingreso */}
-            <IngresoModal
-                plaza={null} // Ya no es necesario porque se selecciona dinámicamente
-                isOpen={showIngresoModal}
-                onClose={handleCloseModals}
-                onConfirm={handleConfirmIngreso}
-                loading={modalLoading}
-                tarifas={availableTariffs}
-                availablePlazas={availablePlazas}
-            />
-
-            {/* Modal de Selección de Vehículos */}
-            <VehicleSelectorModal
-                vehicles={vehiclesList}
-                isOpen={showVehicleSelectorModal}
-                onClose={handleCloseModals}
-                onSelectVehicle={handleVehicleSelection}
-            />
-
-            {/* Modales del sistema de pagos */}
-            <PaymentMethodSelector
-                isOpen={showPaymentSelector}
-                onClose={closePaymentModals}
-                onSelectMethod={handlePaymentMethodSelect}
-                paymentData={paymentData}
-                loading={paymentLoading}
-                paymentSettings={paymentSettings}
-            />
-
-            <TransferInfoDialog
-                isOpen={showTransferDialog}
-                onClose={closePaymentModals}
-                onConfirmTransfer={async () => {
-                    if (!paymentData) return;
-
-                    setPaymentLoading(true);
-                    try {
-                        console.log('💰 Operador confirmó recepción de transferencia:', {
-                            vehicle: paymentData.vehicleLicensePlate,
-                            amount: formatCurrency(paymentData.amount),
-                            operator: user?.email
-                        });
-
-                        toast({
-                            title: "Transferencia confirmada",
-                            description: `Pago de ${formatCurrency(paymentData.amount)} confirmado por el operador`
-                        });
-
-                        await finalizeVehicleExit(paymentData);
-                        closePaymentModals();
-                    } catch (error) {
-                        console.error('Error confirmando transferencia:', error);
-                        toast({
-                            variant: "destructive",
-                            title: "Error",
-                            description: "No se pudo confirmar la transferencia"
-                        });
-                    } finally {
-                        setPaymentLoading(false);
-                    }
-                }}
-                paymentData={{
-                    amount: paymentData?.amount || 0,
-                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
-                    paymentId: generatePaymentId(),
-                    duration: paymentData ? formatDuration(paymentData.duration) : ''
-                }}
-                transferConfig={{
-                    cbu: '0170020510000001234567',
-                    alias: 'PARKING.EJEMPLO',
-                    accountHolder: 'Estacionamiento Ejemplo S.A.',
-                    bank: 'Banco Ejemplo'
-                }}
-                loading={paymentLoading}
-            />
-
-            <QRPaymentDialog
-                isOpen={showQRDialog}
-                onClose={closePaymentModals}
-                onPaymentComplete={async () => {
-                    if (paymentData) {
-                        await finalizeVehicleExit(paymentData);
-                        toast({
-                            title: "Pago confirmado",
-                            description: "El vehículo puede salir"
-                        });
-                    }
-                    setShowQRDialog(false);
-                    setShowPaymentSelector(false);
-                }}
-                paymentData={{
-                    amount: paymentData?.amount || 0,
-                    vehicleLicensePlate: paymentData?.vehicleLicensePlate || '',
-                    paymentId: qrData?.preferenceId || generatePaymentId(),
-                    duration: paymentData ? formatDuration(paymentData.duration) : '',
-                    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
-                }}
-                qrData={qrData || {
-                    qrCode: '',
-                    qrCodeImage: '',
-                    preferenceId: ''
-                }}
-                paymentStatus={qrPaymentStatus}
-                loading={paymentLoading}
-            />
-        </DashboardLayout>
+        </div>
     );
 }
