@@ -55,13 +55,17 @@ export default function MovimientosPage() {
         setLoadingMovements(true);
         try {
             const response = await fetch(`/api/parking/movements?est_id=${estId}`);
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.success && data.movements) {
-                setMovements(data.movements);
+            if (result.success && result.data) {
+                setMovements(result.data);
+            } else {
+                console.error('Error en respuesta:', result);
+                setMovements([]);
             }
         } catch (error) {
             console.error('Error cargando movimientos:', error);
+            setMovements([]);
         } finally {
             setLoadingMovements(false);
         }
@@ -133,9 +137,9 @@ export default function MovimientosPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge
-                                                        variant={movement.action === 'Entrada' ? 'default' : 'secondary'}
+                                                        variant={movement.action === 'Ingreso' ? 'default' : 'secondary'}
                                                         className={
-                                                            movement.action === 'Entrada'
+                                                            movement.action === 'Ingreso'
                                                                 ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
                                                                 : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
                                                         }
