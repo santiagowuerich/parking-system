@@ -565,7 +565,7 @@ export default function OperadorSimplePage() {
 
             // Calcular tarifa
             const entryTime = dayjs.utc(ocupacion.entry_time).local();
-            const exitTime = dayjs();
+            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
             const durationMs = exitTime.diff(entryTime);
             const durationHours = durationMs / (1000 * 60 * 60);
 
