@@ -36,92 +36,96 @@ export default function RegisterSelectionPage() {
                     <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
 
                         {/* Conductor Option */}
-                        <Card className="group hover:shadow-2xl transition-all duration-300 border-2 hover:border-blue-200 bg-gradient-to-br from-blue-50 to-white p-8 text-center cursor-pointer">
-                            <div className="space-y-6">
-                                {/* Icon */}
-                                <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto group-hover:bg-blue-700 transition-colors duration-300">
-                                    <Car className="w-10 h-10 text-white" />
+                        <Link href="/auth/register-conductor">
+                            <Card className="group hover:shadow-2xl transition-all duration-300 border-2 hover:border-blue-200 bg-gradient-to-br from-blue-50 to-white p-8 text-center cursor-pointer">
+                                <div className="space-y-6">
+                                    {/* Icon */}
+                                    <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto group-hover:bg-blue-700 transition-colors duration-300">
+                                        <Car className="w-10 h-10 text-white" />
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-2xl font-bold text-gray-900">Conductor</h3>
+                                        <p className="text-gray-600 leading-relaxed">
+                                            Sé parte de nuestra comunidad de conductores. Encuentra estacionamientos disponibles rápidamente,
+                                            reserva tu lugar y paga de forma segura.
+                                        </p>
+
+                                        {/* Features */}
+                                        <ul className="text-left space-y-2 text-gray-600">
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                                                <span>Busca estacionamientos cerca de ti</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                                                <span>Reserva lugares en tiempo real</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                                                <span>Pagos seguros e integrados</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                                                <span>Navegación directa al lugar</span>
+                                            </li>
+                                        </ul>
+
+                                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 group">
+                                            Registrarme como Conductor
+                                            <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        </Button>
+                                    </div>
                                 </div>
-
-                                {/* Content */}
-                                <div className="space-y-4">
-                                    <h3 className="text-2xl font-bold text-gray-900">Conductor</h3>
-                                    (<p className="text-gray-600 leading-relaxed">
-                                        Sé parte de nuestra comunidad de conductores. Encuentra estacionamientos disponibles rápidamente,
-                                        reserva tu lugar y paga de forma segura.
-                                    </p>
-
-                                    {/* Features */}
-                                    <ul className="text-left space-y-2 text-gray-600">
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                                            <span>Busca estacionamientos cerca de ti</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                                            <span>Reserva lugares en tiempo real</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                                            <span>Pagos seguros e integrados</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                                            <span>Navegación directa al lugar</span>
-                                        </li>
-                                    </ul>
-
-                                    <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 group">
-                                        Registrarme como Conductor
-                                        <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
+                            </Card>
+                        </Link>
 
                         {/* Dueño de Negocio Option */}
-                        <Card className="group hover:shadow-2xl transition-all duration-300 border-2 hover:border-purple-200 bg-gradient-to-br from-purple-50 to-white p-8 text-center cursor-pointer">
-                            <div className="space-y-6">
-                                {/* Icon */}
-                                <div className="w-20 h-20 bg-purple-600 rounded-3xl flex items-center justify-center mx-auto group-hover:bg-purple-700 transition-colors duration-300">
-                                    <Building className="w-10 h-10 text-white" />
+                        <Link href="/auth/register">
+                            <Card className="group hover:shadow-2xl transition-all duration-300 border-2 hover:border-purple-200 bg-gradient-to-br from-purple-50 to-white p-8 text-center cursor-pointer">
+                                <div className="space-y-6">
+                                    {/* Icon */}
+                                    <div className="w-20 h-20 bg-purple-600 rounded-3xl flex items-center justify-center mx-auto group-hover:bg-purple-700 transition-colors duration-300">
+                                        <Building className="w-10 h-10 text-white" />
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-2xl font-bold text-gray-900">Dueño de Negocio</h3>
+                                        <p className="text-gray-600 leading-relaxed">
+                                            Administra tu estacionamiento de manera eficiente. Gestiona espacios, tarifas,
+                                            reportes y optimiza tus ingresos con nuestra plataforma.
+                                        </p>
+
+                                        {/* Features */}
+                                        <ul className="text-left space-y-2 text-gray-600">
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                                                <span>Gestión completa de espacios</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                                                <span>Tarifas personalizables</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                                                <span>Reportes y análisis detallados</span>
+                                            </li>
+                                            <li className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-600 rounded-full" />
+                                                <span>Soporte técnico dedicado</span>
+                                            </li>
+                                        </ul>
+
+                                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 group">
+                                            Registrarme como Dueño
+                                            <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                                        </Button>
+                                    </div>
                                 </div>
-
-                                {/* Content */}
-                                <div className="space-y-4">
-                                    <h3 className="text-2xl font-bold text-gray-900">Dueño de Negocio</h3>
-                                    <p className="text-gray-600 leading-relaxed">
-                                        Administra tu estacionamiento de manera eficiente. Gestiona espacios, tarifas,
-                                        reportes y optimiza tus ingresos con nuestra plataforma.
-                                    </p>
-
-                                    {/* Features */}
-                                    <ul className="text-left space-y-2 text-gray-600">
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-purple-600 rounded-full" />
-                                            <span>Gestión completa de espacios</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-purple-600 rounded-full" />
-                                            <span>Tarifas personalizables</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-purple-600 rounded-full" />
-                                            <span>Reportes y análisis detallados</span>
-                                        </li>
-                                        <li className="flex items-center space-x-2">
-                                            <div className="w-2 h-2 bg-purple-600 rounded-full" />
-                                            <span>Soporte técnico dedicado</span>
-                                        </li>
-                                    </ul>
-
-                                    <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 group">
-                                        Registrarme como Dueño
-                                        <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
+                            </Card>
+                        </Link>
                     </div>
 
                     {/* Back to Home */}

@@ -10,7 +10,15 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
 
   // Rutas públicas que no requieren autenticación - verificar PRIMERO
-  const publicPaths = ['/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password'];
+  const publicPaths = [
+    '/', // Página principal (landing page)
+    '/register-selection', // Página de selección de tipo de registro
+    '/auth/login',
+    '/auth/register',
+    '/auth/register-conductor', // Nueva página de registro para conductores
+    '/auth/forgot-password',
+    '/auth/reset-password'
+  ];
   const isPublicPath = publicPaths.some(path => url.pathname.startsWith(path));
 
   // Si es una ruta pública, continuar inmediatamente sin autenticación
