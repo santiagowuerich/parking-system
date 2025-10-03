@@ -123,7 +123,7 @@ export async function middleware(request: NextRequest) {
           timer.end();
           return NextResponse.redirect(url);
         } else if (hasConductorRel) {
-          url.pathname = '/dashboard/mapa-estacionamientos';
+          url.pathname = '/conductor';
           timer.end();
           return NextResponse.redirect(url);
         } else {

@@ -40,7 +40,8 @@ import {
     Clock,
     ChevronDown,
     ChevronUp,
-    Calendar
+    Calendar,
+    Home
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -92,9 +93,9 @@ const employeeNavigationItems = [
 const conductorNavigationItems = [
     {
         title: "Mapa de Estacionamientos",
-        href: "/dashboard/mapa-estacionamientos",
+        href: "/conductor",
         icon: MapPin,
-        description: "Visualiza estacionamientos cerca"
+        description: "Encontrá estacionamientos cerca"
     },
     {
         title: "Mis Vehículos",

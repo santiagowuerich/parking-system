@@ -41,7 +41,7 @@ interface EstacionamientoDetalle {
 
 export default function DashboardPage() {
     const { user, estId, parkedVehicles, parkingCapacity, parkings, fetchUserData } = useAuth();
-    const { isOwner, isEmployee, loading: roleLoading } = useUserRole();
+    const { isOwner, isEmployee, isDriver, loading: roleLoading } = useUserRole();
     const router = useRouter();
     const [stats, setStats] = useState({
         totalVehicles: 0,
@@ -80,6 +80,13 @@ export default function DashboardPage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [estId, roleLoading]);
+
+    // Redirigir conductores automáticamente al panel del conductor
+    useEffect(() => {
+        if (!roleLoading && isDriver) {
+            router.push('/conductor');
+        }
+    }, [roleLoading, isDriver, router]);
 
     // Filtrar acciones según el rol del usuario
     const quickActions = [
@@ -164,18 +171,20 @@ export default function DashboardPage() {
     });
 
     // Mostrar loading mientras se determina el rol del usuario
-    // Asegurar que tenemos rol resuelto Y que no es un empleado (que debe ir a operador-simple)
-    if (roleLoading || isOwner === null || (isEmployee && !roleLoading)) {
+    // Asegurar que tenemos rol resuelto Y que no es un empleado/conductor (que deben ir a sus dashboards específicos)
+    if (roleLoading || isOwner === null || ((isEmployee || isDriver) && !roleLoading)) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
                         <p className="text-gray-600">
-                            {isEmployee && !roleLoading ? 'Redirigiendo...' : 'Cargando dashboard...'}
+                            {(isEmployee || isDriver) && !roleLoading ? 'Redirigiendo...' : 'Cargando dashboard...'}
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
-                            {isEmployee && !roleLoading ? 'Dirigiéndote al panel de operador' : 'Determinando permisos del usuario'}
+                            {isEmployee && !roleLoading ? 'Dirigiéndote al panel de operador' :
+                                isDriver && !roleLoading ? 'Dirigiéndote al panel del conductor' :
+                                    'Determinando permisos del usuario'}
                         </p>
                     </div>
                 </div>

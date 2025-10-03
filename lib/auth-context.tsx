@@ -132,7 +132,7 @@ export const AuthContext = createContext<{
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
+  const [userRole, setUserRole] = useState<'owner' | 'playero' | 'conductor' | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
   const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
@@ -531,7 +531,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (userRole === 'owner') {
           router.push("/dashboard/parking");
         } else if (userRole === 'conductor') {
-          router.push("/dashboard/mapa-estacionamientos");
+          router.push("/conductor");
         } else {
           // Si aún no tenemos el rol, redirigir al dashboard genérico
           router.push("/dashboard");
@@ -540,8 +540,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Si es empleado y está en dashboard root, redirigir inmediatamente
         router.push("/dashboard/operador-simple");
       } else if (user && userRole === 'conductor' && isDashboardRoot) {
-        // Si es conductor y está en dashboard root, redirigir al mapa
-        router.push("/dashboard/mapa-estacionamientos");
+        // Si es conductor y está en dashboard root, redirigir al panel del conductor
+        router.push("/conductor");
       }
     }
   }, [user, userRole, isInitialized, pathname, router]);
@@ -563,7 +563,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para verificar y configurar estacionamiento si es necesario
   const ensureParkingSetup = async () => {
-    if (!user?.email) return;
+    console.log('🔍 ensureParkingSetup llamada para:', user?.email, 'userRole actual:', userRole);
+
+    if (!user?.email) {
+      console.log('❌ No hay usuario email en ensureParkingSetup');
+      return;
+    }
+
+    // No ejecutar estas verificaciones para conductores ya que no necesitan estacionamientos
+    if (userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, saltando verificación de estacionamiento');
+      return;
+    }
+
+    console.log('⚠️ Usuario NO es conductor, continuando con verificación de estacionamiento para:', userRole);
 
     try {
       console.log(`🔍 Verificando estacionamiento para usuario: ${user.email}`);
@@ -770,12 +783,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         const role = data.role;
 
-        if (role === 'owner' || role === 'playero') {
+        console.log('🎭 Rol obtenido de API:', role, 'para usuario:', user?.email);
+
+        if (role === 'owner' || role === 'playero' || role === 'conductor') {
+          console.log('✅ Estableciendo userRole a:', role);
           setUserRole(role);
           localStorage.setItem('user_role', JSON.stringify({
             role,
             timestamp: Date.now()
           }));
+        } else {
+          console.log('❌ Rol desconocido:', role, 'estableciendo a null');
+          setUserRole(null);
         }
       }
     } catch (error) {
