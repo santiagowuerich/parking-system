@@ -397,8 +397,15 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     <Button
                                         variant={isActive && !hasSubItems ? "secondary" : "ghost"}
                                         className={cn(
-                                            "w-full justify-start h-auto p-3 px-3 rounded-lg mx-1",
-                                            isActive && !hasSubItems && "bg-secondary"
+                                            "w-full justify-start h-auto p-3 px-3 mx-1 relative transition-all duration-200",
+                                            // Estado normal
+                                            "rounded-lg",
+                                            // Estado activo con badge azul (sin sub-items)
+                                            isActive && !hasSubItems && "bg-blue-100 hover:bg-blue-150 rounded-xl",
+                                            // Estado activo con sub-items (tono más claro)
+                                            isActive && hasSubItems && "bg-blue-50 hover:bg-blue-100 rounded-xl",
+                                            // Estado hover para elementos no activos
+                                            !isActive && "hover:bg-blue-50"
                                         )}
                                         onClick={() => {
                                             if (hasSubItems) {
@@ -408,13 +415,40 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                             }
                                         }}
                                     >
-                                        <Icon className="h-5 w-5 shrink-0 mr-3" />
-                                        <div className="flex flex-col items-start flex-1">
-                                            <span className="text-sm font-medium">{item.title}</span>
-                                            <span className="text-xs text-muted-foreground">{item.description}</span>
+                                        {/* Barra vertical de acento azul */}
+                                        {isActive && !hasSubItems && (
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 rounded-r-full" />
+                                        )}
+                                        {/* Barra vertical de acento para elementos con sub-items */}
+                                        {isActive && hasSubItems && (
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full" />
+                                        )}
+
+                                        <Icon className={cn(
+                                            "h-5 w-5 shrink-0 mr-3 relative z-10",
+                                            (isActive && !hasSubItems) ? "text-blue-700" :
+                                                (isActive && hasSubItems) ? "text-blue-600" : "text-foreground"
+                                        )} />
+                                        <div className="flex flex-col items-start flex-1 relative z-10">
+                                            <span className={cn(
+                                                "text-sm font-medium",
+                                                (isActive && !hasSubItems) ? "text-blue-800" :
+                                                    (isActive && hasSubItems) ? "text-blue-700" : "text-foreground"
+                                            )}>{item.title}</span>
+                                            <span className={cn(
+                                                "text-xs",
+                                                (isActive && !hasSubItems) ? "text-blue-600" :
+                                                    (isActive && hasSubItems) ? "text-blue-500" : "text-muted-foreground"
+                                            )}>{item.description}</span>
                                         </div>
                                         {hasSubItems && (
-                                            isExpanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />
+                                            isExpanded ? <ChevronUp className={cn(
+                                                "h-4 w-4 ml-auto relative z-10",
+                                                isActive ? "text-blue-700" : "text-foreground"
+                                            )} /> : <ChevronDown className={cn(
+                                                "h-4 w-4 ml-auto relative z-10",
+                                                isActive ? "text-blue-700" : "text-foreground"
+                                            )} />
                                         )}
                                     </Button>
 
@@ -428,12 +462,23 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                                         key={subItem.href}
                                                         variant={isSubActive ? "secondary" : "ghost"}
                                                         className={cn(
-                                                            "w-full justify-start p-2 rounded-lg",
-                                                            isSubActive && "bg-secondary"
+                                                            "w-full justify-start p-2 relative transition-all duration-200",
+                                                            "rounded-lg",
+                                                            // Efecto badge azul para subitem activo
+                                                            isSubActive && "bg-blue-50 hover:bg-blue-100 rounded-xl",
+                                                            // Hover suave para subitems no activos
+                                                            !isSubActive && "hover:bg-blue-50"
                                                         )}
                                                         onClick={() => handleNavigation(subItem.href)}
                                                     >
-                                                        <span className="text-sm">{subItem.title}</span>
+                                                        {/* Barra vertical alineada con el parent */}
+                                                        {isSubActive && (
+                                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full" />
+                                                        )}
+                                                        <span className={cn(
+                                                            "text-sm relative z-10",
+                                                            isSubActive ? "text-blue-700" : "text-foreground"
+                                                        )}>{subItem.title}</span>
                                                     </Button>
                                                 );
                                             })}
