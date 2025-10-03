@@ -81,12 +81,8 @@ export default function DashboardPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [estId, roleLoading]);
 
-    // Redirigir conductores automáticamente al panel del conductor
-    useEffect(() => {
-        if (!roleLoading && isDriver) {
-            router.push('/conductor');
-        }
-    }, [roleLoading, isDriver, router]);
+    // Las redirecciones ahora se manejan completamente en el middleware
+    // No necesitamos redirigir desde el cliente
 
     // Filtrar acciones según el rol del usuario
     const quickActions = [
@@ -170,21 +166,23 @@ export default function DashboardPage() {
         return isOwner ? action.showForOwners : action.showForEmployees;
     });
 
-    // Mostrar loading mientras se determina el rol del usuario
-    // Asegurar que tenemos rol resuelto Y que no es un empleado/conductor (que deben ir a sus dashboards específicos)
-    if (roleLoading || isOwner === null || ((isEmployee || isDriver) && !roleLoading)) {
+    // Mostrar loading mientras se determina el rol del usuario O si no es owner
+    // Prevenir flash de contenido incorrecto
+    if (roleLoading || !isOwner) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
                         <p className="text-gray-600">
-                            {(isEmployee || isDriver) && !roleLoading ? 'Redirigiendo...' : 'Cargando dashboard...'}
+                            {!roleLoading && isEmployee ? 'Redirigiendo...' :
+                             !roleLoading && isDriver ? 'Redirigiendo...' :
+                             'Cargando dashboard...'}
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
-                            {isEmployee && !roleLoading ? 'Dirigiéndote al panel de operador' :
-                                isDriver && !roleLoading ? 'Dirigiéndote al panel del conductor' :
-                                    'Determinando permisos del usuario'}
+                            {!roleLoading && isEmployee ? 'Dirigiéndote al panel de operador' :
+                             !roleLoading && isDriver ? 'Dirigiéndote al panel del conductor' :
+                             'Determinando permisos del usuario'}
                         </p>
                     </div>
                 </div>

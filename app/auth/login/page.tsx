@@ -22,7 +22,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await signIn({ email, password });
-      router.push("/dashboard/parking");
+      // El middleware se encarga de redirigir según el rol del usuario
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
         setError("Email o contraseña incorrectos.");
@@ -41,7 +41,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      router.push("/dashboard/parking");
+      // El middleware se encarga de redirigir según el rol del usuario
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
     } finally {

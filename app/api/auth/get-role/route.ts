@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
                 usu_nom,
                 usu_ape,
                 usu_email,
+                auth_user_id,
                 dueno!left(due_id),
                 playeros!left(play_id),
                 conductores!left(con_id)
@@ -60,6 +61,21 @@ export async function GET(request: NextRequest) {
 
         const usuId = userWithRole.usu_id;
         logger.debug('Usuario encontrado en BD:', { usu_id: usuId, nombre: userWithRole.usu_nom });
+
+        // Si el usuario fue encontrado por email pero no tiene auth_user_id, actualizarlo
+        if (!userWithRole.auth_user_id || userWithRole.auth_user_id !== user.id) {
+            logger.debug('Actualizando auth_user_id para usuario:', usuId);
+            const { error: updateError } = await supabaseAdmin
+                .from('usuario')
+                .update({ auth_user_id: user.id })
+                .eq('usu_id', usuId);
+
+            if (updateError) {
+                logger.warn('Error actualizando auth_user_id:', updateError.message);
+            } else {
+                logger.debug('auth_user_id actualizado correctamente');
+            }
+        }
 
         // Determinar rol basado en las relaciones
         let role = "unknown"; // rol por defecto

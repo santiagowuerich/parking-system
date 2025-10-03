@@ -134,8 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<'owner' | 'playero' | 'conductor' | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
-  const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
-  const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
   const [loadingData, setLoadingData] = useState(false); // Guard para fetchUserData
   const [isInitialized, setIsInitialized] = useState(false); // Flag para saber si ya se inicializó
   const [lastUserId, setLastUserId] = useState<string | null>(null); // Para detectar cambios reales de usuario
@@ -402,7 +400,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
   const fetchUserData = useCallback(async () => {
-    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (!user?.id || estId === null || loadingData) return;
 
     setLoadingData(true);
     setLoadingUserData(true);
@@ -457,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoadingUserData(false);
       setLoadingData(false);
     }
-  }, [user?.id, estId, isNavigating, fetchRates, fetchUserSettings, fetchCapacity]);
+  }, [user?.id, estId, fetchRates, fetchUserSettings, fetchCapacity]);
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
@@ -512,39 +510,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
 
-  // Efecto para manejar redirecciones basadas en autenticación
+  // Las redirecciones ahora se manejan completamente en el middleware
+  // Este efecto solo se mantiene para casos edge que el middleware no captura
   useEffect(() => {
-    // Solo redirigir cuando estemos inicializados
-    if (isInitialized) {
+    if (isInitialized && !user) {
       const isAuthRoute = pathname?.startsWith("/auth/");
-      const isPasswordResetRoute = pathname === "/auth/reset-password";
-      const isDashboardRoot = pathname === "/dashboard";
       const isMainPage = pathname === "/";
       const isPublicPage = isMainPage || pathname === "/register-selection";
 
-      if (!user && !isAuthRoute && !isPublicPage) {
+      // Solo redirigir a login si no hay usuario y no está en ruta pública
+      if (!isAuthRoute && !isPublicPage) {
         router.push("/auth/login");
-      } else if (user && isAuthRoute && !isPasswordResetRoute) {
-        // Redirigir según el rol del usuario después del login
-        if (userRole === 'playero') {
-          router.push("/dashboard/operador-simple");
-        } else if (userRole === 'owner') {
-          router.push("/dashboard/parking");
-        } else if (userRole === 'conductor') {
-          router.push("/conductor");
-        } else {
-          // Si aún no tenemos el rol, redirigir al dashboard genérico
-          router.push("/dashboard");
-        }
-      } else if (user && userRole === 'playero' && isDashboardRoot) {
-        // Si es empleado y está en dashboard root, redirigir inmediatamente
-        router.push("/dashboard/operador-simple");
-      } else if (user && userRole === 'conductor' && isDashboardRoot) {
-        // Si es conductor y está en dashboard root, redirigir al panel del conductor
-        router.push("/conductor");
       }
     }
-  }, [user, userRole, isInitialized, pathname, router]);
+  }, [user, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
@@ -761,9 +740,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener el rol del usuario
   const fetchUserRole = async () => {
-    if (!user?.id || isLoadingRole) return;
+    if (!user?.id || roleLoading) return;
 
-    setIsLoadingRole(true);
     setRoleLoading(true);
 
     try {
@@ -775,7 +753,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (Date.now() - timestamp < 5 * 60 * 1000) {
             setUserRole(role);
             setRoleLoading(false);
-            setIsLoadingRole(false);
             return;
           }
         } catch (e) {
@@ -807,7 +784,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error obteniendo rol:', error);
     } finally {
       setRoleLoading(false);
-      setIsLoadingRole(false);
     }
   };
 
@@ -816,7 +792,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) {
       setUserRole(null);
       setRoleLoading(false);
-      setIsLoadingRole(false);
       return;
     }
 
@@ -827,17 +802,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const timeoutId = setTimeout(() => {
-      fetchUserRole();
-    }, 200);
-
-    return () => clearTimeout(timeoutId);
+    // Llamar inmediatamente sin timeout
+    fetchUserRole();
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
   // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
   useEffect(() => {
-    if (!user?.id || loadingData || isNavigating) return;
+    if (!user?.id || loadingData) return;
     if (roleLoading || !userRole) return; // esperar a rol
 
     // Si es conductor, no necesita cargar datos de estacionamiento

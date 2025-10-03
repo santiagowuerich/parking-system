@@ -31,6 +31,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Verificar que el usuario tenga el rol adecuado (owner o playero)
+        const roleResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/get-role`, {
+            headers: {
+                'Cookie': request.headers.get('cookie') || ''
+            }
+        });
+
+        if (roleResponse.ok) {
+            const roleData = await roleResponse.json();
+            if (roleData.role === 'conductor') {
+                return NextResponse.json(
+                    { error: "Los conductores no pueden crear estacionamientos" },
+                    { status: 403 }
+                );
+            }
+        }
+
         console.log(`🏗️ Configurando estacionamiento para usuario: ${email}`);
 
         // 1. Obtener el próximo est_id disponible de manera simple y confiable

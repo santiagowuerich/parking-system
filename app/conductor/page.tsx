@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import ParkingMap from "@/components/parking-map";
+import { useUserRole } from "@/lib/use-user-role";
 
 declare global {
     interface Window {
@@ -20,7 +21,8 @@ import {
     Settings,
     Filter,
     Map,
-    Layers
+    Layers,
+    Loader2
 } from "lucide-react";
 
 interface ParkingData {
@@ -45,6 +47,7 @@ export default function MapaEstacionamientos() {
     const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
     const [selectedParking, setSelectedParking] = useState<ParkingData | null>(null);
+    const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
@@ -52,6 +55,29 @@ export default function MapaEstacionamientos() {
         setSelectedParking(parking);
     };
 
+    // Mostrar loading mientras se determina el rol del usuario O si no es conductor
+    // Prevenir flash de contenido incorrecto
+    if (roleLoading || !isDriver) {
+        return (
+            <DashboardLayout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-600">
+                            {!roleLoading && isOwner ? 'Redirigiendo...' :
+                             !roleLoading && isEmployee ? 'Redirigiendo...' :
+                             'Cargando mapa...'}
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {!roleLoading && isOwner ? 'Dirigiéndote al dashboard principal' :
+                             !roleLoading && isEmployee ? 'Dirigiéndote al panel de operador' :
+                             'Determinando permisos del usuario'}
+                        </p>
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout>

@@ -221,13 +221,20 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const { role, isEmployee, isOwner, isDriver } = useUserRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
-    const [expandedItems, setExpandedItems] = useState<string[]>(["Panel de Operador"]);
+    const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
     // Seleccionar elementos de navegación según el rol usando useMemo para estabilidad
     const navigationItems = useMemo(() => {
-        // Mientras carga el rol, mostrar elementos básicos
+        // Mientras carga el rol, mostrar elementos neutros (solo perfil y logout)
         if (roleLoading) {
-            return employeeNavigationItems; // Mostrar solo opciones básicas mientras carga
+            return [
+                {
+                    title: "Perfil",
+                    href: "/account/security",
+                    icon: User,
+                    description: "Configuración de cuenta"
+                }
+            ];
         }
         if (isOwner) {
             return ownerNavigationItems;
@@ -238,8 +245,15 @@ export function DashboardSidebar({ className }: SidebarProps) {
         if (isDriver) {
             return conductorNavigationItems;
         }
-        // Fallback seguro para empleados si el rol no está claro
-        return employeeNavigationItems;
+        // Fallback seguro: mostrar solo perfil si el rol no está claro
+        return [
+            {
+                title: "Perfil",
+                href: "/account/security",
+                icon: User,
+                description: "Configuración de cuenta"
+            }
+        ];
     }, [roleLoading, isOwner, isEmployee, isDriver]);
 
     const handleNavigation = (href: string) => {
@@ -336,8 +350,8 @@ export function DashboardSidebar({ className }: SidebarProps) {
             {/* Navigation */}
             <ScrollArea className={cn("flex-1", collapsed ? "px-1 py-4" : "px-4 py-4")}>
                 <TooltipProvider delayDuration={0}>
-                    {/* Widget compacto con nombre de estacionamiento - solo visible cuando está expandido */}
-                    {!collapsed && (
+                    {/* Widget compacto con nombre de estacionamiento - solo visible para owners y playeros */}
+                    {!collapsed && !isDriver && (
                         <div className="mb-4">
                             <ParkingStatusWidget />
                         </div>
