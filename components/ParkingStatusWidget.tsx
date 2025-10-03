@@ -155,6 +155,11 @@ export default function ParkingStatusWidget({ className, collapsed = false }: Pa
         router.push('/dashboard/parking');
     };
 
+    // No mostrar el widget para conductores ya que no gestionan estacionamientos
+    if (userRole === 'conductor') {
+        return null;
+    }
+
     return (
         <div
             className={`bg-card border rounded-lg hover:bg-accent/80 transition-colors cursor-pointer shadow-sm ${className}`}

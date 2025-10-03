@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
+import { Building } from "lucide-react";
 
 export default function RegisterPage() {
   const { signUp, signIn, signInWithGoogle } = useAuth();
@@ -42,8 +43,8 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      // 1) Crear en Auth + usuario + dueño vía endpoint de servicio
-      const res = await fetch('/api/auth/register', {
+      // 1) Crear en Auth + usuario + dueño vía endpoint específico
+      const res = await fetch('/api/auth/register-owner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -91,12 +92,25 @@ export default function RegisterPage() {
       <div className="absolute top-8 left-12">
         <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
       </div>
+
+      {/* Back button */}
+      <div className="absolute top-8 right-12">
+        <Link href="/" className="text-blue-600 hover:text-blue-700 flex items-center font-medium">
+          ← Volver al inicio
+        </Link>
+      </div>
       {/* Card */}
       <div className="w-full max-w-xl bg-white rounded-xl shadow-lg p-10 flex flex-col items-center">
-        <h2 className="text-2xl font-bold mb-1">Registrarse</h2>
-        <p className="text-sm text-gray-500 mb-6 text-center">
-          Completa tus datos para registrarte en el sistema
-        </p>
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold mb-1">Registro de Dueño</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Completa tus datos para crear tu cuenta de dueño de estacionamiento
+          </p>
+          <div className="flex items-center justify-center space-x-2 text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+            <Building className="w-4 h-4" />
+            <span>Permite gestionar estacionamientos y empleados</span>
+          </div>
+        </div>
         <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <input

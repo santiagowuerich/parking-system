@@ -59,7 +59,7 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 export const AuthContext = createContext<{
   user: User | null;
   estId: number | null;
-  userRole: 'owner' | 'playero' | null;
+  userRole: 'owner' | 'playero' | 'conductor' | null;
   roleLoading: boolean;
   invalidateRoleCache: () => void;
   rates: Record<VehicleType, number> | null;
@@ -132,10 +132,8 @@ export const AuthContext = createContext<{
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'owner' | 'playero' | null>(null);
+  const [userRole, setUserRole] = useState<'owner' | 'playero' | 'conductor' | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
-  const [isLoadingRole, setIsLoadingRole] = useState(false); // Guard adicional
-  const [isNavigating, setIsNavigating] = useState(false); // Flag para navegación
   const [loadingData, setLoadingData] = useState(false); // Guard para fetchUserData
   const [isInitialized, setIsInitialized] = useState(false); // Flag para saber si ya se inicializó
   const [lastUserId, setLastUserId] = useState<string | null>(null); // Para detectar cambios reales de usuario
@@ -402,7 +400,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener los datos del usuario (usando las funciones optimizadas)
   const fetchUserData = useCallback(async () => {
-    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (!user?.id || estId === null || loadingData) return;
 
     setLoadingData(true);
     setLoadingUserData(true);
@@ -457,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoadingUserData(false);
       setLoadingData(false);
     }
-  }, [user?.id, estId, isNavigating, fetchRates, fetchUserSettings, fetchCapacity]);
+  }, [user?.id, estId, fetchRates, fetchUserSettings, fetchCapacity]);
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
@@ -512,32 +510,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
 
-  // Efecto para manejar redirecciones basadas en autenticación
+  // Las redirecciones ahora se manejan completamente en el middleware
+  // Este efecto solo se mantiene para casos edge que el middleware no captura
   useEffect(() => {
-    // Solo redirigir cuando estemos inicializados
-    if (isInitialized) {
+    if (isInitialized && !user) {
       const isAuthRoute = pathname?.startsWith("/auth/");
-      const isPasswordResetRoute = pathname === "/auth/reset-password";
-      const isDashboardRoot = pathname === "/dashboard";
+      const isMainPage = pathname === "/";
+      const isPublicPage = isMainPage || pathname === "/register-selection";
 
-      if (!user && !isAuthRoute) {
+      // Solo redirigir a login si no hay usuario y no está en ruta pública
+      if (!isAuthRoute && !isPublicPage) {
         router.push("/auth/login");
-      } else if (user && isAuthRoute && !isPasswordResetRoute) {
-        // Redirigir según el rol del usuario después del login
-        if (userRole === 'playero') {
-          router.push("/dashboard/operador-simple");
-        } else if (userRole === 'owner') {
-          router.push("/dashboard/parking");
-        } else {
-          // Si aún no tenemos el rol, redirigir al dashboard genérico
-          router.push("/dashboard");
-        }
-      } else if (user && userRole === 'playero' && isDashboardRoot) {
-        // Si es empleado y está en dashboard root, redirigir inmediatamente
-        router.push("/dashboard/operador-simple");
       }
     }
-  }, [user, userRole, isInitialized, pathname, router]);
+  }, [user, isInitialized, pathname, router]);
 
   // Efecto para inicializar tarifas al cargar la aplicación
   useEffect(() => {
@@ -556,7 +542,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para verificar y configurar estacionamiento si es necesario
   const ensureParkingSetup = async () => {
-    if (!user?.email) return;
+    console.log('🔍 ensureParkingSetup llamada para:', user?.email, 'userRole actual:', userRole);
+
+    if (!user?.email) {
+      console.log('❌ No hay usuario email en ensureParkingSetup');
+      return;
+    }
+
+    // No ejecutar estas verificaciones para conductores ya que no necesitan estacionamientos
+    if (userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, saltando verificación de estacionamiento');
+      return;
+    }
+
+    console.log('⚠️ Usuario NO es conductor, continuando con verificación de estacionamiento para:', userRole);
 
     try {
       console.log(`🔍 Verificando estacionamiento para usuario: ${user.email}`);
@@ -663,6 +662,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Función para obtener el estId del usuario
       const getUserEstId = async () => {
         try {
+          // Si es conductor, no necesita estId
+          if (userRole === 'conductor') {
+            console.log('🚗 Usuario es conductor, no necesita estId');
+            setEstId(null);
+            return null;
+          }
           // Primero verificar si hay estId guardado en localStorage
           if (typeof window !== 'undefined') {
             const savedEstId = localStorage.getItem('parking_est_id');
@@ -730,26 +735,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingHistory(null);
       setParkingCapacity(null);
     }
-  }, [user?.id]);
+  }, [user?.id, userRole]);
 
 
   // Función para obtener el rol del usuario
   const fetchUserRole = async () => {
-    if (!user?.id || isLoadingRole) return;
+    console.log('🔍 fetchUserRole llamado - user?.id:', user?.id, 'roleLoading:', roleLoading);
+    if (!user?.id || roleLoading) return;
 
-    setIsLoadingRole(true);
+    console.log('🚀 Iniciando determinación de rol...');
     setRoleLoading(true);
 
     try {
       // Verificar cache primero
       const cachedRole = localStorage.getItem('user_role');
+      console.log('📦 Cache role:', cachedRole);
       if (cachedRole) {
         try {
           const { role, timestamp } = JSON.parse(cachedRole);
           if (Date.now() - timestamp < 5 * 60 * 1000) {
+            console.log('✅ Usando rol de cache:', role);
             setUserRole(role);
             setRoleLoading(false);
-            setIsLoadingRole(false);
             return;
           }
         } catch (e) {
@@ -757,47 +764,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Consultar API
-      const response = await fetch('/api/auth/get-role');
-      if (response.ok) {
-        const data = await response.json();
-        const role = data.role;
+      // Consultar API con timeout
+      console.log('🌐 Consultando API /api/auth/get-role...');
 
-        if (role === 'owner' || role === 'playero') {
-          setUserRole(role);
-          localStorage.setItem('user_role', JSON.stringify({
-            role,
-            timestamp: Date.now()
-          }));
+      // Crear un AbortController para timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
+
+      try {
+        const response = await fetch('/api/auth/get-role', {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        console.log('📡 Respuesta API status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          const role = data.role;
+
+          console.log('🎭 Rol obtenido de API:', role, 'para usuario:', user?.email);
+
+          if (role === 'owner' || role === 'playero' || role === 'conductor') {
+            console.log('✅ Estableciendo userRole a:', role);
+            setUserRole(role);
+            localStorage.setItem('user_role', JSON.stringify({
+              role,
+              timestamp: Date.now()
+            }));
+          } else {
+            console.log('❌ Rol desconocido:', role, 'estableciendo a null');
+            setUserRole(null);
+          }
+        } else {
+          console.log('❌ Error en respuesta API:', response.status, response.statusText);
         }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.log('⏰ Timeout en consulta de rol después de 10 segundos');
+        } else {
+          console.error('❌ Error en consulta de rol:', fetchError);
+        }
+        throw fetchError; // Re-lanzar para que sea manejado por el catch exterior
       }
     } catch (error) {
-      console.error('Error obteniendo rol:', error);
+      console.error('❌ Error obteniendo rol:', error);
     } finally {
+      console.log('🏁 Finalizando fetchUserRole, estableciendo roleLoading=false');
       setRoleLoading(false);
-      setIsLoadingRole(false);
     }
   };
 
   // Efecto para cargar rol del usuario - solo cuando cambia el ID del usuario
   useEffect(() => {
+    console.log('🎯 useEffect de rol ejecutándose - user?.id:', user?.id, 'userRole:', userRole);
     if (!user?.id) {
+      console.log('❌ No hay user.id, reseteando rol');
       setUserRole(null);
       setRoleLoading(false);
-      setIsLoadingRole(false);
       return;
     }
 
     // Solo cargar rol si no tenemos uno o si cambió el usuario
     const cachedRole = localStorage.getItem('user_role');
+    console.log('📋 Cache actual:', cachedRole, 'userRole actual:', userRole);
     if (cachedRole && userRole) {
       // Ya tenemos rol, no recargar innecesariamente
+      console.log('✅ Ya tenemos rol y cache, no recargar');
       return;
     }
 
+    // Llamar con un pequeño timeout para evitar race conditions
+    console.log('🚀 Programando fetchUserRole con timeout...');
     const timeoutId = setTimeout(() => {
       fetchUserRole();
-    }, 200);
+    }, 100); // Pequeño delay para evitar múltiples llamadas simultáneas
 
     return () => clearTimeout(timeoutId);
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
@@ -805,8 +847,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
   // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
   useEffect(() => {
-    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (!user?.id || loadingData) return;
     if (roleLoading || !userRole) return; // esperar a rol
+
+    // Si es conductor, no necesita cargar datos de estacionamiento
+    if (userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, evitando carga de datos de estacionamiento');
+      return;
+    }
+
+    // Para otros roles, necesitamos estId
+    if (estId === null) return;
 
     // Solo hacer carga automática si estamos en páginas que lo necesitan
     const currentPath = pathname || '';
@@ -821,6 +872,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeoutId);
   }, [user?.id, estId, userRole, roleLoading]);
 
+  // Efecto específico para ensureParkingSetup - SOLO para owner y playero
+  useEffect(() => {
+    if (user && userRole && (userRole === 'owner' || userRole === 'playero')) {
+      console.log('🏢 Usuario es owner/playero, ejecutando ensureParkingSetup');
+      ensureParkingSetup();
+    } else if (user && userRole && userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, evitando ensureParkingSetup');
+    }
+  }, [user, userRole]);
+
   useEffect(() => {
     let mounted = true;
     let hasInitialized = false;
@@ -833,7 +894,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLastUserId(session?.user?.id ?? null);
           setIsInitialized(true);
           hasInitialized = true;
-
         }
       } catch (error: any) {
         console.error("Error initializing auth:", error);
@@ -930,35 +990,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
-    // Activar loading inmediatamente para evitar flash
-    try {
-      // Limpiar cualquier sesión previa antes de iniciar sesión
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-        clearCache();
-      } catch (cleanupError) {
-        // Ignorar errores de limpieza
-        console.log('Cleanup antes de login:', cleanupError);
-      }
 
-      // Inicio de sesión
+    try {
+      // Solo hacer el inicio de sesión - Supabase se encarga del resto
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        timer.end();
+        throw error;
+      }
 
-      // Login OK
-      // Forzar refetch de rol después de iniciar sesión
+      // Inicio de sesión exitoso
+      // Limpiar cache de rol para forzar refetch
       try {
         localStorage.removeItem('user_role');
       } catch { }
+
       setUserRole(null);
       timer.end();
-      // Mantener loading=true, onAuthStateChange lo manejará
+
+      // El onAuthStateChange manejará el resto del flujo
+      // La determinación del rol la hará el useEffect cuando detecte el cambio de usuario
+
     } catch (error) {
-      // Solo en caso de error, asegurar que loading sea false
+      timer.end();
       throw error;
     }
   };

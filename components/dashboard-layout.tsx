@@ -36,6 +36,7 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
     const occupiedSpaces = parkedVehicles?.length || 0;
     const occupancyRate = totalSpaces > 0 ? Math.round((occupiedSpaces / totalSpaces) * 100) : 0;
 
+
     return (
         <div className="flex h-screen bg-background">
             {/* Sidebar */}

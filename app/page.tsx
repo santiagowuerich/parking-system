@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, MapPin, Car, Building, CheckCircle } from "lucide-react";
+import Link from "next/link";
 
 export default function LandingPage() {
   return (
@@ -28,8 +29,10 @@ export default function LandingPage() {
               <a href="#precios" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">
                 Precios
               </a>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">
-                Iniciar sesión
+              <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2">
+                <Link href="/auth/login">
+                  Iniciar sesión
+                </Link>
               </Button>
             </nav>
           </div>
@@ -66,13 +69,17 @@ export default function LandingPage() {
               {/* Botones de Acción */}
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white px-4 lg:px-6 py-4 rounded-xl text-base lg:text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none">
-                    <Car className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-                    <span className="whitespace-nowrap">Registrarme como Conductor</span>
+                  <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white px-4 lg:px-6 py-4 rounded-xl text-base lg:text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex-1 sm:flex-none">
+                    <Link href="/auth/register-conductor">
+                      <Car className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                      <span className="whitespace-nowrap">Registrarme como Conductor</span>
+                    </Link>
                   </Button>
-                  <Button variant="outline" className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 lg:px-6 py-4 rounded-xl text-base lg:text-lg font-semibold transition-all duration-300 flex-1 sm:flex-none">
-                    <Building className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-                    <span className="whitespace-nowrap">Registrarme como Dueño de Negocio</span>
+                  <Button variant="outline" asChild className="border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-4 lg:px-6 py-4 rounded-xl text-base lg:text-lg font-semibold transition-all duration-300 flex-1 sm:flex-none">
+                    <Link href="/auth/register">
+                      <Building className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                      <span className="whitespace-nowrap">Registrarme como Dueño de Negocio</span>
+                    </Link>
                   </Button>
                 </div>
 
