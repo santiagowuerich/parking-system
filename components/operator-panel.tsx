@@ -517,7 +517,7 @@ export default function OperatorPanel({
   const handleConfirmIngreso = async (data: {
     license_plate: string
     type: VehicleType
-    plaza_type: string
+    plaza_number: number
     modality: string
     agreed_price: number
   }) => {
