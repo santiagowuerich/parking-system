@@ -59,7 +59,7 @@ const CACHE_MAX_AGE = 15 * 60 * 1000;
 export const AuthContext = createContext<{
   user: User | null;
   estId: number | null;
-  userRole: 'owner' | 'playero' | null;
+  userRole: 'owner' | 'playero' | 'conductor' | null;
   roleLoading: boolean;
   invalidateRoleCache: () => void;
   rates: Record<VehicleType, number> | null;
@@ -519,8 +519,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isAuthRoute = pathname?.startsWith("/auth/");
       const isPasswordResetRoute = pathname === "/auth/reset-password";
       const isDashboardRoot = pathname === "/dashboard";
+      const isMainPage = pathname === "/";
+      const isPublicPage = isMainPage || pathname === "/register-selection";
 
-      if (!user && !isAuthRoute) {
+      if (!user && !isAuthRoute && !isPublicPage) {
         router.push("/auth/login");
       } else if (user && isAuthRoute && !isPasswordResetRoute) {
         // Redirigir según el rol del usuario después del login
@@ -528,6 +530,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.push("/dashboard/operador-simple");
         } else if (userRole === 'owner') {
           router.push("/dashboard/parking");
+        } else if (userRole === 'conductor') {
+          router.push("/dashboard/mapa-estacionamientos");
         } else {
           // Si aún no tenemos el rol, redirigir al dashboard genérico
           router.push("/dashboard");
@@ -535,6 +539,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (user && userRole === 'playero' && isDashboardRoot) {
         // Si es empleado y está en dashboard root, redirigir inmediatamente
         router.push("/dashboard/operador-simple");
+      } else if (user && userRole === 'conductor' && isDashboardRoot) {
+        // Si es conductor y está en dashboard root, redirigir al mapa
+        router.push("/dashboard/mapa-estacionamientos");
       }
     }
   }, [user, userRole, isInitialized, pathname, router]);

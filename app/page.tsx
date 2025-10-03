@@ -29,8 +29,10 @@ export default function LandingPage() {
               <a href="#precios" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">
                 Precios
               </a>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">
-                Iniciar sesión
+              <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2">
+                <Link href="/auth/login">
+                  Iniciar sesión
+                </Link>
               </Button>
             </nav>
           </div>

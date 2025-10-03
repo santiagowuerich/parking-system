@@ -11,6 +11,7 @@ export function useUserRole() {
     return useMemo(() => {
         const isOwner = userRole === 'owner';
         const isEmployee = userRole === 'playero';
+        const isDriver = userRole === 'conductor';
 
         return {
             // Estado del rol
@@ -20,6 +21,7 @@ export function useUserRole() {
             // Helpers booleanos para validaciones comunes
             isOwner,
             isEmployee,
+            isDriver,
 
             // Helpers para permisos específicos
             canManageEmployees: userRole === 'owner',
@@ -36,18 +38,19 @@ export function useUserRole() {
             },
 
             // Función para verificar si el usuario tiene un rol específico
-            hasRole: (requiredRole: 'owner' | 'playero') => {
+            hasRole: (requiredRole: 'owner' | 'playero' | 'conductor') => {
                 return userRole === requiredRole;
             },
 
             // Función para verificar si el usuario tiene alguno de los roles especificados
-            hasAnyRole: (roles: ('owner' | 'playero')[]) => {
+
+            hasAnyRole: (roles: ('owner' | 'playero' | 'conductor')[]) => {
                 return roles.includes(userRole as any);
             },
 
             // Función para verificar permisos basados en rol
             hasPermission: (permission: string) => {
-                const permissionMap: Record<string, ('owner' | 'playero')[]> = {
+                const permissionMap: Record<string, ('owner' | 'playero' | 'conductor')[]> = {
                     'manage_employees': ['owner'],
                     'manage_rates': ['owner'],
                     'manage_zones': ['owner'],
@@ -55,7 +58,9 @@ export function useUserRole() {
                     'operate_parking': ['owner', 'playero'],
                     'view_reports': ['owner'],
                     'configure_system': ['owner'],
-                    'view_dashboard': ['owner', 'playero'],
+                    'view_dashboard': ['owner', 'playero', 'conductor'],
+                    'book_parking': ['conductor'],
+                    'manage_vehicles': ['conductor'],
                 };
 
                 const allowedRoles = permissionMap[permission];

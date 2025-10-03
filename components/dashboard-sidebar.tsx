@@ -39,7 +39,8 @@ import {
     Monitor,
     Clock,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Calendar
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -78,6 +79,40 @@ const employeeNavigationItems = [
         href: "/dashboard/turnos",
         icon: Clock,
         description: "Registrar entrada y salida de turno"
+    },
+    {
+        title: "Perfil",
+        href: "/account/security",
+        icon: User,
+        description: "Configuración de cuenta"
+    }
+];
+
+// Elementos de navegación para conductores
+const conductorNavigationItems = [
+    {
+        title: "Mapa de Estacionamientos",
+        href: "/dashboard/mapa-estacionamientos",
+        icon: MapPin,
+        description: "Visualiza estacionamientos cerca"
+    },
+    {
+        title: "Mis Vehículos",
+        href: "/dashboard/mis-vehiculos",
+        icon: Car,
+        description: "Administración de mis vehiculos"
+    },
+    {
+        title: "Abonos",
+        href: "/dashboard/abonos",
+        icon: Calendar,
+        description: "Gestiona tus abonos"
+    },
+    {
+        title: "Reservas",
+        href: "/dashboard/reservas",
+        icon: Shield,
+        description: "Reserva plazas con anticipación"
     },
     {
         title: "Perfil",
@@ -182,7 +217,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const { user, signOut, userRole, roleLoading } = useAuth();
-    const { role, isEmployee, isOwner } = useUserRole();
+    const { role, isEmployee, isOwner, isDriver } = useUserRole();
     const { theme, setTheme } = useTheme();
     const [collapsed, setCollapsed] = useState(false);
     const [expandedItems, setExpandedItems] = useState<string[]>(["Panel de Operador"]);
@@ -198,6 +233,9 @@ export function DashboardSidebar({ className }: SidebarProps) {
         }
         if (isEmployee) {
             return employeeNavigationItems;
+        }
+        if (isDriver) {
+            return conductorNavigationItems;
         }
         // Fallback seguro para empleados si el rol no está claro
         return employeeNavigationItems;

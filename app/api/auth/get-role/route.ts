@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
                 usu_ape,
                 usu_email,
                 dueno!left(due_id),
-                playeros!left(play_id)
+                playeros!left(play_id),
+                conductores!left(con_id)
             `)
             .or(`auth_user_id.eq.${user.id},usu_email.eq.${user.email}`)
             .single();
@@ -69,6 +70,9 @@ export async function GET(request: NextRequest) {
         const hasPlayeroRel = Array.isArray(userWithRole.playeros)
             ? userWithRole.playeros.length > 0
             : Boolean(userWithRole.playeros);
+        const hasConductorRel = Array.isArray(userWithRole.conductores)
+            ? userWithRole.conductores.length > 0
+            : Boolean(userWithRole.conductores);
 
         if (hasOwnerRel) {
             role = "owner";
@@ -76,8 +80,11 @@ export async function GET(request: NextRequest) {
         } else if (hasPlayeroRel) {
             role = "playero";
             logger.debug('Usuario identificado como PLAYERO');
+        } else if (hasConductorRel) {
+            role = "conductor";
+            logger.debug('Usuario identificado como CONDUCTOR');
         } else {
-            logger.debug('Usuario identificado como CONDUCTOR (rol por defecto)');
+            logger.debug('Usuario identificado como DESCONOCIDO (sin rol asignado)');
         }
 
         timer.end();

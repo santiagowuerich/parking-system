@@ -96,7 +96,8 @@ export async function middleware(request: NextRequest) {
         .select(`
           usu_id,
           dueno!left(due_id),
-          playeros!left(play_id)
+          playeros!left(play_id),
+          conductores!left(con_id)
         `)
         .eq('auth_user_id', user.id)
         .single();
@@ -109,6 +110,9 @@ export async function middleware(request: NextRequest) {
         const hasPlayeroRel = Array.isArray(userWithRole.playeros)
           ? userWithRole.playeros.length > 0
           : Boolean(userWithRole.playeros);
+        const hasConductorRel = Array.isArray(userWithRole.conductores)
+          ? userWithRole.conductores.length > 0
+          : Boolean(userWithRole.conductores);
 
         if (hasOwnerRel) {
           url.pathname = '/dashboard';
@@ -116,6 +120,10 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(url);
         } else if (hasPlayeroRel) {
           url.pathname = '/dashboard/operador-simple';
+          timer.end();
+          return NextResponse.redirect(url);
+        } else if (hasConductorRel) {
+          url.pathname = '/dashboard/mapa-estacionamientos';
           timer.end();
           return NextResponse.redirect(url);
         } else {
@@ -153,7 +161,8 @@ export async function middleware(request: NextRequest) {
         .select(`
           usu_id,
           dueno!left(due_id),
-          playeros!left(play_id)
+          playeros!left(play_id),
+          conductores!left(con_id)
         `)
         .eq('auth_user_id', user.id)
         .single();
@@ -166,9 +175,13 @@ export async function middleware(request: NextRequest) {
         const hasPlayeroRel = Array.isArray(userWithRole.playeros)
           ? userWithRole.playeros.length > 0
           : Boolean(userWithRole.playeros);
+        const hasConductorRel = Array.isArray(userWithRole.conductores)
+          ? userWithRole.conductores.length > 0
+          : Boolean(userWithRole.conductores);
 
         if (hasOwnerRel) userRole = 'owner';
         else if (hasPlayeroRel) userRole = 'playero';
+        else if (hasConductorRel) userRole = 'conductor';
         else userRole = 'unknown';
       }
 
