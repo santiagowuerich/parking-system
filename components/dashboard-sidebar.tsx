@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,7 @@ const conductorNavigationItems = [
     },
     {
         title: "Mis Vehículos",
-        href: "/dashboard/mis-vehiculos",
+        href: "/conductor/vehiculos",
         icon: Car,
         description: "Administración de mis vehiculos"
     },
@@ -223,8 +223,8 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const [collapsed, setCollapsed] = useState(false);
     const [expandedItems, setExpandedItems] = useState<string[]>(["Panel de Operador"]);
 
-    // Seleccionar elementos de navegación según el rol
-    const getNavigationItems = () => {
+    // Seleccionar elementos de navegación según el rol usando useMemo para estabilidad
+    const navigationItems = useMemo(() => {
         // Mientras carga el rol, mostrar elementos básicos
         if (roleLoading) {
             return employeeNavigationItems; // Mostrar solo opciones básicas mientras carga
@@ -240,9 +240,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
         }
         // Fallback seguro para empleados si el rol no está claro
         return employeeNavigationItems;
-    };
-
-    const navigationItems = getNavigationItems();
+    }, [roleLoading, isOwner, isEmployee, isDriver]);
 
     const handleNavigation = (href: string) => {
         router.push(href);

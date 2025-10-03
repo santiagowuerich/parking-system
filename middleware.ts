@@ -195,9 +195,25 @@ export async function middleware(request: NextRequest) {
         '/dashboard/payments'
       ];
 
+      // Proteger todas las rutas del dashboard para conductores (excepto /account)
+      const dashboardPaths = [
+        '/dashboard'
+      ];
+
       const isOwnerOnlyPath = ownerOnlyPaths.some(path =>
         url.pathname === path || url.pathname.startsWith(path + '/')
       );
+
+      const isDashboardPath = dashboardPaths.some(path =>
+        url.pathname === path || url.pathname.startsWith(path + '/')
+      );
+
+      // Los conductores no pueden acceder a rutas del dashboard
+      if (isDashboardPath && userRole === 'conductor') {
+        url.pathname = '/conductor';
+        timer.end();
+        return NextResponse.redirect(url);
+      }
 
       // Redirigir empleados al panel de operador si acceden al dashboard principal
       if (url.pathname === '/dashboard' && userRole === 'playero') {

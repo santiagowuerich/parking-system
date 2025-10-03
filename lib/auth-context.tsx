@@ -683,6 +683,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Función para obtener el estId del usuario
       const getUserEstId = async () => {
         try {
+          // Si es conductor, no necesita estId
+          if (userRole === 'conductor') {
+            console.log('🚗 Usuario es conductor, no necesita estId');
+            setEstId(null);
+            return null;
+          }
           // Primero verificar si hay estId guardado en localStorage
           if (typeof window !== 'undefined') {
             const savedEstId = localStorage.getItem('parking_est_id');
@@ -750,7 +756,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingHistory(null);
       setParkingCapacity(null);
     }
-  }, [user?.id]);
+  }, [user?.id, userRole]);
 
 
   // Función para obtener el rol del usuario
@@ -831,8 +837,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
   // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
   useEffect(() => {
-    if (!user?.id || estId === null || loadingData || isNavigating) return;
+    if (!user?.id || loadingData || isNavigating) return;
     if (roleLoading || !userRole) return; // esperar a rol
+
+    // Si es conductor, no necesita cargar datos de estacionamiento
+    if (userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, evitando carga de datos de estacionamiento');
+      return;
+    }
+
+    // Para otros roles, necesitamos estId
+    if (estId === null) return;
 
     // Solo hacer carga automática si estamos en páginas que lo necesitan
     const currentPath = pathname || '';
@@ -846,6 +861,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => clearTimeout(timeoutId);
   }, [user?.id, estId, userRole, roleLoading]);
+
+  // Efecto específico para ensureParkingSetup - SOLO para owner y playero
+  useEffect(() => {
+    if (user && userRole && (userRole === 'owner' || userRole === 'playero')) {
+      console.log('🏢 Usuario es owner/playero, ejecutando ensureParkingSetup');
+      ensureParkingSetup();
+    } else if (user && userRole && userRole === 'conductor') {
+      console.log('🚗 Usuario es conductor, evitando ensureParkingSetup');
+    }
+  }, [user, userRole]);
 
   useEffect(() => {
     let mounted = true;
