@@ -740,17 +740,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener el rol del usuario
   const fetchUserRole = async () => {
+    console.log('🔍 fetchUserRole llamado - user?.id:', user?.id, 'roleLoading:', roleLoading);
     if (!user?.id || roleLoading) return;
 
+    console.log('🚀 Iniciando determinación de rol...');
     setRoleLoading(true);
 
     try {
       // Verificar cache primero
       const cachedRole = localStorage.getItem('user_role');
+      console.log('📦 Cache role:', cachedRole);
       if (cachedRole) {
         try {
           const { role, timestamp } = JSON.parse(cachedRole);
           if (Date.now() - timestamp < 5 * 60 * 1000) {
+            console.log('✅ Usando rol de cache:', role);
             setUserRole(role);
             setRoleLoading(false);
             return;
@@ -760,36 +764,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Consultar API
-      const response = await fetch('/api/auth/get-role');
-      if (response.ok) {
-        const data = await response.json();
-        const role = data.role;
+      // Consultar API con timeout
+      console.log('🌐 Consultando API /api/auth/get-role...');
 
-        console.log('🎭 Rol obtenido de API:', role, 'para usuario:', user?.email);
+      // Crear un AbortController para timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
 
-        if (role === 'owner' || role === 'playero' || role === 'conductor') {
-          console.log('✅ Estableciendo userRole a:', role);
-          setUserRole(role);
-          localStorage.setItem('user_role', JSON.stringify({
-            role,
-            timestamp: Date.now()
-          }));
+      try {
+        const response = await fetch('/api/auth/get-role', {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        console.log('📡 Respuesta API status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          const role = data.role;
+
+          console.log('🎭 Rol obtenido de API:', role, 'para usuario:', user?.email);
+
+          if (role === 'owner' || role === 'playero' || role === 'conductor') {
+            console.log('✅ Estableciendo userRole a:', role);
+            setUserRole(role);
+            localStorage.setItem('user_role', JSON.stringify({
+              role,
+              timestamp: Date.now()
+            }));
+          } else {
+            console.log('❌ Rol desconocido:', role, 'estableciendo a null');
+            setUserRole(null);
+          }
         } else {
-          console.log('❌ Rol desconocido:', role, 'estableciendo a null');
-          setUserRole(null);
+          console.log('❌ Error en respuesta API:', response.status, response.statusText);
         }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.log('⏰ Timeout en consulta de rol después de 10 segundos');
+        } else {
+          console.error('❌ Error en consulta de rol:', fetchError);
+        }
+        throw fetchError; // Re-lanzar para que sea manejado por el catch exterior
       }
     } catch (error) {
-      console.error('Error obteniendo rol:', error);
+      console.error('❌ Error obteniendo rol:', error);
     } finally {
+      console.log('🏁 Finalizando fetchUserRole, estableciendo roleLoading=false');
       setRoleLoading(false);
     }
   };
 
   // Efecto para cargar rol del usuario - solo cuando cambia el ID del usuario
   useEffect(() => {
+    console.log('🎯 useEffect de rol ejecutándose - user?.id:', user?.id, 'userRole:', userRole);
     if (!user?.id) {
+      console.log('❌ No hay user.id, reseteando rol');
       setUserRole(null);
       setRoleLoading(false);
       return;
@@ -797,13 +828,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Solo cargar rol si no tenemos uno o si cambió el usuario
     const cachedRole = localStorage.getItem('user_role');
+    console.log('📋 Cache actual:', cachedRole, 'userRole actual:', userRole);
     if (cachedRole && userRole) {
       // Ya tenemos rol, no recargar innecesariamente
+      console.log('✅ Ya tenemos rol y cache, no recargar');
       return;
     }
 
-    // Llamar inmediatamente sin timeout
-    fetchUserRole();
+    // Llamar con un pequeño timeout para evitar race conditions
+    console.log('🚀 Programando fetchUserRole con timeout...');
+    const timeoutId = setTimeout(() => {
+      fetchUserRole();
+    }, 100); // Pequeño delay para evitar múltiples llamadas simultáneas
+
+    return () => clearTimeout(timeoutId);
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
@@ -856,7 +894,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLastUserId(session?.user?.id ?? null);
           setIsInitialized(true);
           hasInitialized = true;
-
         }
       } catch (error: any) {
         console.error("Error initializing auth:", error);
@@ -953,35 +990,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async ({ email, password }: SignInParams) => {
     const timer = createTimer('AuthContext.signIn');
-    // Activar loading inmediatamente para evitar flash
-    try {
-      // Limpiar cualquier sesión previa antes de iniciar sesión
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-        clearCache();
-      } catch (cleanupError) {
-        // Ignorar errores de limpieza
-        console.log('Cleanup antes de login:', cleanupError);
-      }
 
-      // Inicio de sesión
+    try {
+      // Solo hacer el inicio de sesión - Supabase se encarga del resto
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        timer.end();
+        throw error;
+      }
 
-      // Login OK
-      // Forzar refetch de rol después de iniciar sesión
+      // Inicio de sesión exitoso
+      // Limpiar cache de rol para forzar refetch
       try {
         localStorage.removeItem('user_role');
       } catch { }
+
       setUserRole(null);
       timer.end();
-      // Mantener loading=true, onAuthStateChange lo manejará
+
+      // El onAuthStateChange manejará el resto del flujo
+      // La determinación del rol la hará el useEffect cuando detecte el cambio de usuario
+
     } catch (error) {
-      // Solo en caso de error, asegurar que loading sea false
+      timer.end();
       throw error;
     }
   };

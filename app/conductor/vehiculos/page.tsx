@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Edit, Trash2 } from "lucide-react";
+import { useUserRole } from "@/lib/use-user-role";
 
 interface Vehicle {
     id: string;
@@ -34,6 +35,7 @@ export default function ConductorVehiculosPage() {
     });
 
     const { toast } = useToast();
+    const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
 
     useEffect(() => {
         fetchVehicles();
@@ -172,6 +174,11 @@ export default function ConductorVehiculosPage() {
         });
         setEditingVehicle(null);
     };
+
+    // Si no es conductor, no mostrar nada (DashboardLayout manejará la redirección)
+    if (!isDriver && !roleLoading) {
+        return <DashboardLayout><div></div></DashboardLayout>;
+    }
 
     return (
         <DashboardLayout>
