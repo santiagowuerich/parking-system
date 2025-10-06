@@ -48,6 +48,7 @@ body {
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -88,7 +89,53 @@ body {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* --- InfoWindow: quito caja y paddings de Google --- */
+.gm-style .gm-style-iw-c {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  /* el radio lo pone tu card interna */
+  overflow: visible !important;
+  /* para que se vea tu "pico" */
+}
+
+/* Contenido interno sin scroll raro */
+.gm-style .gm-style-iw-d {
+  overflow: visible !important;
+}
+
+/* Ocultar el "pico" nativo */
+.gm-style .gm-style-iw-tc::after,
+.gm-style .gm-style-iw-tc::before {
+  display: none !important;
+}
+
+/* OCULTAR el botón de cerrar de Google (para que no haya 2 X) */
+.gm-style .gm-ui-hover-effect {
+  display: none !important;
+}
+
+/* "pico" propio para el globo */
+.parking-popup {
+  position: relative;
+}
+
+.parking-popup::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  border: 10px solid transparent;
+  border-top-color: white;
+  /* mismo fondo que tu card */
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, .12));
+  pointer-events: none;
 }

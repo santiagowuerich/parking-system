@@ -222,32 +222,69 @@ export default function ParkingMap({
             zIndex: isSelected ? 1000 : 100 // Mayor prioridad si está seleccionado
         });
 
-        // Info window con información del estacionamiento
+        // Info window con configuración limpia
         const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-                <div style="color: #000; padding: 12px; max-width: 250px; font-family: Arial, sans-serif;">
-                    <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: #1f2937;">
-                        ${parking.nombre}
-                    </h3>
-                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">
-                        📍 ${parking.direccionCompleta || parking.direccion}
-                    </p>
-                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">
-                        🏢 ${parking.localidad}, ${parking.provincia}
-                    </p>
-                    <div style="margin: 8px 0; padding: 6px; background: ${parking.estado === 'disponible' ? '#dcfce7' :
-                    parking.estado === 'pocos' ? '#fef3c7' : '#fecaca'
-                }; border-radius: 4px;">
-                        <span style="font-weight: bold; color: ${parking.estado === 'disponible' ? '#059669' :
-                    parking.estado === 'pocos' ? '#d97706' : '#dc2626'
-                };">
-                            ${parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} espacios disponibles` : 'Sin espacios disponibles'}
+            maxWidth: 360
+        });
+
+        // Función para abrir popup con la nueva implementación
+        const openPopup = ({ map, marker }: { map: google.maps.Map, marker: google.maps.Marker }) => {
+            infoWindow.close();
+
+            // Crear un div temporal para el contenido
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'parking-popup relative w-[340px] max-w-[86vw] rounded-2xl border bg-white p-4 shadow-xl';
+
+            contentDiv.innerHTML = `
+                <button
+                    aria-label="Cerrar"
+                    id="close-button-${parking.id}"
+                    style="position: absolute; right: 12px; top: 12px; background: none; border: none; font-size: 18px; color: #6b7280; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'"
+                    onmouseout="this.style.backgroundColor='transparent'"
+                >
+                    ×
+                </button>
+
+                <!-- Nombre del estacionamiento -->
+                <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 18px; color: #1f2937; line-height: 1.2;">
+                    ${parking.nombre}
+                </h3>
+                
+                <!-- Dirección -->
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #6b7280; display: flex; align-items: center; line-height: 1.4;">
+                    📍 ${parking.direccion}
+                </p>
+                
+                <!-- Estado y horario -->
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #f9fafb; padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: ${parking.estado === 'disponible' ? '#10b981' : parking.estado === 'pocos' ? '#f59e0b' : '#ef4444'};"></div>
+                        <span style="font-weight: 600; color: #374151; font-size: 14px;">
+                            ${parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
                         </span>
                     </div>
-                    ${parking.telefono ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: #6b7280;">📞 ${parking.telefono}</p>` : ''}
+                    <span style="font-weight: 600; color: #6b7280; font-size: 14px;">
+                        ${parking.horarioFuncionamiento === 24 ? '24hs' : `${parking.horarioFuncionamiento}h`}
+                    </span>
                 </div>
-            `
-        });
+            `;
+
+            // Agregar event listener al botón de cerrar
+            const closeButton = contentDiv.querySelector(`#close-button-${parking.id}`);
+            if (closeButton) {
+                closeButton.addEventListener('click', () => {
+                    infoWindow.close();
+                });
+            }
+
+            infoWindow.setContent(contentDiv);
+            infoWindow.setOptions({
+                shouldFocus: false,
+                pixelOffset: new window.google.maps.Size(0, -8)
+            });
+            infoWindow.open({ map, anchor: marker });
+        };
 
         // Hacer clic en el marcador para mostrar info window Y seleccionar estacionamiento
         marker.addListener('click', () => {
@@ -263,8 +300,8 @@ export default function ParkingMap({
                 }
             });
 
-            // Mostrar info window
-            infoWindow.open(map, marker);
+            // Mostrar info window con la nueva implementación
+            openPopup({ map, marker });
 
             // Seleccionar estacionamiento SIN mover el mapa
             if (onParkingSelect) {
