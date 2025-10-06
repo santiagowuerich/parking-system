@@ -7,7 +7,6 @@ import { useUserRole } from "@/lib/use-user-role";
 import {
     Calendar,
     Construction,
-    ArrowLeft,
     Clock,
     CheckCircle
 } from "lucide-react";
@@ -25,17 +24,8 @@ export default function AbonosPage() {
     return (
         <DashboardLayout>
             <div className="h-screen bg-gray-50 flex flex-col">
-                <div className="bg-white border-b px-6 py-4">
-                    <div className="flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => router.back()}
-                            className="flex items-center gap-2"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                            Volver
-                        </Button>
+                <div className="border-b bg-card h-16 flex items-center">
+                    <div className="px-6 py-3 flex justify-between items-center w-full">
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">Mis Abonos</h1>
                             <p className="text-gray-600 mt-1">

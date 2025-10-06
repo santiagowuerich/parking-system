@@ -182,21 +182,25 @@ export default function ConductorVehiculosPage() {
 
     return (
         <DashboardLayout>
-            <div className="h-screen bg-gray-50 flex flex-col">
-                <div className="bg-white border-b px-6 py-4">
-                    <h1 className="text-2xl font-bold text-gray-900">Mis Vehículos</h1>
-                    <p className="text-gray-600 mt-1">
-                        Registrá tus vehículos y gestioná los ya cargados
-                    </p>
+            <div className="h-screen bg-white flex flex-col">
+                <div className="border-b bg-card h-16 flex items-center">
+                    <div className="px-6 py-3 flex justify-between items-center w-full">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">Mis Vehículos</h1>
+                            <p className="text-gray-600 mt-1">
+                                Registrá tus vehículos y gestioná los ya cargados
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex-1 p-6">
+                <div className="flex-1 p-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                         {/* Panel Izquierdo - Formulario */}
                         <div className="flex flex-col">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Registrar vehículo</CardTitle>
+                            <Card className="shadow-2xl border-0">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg">Registrar vehículo</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
@@ -285,9 +289,9 @@ export default function ConductorVehiculosPage() {
 
                         {/* Panel Derecho - Tabla */}
                         <div className="flex flex-col">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Vehículos registrados</CardTitle>
+                            <Card className="shadow-2xl border-0">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg">Vehículos registrados</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     {loading ? (

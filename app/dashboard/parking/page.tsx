@@ -51,19 +51,19 @@ export default function ParkingDashboardPage() {
     return (
         <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
             <DashboardLayout>
-            <div className="p-6">
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Mis Estacionamientos</h1>
-                    <p className="text-gray-600 mt-1">
-                        Administra y cambia entre tus diferentes estacionamientos
-                    </p>
+                <div className="p-6">
+                    <div className="mb-6">
+                        <h1 className="text-3xl font-bold text-gray-900">Mis Estacionamientos</h1>
+                        <p className="text-gray-600 mt-1">
+                            Administra y cambia entre tus diferentes estacionamientos
+                        </p>
+                    </div>
+                    <UserParkings
+                        onSelectParking={handleSelectParking}
+                        currentEstId={estId || undefined}
+                    />
                 </div>
-                <UserParkings
-                    onSelectParking={handleSelectParking}
-                    currentEstId={estId || undefined}
-                />
-            </div>
-        </DashboardLayout>
+            </DashboardLayout>
         </RouteGuard>
     );
 }

@@ -65,13 +65,13 @@ export default function MapaEstacionamientos() {
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
                         <p className="text-gray-600">
                             {!roleLoading && isOwner ? 'Redirigiendo...' :
-                             !roleLoading && isEmployee ? 'Redirigiendo...' :
-                             'Cargando mapa...'}
+                                !roleLoading && isEmployee ? 'Redirigiendo...' :
+                                    'Cargando mapa...'}
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
                             {!roleLoading && isOwner ? 'Dirigiéndote al dashboard principal' :
-                             !roleLoading && isEmployee ? 'Dirigiéndote al panel de operador' :
-                             'Determinando permisos del usuario'}
+                                !roleLoading && isEmployee ? 'Dirigiéndote al panel de operador' :
+                                    'Determinando permisos del usuario'}
                         </p>
                     </div>
                 </div>
