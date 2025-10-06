@@ -73,7 +73,8 @@ export default function ParkingMap({
     // Función para filtrar estacionamientos según el radio de búsqueda
     const getFilteredParkings = (): ParkingData[] => {
         if (!userLocation) {
-            return parkings; // Si no hay ubicación del usuario, mostrar todos
+            console.log('📍 Sin ubicación del usuario - no mostrar estacionamientos en el mapa');
+            return []; // Si no hay ubicación del usuario, no mostrar ninguno
         }
 
         console.log(`🗺️ Filtrando estacionamientos en el mapa para radio de ${searchRadius}km`);
@@ -806,6 +807,33 @@ export default function ParkingMap({
             </CardHeader>
             <CardContent>
                 <div className="relative">
+                    {/* Popup para solicitar ubicación */}
+                    {!userLocation && isLoaded && (
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                            <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center">
+                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6">
+                                    <MapPin className="h-8 w-8 text-blue-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                                    ¡Presiona "Mi Ubicación"!
+                                </h3>
+                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                    Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
+                                </p>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="flex items-center gap-3 text-blue-700">
+                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <span className="text-sm font-bold">1</span>
+                                        </div>
+                                        <span className="text-sm font-medium">
+                                            Haz clic en el botón "Mi Ubicación" en la parte superior
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div
                         ref={mapRef}
                         className={className + " rounded-lg border border-gray-200"}
