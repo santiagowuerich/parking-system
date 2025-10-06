@@ -1,58 +1,68 @@
-# 🧪 Scripts de Prueba
+# tests/
 
-Esta carpeta contiene todos los scripts de prueba automatizados del sistema.
+**Rol / propósito:** Scripts de testing automatizados para validar la funcionalidad del sistema de estacionamiento, incluyendo pruebas de API, UI, integración y casos específicos de negocio.
 
-## Tipos de Pruebas
+## Contenido clave
+- `test-api-*.js` - Pruebas de endpoints de API (empleados, plazas, tarifas)
+- `test-dashboard-*.js` - Pruebas de integración del panel principal
+- `test-empleado-*.js` - Pruebas específicas de gestión de empleados
+- `test-plazas-*.js` - Pruebas de configuración y visualización de plazas
+- `test-tarifas-*.js` - Pruebas de configuración de tarifas
+- `test-google-maps.js` - Pruebas de integración con Google Maps
+- `test-*.ps1` - Scripts de testing en PowerShell
 
-### Funcionales
-- `test-api-empleados.js` - Pruebas de API de empleados
-- `test-api-empleados.ps1` - Pruebas de PowerShell para API
-- `test-flujo-empleados.ps1` - Prueba completa del flujo de empleados
-- `test-gestion-empleados.js` - Pruebas de gestión de empleados
+## Estructura
 
-### Creación y Edición
-- `test-creacion-empleado-admin.js` - Pruebas de creación con admin
-- `test-creacion-empleado-auth.js` - Pruebas de autenticación
-- `test-edicion-eliminacion-empleados.js` - Pruebas CRUD completas
-- `test-edicion-especifica.js` - Pruebas específicas de edición
-- `test-empleado-final.js` - Prueba final del sistema de empleados
-
-### Eliminación
-- `test-eliminacion-simple.js` - Pruebas simples de eliminación
-
-### Otros Componentes
-- `test-dashboard-empleados.js` - Pruebas del dashboard
-- `test-duplicados-ux.js` - Pruebas de UX para duplicados
-- `test-google-maps.js` - Pruebas de Google Maps
-- `test-modal.js` - Pruebas de modales
-- `test-multiple-parkings.js` - Pruebas multi-estacionamiento
-- `test-new-parking-setup.js` - Pruebas de configuración
-- `test-parking-switch.js` - Pruebas de cambio de parking
-- `test-performance-fixes.js` - Pruebas de rendimiento
-- `test-plantillas.js` - Pruebas de plantillas
-- `test-post-empleado-completo.js` - Pruebas POST completas
-- `test-post-http.js` - Pruebas HTTP
-- `test-security-fixes.js` - Pruebas de seguridad
-- `test-setup-fixed.js` - Pruebas de setup
-- `test-simple-id-fix.js` - Pruebas de IDs
-- `test-tarifas-api.js` - Pruebas de API de tarifas
-- `test-tarifas-ui.js` - Pruebas de UI de tarifas
-- `test-visualizacion-empleados.js` - Pruebas de visualización
-
-## Cómo Ejecutar
-
-```bash
-# Ejecutar una prueba específica
-node tests/test-empleado-final.js
-
-# Ejecutar con PowerShell
-./tests/test-api-empleados.ps1
+```
+tests/
+├── test-api-empleados.js           # API empleados
+├── test-api-plazas.js              # API plazas
+├── test-dashboard-integration.js   # Integración dashboard
+├── test-empleado-*.js              # Gestión empleados (8+ archivos)
+├── test-plazas-*.js                # Configuración plazas (6+ archivos)
+├── test-tarifas-*.js               # Sistema tarifas
+├── test-google-maps.js             # Integración Google Maps
+├── test-*.ps1                      # Scripts PowerShell
+└── ...                            # 40+ scripts específicos
 ```
 
-## Propósito
+## Entradas/Salidas
 
-Estas pruebas aseguran que:
-- Las funcionalidades críticas funcionen correctamente
-- Los cambios no rompan funcionalidad existente
-- La calidad del código se mantenga alta
-- Los bugs se detecten temprano
+- **Entradas**: URLs de API locales, datos de prueba, configuraciones
+- **Salidas**: Resultados de pruebas (✅/❌), logs detallados, datos de respuesta
+
+## Cómo se usa desde afuera
+
+```bash
+# Ejecutar prueba específica
+node tests/test-api-empleados.js
+
+# Ejecutar pruebas de empleados
+node tests/test-dashboard-empleados.js
+
+# Ejecutar desde PowerShell
+.\tests\test-flujo-empleados.ps1
+
+# Ejecutar múltiples pruebas
+for file in tests/test-*.js; do node "$file"; done
+```
+
+## Dependencias y contratos
+
+- **Depende de**: Servidor Next.js corriendo en localhost:3000, base de datos Supabase
+- **Expone**: Estado de funcionalidad, errores encontrados, métricas de pruebas
+
+## Puntos de extensión / modificar con seguridad
+
+- Añadir nueva prueba: crear `test-*.js` siguiendo patrón de nomenclatura
+- Probar nueva funcionalidad: crear script específico para feature
+- Actualizar pruebas existentes: modificar cuando cambie la API o lógica
+
+## Convenciones / notas
+
+- Scripts en español con emojis para claridad
+- Nombres descriptivos: `test-{funcionalidad}-{aspecto}.js`
+- Tests independientes que pueden ejecutarse por separado
+- Logging detallado con códigos de estado HTTP
+- Manejo de errores y casos edge
+- Scripts .ps1 para automatización en Windows
