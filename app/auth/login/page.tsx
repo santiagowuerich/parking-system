@@ -5,6 +5,7 @@ import { useState, Suspense } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAutoRedirect } from "@/hooks/use-auto-redirect";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -16,13 +17,16 @@ function LoginForm() {
   const search = useSearchParams();
   const resetOk = search?.get('reset') === 'ok';
 
+  // Hook para redirección automática
+  useAutoRedirect();
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
       await signIn({ email, password });
-      // El middleware se encarga de redirigir según el rol del usuario
+      // El hook useAutoRedirect se encarga de la redirección automática
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
         setError("Email o contraseña incorrectos.");
@@ -41,7 +45,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      // El middleware se encarga de redirigir según el rol del usuario
+      // El hook useAutoRedirect se encarga de la redirección automática
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
     } finally {

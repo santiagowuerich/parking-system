@@ -835,13 +835,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Llamar con un pequeño timeout para evitar race conditions
-    console.log('🚀 Programando fetchUserRole con timeout...');
-    const timeoutId = setTimeout(() => {
-      fetchUserRole();
-    }, 100); // Pequeño delay para evitar múltiples llamadas simultáneas
+    // Llamar inmediatamente para evitar delays en redirección
+    console.log('🚀 Ejecutando fetchUserRole inmediatamente...');
+    fetchUserRole();
 
-    return () => clearTimeout(timeoutId);
+    // No hay timeout que limpiar
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
   // Efecto separado: no cargar datos hasta que tengamos rol y estId
