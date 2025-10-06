@@ -27,6 +27,7 @@ interface ParkingMapProps {
     onParkingSelect?: (parking: ParkingData) => void;
     selectedParkingId?: number;
     onLocationButtonClick?: () => void;
+    onUserLocationUpdate?: (location: { lat: number, lng: number }) => void;
 }
 
 declare global {
@@ -40,7 +41,8 @@ export default function ParkingMap({
     className = "h-96 w-full",
     onParkingSelect,
     selectedParkingId,
-    onLocationButtonClick
+    onLocationButtonClick,
+    onUserLocationUpdate
 }: ParkingMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -212,6 +214,11 @@ export default function ParkingMap({
 
             console.log('✅ Mapa centrado en ubicación del usuario');
 
+            // Notificar al componente padre sobre la nueva ubicación del usuario
+            if (onUserLocationUpdate) {
+                onUserLocationUpdate(coords);
+            }
+
         } catch (error) {
             console.error('❌ Error centrando mapa en usuario:', error);
             // No establecer error aquí para no romper la funcionalidad del mapa
@@ -309,6 +316,16 @@ export default function ParkingMap({
                         ${parking.horarioFuncionamiento === 24 ? '24hs' : `${parking.horarioFuncionamiento}h`}
                     </span>
                 </div>
+                
+                <!-- Botón Navegar -->
+                <button
+                    id="navigate-button-${parking.id}"
+                    style="width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background-color 0.2s;"
+                    onmouseover="this.style.backgroundColor='#1d4ed8'"
+                    onmouseout="this.style.backgroundColor='#2563eb'"
+                >
+                    🧭 Navegar
+                </button>
             `;
 
             // Agregar event listener al botón de cerrar
@@ -316,6 +333,23 @@ export default function ParkingMap({
             if (closeButton) {
                 closeButton.addEventListener('click', () => {
                     infoWindow.close();
+                });
+            }
+
+            // Agregar event listener al botón de navegar
+            const navigateButton = contentDiv.querySelector(`#navigate-button-${parking.id}`);
+            if (navigateButton) {
+                navigateButton.addEventListener('click', () => {
+                    // Crear la URL para Google Maps
+                    const address = encodeURIComponent(
+                        parking.direccionCompleta || parking.direccion
+                    );
+                    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+
+                    // Abrir en nueva pestaña
+                    window.open(googleMapsUrl, '_blank');
+
+                    console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
                 });
             }
 

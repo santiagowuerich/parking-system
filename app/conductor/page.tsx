@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ interface ParkingData {
     telefono?: string;
     email?: string;
     estado: 'disponible' | 'pocos' | 'lleno';
+    distance?: number; // Para estacionamientos cercanos
 }
 
 export default function MapaEstacionamientos() {
@@ -47,12 +48,68 @@ export default function MapaEstacionamientos() {
     const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
     const [selectedParking, setSelectedParking] = useState<ParkingData | null>(null);
+    const [allParkings, setAllParkings] = useState<ParkingData[]>([]);
+    const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
+
+    // Función para calcular la distancia entre dos puntos (Haversine formula)
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Función para obtener estacionamientos cercanos basados en la ubicación del conductor
+    const getNearbyParkings = (userLocation: { lat: number, lng: number }, allParkings: ParkingData[]): ParkingData[] => {
+        return allParkings
+            .map(parking => ({
+                ...parking,
+                distance: calculateDistance(
+                    userLocation.lat,
+                    userLocation.lng,
+                    parking.latitud,
+                    parking.longitud
+                )
+            }))
+            .filter(parking => parking.distance <= 2) // Filtrar estacionamientos dentro de 2km
+            .sort((a, b) => a.distance - b.distance) // Ordenar por distancia
+            .slice(0, 5); // Tomar solo los 5 más cercanos
+    };
+
+    // Función para cargar todos los estacionamientos
+    const fetchAllParkings = async () => {
+        try {
+            const response = await fetch('/api/parkings');
+            if (response.ok) {
+                const data = await response.json();
+                setAllParkings(data.parkings || []);
+            }
+        } catch (error) {
+            console.error('Error cargando estacionamientos:', error);
+        }
+    };
+
+    // Cargar estacionamientos al montar el componente
+    useEffect(() => {
+        fetchAllParkings();
+    }, []);
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
         console.log('🏢 Estacionamiento seleccionado:', parking);
         setSelectedParking(parking);
+    };
+
+    // Función para manejar la actualización de ubicación del usuario
+    const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
+        console.log('📍 Ubicación del usuario actualizada:', location);
+        setUserLocation(location);
     };
 
     // Mostrar loading mientras se determina el rol del usuario O si no es conductor
@@ -152,61 +209,137 @@ export default function MapaEstacionamientos() {
                     <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
                         <div className="p-8">
                             <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-gray-900">Detalles del Estacionamiento</h3>
+                                <h3 className="text-xl font-bold text-gray-900">
+                                    {userLocation ? "Información y Cercanos" : "Información del Estacionamiento"}
+                                </h3>
                             </div>
 
                             {selectedParking ? (
-                                <Card className="border-2 border-blue-500 bg-white shadow-xl">
-                                    <CardContent className="p-6">
-                                        <div className="mb-6">
-                                            <div className="flex flex-col gap-3 mb-3">
-                                                <h3 className="font-bold text-xl text-gray-900">{selectedParking.nombre}</h3>
-                                                <div className="flex justify-start">
-                                                    <Badge className={`px-3 py-1 text-sm font-semibold w-fit ${selectedParking.estado === 'disponible'
-                                                        ? 'bg-green-600 text-white'
-                                                        : selectedParking.estado === 'pocos'
-                                                            ? 'bg-orange-600 text-white'
-                                                            : 'bg-red-600 text-white'
-                                                        }`}>
-                                                        {selectedParking.estado === 'disponible' ? 'Disponible' :
-                                                            selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
-                                                    </Badge>
+                                <div>
+                                    <Card className="border-2 border-blue-500 bg-white shadow-xl">
+                                        <CardContent className="p-6">
+                                            <div className="mb-6">
+                                                <div className="flex flex-col gap-3 mb-3">
+                                                    <h3 className="font-bold text-xl text-gray-900">{selectedParking.nombre}</h3>
+                                                    <div className="flex justify-start">
+                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ${selectedParking.estado === 'disponible'
+                                                            ? 'bg-green-600 text-white'
+                                                            : selectedParking.estado === 'pocos'
+                                                                ? 'bg-orange-600 text-white'
+                                                                : 'bg-red-600 text-white'
+                                                            }`}>
+                                                            {selectedParking.estado === 'disponible' ? 'Disponible' :
+                                                                selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <MapPin className="h-4 w-4 text-gray-500" />
+                                                    <span className="text-gray-600 text-sm">{selectedParking.direccion}</span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <MapPin className="h-4 w-4 text-gray-500" />
-                                                <span className="text-gray-600 text-sm">{selectedParking.direccion}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-4 h-4 rounded-full ${selectedParking.estado === 'disponible'
-                                                        ? 'bg-green-500'
-                                                        : selectedParking.estado === 'pocos'
-                                                            ? 'bg-orange-500'
-                                                            : 'bg-red-500'
-                                                        }`}></div>
-                                                    <span className="font-semibold text-gray-800">
-                                                        {selectedParking.espaciosDisponibles > 0
-                                                            ? `${selectedParking.espaciosDisponibles} libres`
-                                                            : 'Sin espacios'}
+                                            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-4 h-4 rounded-full ${selectedParking.estado === 'disponible'
+                                                            ? 'bg-green-500'
+                                                            : selectedParking.estado === 'pocos'
+                                                                ? 'bg-orange-500'
+                                                                : 'bg-red-500'
+                                                            }`}></div>
+                                                        <span className="font-semibold text-gray-800">
+                                                            {selectedParking.espaciosDisponibles > 0
+                                                                ? `${selectedParking.espaciosDisponibles} libres`
+                                                                : 'Sin espacios'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-semibold text-gray-600">
+                                                        {selectedParking.horarioFuncionamiento === 24 ? '24hs' : `${selectedParking.horarioFuncionamiento}h`}
                                                     </span>
                                                 </div>
-                                                <span className="font-semibold text-gray-600">
-                                                    {selectedParking.horarioFuncionamiento === 24 ? '24hs' : `${selectedParking.horarioFuncionamiento}h`}
+                                            </div>
+
+                                            <Button
+                                                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
+                                                onClick={() => {
+                                                    if (selectedParking) {
+                                                        // Crear la URL para Google Maps
+                                                        const address = encodeURIComponent(
+                                                            selectedParking.direccionCompleta || selectedParking.direccion
+                                                        );
+                                                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+
+                                                        // Abrir en nueva pestaña
+                                                        window.open(googleMapsUrl, '_blank');
+
+                                                        console.log('🧭 Navegando a:', selectedParking.nombre, 'en', selectedParking.direccionCompleta || selectedParking.direccion);
+                                                    }
+                                                }}
+                                            >
+                                                <Navigation2 className="w-5 h-5 mr-2" />
+                                                Navegar
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* Estacionamientos Cercanos */}
+                                    {userLocation && getNearbyParkings(userLocation, allParkings).length > 0 && (
+                                        <div className="mt-6">
+                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                                                Estacionamientos Cercanos a Ti
+                                            </h4>
+                                            <div className="space-y-3">
+                                                {getNearbyParkings(userLocation, allParkings).map((parking) => (
+                                                    <Card
+                                                        key={parking.id}
+                                                        className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
+                                                        onClick={() => setSelectedParking(parking)}
+                                                    >
+                                                        <CardContent className="p-4">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex-1">
+                                                                    <h5 className="font-semibold text-gray-900 text-sm mb-1">
+                                                                        {parking.nombre}
+                                                                    </h5>
+                                                                    <p className="text-xs text-gray-600 mb-2">
+                                                                        {parking.direccion}
+                                                                    </p>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className={`w-2 h-2 rounded-full ${parking.estado === 'disponible' ? 'bg-green-500' :
+                                                                                parking.estado === 'pocos' ? 'bg-orange-500' : 'bg-red-500'
+                                                                                }`}></div>
+                                                                            <span className="text-xs font-medium text-gray-700">
+                                                                                {parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="text-xs font-semibold text-blue-600">
+                                                                            {parking.distance?.toFixed(1)} km
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Mensaje informativo si no hay ubicación del usuario */}
+                                    {!userLocation && (
+                                        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="flex items-center gap-2 text-blue-700">
+                                                <MapPin className="h-4 w-4" />
+                                                <span className="text-sm font-medium">
+                                                    Usa el botón "Mi Ubicación" para ver estacionamientos cercanos
                                                 </span>
                                             </div>
                                         </div>
-
-                                        <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg">
-                                            <Navigation2 className="w-5 h-5 mr-2" />
-                                            Navegar
-                                        </Button>
-                                    </CardContent>
-                                </Card>
+                                    )}
+                                </div>
                             ) : (
                                 <Card className="border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100">
                                     <CardContent className="p-8 text-center">
@@ -233,6 +366,7 @@ export default function MapaEstacionamientos() {
                                 selectedParkingId={selectedParking?.id}
                                 className="h-full w-full"
                                 onLocationButtonClick={() => { }}
+                                onUserLocationUpdate={handleUserLocationUpdate}
                             />
                         </div>
                     </div>
