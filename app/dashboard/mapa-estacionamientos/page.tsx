@@ -208,8 +208,8 @@ export default function MapaEstacionamientosPage() {
                                             <div
                                                 key={parking.id}
                                                 className={`absolute cursor-pointer transition-all duration-300 hover:scale-110 ${index === 0 ? 'top-20 left-16' :
-                                                        index === 1 ? 'top-32 right-20' :
-                                                            'top-44 left-24'
+                                                    index === 1 ? 'top-32 right-20' :
+                                                        'top-44 left-24'
                                                     }`}
                                                 onClick={() => setSelectedParking(parking)}
                                             >
@@ -307,8 +307,8 @@ export default function MapaEstacionamientosPage() {
                             <Card
                                 key={parking.id}
                                 className={`cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] border-2 ${selectedParking?.id === parking.id
-                                        ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.02]'
-                                        : 'border-gray-200 hover:border-blue-300 bg-white'
+                                    ? 'border-blue-500 bg-blue-50 shadow-lg scale-[1.02]'
+                                    : 'border-gray-200 hover:border-blue-300 bg-white'
                                     }`}
                                 onClick={() => setSelectedParking(parking)}
                             >
@@ -352,8 +352,8 @@ export default function MapaEstacionamientosPage() {
                                         <Button
                                             size="lg"
                                             className={`w-full h-10 font-semibold ${parking.status === 'full'
-                                                    ? 'bg-gray-400 hover:bg-gray-500 text-white'
-                                                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                                                ? 'bg-gray-400 hover:bg-gray-500 text-white'
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
                                                 }`}
                                             disabled={parking.status === 'full'}
                                         >

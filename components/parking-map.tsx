@@ -54,6 +54,44 @@ export default function ParkingMap({
     const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const maxRetries = 3;
 
+    // Función para guardar el estado del mapa en localStorage
+    const saveMapState = (center: google.maps.LatLng, zoom: number) => {
+        try {
+            const mapState = {
+                lat: center.lat(),
+                lng: center.lng(),
+                zoom: zoom,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('parking-map-state', JSON.stringify(mapState));
+            console.log('💾 Estado del mapa guardado:', mapState);
+        } catch (error) {
+            console.error('❌ Error guardando estado del mapa:', error);
+        }
+    };
+
+    // Función para cargar el estado del mapa desde localStorage
+    const loadMapState = () => {
+        try {
+            const savedState = localStorage.getItem('parking-map-state');
+            if (savedState) {
+                const mapState = JSON.parse(savedState);
+                // Verificar que el estado no sea muy viejo (más de 24 horas)
+                const isOld = Date.now() - mapState.timestamp > 24 * 60 * 60 * 1000;
+                if (!isOld) {
+                    console.log('📂 Estado del mapa cargado:', mapState);
+                    return {
+                        center: { lat: mapState.lat, lng: mapState.lng },
+                        zoom: mapState.zoom
+                    };
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error cargando estado del mapa:', error);
+        }
+        return null;
+    };
+
     // Función para obtener datos de estacionamientos
     const fetchParkings = async () => {
         try {
@@ -138,6 +176,9 @@ export default function ParkingMap({
             // Centrar el mapa en la ubicación del usuario
             mapInstanceRef.current.setCenter(coords);
             mapInstanceRef.current.setZoom(16);
+
+            // Guardar el nuevo estado del mapa
+            saveMapState(new window.google.maps.LatLng(coords.lat, coords.lng), 16);
 
             // Limpiar marcador anterior de ubicación del usuario
             if (userLocationMarkerRef.current) {
@@ -336,18 +377,32 @@ export default function ParkingMap({
                 return;
             }
 
-            // Calcular centro del mapa basado en los estacionamientos
-            const latitudes = parkingsData.map(p => p.latitud);
-            const longitudes = parkingsData.map(p => p.longitud);
-            const centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
-            const centerLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+            // Intentar cargar el estado guardado del mapa
+            const savedState = loadMapState();
 
-            console.log('📍 Centro calculado:', { lat: centerLat, lng: centerLng });
+            let mapCenter, mapZoom;
+
+            if (savedState) {
+                // Usar el estado guardado
+                mapCenter = savedState.center;
+                mapZoom = savedState.zoom;
+                console.log('📍 Usando estado guardado del mapa:', savedState);
+            } else {
+                // Calcular centro del mapa basado en los estacionamientos
+                const latitudes = parkingsData.map(p => p.latitud);
+                const longitudes = parkingsData.map(p => p.longitud);
+                const centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+                const centerLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+
+                mapCenter = { lat: centerLat, lng: centerLng };
+                mapZoom = 14;
+                console.log('📍 Centro calculado:', mapCenter);
+            }
 
             // Opciones del mapa optimizadas para estacionamientos
             const mapOptions: google.maps.MapOptions = {
-                zoom: 14,
-                center: { lat: centerLat, lng: centerLng },
+                zoom: mapZoom,
+                center: mapCenter,
                 mapTypeId: window.google.maps.MapTypeId.ROADMAP,
                 styles: [
                     {
@@ -399,8 +454,22 @@ export default function ParkingMap({
             // Configurar el mapa para que NO se mueva automáticamente al hacer zoom de mouse
             map.set('scrollwheel', true);
             map.set('gestureHandling', 'greedy'); // Permite zoom con mouse wheel
-            map.set('center_changed', () => console.log('📍 Mapa movido manualmente'));
-            map.set('zoom_changed', () => console.log('🔍 Zoom cambiado manualmente'));
+
+            // Event listeners para guardar el estado del mapa
+            let saveTimeout: NodeJS.Timeout;
+            const debouncedSave = () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    const center = map.getCenter();
+                    const zoom = map.getZoom();
+                    if (center && zoom !== undefined) {
+                        saveMapState(center, zoom);
+                    }
+                }, 1000); // Guardar después de 1 segundo de inactividad
+            };
+
+            map.addListener('center_changed', debouncedSave);
+            map.addListener('zoom_changed', debouncedSave);
 
         } catch (err) {
             console.error("❌ Error inicializando mapa:", err);
