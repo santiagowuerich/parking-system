@@ -28,6 +28,8 @@ interface ParkingMapProps {
     selectedParkingId?: number;
     onLocationButtonClick?: () => void;
     onUserLocationUpdate?: (location: { lat: number, lng: number }) => void;
+    userLocation?: { lat: number, lng: number } | null;
+    searchRadius?: number;
 }
 
 declare global {
@@ -42,7 +44,9 @@ export default function ParkingMap({
     onParkingSelect,
     selectedParkingId,
     onLocationButtonClick,
-    onUserLocationUpdate
+    onUserLocationUpdate,
+    userLocation,
+    searchRadius = 2
 }: ParkingMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -52,8 +56,41 @@ export default function ParkingMap({
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+
+    // Función para calcular la distancia entre dos puntos (Haversine formula)
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Función para filtrar estacionamientos según el radio de búsqueda
+    const getFilteredParkings = (): ParkingData[] => {
+        if (!userLocation) {
+            return parkings; // Si no hay ubicación del usuario, mostrar todos
+        }
+
+        console.log(`🗺️ Filtrando estacionamientos en el mapa para radio de ${searchRadius}km`);
+
+        return parkings.filter(parking => {
+            const distance = calculateDistance(
+                userLocation.lat,
+                userLocation.lng,
+                parking.latitud,
+                parking.longitud
+            );
+            const isWithinRadius = distance <= searchRadius;
+            console.log(`📍 ${parking.nombre}: ${distance.toFixed(2)}km ${isWithinRadius ? '✅' : '❌'}`);
+            return isWithinRadius;
+        });
+    };
     const [isDomReady, setIsDomReady] = useState(false);
-    const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const maxRetries = 3;
 
     // Función para guardar el estado del mapa en localStorage
@@ -133,7 +170,6 @@ export default function ParkingMap({
                         lng: position.coords.longitude
                     };
                     console.log('✅ Ubicación obtenida:', coords);
-                    setUserLocation(coords);
                     resolve(coords);
                 },
                 (error) => {
@@ -473,8 +509,9 @@ export default function ParkingMap({
                 userLocationMarkerRef.current = null;
             }
 
-            // Crear marcadores para cada estacionamiento
-            parkingsData.forEach(parking => {
+            // Crear marcadores para cada estacionamiento (filtrar según radio si hay ubicación del usuario)
+            const filteredParkings = getFilteredParkings();
+            filteredParkings.forEach(parking => {
                 const marker = createParkingMarker(parking, map);
                 markersRef.current.push(marker);
             });
@@ -649,6 +686,26 @@ export default function ParkingMap({
 
     }, [selectedParkingId, parkings]);
 
+    // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
+    useEffect(() => {
+        if (isLoaded && mapInstanceRef.current && parkings.length > 0) {
+            console.log('🔄 Actualizando marcadores por cambio de radio o ubicación...');
+
+            // Limpiar marcadores existentes
+            markersRef.current.forEach(marker => marker.setMap(null));
+            markersRef.current = [];
+
+            // Crear nuevos marcadores con filtro actualizado
+            const filteredParkings = getFilteredParkings();
+            filteredParkings.forEach(parking => {
+                const marker = createParkingMarker(parking, mapInstanceRef.current!);
+                markersRef.current.push(marker);
+            });
+
+            console.log(`✅ Actualizados ${markersRef.current.length} marcadores (filtrados por radio de ${searchRadius}km)`);
+        }
+    }, [userLocation, searchRadius, parkings, isLoaded]);
+
     // Exponer función de ubicación cuando el componente esté montado
     useEffect(() => {
         if (onLocationButtonClick) {
@@ -744,7 +801,7 @@ export default function ParkingMap({
             <CardHeader>
                 <CardTitle className="text-gray-900 flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Estacionamientos Disponibles ({parkings.length})
+                    Estacionamientos Disponibles ({getFilteredParkings().length})
                 </CardTitle>
             </CardHeader>
             <CardContent>

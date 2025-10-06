@@ -421,6 +421,8 @@ export default function MapaEstacionamientos() {
                                 className="h-full w-full"
                                 onLocationButtonClick={() => { }}
                                 onUserLocationUpdate={handleUserLocationUpdate}
+                                userLocation={userLocation}
+                                searchRadius={searchRadius}
                             />
                         </div>
                     </div>
