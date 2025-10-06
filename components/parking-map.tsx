@@ -27,6 +27,10 @@ interface ParkingMapProps {
     onParkingSelect?: (parking: ParkingData) => void;
     selectedParkingId?: number;
     onLocationButtonClick?: () => void;
+    onUserLocationUpdate?: (location: { lat: number, lng: number }) => void;
+    userLocation?: { lat: number, lng: number } | null;
+    searchRadius?: number;
+    onParkingsLoaded?: (parkings: ParkingData[]) => void;
 }
 
 declare global {
@@ -40,7 +44,11 @@ export default function ParkingMap({
     className = "h-96 w-full",
     onParkingSelect,
     selectedParkingId,
-    onLocationButtonClick
+    onLocationButtonClick,
+    onUserLocationUpdate,
+    userLocation,
+    searchRadius = 2,
+    onParkingsLoaded
 }: ParkingMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -50,9 +58,81 @@ export default function ParkingMap({
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+
+    // Función para calcular la distancia entre dos puntos (Haversine formula)
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // Función para filtrar estacionamientos según el radio de búsqueda
+    const getFilteredParkings = (): ParkingData[] => {
+        if (!userLocation) {
+            console.log('📍 Sin ubicación del usuario - no mostrar estacionamientos en el mapa');
+            return []; // Si no hay ubicación del usuario, no mostrar ninguno
+        }
+
+        console.log(`🗺️ Filtrando estacionamientos en el mapa para radio de ${searchRadius}km`);
+
+        return parkings.filter(parking => {
+            const distance = calculateDistance(
+                userLocation.lat,
+                userLocation.lng,
+                parking.latitud,
+                parking.longitud
+            );
+            const isWithinRadius = distance <= searchRadius;
+            console.log(`📍 ${parking.nombre}: ${distance.toFixed(2)}km ${isWithinRadius ? '✅' : '❌'}`);
+            return isWithinRadius;
+        });
+    };
     const [isDomReady, setIsDomReady] = useState(false);
-    const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const maxRetries = 3;
+
+    // Función para guardar el estado del mapa en localStorage
+    const saveMapState = (center: google.maps.LatLng, zoom: number) => {
+        try {
+            const mapState = {
+                lat: center.lat(),
+                lng: center.lng(),
+                zoom: zoom,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('parking-map-state', JSON.stringify(mapState));
+            console.log('💾 Estado del mapa guardado:', mapState);
+        } catch (error) {
+            console.error('❌ Error guardando estado del mapa:', error);
+        }
+    };
+
+    // Función para cargar el estado del mapa desde localStorage
+    const loadMapState = () => {
+        try {
+            const savedState = localStorage.getItem('parking-map-state');
+            if (savedState) {
+                const mapState = JSON.parse(savedState);
+                // Verificar que el estado no sea muy viejo (más de 24 horas)
+                const isOld = Date.now() - mapState.timestamp > 24 * 60 * 60 * 1000;
+                if (!isOld) {
+                    console.log('📂 Estado del mapa cargado:', mapState);
+                    return {
+                        center: { lat: mapState.lat, lng: mapState.lng },
+                        zoom: mapState.zoom
+                    };
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error cargando estado del mapa:', error);
+        }
+        return null;
+    };
 
     // Función para obtener datos de estacionamientos
     const fetchParkings = async () => {
@@ -93,7 +173,6 @@ export default function ParkingMap({
                         lng: position.coords.longitude
                     };
                     console.log('✅ Ubicación obtenida:', coords);
-                    setUserLocation(coords);
                     resolve(coords);
                 },
                 (error) => {
@@ -139,6 +218,9 @@ export default function ParkingMap({
             mapInstanceRef.current.setCenter(coords);
             mapInstanceRef.current.setZoom(16);
 
+            // Guardar el nuevo estado del mapa
+            saveMapState(new window.google.maps.LatLng(coords.lat, coords.lng), 16);
+
             // Limpiar marcador anterior de ubicación del usuario
             if (userLocationMarkerRef.current) {
                 userLocationMarkerRef.current.setMap(null);
@@ -170,6 +252,11 @@ export default function ParkingMap({
             }, 2000);
 
             console.log('✅ Mapa centrado en ubicación del usuario');
+
+            // Notificar al componente padre sobre la nueva ubicación del usuario
+            if (onUserLocationUpdate) {
+                onUserLocationUpdate(coords);
+            }
 
         } catch (error) {
             console.error('❌ Error centrando mapa en usuario:', error);
@@ -222,32 +309,96 @@ export default function ParkingMap({
             zIndex: isSelected ? 1000 : 100 // Mayor prioridad si está seleccionado
         });
 
-        // Info window con información del estacionamiento
+        // Info window con configuración limpia
         const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-                <div style="color: #000; padding: 12px; max-width: 250px; font-family: Arial, sans-serif;">
-                    <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 16px; color: #1f2937;">
-                        ${parking.nombre}
-                    </h3>
-                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">
-                        📍 ${parking.direccionCompleta || parking.direccion}
-                    </p>
-                    <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">
-                        🏢 ${parking.localidad}, ${parking.provincia}
-                    </p>
-                    <div style="margin: 8px 0; padding: 6px; background: ${parking.estado === 'disponible' ? '#dcfce7' :
-                    parking.estado === 'pocos' ? '#fef3c7' : '#fecaca'
-                }; border-radius: 4px;">
-                        <span style="font-weight: bold; color: ${parking.estado === 'disponible' ? '#059669' :
-                    parking.estado === 'pocos' ? '#d97706' : '#dc2626'
-                };">
-                            ${parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} espacios disponibles` : 'Sin espacios disponibles'}
+            maxWidth: 360
+        });
+
+        // Función para abrir popup con la nueva implementación
+        const openPopup = ({ map, marker }: { map: google.maps.Map, marker: google.maps.Marker }) => {
+            infoWindow.close();
+
+            // Crear un div temporal para el contenido
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'parking-popup relative w-[340px] max-w-[86vw] rounded-2xl border bg-white p-4 shadow-xl';
+
+            contentDiv.innerHTML = `
+                <button
+                    aria-label="Cerrar"
+                    id="close-button-${parking.id}"
+                    style="position: absolute; right: 12px; top: 12px; background: none; border: none; font-size: 18px; color: #6b7280; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'"
+                    onmouseout="this.style.backgroundColor='transparent'"
+                >
+                    ×
+                </button>
+
+                <!-- Nombre del estacionamiento -->
+                <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 18px; color: #1f2937; line-height: 1.2;">
+                    ${parking.nombre}
+                </h3>
+                
+                <!-- Dirección -->
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #6b7280; display: flex; align-items: center; line-height: 1.4;">
+                    📍 ${parking.direccion}
+                </p>
+                
+                <!-- Estado y horario -->
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #f9fafb; padding: 12px; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: ${parking.estado === 'disponible' ? '#10b981' : parking.estado === 'pocos' ? '#f59e0b' : '#ef4444'};"></div>
+                        <span style="font-weight: 600; color: #374151; font-size: 14px;">
+                            ${parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
                         </span>
                     </div>
-                    ${parking.telefono ? `<p style="margin: 4px 0 0 0; font-size: 13px; color: #6b7280;">📞 ${parking.telefono}</p>` : ''}
+                    <span style="font-weight: 600; color: #6b7280; font-size: 14px;">
+                        ${parking.horarioFuncionamiento === 24 ? '24hs' : `${parking.horarioFuncionamiento}h`}
+                    </span>
                 </div>
-            `
-        });
+                
+                <!-- Botón Navegar -->
+                <button
+                    id="navigate-button-${parking.id}"
+                    style="width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background-color 0.2s;"
+                    onmouseover="this.style.backgroundColor='#1d4ed8'"
+                    onmouseout="this.style.backgroundColor='#2563eb'"
+                >
+                    🧭 Navegar
+                </button>
+            `;
+
+            // Agregar event listener al botón de cerrar
+            const closeButton = contentDiv.querySelector(`#close-button-${parking.id}`);
+            if (closeButton) {
+                closeButton.addEventListener('click', () => {
+                    infoWindow.close();
+                });
+            }
+
+            // Agregar event listener al botón de navegar
+            const navigateButton = contentDiv.querySelector(`#navigate-button-${parking.id}`);
+            if (navigateButton) {
+                navigateButton.addEventListener('click', () => {
+                    // Crear la URL para Google Maps
+                    const address = encodeURIComponent(
+                        parking.direccionCompleta || parking.direccion
+                    );
+                    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+
+                    // Abrir en nueva pestaña
+                    window.open(googleMapsUrl, '_blank');
+
+                    console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
+                });
+            }
+
+            infoWindow.setContent(contentDiv);
+            infoWindow.setOptions({
+                shouldFocus: false,
+                pixelOffset: new window.google.maps.Size(0, -8)
+            });
+            infoWindow.open({ map, anchor: marker });
+        };
 
         // Hacer clic en el marcador para mostrar info window Y seleccionar estacionamiento
         marker.addListener('click', () => {
@@ -263,8 +414,8 @@ export default function ParkingMap({
                 }
             });
 
-            // Mostrar info window
-            infoWindow.open(map, marker);
+            // Mostrar info window con la nueva implementación
+            openPopup({ map, marker });
 
             // Seleccionar estacionamiento SIN mover el mapa
             if (onParkingSelect) {
@@ -299,18 +450,32 @@ export default function ParkingMap({
                 return;
             }
 
-            // Calcular centro del mapa basado en los estacionamientos
-            const latitudes = parkingsData.map(p => p.latitud);
-            const longitudes = parkingsData.map(p => p.longitud);
-            const centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
-            const centerLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+            // Intentar cargar el estado guardado del mapa
+            const savedState = loadMapState();
 
-            console.log('📍 Centro calculado:', { lat: centerLat, lng: centerLng });
+            let mapCenter, mapZoom;
+
+            if (savedState) {
+                // Usar el estado guardado
+                mapCenter = savedState.center;
+                mapZoom = savedState.zoom;
+                console.log('📍 Usando estado guardado del mapa:', savedState);
+            } else {
+                // Calcular centro del mapa basado en los estacionamientos
+                const latitudes = parkingsData.map(p => p.latitud);
+                const longitudes = parkingsData.map(p => p.longitud);
+                const centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+                const centerLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+
+                mapCenter = { lat: centerLat, lng: centerLng };
+                mapZoom = 14;
+                console.log('📍 Centro calculado:', mapCenter);
+            }
 
             // Opciones del mapa optimizadas para estacionamientos
             const mapOptions: google.maps.MapOptions = {
-                zoom: 14,
-                center: { lat: centerLat, lng: centerLng },
+                zoom: mapZoom,
+                center: mapCenter,
                 mapTypeId: window.google.maps.MapTypeId.ROADMAP,
                 styles: [
                     {
@@ -347,8 +512,9 @@ export default function ParkingMap({
                 userLocationMarkerRef.current = null;
             }
 
-            // Crear marcadores para cada estacionamiento
-            parkingsData.forEach(parking => {
+            // Crear marcadores para cada estacionamiento (filtrar según radio si hay ubicación del usuario)
+            const filteredParkings = getFilteredParkings();
+            filteredParkings.forEach(parking => {
                 const marker = createParkingMarker(parking, map);
                 markersRef.current.push(marker);
             });
@@ -362,8 +528,22 @@ export default function ParkingMap({
             // Configurar el mapa para que NO se mueva automáticamente al hacer zoom de mouse
             map.set('scrollwheel', true);
             map.set('gestureHandling', 'greedy'); // Permite zoom con mouse wheel
-            map.set('center_changed', () => console.log('📍 Mapa movido manualmente'));
-            map.set('zoom_changed', () => console.log('🔍 Zoom cambiado manualmente'));
+
+            // Event listeners para guardar el estado del mapa
+            let saveTimeout: NodeJS.Timeout;
+            const debouncedSave = () => {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    const center = map.getCenter();
+                    const zoom = map.getZoom();
+                    if (center && zoom !== undefined) {
+                        saveMapState(center, zoom);
+                    }
+                }, 1000); // Guardar después de 1 segundo de inactividad
+            };
+
+            map.addListener('center_changed', debouncedSave);
+            map.addListener('zoom_changed', debouncedSave);
 
         } catch (err) {
             console.error("❌ Error inicializando mapa:", err);
@@ -509,6 +689,36 @@ export default function ParkingMap({
 
     }, [selectedParkingId, parkings]);
 
+    // useEffect para notificar al componente padre cuando se cargan los estacionamientos
+    useEffect(() => {
+        if (parkings.length > 0 && onParkingsLoaded) {
+            console.log('📤 Notificando al componente padre sobre estacionamientos cargados:', parkings.length);
+            onParkingsLoaded(parkings);
+        }
+    }, [parkings, onParkingsLoaded]);
+
+    // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
+
+    // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
+    useEffect(() => {
+        if (isLoaded && mapInstanceRef.current && parkings.length > 0) {
+            console.log('🔄 Actualizando marcadores por cambio de radio o ubicación...');
+
+            // Limpiar marcadores existentes
+            markersRef.current.forEach(marker => marker.setMap(null));
+            markersRef.current = [];
+
+            // Crear nuevos marcadores con filtro actualizado
+            const filteredParkings = getFilteredParkings();
+            filteredParkings.forEach(parking => {
+                const marker = createParkingMarker(parking, mapInstanceRef.current!);
+                markersRef.current.push(marker);
+            });
+
+            console.log(`✅ Actualizados ${markersRef.current.length} marcadores (filtrados por radio de ${searchRadius}km)`);
+        }
+    }, [userLocation, searchRadius, parkings, isLoaded]);
+
     // Exponer función de ubicación cuando el componente esté montado
     useEffect(() => {
         if (onLocationButtonClick) {
@@ -604,11 +814,38 @@ export default function ParkingMap({
             <CardHeader>
                 <CardTitle className="text-gray-900 flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Estacionamientos Disponibles ({parkings.length})
+                    Estacionamientos Disponibles ({getFilteredParkings().length})
                 </CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="relative">
+                    {/* Popup para solicitar ubicación */}
+                    {!userLocation && isLoaded && (
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                            <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center">
+                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6">
+                                    <MapPin className="h-8 w-8 text-blue-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                                    ¡Presiona "Mi Ubicación"!
+                                </h3>
+                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                    Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
+                                </p>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="flex items-center gap-3 text-blue-700">
+                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <span className="text-sm font-bold">1</span>
+                                        </div>
+                                        <span className="text-sm font-medium">
+                                            Haz clic en el botón "Mi Ubicación" en la parte superior
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div
                         ref={mapRef}
                         className={className + " rounded-lg border border-gray-200"}

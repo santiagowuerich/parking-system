@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { toast } from 'sonner';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useUserRole } from '@/lib/use-user-role';
 import { useZoneManagement } from '@/lib/hooks/use-zone-management';
 
 // Tipos para la API
@@ -48,9 +49,33 @@ const SearchParamsProvider: React.FC<{ setZonaParametro: (zona: string | null) =
 const ConfiguracionZonaPage: React.FC = () => {
     const router = useRouter();
     const { estId, user, setEstId } = useAuth();
+    const { isOwner, loading: roleLoading } = useUserRole();
     const { checkZoneExists, loadZoneInfo, configureZoneComplete } = useZoneManagement(estId);
 
-    // Estados del formulario
+    // Verificar si el usuario es owner, si no, redirigir
+    if (!roleLoading && user && !isOwner) {
+        console.log('🚫 Usuario no es owner, redirigiendo...');
+        router.push('/dashboard');
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-lg text-gray-600">Redirigiendo...</div>
+                </div>
+            </div>
+        );
+    }
+
+    // Mostrar loading mientras se verifica el rol
+    if (roleLoading || !user) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400 mb-2" />
+                    <div className="text-lg text-gray-600">Verificando permisos...</div>
+                </div>
+            </div>
+        );
+    }
     const [zonaNombre, setZonaNombre] = useState<string>('');
     const [cantidadPlazas, setCantidadPlazas] = useState<number>(0);
     const [filas, setFilas] = useState<number>(0);

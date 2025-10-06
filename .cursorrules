@@ -1,0 +1,83 @@
+# Sistema de Estacionamiento - Reglas de Desarrollo
+
+## 📋 REGLA PRINCIPAL: Consulta Obligatoria del SUMMARY.md
+
+**ANTES de realizar CUALQUIER tarea de desarrollo:**
+
+1. **Leer SUMMARY.md completo** para entender la arquitectura general
+2. **Identificar el dominio afectado** según la tabla de búsqueda rápida
+3. **Consultar el README.md específico** del dominio identificado
+4. **Revisar archivos relacionados** mencionados en el README correspondiente
+
+## 🎯 Mapa de Navegación por Dominio
+
+| Tipo de Cambio | README a Consultar | Archivos Clave |
+|---------------|-------------------|----------------|
+| **UI/Componentes** | `components/README.md` | `components/ui/`, `*-panel.tsx` |
+| **APIs/Backend** | `app/README.md` | `app/api/`, rutas específicas |
+| **Base de Datos** | `supabase/README.md` | `supabase/migrations/`, `sql/` |
+| **Utilidades/Lógica** | `lib/README.md` | `auth-context.tsx`, `types.ts` |
+| **Custom Hooks** | `hooks/README.md` | `use-*.tsx` |
+| **Assets/Estáticos** | `public/README.md` | archivos en `/public` |
+| **Testing** | `tests/README.md` | `test-*.js` |
+| **Debugging** | `debug/README.md` | scripts de diagnóstico |
+| **Documentación** | `docs/README.md` | archivos `.md` técnicos |
+
+## 🔄 Flujo de Trabajo Obligatorio
+
+### Para CUALQUIER tarea:
+
+1. **📖 Leer SUMMARY.md** → Vista general del proyecto
+2. **🎯 Identificar dominio** → Según tabla de navegación
+3. **📚 Leer README específico** → Detalles técnicos del dominio
+4. **🔍 Explorar archivos** → Según "Contenido clave" del README
+5. **⚡ Realizar cambios** → Con contexto completo
+6. **✅ Verificar impacto** → En archivos relacionados mencionados
+
+### Para cambios complejos:
+
+1. **📋 SUMMARY.md** → Arquitectura general
+2. **🔗 README principal** → Dominio afectado
+3. **🔗 READMEs relacionados** → Dependencias identificadas
+4. **📁 Archivos específicos** → Implementación concreta
+
+## 🚨 REGLAS DE SEGURIDAD
+
+- **NUNCA modificar** sin leer el README correspondiente
+- **SIEMPRE verificar** dependencias en "Dependencias y contratos"
+- **CONSULTAR** "Puntos de extensión" antes de cambios
+- **REVISAR** convenciones mencionadas en cada README
+
+## 💡 Recordatorios Automáticos
+
+**Al iniciar cualquier tarea:**
+- ¿Leíste el SUMMARY.md para contexto general?
+- ¿Identificaste el README específico del dominio?
+- ¿Revisaste las dependencias y contratos mencionados?
+- ¿Consideraste los puntos de extensión seguros?
+
+## 🏗️ Arquitectura de Referencia
+
+```
+parking-system/
+├── 📖 SUMMARY.md           # ← SIEMPRE LEER PRIMERO
+├── app/README.md           # APIs y páginas Next.js
+├── components/README.md    # Componentes React
+├── hooks/README.md         # Custom hooks
+├── lib/README.md           # Utilidades centrales
+├── supabase/README.md      # Base de datos
+├── docs/README.md          # Documentación técnica
+├── tests/README.md         # Testing
+├── debug/README.md         # Debugging
+└── public/README.md        # Assets estáticos
+```
+
+## 🎯 Checklist Pre-Cambio
+
+- [ ] SUMMARY.md leído y comprendido
+- [ ] Dominio del cambio identificado
+- [ ] README específico del dominio consultado
+- [ ] Archivos relacionados identificados
+- [ ] Dependencias y contratos revisados
+- [ ] Puntos de extensión considerados
+- [ ] Convenciones del dominio entendidas

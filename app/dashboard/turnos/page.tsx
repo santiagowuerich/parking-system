@@ -58,10 +58,13 @@ export default function TurnosPage() {
     }, []);
 
     useEffect(() => {
-        if (estId && user) {
+        if (estId && user && isEmployee && !roleLoading) {
+            console.log('🔄 Cargando estado de turno para empleado...');
             loadTurnoEstado();
+        } else if (user && !isEmployee && !roleLoading) {
+            console.log('🚗 Usuario es conductor, no cargando turnos');
         }
-    }, [estId, user]);
+    }, [estId, user, isEmployee, roleLoading]);
 
     const loadTurnoEstado = async () => {
         try {

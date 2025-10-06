@@ -366,10 +366,8 @@ export function DashboardSidebar({ className }: SidebarProps) {
                             // Verificar si algún subitem está activo
                             const hasActiveSubItem = hasSubItems && item.subItems.some((subItem: any) => pathname === subItem.href);
 
-                            // Un item está activo si coincide su href O si tiene un subitem activo
-                            const isActive = pathname === item.href ||
-                                (item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
-                                hasActiveSubItem;
+                            // Un item está activo si coincide exactamente su href O si tiene un subitem activo
+                            const isActive = pathname === item.href || hasActiveSubItem;
 
                             // Si está colapsado y tiene subitems, mostrar dropdown con tooltip
                             if (collapsed && hasSubItems) {

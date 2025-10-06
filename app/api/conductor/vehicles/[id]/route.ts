@@ -60,19 +60,22 @@ export async function PUT(
 
         // Mapear tipo de vehículo a catv_segmento
         const tipoMapping: Record<string, string> = {
-            'Auto': 'A',
-            'Moto': 'M',
-            'Camioneta': 'C'
+            'Auto': 'AUT',
+            'Moto': 'MOT',
+            'Camioneta': 'CAM'
         };
 
-        const catv_segmento = tipoMapping[tipo] || 'A';
+        const catv_segmento = tipoMapping[tipo] || 'AUT';
 
         // Actualizar vehículo solo si pertenece al conductor
         const { data, error } = await supabase
             .from('vehiculos')
             .update({
                 veh_patente: patente.toUpperCase(),
-                catv_segmento: catv_segmento
+                catv_segmento: catv_segmento,
+                veh_marca: marca,
+                veh_modelo: modelo,
+                veh_color: color
             })
             .eq('veh_patente', params.id)
             .eq('con_id', conductorData.con_id)

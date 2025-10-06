@@ -176,13 +176,13 @@ export default function DashboardPage() {
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
                         <p className="text-gray-600">
                             {!roleLoading && isEmployee ? 'Redirigiendo...' :
-                             !roleLoading && isDriver ? 'Redirigiendo...' :
-                             'Cargando dashboard...'}
+                                !roleLoading && isDriver ? 'Redirigiendo...' :
+                                    'Cargando dashboard...'}
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
                             {!roleLoading && isEmployee ? 'Dirigiéndote al panel de operador' :
-                             !roleLoading && isDriver ? 'Dirigiéndote al panel del conductor' :
-                             'Determinando permisos del usuario'}
+                                !roleLoading && isDriver ? 'Dirigiéndote al panel del conductor' :
+                                    'Determinando permisos del usuario'}
                         </p>
                     </div>
                 </div>
