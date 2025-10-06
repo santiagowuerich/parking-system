@@ -54,8 +54,11 @@ export async function GET(request: NextRequest) {
             .from('vehiculos')
             .select(`
                 veh_patente,
+                veh_marca,
+                veh_modelo,
+                veh_color,
                 catv_segmento,
-                cat_vehiculo!inner(catv_descripcion)
+                cat_vehiculo(catv_descripcion)
             `)
             .eq('con_id', conductorData.con_id);
 
@@ -65,13 +68,13 @@ export async function GET(request: NextRequest) {
         }
 
         // Transformar datos para el frontend
-        const vehiclesFormatted = vehicles.map(v => ({
+        const vehiclesFormatted = vehicles.map((v: any) => ({
             id: v.veh_patente, // Usando patente como ID
             patente: v.veh_patente,
-            tipo: v.cat_vehiculo.catv_descripcion,
-            marca: '', // Aún no disponible en BD
-            modelo: '', // Aún no disponible en BD
-            color: '' // Aún no disponible en BD
+            tipo: v.cat_vehiculo?.catv_descripcion || '',
+            marca: v.veh_marca || '',
+            modelo: v.veh_modelo || '',
+            color: v.veh_color || ''
         }));
 
         return NextResponse.json({ vehicles: vehiclesFormatted });
@@ -137,12 +140,12 @@ export async function POST(request: NextRequest) {
 
         // Mapear tipo de vehículo a catv_segmento
         const tipoMapping: Record<string, string> = {
-            'Auto': 'A',
-            'Moto': 'M',
-            'Camioneta': 'C'
+            'Auto': 'AUT',
+            'Moto': 'MOT',
+            'Camioneta': 'CAM'
         };
 
-        const catv_segmento = tipoMapping[tipo] || 'A';
+        const catv_segmento = tipoMapping[tipo] || 'AUT';
 
         // Insertar vehículo en la base de datos
         const { data, error } = await supabase
@@ -150,7 +153,10 @@ export async function POST(request: NextRequest) {
             .insert({
                 veh_patente: patente.toUpperCase(),
                 con_id: conductorData.con_id,
-                catv_segmento: catv_segmento
+                catv_segmento: catv_segmento,
+                veh_marca: marca,
+                veh_modelo: modelo,
+                veh_color: color
             })
             .select()
             .single();
