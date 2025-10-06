@@ -30,6 +30,7 @@ interface ParkingMapProps {
     onUserLocationUpdate?: (location: { lat: number, lng: number }) => void;
     userLocation?: { lat: number, lng: number } | null;
     searchRadius?: number;
+    onParkingsLoaded?: (parkings: ParkingData[]) => void;
 }
 
 declare global {
@@ -46,7 +47,8 @@ export default function ParkingMap({
     onLocationButtonClick,
     onUserLocationUpdate,
     userLocation,
-    searchRadius = 2
+    searchRadius = 2,
+    onParkingsLoaded
 }: ParkingMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -686,6 +688,16 @@ export default function ParkingMap({
         });
 
     }, [selectedParkingId, parkings]);
+
+    // useEffect para notificar al componente padre cuando se cargan los estacionamientos
+    useEffect(() => {
+        if (parkings.length > 0 && onParkingsLoaded) {
+            console.log('📤 Notificando al componente padre sobre estacionamientos cargados:', parkings.length);
+            onParkingsLoaded(parkings);
+        }
+    }, [parkings, onParkingsLoaded]);
+
+    // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
 
     // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
     useEffect(() => {

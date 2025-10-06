@@ -93,23 +93,29 @@ export default function MapaEstacionamientos() {
         return parkingsWithDistance.slice(0, 10); // Mostrar hasta 10 estacionamientos
     };
 
-    // Función para cargar todos los estacionamientos
-    const fetchAllParkings = async () => {
-        try {
-            const response = await fetch('/api/parkings');
-            if (response.ok) {
-                const data = await response.json();
-                setAllParkings(data.parkings || []);
-            }
-        } catch (error) {
-            console.error('Error cargando estacionamientos:', error);
-        }
-    };
+    // Función para cargar todos los estacionamientos (eliminada - se maneja en ParkingMap)
+    // const fetchAllParkings = async () => {
+    //     try {
+    //         const response = await fetch('/api/parkings');
+    //         if (response.ok) {
+    //             const data = await response.json();
+    //             setAllParkings(data.parkings || []);
+    //         }
+    //     } catch (error) {
+    //         console.error('Error cargando estacionamientos:', error);
+    //     }
+    // };
 
-    // Cargar estacionamientos al montar el componente
-    useEffect(() => {
-        fetchAllParkings();
-    }, []);
+    // Cargar estacionamientos al montar el componente (eliminado - se maneja en ParkingMap)
+    // useEffect(() => {
+    //     fetchAllParkings();
+    // }, []);
+
+    // Función para manejar cuando se cargan los estacionamientos desde ParkingMap
+    const handleParkingsLoaded = (parkings: ParkingData[]) => {
+        console.log('📥 Estacionamientos recibidos del mapa:', parkings.length);
+        setAllParkings(parkings);
+    };
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
@@ -423,6 +429,7 @@ export default function MapaEstacionamientos() {
                                 onUserLocationUpdate={handleUserLocationUpdate}
                                 userLocation={userLocation}
                                 searchRadius={searchRadius}
+                                onParkingsLoaded={handleParkingsLoaded}
                             />
                         </div>
                     </div>

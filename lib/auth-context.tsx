@@ -656,8 +656,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
-    if (user?.id) {
-      console.log(`👤 Usuario autenticado: ${user.email}, verificando estacionamiento...`);
+    if (user?.id && !roleLoading && userRole) {
+      console.log(`👤 Usuario autenticado: ${user.email}, userRole: ${userRole}, verificando estacionamiento...`);
 
       // Función para obtener el estId del usuario
       const getUserEstId = async () => {
@@ -735,7 +735,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingHistory(null);
       setParkingCapacity(null);
     }
-  }, [user?.id, userRole]);
+  }, [user?.id, userRole, roleLoading]);
 
 
   // Función para obtener el rol del usuario
@@ -872,13 +872,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Efecto específico para ensureParkingSetup - SOLO para owner y playero
   useEffect(() => {
-    if (user && userRole && (userRole === 'owner' || userRole === 'playero')) {
+    if (user && userRole && !roleLoading && (userRole === 'owner' || userRole === 'playero')) {
       console.log('🏢 Usuario es owner/playero, ejecutando ensureParkingSetup');
       ensureParkingSetup();
-    } else if (user && userRole && userRole === 'conductor') {
+    } else if (user && userRole && !roleLoading && userRole === 'conductor') {
       console.log('🚗 Usuario es conductor, evitando ensureParkingSetup');
     }
-  }, [user, userRole]);
+  }, [user, userRole, roleLoading]);
 
   useEffect(() => {
     let mounted = true;
