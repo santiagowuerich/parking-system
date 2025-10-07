@@ -51,28 +51,91 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Filtrar y formatear datos para el mapa
-        const parkingsForMap = estacionamientos?.map(parking => ({
-            id: parking.est_id,
-            nombre: parking.est_nombre,
-            direccion: parking.est_direc,
-            direccionCompleta: parking.est_direccion_completa || parking.est_direc,
-            localidad: parking.est_locali,
-            provincia: parking.est_prov,
-            latitud: parseFloat(parking.est_latitud),
-            longitud: parseFloat(parking.est_longitud),
-            capacidad: parking.est_capacidad,
-            espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
-            horarioFuncionamiento: parking.est_horario_funcionamiento,
-            telefono: parking.est_telefono,
-            email: parking.est_email,
-            // Determinar estado aproximado basado en disponibilidad
-            estado: parking.est_cantidad_espacios_disponibles > parking.est_capacidad * 0.5
-                ? 'disponible'
-                : parking.est_cantidad_espacios_disponibles > 0
-                    ? 'pocosestadores'
-                    : 'lleno'
-        })) || [];
+        // Filtrar y formatear datos para el mapa con disponibilidad en tiempo real
+        const parkingsForMap = await Promise.all(
+            estacionamientos?.map(async (parking) => {
+                try {
+                    // Calcular disponibilidad real consultando plazas
+                    const { data: plazasData, error: plazasError } = await supabase
+                        .from('plazas')
+                        .select('pla_estado')
+                        .eq('est_id', parking.est_id);
+
+                    if (plazasError) {
+                        console.error(`❌ Error obteniendo plazas para ${parking.est_id}:`, plazasError);
+                        // Fallback al valor de BD si hay error
+                        return {
+                            id: parking.est_id,
+                            nombre: parking.est_nombre,
+                            direccion: parking.est_direc,
+                            direccionCompleta: parking.est_direccion_completa || parking.est_direc,
+                            localidad: parking.est_locali,
+                            provincia: parking.est_prov,
+                            latitud: parseFloat(parking.est_latitud),
+                            longitud: parseFloat(parking.est_longitud),
+                            capacidad: parking.est_capacidad,
+                            espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
+                            horarioFuncionamiento: parking.est_horario_funcionamiento,
+                            telefono: parking.est_telefono,
+                            email: parking.est_email,
+                            estado: parking.est_cantidad_espacios_disponibles > parking.est_capacidad * 0.5
+                                ? 'disponible'
+                                : parking.est_cantidad_espacios_disponibles > 0
+                                    ? 'pocos'
+                                    : 'lleno'
+                        };
+                    }
+
+                    // Calcular disponibilidad real
+                    const total = plazasData?.length || 0;
+                    const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
+                    const libres = total - ocupadas;
+
+                    console.log(`📊 Estacionamiento ${parking.est_id}: ${total} total, ${ocupadas} ocupadas, ${libres} libres`);
+
+                    return {
+                        id: parking.est_id,
+                        nombre: parking.est_nombre,
+                        direccion: parking.est_direc,
+                        direccionCompleta: parking.est_direccion_completa || parking.est_direc,
+                        localidad: parking.est_locali,
+                        provincia: parking.est_prov,
+                        latitud: parseFloat(parking.est_latitud),
+                        longitud: parseFloat(parking.est_longitud),
+                        capacidad: parking.est_capacidad,
+                        espaciosDisponibles: libres, // ✅ Disponibilidad real calculada
+                        horarioFuncionamiento: parking.est_horario_funcionamiento,
+                        telefono: parking.est_telefono,
+                        email: parking.est_email,
+                        // Determinar estado basado en disponibilidad real
+                        estado: libres > total * 0.5
+                            ? 'disponible'
+                            : libres > 0
+                                ? 'pocos' // ✅ Corregido error tipográfico
+                                : 'lleno'
+                    };
+                } catch (error) {
+                    console.error(`❌ Error procesando estacionamiento ${parking.est_id}:`, error);
+                    // Fallback en caso de error
+                    return {
+                        id: parking.est_id,
+                        nombre: parking.est_nombre,
+                        direccion: parking.est_direc,
+                        direccionCompleta: parking.est_direccion_completa || parking.est_direc,
+                        localidad: parking.est_locali,
+                        provincia: parking.est_prov,
+                        latitud: parseFloat(parking.est_latitud),
+                        longitud: parseFloat(parking.est_longitud),
+                        capacidad: parking.est_capacidad,
+                        espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
+                        horarioFuncionamiento: parking.est_horario_funcionamiento,
+                        telefono: parking.est_telefono,
+                        email: parking.est_email,
+                        estado: 'disponible' // Estado por defecto
+                    };
+                }
+            }) || []
+        );
 
         console.log(`✅ Encontrados ${parkingsForMap.length} estacionamientos con coordenadas`);
 

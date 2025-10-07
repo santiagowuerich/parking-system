@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 export default function SecuritySettingsPage() {
   const { user } = useAuth();
@@ -142,107 +142,107 @@ export default function SecuritySettingsPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto p-4 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold dark:text-zinc-100">Seguridad de la cuenta</h1>
-        <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
-          <Link href="/dashboard">Volver al Dashboard</Link>
-        </Button>
-      </div>
-
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Perfil</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <Label className="dark:text-zinc-400">Nombre para mostrar</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Tu nombre"
-              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-            />
-          </div>
-          <Button onClick={handleSaveName} disabled={savingName} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
-            {savingName ? "Guardando..." : "Guardar nombre"}
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl font-semibold dark:text-zinc-100">Seguridad de la cuenta</h1>
+          <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
+            <Link href="/dashboard">Volver al Dashboard</Link>
           </Button>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Correo electrónico</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <Label className="dark:text-zinc-400">Nuevo correo</Label>
-            <Input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-            />
-          </div>
-          {emailMsg && (
-            <p className="text-sm text-emerald-400">{emailMsg}</p>
-          )}
-          <Button onClick={handleSaveEmail} disabled={savingEmail} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
-            {savingEmail ? "Enviando..." : "Guardar email"}
-          </Button>
-          <p className="text-xs text-zinc-400">Te enviaremos un enlace de verificación al nuevo correo.</p>
-        </CardContent>
-      </Card>
-
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Cambiar contraseña</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-3">
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Perfil</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
             <div className="space-y-1">
-              <Label className="dark:text-zinc-400">Contraseña actual</Label>
+              <Label className="dark:text-zinc-400">Nombre para mostrar</Label>
               <Input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Tu nombre"
                 className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                required
               />
             </div>
-            <div className="space-y-1">
-              <Label className="dark:text-zinc-400">Nueva contraseña</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                minLength={6}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="dark:text-zinc-400">Confirmar nueva contraseña</Label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                minLength={6}
-                required
-              />
-            </div>
-            {passError && (
-              <Alert variant="destructive">
-                <AlertDescription>{passError}</AlertDescription>
-              </Alert>
-            )}
-            <Button type="submit" disabled={changingPass} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
-              {changingPass ? "Actualizando..." : "Actualizar contraseña"}
+            <Button onClick={handleSaveName} disabled={savingName} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
+              {savingName ? "Guardando..." : "Guardar nombre"}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Correo electrónico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <Label className="dark:text-zinc-400">Nuevo correo</Label>
+              <Input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="tu@correo.com"
+                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+              />
+            </div>
+            {emailMsg && (
+              <p className="text-sm text-emerald-400">{emailMsg}</p>
+            )}
+            <Button onClick={handleSaveEmail} disabled={savingEmail} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
+              {savingEmail ? "Enviando..." : "Guardar email"}
+            </Button>
+            <p className="text-xs text-zinc-400">Te enviaremos un enlace de verificación al nuevo correo.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader>
+            <CardTitle className="dark:text-zinc-100">Cambiar contraseña</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div className="space-y-1">
+                <Label className="dark:text-zinc-400">Contraseña actual</Label>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="dark:text-zinc-400">Nueva contraseña</Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                  minLength={6}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="dark:text-zinc-400">Confirmar nueva contraseña</Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                  minLength={6}
+                  required
+                />
+              </div>
+              {passError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{passError}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" disabled={changingPass} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
+                {changingPass ? "Actualizando..." : "Actualizar contraseña"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
