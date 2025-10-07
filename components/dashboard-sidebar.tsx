@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
     DropdownMenu,
@@ -12,12 +11,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
     LayoutDashboard,
     Car,
@@ -29,8 +22,6 @@ import {
     ParkingCircle,
     BarChart3,
     Shield,
-    ChevronLeft,
-    ChevronRight,
     LogOut,
     Users,
     Wallet,
@@ -40,14 +31,11 @@ import {
     Clock,
     ChevronDown,
     ChevronUp,
-    Calendar,
-    Home
+    Calendar
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
 import { useTheme } from "next-themes";
-import ParkingStatusWidget from "./ParkingStatusWidget";
-// Debug component removed to prevent loops
 
 interface SidebarProps {
     className?: string;
@@ -220,7 +208,6 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const { user, signOut, userRole, roleLoading } = useAuth();
     const { role, isEmployee, isOwner, isDriver } = useUserRole();
     const { theme, setTheme } = useTheme();
-    const [collapsed, setCollapsed] = useState(false);
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
     // Seleccionar elementos de navegación según el rol usando useMemo para estabilidad
@@ -276,91 +263,80 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
     return (
         <div className={cn(
-            "flex h-full flex-col border-r bg-card",
-            collapsed ? "w-16" : "w-72",
+            "flex h-full flex-col bg-white dark:bg-slate-950 w-72",
             className
         )}>
-            {/* Header */}
-            <div className={cn(
-                "flex h-16 items-center border-b",
-                collapsed ? "justify-center px-2" : "justify-between px-4"
-            )}>
-                {!collapsed && (
-                    <div className="flex items-center gap-2">
-                        <ParkingCircle className="h-6 w-6 text-primary" />
-                        <span className="font-semibold text-lg">Parqueo</span>
-                    </div>
-                )}
-                <div className={cn("flex items-center gap-1", collapsed && "flex-col gap-2")}>
-                    {/* Dropdown de cambio de tema */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 flex items-center justify-center"
-                                title="Cambiar tema"
-                            >
-                                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                                <span className="sr-only">Cambiar tema</span>
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-32">
-                            <DropdownMenuItem onClick={() => setTheme("light")}>
-                                <Sun className="mr-2 h-4 w-4" />
-                                <span>Claro</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTheme("dark")}>
-                                <Moon className="mr-2 h-4 w-4" />
-                                <span>Oscuro</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTheme("system")}>
-                                <Monitor className="mr-2 h-4 w-4" />
-                                <span>Sistema</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+            {/* Header con card elevado y degradado azul */}
+            <div className="p-4">
+                <div className="rounded-2xl shadow-lg transition-all duration-300 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950/20 dark:to-slate-900 p-5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {/* Logo con efecto de profundidad en azul */}
+                            <div className="relative">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/30">
+                                    <ParkingCircle className="h-6 w-6 text-white" />
+                                </div>
+                            </div>
+                            <div>
+                                <span className="block text-2xl font-semibold text-neutral-900 dark:text-white">Parqueo</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">Sistema de gestión</span>
+                            </div>
+                        </div>
 
-                    {/* Botón de colapsar/expandir */}
-                    <TooltipProvider delayDuration={0}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
+                        {/* Dropdown de cambio de tema - ahora en la posición del botón de colapsar */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setCollapsed(!collapsed)}
-                                    className="h-8 w-8 p-0 flex items-center justify-center"
+                                    className="h-8 w-8 p-0 flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                    title="Cambiar tema"
                                 >
-                                    {collapsed ? (
-                                        <ChevronRight className="h-4 w-4" />
-                                    ) : (
-                                        <ChevronLeft className="h-4 w-4" />
-                                    )}
+                                    <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                                    <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                                    <span className="sr-only">Cambiar tema</span>
                                 </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">
-                                <p>{collapsed ? "Expandir menú" : "Colapsar menú"}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-32">
+                                <DropdownMenuItem onClick={() => setTheme("light")}>
+                                    <Sun className="mr-2 h-4 w-4" />
+                                    <span>Claro</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setTheme("dark")}>
+                                    <Moon className="mr-2 h-4 w-4" />
+                                    <span>Oscuro</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setTheme("system")}>
+                                    <Monitor className="mr-2 h-4 w-4" />
+                                    <span>Sistema</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
             </div>
 
             {/* Navigation */}
-            <ScrollArea className={cn("flex-1", collapsed ? "px-1 py-4" : "px-4 py-4")}>
-                <TooltipProvider delayDuration={0}>
+            <div className="flex-1 overflow-auto">
+                <div className="px-3 py-2">
                     {/* Widget compacto con nombre de estacionamiento - solo visible para owners y playeros */}
-                    {!collapsed && !isDriver && (
-                        <div className="mb-4">
-                            <ParkingStatusWidget />
+                    {!isDriver && (
+                        <div className="mb-6">
+                            <div className="bg-gradient-to-r from-blue-50/50 to-transparent border border-blue-100 rounded-xl p-3.5 shadow-sm">
+                                <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                                    <MapPin className="h-4 w-4 text-blue-500" />
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse"></div>
+                                        <span className="text-sm font-medium">prueba35</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
-                    <div className={cn(collapsed ? "space-y-1" : "space-y-2")}>
+                    <div className="space-y-2">
                         {navigationItems.map((item: any) => {
                             const Icon = item.icon;
-                            const isExpanded = expandedItems.includes(item.title);
                             const hasSubItems = item.subItems && item.subItems.length > 0;
 
                             // Verificar si algún subitem está activo
@@ -369,166 +345,91 @@ export function DashboardSidebar({ className }: SidebarProps) {
                             // Un item está activo si coincide exactamente su href O si tiene un subitem activo
                             const isActive = pathname === item.href || hasActiveSubItem;
 
-                            // Si está colapsado y tiene subitems, mostrar dropdown con tooltip
-                            if (collapsed && hasSubItems) {
-                                return (
-                                    <Tooltip key={`${item.href}-${item.title}`}>
-                                        <DropdownMenu>
-                                            <TooltipTrigger asChild>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button
-                                                        variant={isActive ? "secondary" : "ghost"}
-                                                        className={cn(
-                                                            "w-full h-11 flex items-center justify-center p-0 rounded-lg mx-1",
-                                                            isActive && "bg-secondary"
-                                                        )}
-                                                    >
-                                                        <Icon className="h-5 w-5" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" sideOffset={10}>
-                                                <p>{item.title}</p>
-                                            </TooltipContent>
-                                            <DropdownMenuContent
-                                                side="right"
-                                                align="start"
-                                                className="w-56"
-                                                sideOffset={8}
-                                            >
-                                                <div className="px-2 py-1.5 text-sm font-semibold border-b mb-1">
-                                                    {item.title}
-                                                </div>
-                                                {item.subItems.map((subItem: any) => {
-                                                    const isSubActive = pathname === subItem.href;
-                                                    return (
-                                                        <DropdownMenuItem
-                                                            key={subItem.href}
-                                                            onClick={() => handleNavigation(subItem.href)}
-                                                            className={cn(isSubActive && "bg-secondary")}
-                                                        >
-                                                            {subItem.title}
-                                                        </DropdownMenuItem>
-                                                    );
-                                                })}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </Tooltip>
-                                );
-                            }
+                            // Si el item está activo y tiene subitems, forzar que esté expandido
+                            const isExpanded = hasActiveSubItem ? true : expandedItems.includes(item.title);
 
-                            // Si está colapsado sin subitems, mostrar con tooltip
-                            if (collapsed && !hasSubItems) {
-                                return (
-                                    <Tooltip key={`${item.href}-${item.title}`}>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant={isActive ? "secondary" : "ghost"}
-                                                className={cn(
-                                                    "w-full h-11 flex items-center justify-center p-0 rounded-lg mx-1",
-                                                    isActive && "bg-secondary"
-                                                )}
-                                                onClick={() => handleNavigation(item.href)}
-                                            >
-                                                <Icon className="h-5 w-5" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right" sideOffset={10}>
-                                            <p>{item.title}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                );
-                            }
-
-                            // Vista expandida
+                            // Vista expandida con efectos neumórficos en azul
                             return (
-                                <div key={`${item.href}-${item.title}`} className="space-y-1">
-                                    <Button
-                                        variant={isActive && !hasSubItems ? "secondary" : "ghost"}
-                                        className={cn(
-                                            "w-full justify-start h-auto p-3 px-3 mx-1 relative transition-all duration-200",
-                                            // Estado normal
-                                            "rounded-lg",
-                                            // Estado activo con badge azul (sin sub-items)
-                                            isActive && !hasSubItems && "bg-blue-100 hover:bg-blue-150 rounded-xl",
-                                            // Estado activo con sub-items (tono más claro)
-                                            isActive && hasSubItems && "bg-blue-50 hover:bg-blue-100 rounded-xl",
-                                            // Estado hover para elementos no activos
-                                            !isActive && "hover:bg-blue-50"
-                                        )}
-                                        onClick={() => {
-                                            if (hasSubItems) {
-                                                toggleExpanded(item.title);
-                                            } else {
-                                                handleNavigation(item.href);
-                                            }
-                                        }}
-                                    >
-                                        {/* Barra vertical de acento azul */}
-                                        {isActive && !hasSubItems && (
-                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 rounded-r-full" />
-                                        )}
-                                        {/* Barra vertical de acento para elementos con sub-items */}
-                                        {isActive && hasSubItems && (
-                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full" />
-                                        )}
+                                <div key={`${item.href}-${item.title}`} className="space-y-1.5">
+                                    <div className="relative group">
+                                        <Button
+                                            variant="ghost"
+                                            className={cn(
+                                                "peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-left outline-none transition-all duration-200",
+                                                // Estado activo con efecto pill elevado y neumórfico en azul
+                                                isActive && [
+                                                    "bg-gradient-to-r from-blue-50 to-blue-100/40 dark:from-blue-900/30 dark:to-blue-800/20",
+                                                    "shadow-[0_8px_20px_-8px_rgba(59,130,246,0.25)]",
+                                                    "ring-1 ring-blue-200 dark:ring-blue-800",
+                                                    "font-semibold text-neutral-900 dark:text-white",
+                                                    "before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-full before:bg-blue-500"
+                                                ],
+                                                // Estado normal con color de texto gris azulado
+                                                !isActive && "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
+                                                // Efecto hover con transición suave
+                                                !isActive && "hover:bg-slate-50/80 dark:hover:bg-slate-800/40 hover:shadow-sm hover:-translate-y-[1px]",
+                                                "h-auto min-h-[48px] text-base"
+                                            )}
+                                            onClick={() => {
+                                                if (hasSubItems) {
+                                                    // Si tiene un subitem activo, no permitir cerrar
+                                                    if (!hasActiveSubItem) {
+                                                        toggleExpanded(item.title);
+                                                    }
+                                                } else {
+                                                    handleNavigation(item.href);
+                                                }
+                                            }}
+                                        >
+                                            <div className={cn(
+                                                "flex items-center justify-center w-5 h-5 transition-colors",
+                                                isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-500"
+                                            )}>
+                                                <Icon className="h-5 w-5" />
+                                            </div>
+                                            <span className="flex-1 text-left font-medium">{item.title}</span>
+                                            {/* Solo mostrar chevron si NO tiene un subitem activo */}
+                                            {hasSubItems && !hasActiveSubItem && (
+                                                isExpanded ?
+                                                    <ChevronUp className="h-4 w-4 text-slate-500 dark:text-slate-400" /> :
+                                                    <ChevronDown className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                            )}
+                                        </Button>
+                                    </div>
 
-                                        <Icon className={cn(
-                                            "h-5 w-5 shrink-0 mr-3 relative z-10",
-                                            (isActive && !hasSubItems) ? "text-blue-700" :
-                                                (isActive && hasSubItems) ? "text-blue-600" : "text-foreground"
-                                        )} />
-                                        <div className="flex flex-col items-start flex-1 relative z-10">
-                                            <span className={cn(
-                                                "text-sm font-medium",
-                                                (isActive && !hasSubItems) ? "text-blue-800" :
-                                                    (isActive && hasSubItems) ? "text-blue-700" : "text-foreground"
-                                            )}>{item.title}</span>
-                                            <span className={cn(
-                                                "text-xs",
-                                                (isActive && !hasSubItems) ? "text-blue-600" :
-                                                    (isActive && hasSubItems) ? "text-blue-500" : "text-muted-foreground"
-                                            )}>{item.description}</span>
-                                        </div>
-                                        {hasSubItems && (
-                                            isExpanded ? <ChevronUp className={cn(
-                                                "h-4 w-4 ml-auto relative z-10",
-                                                isActive ? "text-blue-700" : "text-foreground"
-                                            )} /> : <ChevronDown className={cn(
-                                                "h-4 w-4 ml-auto relative z-10",
-                                                isActive ? "text-blue-700" : "text-foreground"
-                                            )} />
-                                        )}
-                                    </Button>
-
-                                    {/* Subitems */}
+                                    {/* Subitems con divisor vertical */}
                                     {hasSubItems && isExpanded && (
-                                        <div className="ml-8 space-y-1">
-                                            {item.subItems.map((subItem: any) => {
+                                        <div className="ml-8 space-y-1 relative">
+                                            {/* Divisor vertical guía */}
+                                            <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-200/70 dark:bg-slate-700/70" />
+
+                                            {item.subItems.map((subItem: any, index: number) => {
                                                 const isSubActive = pathname === subItem.href;
                                                 return (
-                                                    <Button
-                                                        key={subItem.href}
-                                                        variant={isSubActive ? "secondary" : "ghost"}
-                                                        className={cn(
-                                                            "w-full justify-start p-2 relative transition-all duration-200",
-                                                            "rounded-lg",
-                                                            // Efecto badge azul para subitem activo
-                                                            isSubActive && "bg-blue-50 hover:bg-blue-100 rounded-xl",
-                                                            // Hover suave para subitems no activos
-                                                            !isSubActive && "hover:bg-blue-50"
-                                                        )}
-                                                        onClick={() => handleNavigation(subItem.href)}
-                                                    >
-                                                        {/* Barra vertical alineada con el parent */}
-                                                        {isSubActive && (
-                                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full" />
-                                                        )}
-                                                        <span className={cn(
-                                                            "text-sm relative z-10",
-                                                            isSubActive ? "text-blue-700" : "text-foreground"
-                                                        )}>{subItem.title}</span>
-                                                    </Button>
+                                                    <div key={subItem.href} className="relative group pl-4">
+                                                        <Button
+                                                            variant="ghost"
+                                                            className={cn(
+                                                                "flex w-full items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 text-left outline-none transition-all duration-200",
+                                                                // Estado activo con efecto pill elevado más sutil para subitems en azul
+                                                                isSubActive && [
+                                                                    "bg-gradient-to-r from-blue-50/70 to-blue-100/30 dark:from-blue-900/20 dark:to-blue-800/10",
+                                                                    "shadow-[0_4px_12px_-4px_rgba(59,130,246,0.2)]",
+                                                                    "ring-1 ring-blue-200/60 dark:ring-blue-800/60",
+                                                                    "font-medium text-neutral-900 dark:text-white",
+                                                                    "before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-blue-500"
+                                                                ],
+                                                                // Estado normal
+                                                                !isSubActive && "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
+                                                                // Efecto hover
+                                                                !isSubActive && "hover:bg-slate-50/60 dark:hover:bg-slate-800/30 hover:shadow-sm",
+                                                                "h-auto min-h-[40px] text-sm"
+                                                            )}
+                                                            onClick={() => handleNavigation(subItem.href)}
+                                                        >
+                                                            <span className="flex-1 text-left">{subItem.title}</span>
+                                                        </Button>
+                                                    </div>
                                                 );
                                             })}
                                         </div>
@@ -538,58 +439,38 @@ export function DashboardSidebar({ className }: SidebarProps) {
                         })}
                     </div>
 
-                    <Separator className="my-6" />
+                    <Separator className="my-6 bg-slate-200/60 dark:bg-slate-700/60" />
 
-                    {/* User Info */}
-                    <div className="space-y-1">
-                        {!collapsed && (
-                            <div className="px-3 py-2">
-                                <p className="text-sm font-medium">{user?.email}</p>
-                                <p className="text-xs text-muted-foreground">Usuario activo</p>
-                            </div>
-                        )}
-                        {collapsed && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="w-full h-11 flex items-center justify-center cursor-pointer hover:bg-accent rounded-lg transition-colors">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                            <User className="h-4 w-4 text-primary" />
-                                        </div>
+                    {/* User Info con diseño mejorado en azul */}
+                    <div className="px-1 space-y-2">
+                        {/* Card de información de usuario */}
+                        <div className="px-3 py-3 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-900/50 border border-slate-200/60 dark:border-slate-700/60">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
+                                    <User className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-neutral-900 dark:text-white truncate">{user?.email}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">Usuario activo</p>
                                     </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" sideOffset={10}>
-                                    <p className="text-xs">{user?.email}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
-                        {collapsed ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full h-11 flex items-center justify-center p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg"
-                                        onClick={handleLogout}
-                                    >
-                                        <LogOut className="h-5 w-5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" sideOffset={10}>
-                                    <p>Cerrar sesión</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        ) : (
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 px-3"
-                                onClick={handleLogout}
-                            >
-                                <LogOut className="h-4 w-4 shrink-0 mr-2" />
-                                <span className="text-sm">Cerrar sesión</span>
-                            </Button>
-                        )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Botón de cerrar sesión */}
+                        <Button
+                            variant="ghost"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 hover:shadow-sm"
+                            onClick={handleLogout}
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span>Cerrar sesión</span>
+                        </Button>
                     </div>
-                </TooltipProvider>
-            </ScrollArea>
+                </div>
+            </div>
         </div>
     );
 }
