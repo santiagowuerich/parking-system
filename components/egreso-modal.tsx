@@ -188,7 +188,7 @@ export default function EgresoModal({
 
           {/* Tiempo estacionado */}
           <div className="space-y-2">
-            <Label htmlFor="tiempo">Tiempo estacionado (auto)</Label>
+            <Label htmlFor="tiempo">Tiempo estacionado</Label>
             <div className="relative">
               <Input
                 id="tiempo"
@@ -202,7 +202,7 @@ export default function EgresoModal({
 
           {/* Tarifa vigente */}
           <div className="space-y-2">
-            <Label htmlFor="tarifa">Tarifa vigente (auto)</Label>
+            <Label htmlFor="tarifa">Tarifa vigente</Label>
             <div className="relative">
               <Input
                 id="tarifa"
@@ -216,7 +216,7 @@ export default function EgresoModal({
 
           {/* Total a cobrar */}
           <div className="space-y-2">
-            <Label htmlFor="total">Total a cobrar (auto)</Label>
+            <Label htmlFor="total">Total a cobrar</Label>
             <div className="relative">
               <Input
                 id="total"

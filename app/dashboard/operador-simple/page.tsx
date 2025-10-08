@@ -94,7 +94,12 @@ export default function OperadorSimplePage() {
 
     // Cargar tarifas con debounce
     useEffect(() => {
-        if (!estId) return;
+        if (!estId) {
+            console.log('⚠️ No hay estId, no se pueden cargar tarifas');
+            return;
+        }
+
+        console.log(`💰 Cargando tarifas para estId: ${estId}`);
 
         const timeoutId = setTimeout(() => {
             const loadRates = async () => {
@@ -111,9 +116,10 @@ export default function OperadorSimplePage() {
 
                     if (error) throw error;
 
+                    console.log(`✅ Tarifas cargadas (${data?.length || 0} tarifas):`, data);
                     setRates(data || []);
                 } catch (error) {
-                    console.error("Error al cargar tarifas:", error);
+                    console.error("❌ Error al cargar tarifas:", error);
                 }
             };
 
@@ -463,21 +469,40 @@ export default function OperadorSimplePage() {
 
             // Registrar la ocupación
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+
+            const ocupacionData = {
+                est_id: estId,
+                veh_patente: vehicleData.license_plate,
+                ocu_fh_entrada: entryTime,
+                pla_numero: vehicleData.pla_numero || null, // Asegurar null explícito si no hay plaza
+                ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
+                ocu_precio_acordado: vehicleData.precio_acordado || 0,
+                ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
+            };
+
+            console.log('📝 Registrando ocupación con datos:', ocupacionData);
+            console.log('📝 Tipo de pla_numero:', typeof vehicleData.pla_numero, 'Valor:', vehicleData.pla_numero);
+
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
-                .insert({
-                    est_id: estId,
-                    veh_patente: vehicleData.license_plate,
-                    ocu_fh_entrada: entryTime,
-                    pla_numero: vehicleData.pla_numero,
-                    ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
-                    ocu_precio_acordado: vehicleData.precio_acordado || 0,
-                    ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
-                });
+                .insert(ocupacionData);
 
             if (ocupacionError) {
-                console.error('Error al registrar ocupación:', ocupacionError);
-                throw new Error(`Error al registrar ocupación: ${ocupacionError.message}`);
+                console.error('❌ Error completo al registrar ocupación:', {
+                    error: ocupacionError,
+                    message: ocupacionError.message,
+                    details: ocupacionError.details,
+                    hint: ocupacionError.hint,
+                    code: ocupacionError.code
+                });
+
+                const errorMessage = ocupacionError.message ||
+                    ocupacionError.details ||
+                    ocupacionError.hint ||
+                    `Código de error: ${ocupacionError.code}` ||
+                    JSON.stringify(ocupacionError);
+
+                throw new Error(`Error al registrar ocupación: ${errorMessage}`);
             }
 
             // Si se asignó una plaza específica, actualizarla como ocupada
@@ -605,19 +630,24 @@ export default function OperadorSimplePage() {
 
                     // Lógica de cálculo según el tipo de tarifa
                     if (tiptar === 1) { // HORA: calcular dinámicamente
-                        if (durationHours <= 1) {
+                        // Mínimo 1 hora
+                        const hoursToCharge = Math.max(1, Math.ceil(durationHours));
+                        if (hoursToCharge <= 1) {
                             calculatedFee = basePrice;
                         } else {
-                            calculatedFee = basePrice + (hourlyRate * (durationHours - 1));
+                            calculatedFee = basePrice + (hourlyRate * (hoursToCharge - 1));
                         }
                     } else if (tiptar === 2) { // DÍA
-                        const durationDays = Math.ceil(durationHours / 24);
+                        // Mínimo 1 día
+                        const durationDays = Math.max(1, Math.ceil(durationHours / 24));
                         calculatedFee = basePrice * durationDays;
                     } else if (tiptar === 4) { // SEMANA
-                        const durationWeeks = Math.ceil(durationHours / (24 * 7));
+                        // Mínimo 1 semana
+                        const durationWeeks = Math.max(1, Math.ceil(durationHours / (24 * 7)));
                         calculatedFee = basePrice * durationWeeks;
                     } else if (tiptar === 3) { // MES
-                        const durationMonths = Math.ceil(durationHours / (24 * 30)); // 30 días por mes
+                        // Mínimo 1 mes
+                        const durationMonths = Math.max(1, Math.ceil(durationHours / (24 * 30))); // 30 días por mes
                         calculatedFee = basePrice * durationMonths;
                     } else {
                         // Fallback: usar precio base
@@ -626,6 +656,41 @@ export default function OperadorSimplePage() {
 
                     // Usar el máximo entre la tarifa calculada y el precio acordado
                     fee = Math.max(calculatedFee, agreedPrice);
+
+                    console.log('💰 Cálculo de tarifa handleExit:', {
+                        vehicleRate,
+                        basePrice,
+                        hourlyRate,
+                        durationHours,
+                        tiptar,
+                        tipoTarifa: tiptar === 1 ? 'HORA' : tiptar === 2 ? 'DÍA' : tiptar === 3 ? 'MES' : tiptar === 4 ? 'SEMANA' : 'OTRO',
+                        unidadesCalculadas: tiptar === 1 ? Math.max(1, Math.ceil(durationHours)) :
+                            tiptar === 2 ? Math.max(1, Math.ceil(durationHours / 24)) :
+                                tiptar === 3 ? Math.max(1, Math.ceil(durationHours / (24 * 30))) :
+                                    tiptar === 4 ? Math.max(1, Math.ceil(durationHours / (24 * 7))) : 0,
+                        calculatedFee,
+                        agreedPrice,
+                        fee,
+                        plazaPlantillaId
+                    });
+                } else {
+                    console.warn('⚠️ No se encontró tarifa para:', {
+                        plazaPlantillaId,
+                        tipoVehiculo: ocupacion.type,
+                        tiptar,
+                        ratesDisponibles: rates?.length || 0
+                    });
+                }
+            }
+
+            // 🟢 SOLUCIÓN: Si después de todo el fee es 0, usar precio acordado o mínimo
+            if (fee === 0) {
+                if (agreedPrice > 0) {
+                    fee = agreedPrice;
+                    console.log('✅ Usando precio acordado como fallback:', agreedPrice);
+                } else {
+                    // Si no hay precio acordado ni tarifa, advertir pero permitir continuar
+                    console.warn('⚠️ ADVERTENCIA: No hay tarifa configurada ni precio acordado. Fee = 0');
                 }
             }
 
