@@ -111,6 +111,8 @@ export default function OperatorPanel({
   const [selectedPlazaForActions, setSelectedPlazaForActions] = useState<any>(null)
   const [selectedVehicleForMove, setSelectedVehicleForMove] = useState<Vehicle | null>(null)
   const [modalLoading, setModalLoading] = useState(false)
+  // Tarifas disponibles para el modal de ingreso (según plantilla/plaza)
+  const [tarifasIngreso, setTarifasIngreso] = useState<any[]>([])
 
   // Cargar tarifas de una plantilla específica
   const loadTariffsForPlaza = async (plantillaId: number) => {
@@ -336,7 +338,7 @@ export default function OperatorPanel({
   };
 
   // Handler para clicks en plazas
-  const handlePlazaClick = (plaza: any) => {
+  const handlePlazaClick = async (plaza: any) => {
     setSelectedPlazaForActions(plaza);
 
     if (plaza.pla_estado === 'Ocupada') {
@@ -352,12 +354,18 @@ export default function OperatorPanel({
       // Abrir modal de ingreso para plazas libres
       setSelectedPlazaForActions(plaza);
 
-      // Cargar tarifas de la plantilla de la plaza
-      if (plaza.plantillas?.plantilla_id) {
-        loadTariffsForPlaza(plaza.plantillas.plantilla_id);
-      } else {
-        // Si no tiene plantilla, usar tarifas genéricas
-        loadTariffsForPlaza(0);
+      // Cargar tarifas de la plantilla de la plaza y guardarlas para el modal
+      try {
+        let tariffs: any[] = []
+        if (plaza.plantillas?.plantilla_id) {
+          tariffs = await loadTariffsForPlaza(plaza.plantillas.plantilla_id);
+        } else {
+          tariffs = await loadTariffsForPlaza(0);
+        }
+        setTarifasIngreso(tariffs || [])
+      } catch (e) {
+        console.error('Error obteniendo tarifas para ingreso:', e)
+        setTarifasIngreso([])
       }
 
       setShowIngresoModal(true);
@@ -1005,7 +1013,7 @@ export default function OperatorPanel({
         onClose={handleCloseModals}
         onConfirm={handleConfirmIngreso}
         loading={modalLoading}
-        tarifas={[]}
+        tarifas={tarifasIngreso}
         availablePlazas={plazasCompletas}
       />
 

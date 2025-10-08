@@ -148,7 +148,9 @@ export default function IngresoModal({
   // Update price when modality changes
   useEffect(() => {
     if (tarifas && tarifas.length > 0) {
-      const tarifa = tarifas.find(t => t.tar_nombre === selectedModality)
+      // Buscar tarifa por nombre exacto o por coincidencia parcial
+      const tarifa = tarifas.find(t => t.tar_nombre === selectedModality) ||
+        tarifas.find(t => t.tar_nombre.toLowerCase().includes(selectedModality.toLowerCase()))
       if (tarifa) {
         setAgreedPrice(tarifa.tar_precio_hora)
       }
@@ -199,22 +201,6 @@ export default function IngresoModal({
             />
           </div>
 
-          {/* Tipo de vehículo */}
-          <div className="space-y-2">
-            <Label htmlFor="vehicle-type">Tipo de vehículo</Label>
-            <Select value={vehicleType} onValueChange={(value: VehicleType) => setVehicleType(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Auto">🚗 Auto</SelectItem>
-                <SelectItem value="Moto">🏍️ Moto</SelectItem>
-                <SelectItem value="Camioneta">🚛 Camioneta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-
           {/* Tarifa */}
           <div className="space-y-2">
             <Label htmlFor="modality">Modalidad de Tarifa</Label>
@@ -234,6 +220,24 @@ export default function IngresoModal({
             </Select>
           </div>
 
+          {/* Tipo de vehículo */}
+          <div className="space-y-2">
+            <Label htmlFor="vehicle-type">Tipo de vehículo</Label>
+            <Select value={vehicleType} onValueChange={(value: VehicleType) => setVehicleType(value)}>
+              <SelectTrigger disabled={!!plaza}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Auto">🚗 Auto</SelectItem>
+                <SelectItem value="Moto">🏍️ Moto</SelectItem>
+                <SelectItem value="Camioneta">🚛 Camioneta</SelectItem>
+              </SelectContent>
+            </Select>
+            {plaza && (
+              <p className="text-xs text-muted-foreground">Bloqueado: deriva del tipo de la plaza seleccionada</p>
+            )}
+          </div>
+
           {/* Plaza a asignar */}
           <div className="space-y-2">
             <Label htmlFor="plaza-selector">Plaza asignada</Label>
@@ -241,7 +245,7 @@ export default function IngresoModal({
               value={selectedPlaza?.toString() || ""}
               onValueChange={(value) => setSelectedPlaza(Number(value))}
             >
-              <SelectTrigger>
+              <SelectTrigger disabled={!!plaza}>
                 <SelectValue placeholder="Seleccionar plaza disponible..." />
               </SelectTrigger>
               <SelectContent>
@@ -258,6 +262,9 @@ export default function IngresoModal({
                 )}
               </SelectContent>
             </Select>
+            {plaza && (
+              <p className="text-xs text-muted-foreground">Bloqueado: ya seleccionaste esta plaza desde el mapa</p>
+            )}
             {availablePlazasForVehicle.length === 0 && (
               <p className="text-sm text-red-600">
                 No hay plazas libres para vehículos tipo {vehicleType}
@@ -273,9 +280,10 @@ export default function IngresoModal({
                 id="precio"
                 type="number"
                 value={agreedPrice}
-                onChange={(e) => setAgreedPrice(parseFloat(e.target.value) || 0)}
                 placeholder="Ingrese el precio"
-                className="pr-10"
+                className="pr-10 bg-muted cursor-not-allowed"
+                readOnly
+                disabled
               />
               <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>

@@ -11,6 +11,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Vehicle, VehicleType } from "@/lib/types"
+import dayjs from "dayjs"
+import utc from 'dayjs/plugin/utc'
+
+dayjs.extend(utc)
 
 interface PlazaCompleta {
   pla_numero: number
@@ -87,6 +91,12 @@ export default function PlazaActionsModal({
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-600 mt-1">
             Plaza {plaza.pla_numero} • {vehicle?.license_plate || 'Sin vehículo'}
+            {vehicle?.entry_time && (
+              <>
+                {' '}
+                • Ingreso: {dayjs.utc(vehicle.entry_time).local().format('DD/MM/YYYY HH:mm')}
+              </>
+            )}
           </DialogDescription>
         </div>
 
