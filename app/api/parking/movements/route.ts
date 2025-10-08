@@ -111,13 +111,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: movement.ocu_id,
-        timestamp: new Date(timestamp).toLocaleString('es-AR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
+        timestamp: timestamp,
         license_plate: movement.veh_patente,
         action: isEntry ? 'Ingreso' : 'Egreso',
         zona: movement.plazas?.pla_zona || 'N/A',

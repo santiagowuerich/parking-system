@@ -117,7 +117,7 @@ export default function MovimientosPage() {
                                                 movements.map((movement, idx) => (
                                                     <TableRow key={idx} className="dark:border-zinc-800">
                                                         <TableCell className="dark:text-zinc-100">
-                                                            {movement.timestamp}
+                                                            {formatArgentineTimeWithDayjs(movement.timestamp)}
                                                         </TableCell>
                                                         <TableCell className="dark:text-zinc-100 font-medium">
                                                             {movement.license_plate}
