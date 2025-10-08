@@ -90,9 +90,10 @@ export default function MovimientosPage() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="dark:border-zinc-800">
-                                                <TableHead className="dark:text-zinc-400">Fecha/Hora</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Patente</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Acción</TableHead>
+                                                <TableHead className="dark:text-zinc-400">Fecha Ingreso</TableHead>
+                                                <TableHead className="dark:text-zinc-400">Fecha Egreso</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Zona</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Plaza</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Método</TableHead>
@@ -103,22 +104,19 @@ export default function MovimientosPage() {
                                         <TableBody>
                                             {loadingMovements ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="text-center py-8">
+                                                    <TableCell colSpan={9} className="text-center py-8">
                                                         <Loader2 className="w-6 h-6 animate-spin mx-auto text-zinc-400" />
                                                     </TableCell>
                                                 </TableRow>
                                             ) : movements.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="text-center py-8 text-zinc-500">
+                                                    <TableCell colSpan={9} className="text-center py-8 text-zinc-500">
                                                         No hay movimientos registrados
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
                                                 movements.map((movement, idx) => (
                                                     <TableRow key={idx} className="dark:border-zinc-800">
-                                                        <TableCell className="dark:text-zinc-100">
-                                                            {formatArgentineTimeWithDayjs(movement.timestamp)}
-                                                        </TableCell>
                                                         <TableCell className="dark:text-zinc-100 font-medium">
                                                             {movement.license_plate}
                                                         </TableCell>
@@ -133,6 +131,12 @@ export default function MovimientosPage() {
                                                             >
                                                                 {movement.action}
                                                             </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="dark:text-zinc-100">
+                                                            {formatArgentineTimeWithDayjs(movement.fecha_ingreso)}
+                                                        </TableCell>
+                                                        <TableCell className="dark:text-zinc-100">
+                                                            {movement.fecha_egreso ? formatArgentineTimeWithDayjs(movement.fecha_egreso) : '-'}
                                                         </TableCell>
                                                         <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
                                                         <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
