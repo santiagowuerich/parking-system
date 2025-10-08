@@ -880,6 +880,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, userRole, roleLoading]);
 
+  // Efecto para cargar parkings cuando estId está definido pero parkings vacío
+  useEffect(() => {
+    // Solo ejecutar si:
+    // - estId está definido
+    // - parkings está vacío
+    // - no está cargando actualmente
+    // - no es conductor (conductores no necesitan parkings del estacionamiento)
+    if (estId !== null && parkings.length === 0 && !parkingsLoading && userRole !== 'conductor') {
+      console.log('🔄 estId definido pero parkings vacío, cargando lista...');
+      fetchParkings();
+    }
+  }, [estId, parkings, parkingsLoading, userRole, fetchParkings]);
+
   useEffect(() => {
     let mounted = true;
     let hasInitialized = false;
