@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         const vehiclesFormatted = vehicles.map((v: any) => ({
             id: v.veh_patente, // Usando patente como ID
             patente: v.veh_patente,
-            tipo: v.cat_vehiculo?.catv_descripcion || '',
+            tipo: v.catv_segmento, // Usar el código del segmento (AUT, MOT, CAM)
             marca: v.veh_marca || '',
             modelo: v.veh_modelo || '',
             color: v.veh_color || ''
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
             vehicle: {
                 id: data.veh_patente,
                 patente: data.veh_patente,
-                tipo: tipo,
+                tipo: catv_segmento, // Devolver el código mapeado (AUT, MOT, CAM)
                 marca: marca,
                 modelo: modelo,
                 color: color

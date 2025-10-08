@@ -31,6 +31,7 @@ interface ParkingMapProps {
     userLocation?: { lat: number, lng: number } | null;
     searchRadius?: number;
     onParkingsLoaded?: (parkings: ParkingData[]) => void;
+    vehicleTypeFilter?: 'AUT' | 'MOT' | 'CAM' | null;
 }
 
 declare global {
@@ -48,7 +49,8 @@ export default function ParkingMap({
     onUserLocationUpdate,
     userLocation,
     searchRadius = 2,
-    onParkingsLoaded
+    onParkingsLoaded,
+    vehicleTypeFilter = null
 }: ParkingMapProps) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -75,11 +77,9 @@ export default function ParkingMap({
     // Función para filtrar estacionamientos según el radio de búsqueda
     const getFilteredParkings = (): ParkingData[] => {
         if (!userLocation) {
-            console.log('📍 Sin ubicación del usuario - no mostrar estacionamientos en el mapa');
-            return []; // Si no hay ubicación del usuario, no mostrar ninguno
+            // Si no hay ubicación del usuario, mostrar todos los estacionamientos disponibles
+            return parkings;
         }
-
-        console.log(`🗺️ Filtrando estacionamientos en el mapa para radio de ${searchRadius}km`);
 
         return parkings.filter(parking => {
             const distance = calculateDistance(
@@ -88,9 +88,7 @@ export default function ParkingMap({
                 parking.latitud,
                 parking.longitud
             );
-            const isWithinRadius = distance <= searchRadius;
-            console.log(`📍 ${parking.nombre}: ${distance.toFixed(2)}km ${isWithinRadius ? '✅' : '❌'}`);
-            return isWithinRadius;
+            return distance <= searchRadius;
         });
     };
     const [isDomReady, setIsDomReady] = useState(false);
@@ -137,16 +135,20 @@ export default function ParkingMap({
     // Función para obtener datos de estacionamientos
     const fetchParkings = async () => {
         try {
-            console.log('🔍 Obteniendo estacionamientos de la base de datos...');
-            const response = await fetch('/api/parkings');
+            // Construir URL con filtro de tipo de vehículo si existe
+            const url = vehicleTypeFilter
+                ? `/api/parkings?vehicleType=${vehicleTypeFilter}`
+                : '/api/parkings';
+
+            const logPrefix = vehicleTypeFilter ? `🔍 [${vehicleTypeFilter}]` : '🔍';
+
+            const response = await fetch(url);
 
             if (!response.ok) {
                 throw new Error(`Error HTTP: ${response.status}`);
             }
 
             const data = await response.json();
-            console.log(`✅ Obtenidos ${data.count} estacionamientos:`, data.parkings);
-
             setParkings(data.parkings || []);
             return data.parkings || [];
         } catch (error) {
@@ -519,8 +521,6 @@ export default function ParkingMap({
                 markersRef.current.push(marker);
             });
 
-            console.log(`✅ Creados ${markersRef.current.length} marcadores`);
-
             setIsLoaded(true);
             setError(null);
             console.log('🎉 Mapa de estacionamientos inicializado completamente');
@@ -697,6 +697,31 @@ export default function ParkingMap({
         }
     }, [parkings, onParkingsLoaded]);
 
+    // useEffect para recargar estacionamientos cuando cambie el filtro de tipo de vehículo
+    useEffect(() => {
+        if (isLoaded) {
+            const reloadWithFilter = async () => {
+                const loadedParkings = await fetchParkings();
+
+                // Recrear marcadores con los nuevos datos
+                if (mapInstanceRef.current && loadedParkings.length > 0) {
+                    // Limpiar marcadores existentes
+                    markersRef.current.forEach(marker => marker.setMap(null));
+                    markersRef.current = [];
+
+                    // Crear nuevos marcadores
+                    const filteredParkings = getFilteredParkings();
+                    filteredParkings.forEach(parking => {
+                        const marker = createParkingMarker(parking, mapInstanceRef.current!);
+                        markersRef.current.push(marker);
+                    });
+                }
+            };
+
+            reloadWithFilter();
+        }
+    }, [vehicleTypeFilter, isLoaded]);
+
     // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
 
     // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
@@ -815,6 +840,11 @@ export default function ParkingMap({
                 <CardTitle className="text-gray-900 flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
                     Estacionamientos Disponibles ({getFilteredParkings().length})
+                    {parkings.length > 0 && (
+                        <span className="text-xs text-gray-500 ml-2">
+                            (de {parkings.length} totales)
+                        </span>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent>
