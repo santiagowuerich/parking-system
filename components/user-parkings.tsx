@@ -69,7 +69,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     // Solo intentamos cargar una vez al montar el componente
     const [requestedOnce, setRequestedOnce] = useState(false);
     useEffect(() => {
-        if (requestedOnce) return;
+        // Solo cargar si no hay estacionamientos y no está cargando
+        if (requestedOnce || loading || estacionamientos.length > 0) return;
         setRequestedOnce(true);
         fetchParkings();
         // eslint-disable-next-line react-hooks/exhaustive-deps
