@@ -84,7 +84,7 @@ export default function MovimientosPage() {
                         <div className="p-6 space-y-6">
                             <Card className="dark:bg-zinc-900 dark:border-zinc-800">
                                 <CardHeader>
-                                    <CardTitle className="dark:text-zinc-100">Últimos movimientos</CardTitle>
+                                    <CardTitle className="dark:text-zinc-100">Movimientos</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
