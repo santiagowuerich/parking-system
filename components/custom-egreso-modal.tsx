@@ -53,6 +53,8 @@ export default function CustomEgresoModal({
     rate: number
     total: number
     baseRate: number
+    vehicleType: string
+    modality: string
   } | null>(null)
   const [calculating, setCalculating] = useState(false)
 
@@ -73,13 +75,44 @@ export default function CustomEgresoModal({
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
 
-      // Buscar la ocupación activa del vehículo
-      const { data: ocupacion, error: ocupacionError } = await supabase
-        .from('vw_ocupacion_actual')
-        .select('*')
-        .eq('license_plate', vehicle.license_plate)
-        .eq('est_id', estId)
-        .single()
+      console.log('🔍 Buscando ocupación para:', {
+        license_plate: vehicle.license_plate,
+        plaza_number: vehicle.plaza_number,
+        estId
+      })
+
+      // 🟢 CORRECCIÓN: Buscar la ocupación activa usando PLAZA_NUMBER si está disponible
+      // Esto evita cruzar datos de diferentes ingresos de la misma patente
+      let ocupacion
+      let ocupacionError
+
+      if (vehicle.plaza_number) {
+        // Si tenemos plaza_number, usarlo para buscar la ocupación exacta
+        const result = await supabase
+          .from('vw_ocupacion_actual')
+          .select('*')
+          .eq('plaza_number', vehicle.plaza_number)
+          .eq('est_id', estId)
+          .single()
+
+        ocupacion = result.data
+        ocupacionError = result.error
+
+        console.log('🎯 Búsqueda por plaza_number:', { plaza_number: vehicle.plaza_number, found: !!ocupacion })
+      } else {
+        // Fallback: buscar por patente si no hay plaza_number
+        const result = await supabase
+          .from('vw_ocupacion_actual')
+          .select('*')
+          .eq('license_plate', vehicle.license_plate)
+          .eq('est_id', estId)
+          .single()
+
+        ocupacion = result.data
+        ocupacionError = result.error
+
+        console.log('🔍 Búsqueda por license_plate:', { license_plate: vehicle.license_plate, found: !!ocupacion })
+      }
 
       if (ocupacionError || !ocupacion) {
         console.error('Error obteniendo ocupación:', ocupacionError)
@@ -164,19 +197,24 @@ export default function CustomEgresoModal({
 
           // Calcular según tipo de tarifa
           if (tiptar === 1) { // HORA
-            if (durationHours <= 1) {
+            // Mínimo 1 hora
+            const hoursToCharge = Math.max(1, Math.ceil(durationHours))
+            if (hoursToCharge <= 1) {
               calculatedFee = baseRate
             } else {
-              calculatedFee = baseRate + (hourlyRate * (durationHours - 1))
+              calculatedFee = baseRate + (hourlyRate * (hoursToCharge - 1))
             }
           } else if (tiptar === 2) { // DÍA
-            const durationDays = Math.ceil(durationHours / 24)
+            // Mínimo 1 día
+            const durationDays = Math.max(1, Math.ceil(durationHours / 24))
             calculatedFee = baseRate * durationDays
           } else if (tiptar === 4) { // SEMANA
-            const durationWeeks = Math.ceil(durationHours / (24 * 7))
+            // Mínimo 1 semana
+            const durationWeeks = Math.max(1, Math.ceil(durationHours / (24 * 7)))
             calculatedFee = baseRate * durationWeeks
           } else if (tiptar === 3) { // MES
-            const durationMonths = Math.ceil(durationHours / (24 * 30))
+            // Mínimo 1 mes
+            const durationMonths = Math.max(1, Math.ceil(durationHours / (24 * 30)))
             calculatedFee = baseRate * durationMonths
           } else {
             calculatedFee = baseRate
@@ -190,6 +228,11 @@ export default function CustomEgresoModal({
             hourlyRate,
             durationHours,
             tiptar,
+            tipoTarifa: tiptar === 1 ? 'HORA' : tiptar === 2 ? 'DÍA' : tiptar === 3 ? 'MES' : tiptar === 4 ? 'SEMANA' : 'OTRO',
+            unidadesCalculadas: tiptar === 1 ? Math.max(1, Math.ceil(durationHours)) :
+              tiptar === 2 ? Math.max(1, Math.ceil(durationHours / 24)) :
+                tiptar === 3 ? Math.max(1, Math.ceil(durationHours / (24 * 30))) :
+                  tiptar === 4 ? Math.max(1, Math.ceil(durationHours / (24 * 7))) : 0,
             calculatedFee,
             agreedPrice,
             fee,
@@ -205,11 +248,34 @@ export default function CustomEgresoModal({
         fee = agreedPrice > 0 ? agreedPrice : 200
       }
 
+      // Mapear tipo de vehículo a nombre legible
+      const vehicleTypeMap: Record<string, string> = {
+        'AUT': 'auto',
+        'MOT': 'moto',
+        'CAM': 'camioneta',
+        'Auto': 'auto',
+        'Moto': 'moto',
+        'Camioneta': 'camioneta'
+      }
+
+      // Mapear duración a nombre legible
+      const modalityMap: Record<string, string> = {
+        'hora': 'hora',
+        'dia': 'día',
+        'semana': 'semana',
+        'mes': 'mes'
+      }
+
+      const vehicleTypeName = vehicleTypeMap[ocupacion.type] || ocupacion.type.toLowerCase()
+      const modalityName = modalityMap[ocupacion.ocu_duracion_tipo] || ocupacion.ocu_duracion_tipo
+
       setCalculatedData({
         duration,
         rate: baseRate,
         total: Math.round(fee),
-        baseRate
+        baseRate,
+        vehicleType: vehicleTypeName,
+        modality: modalityName
       })
 
     } catch (error) {
@@ -249,11 +315,25 @@ export default function CustomEgresoModal({
       total = baseRate
     }
 
+    // Usar tipo del vehículo del prop si está disponible
+    const vehicleTypeMap: Record<string, string> = {
+      'AUT': 'auto',
+      'MOT': 'moto',
+      'CAM': 'camioneta',
+      'Auto': 'auto',
+      'Moto': 'moto',
+      'Camioneta': 'camioneta'
+    }
+
+    const vehicleTypeName = vehicle.type ? (vehicleTypeMap[vehicle.type] || vehicle.type.toLowerCase()) : 'auto'
+
     setCalculatedData({
       duration,
       rate: baseRate,
       total,
-      baseRate
+      baseRate,
+      vehicleType: vehicleTypeName,
+      modality: 'hora'  // Por defecto hora en cálculo básico
     })
   }
 
@@ -341,7 +421,7 @@ export default function CustomEgresoModal({
 
               {/* Tiempo estacionado */}
               <div className="space-y-2">
-                <Label htmlFor="tiempo">Tiempo estacionado (auto)</Label>
+                <Label htmlFor="tiempo">Tiempo estacionado</Label>
                 <div className="relative">
                   <Input
                     id="tiempo"
@@ -355,11 +435,11 @@ export default function CustomEgresoModal({
 
               {/* Tarifa vigente */}
               <div className="space-y-2">
-                <Label htmlFor="tarifa">Tarifa vigente (auto)</Label>
+                <Label htmlFor="tarifa">Tarifa vigente</Label>
                 <div className="relative">
                   <Input
                     id="tarifa"
-                    value={`$${calculatedData.rate} por hora`}
+                    value={`$${calculatedData.rate} por ${calculatedData.modality}`}
                     readOnly
                     className="bg-muted"
                   />
@@ -369,7 +449,7 @@ export default function CustomEgresoModal({
 
               {/* Total a cobrar */}
               <div className="space-y-2">
-                <Label htmlFor="total">Total a cobrar (auto)</Label>
+                <Label htmlFor="total">Total a cobrar</Label>
                 <div className="relative">
                   <Input
                     id="total"
@@ -383,7 +463,7 @@ export default function CustomEgresoModal({
 
               {/* Método de pago */}
               <div className="space-y-2">
-                <Label htmlFor="payment-method">Método de pago (auto)</Label>
+                <Label htmlFor="payment-method">Método de pago</Label>
                 <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                   <SelectTrigger>
                     <SelectValue placeholder="Efectivo / Tarjeta / App" />

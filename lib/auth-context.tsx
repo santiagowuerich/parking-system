@@ -947,6 +947,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, userRole, roleLoading, estId]);
 
+  // Ref para controlar que fetchParkings solo se ejecute una vez cuando sea necesario
+  const parkingsInitialized = useRef(false);
+
   // Efecto para cargar parkings cuando estId está definido pero parkings vacío
   useEffect(() => {
     // Solo ejecutar si:
@@ -954,11 +957,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // - parkings está vacío
     // - no está cargando actualmente
     // - no es conductor (conductores no necesitan parkings del estacionamiento)
-    if (estId !== null && parkings.length === 0 && !parkingsLoading && userRole !== 'conductor') {
+    // - no se ha inicializado ya
+    if (estId !== null && parkings.length === 0 && !parkingsLoading && userRole !== 'conductor' && !parkingsInitialized.current) {
       console.log('🔄 estId definido pero parkings vacío, cargando lista...');
+      parkingsInitialized.current = true;
       fetchParkings();
     }
-  }, [estId, parkings.length, parkingsLoading, userRole, fetchParkings]);
+
+    // Resetear cuando el usuario cambia o se desautentica
+    if (!user?.id) {
+      parkingsInitialized.current = false;
+    }
+  }, [estId, parkings.length, parkingsLoading, userRole, user?.id]);
 
   useEffect(() => {
     let mounted = true;

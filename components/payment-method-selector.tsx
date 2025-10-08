@@ -126,21 +126,21 @@ export default function PaymentMethodSelector({
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Tiempo estacionado (auto)</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Tiempo estacionado</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
                 {formatDuration(paymentData.duration)}
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Tarifa vigente (auto)</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Tarifa vigente</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
                 {formatCurrency(paymentData.calculatedFee || paymentData.amount)} por hora
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Total a cobrar (auto)</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Total a cobrar</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 font-bold text-base">
                 {formatCurrency(paymentData.amount)}
               </div>
