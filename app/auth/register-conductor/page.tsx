@@ -4,9 +4,12 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { Car } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
 
 export default function RegisterConductorPage() {
     const { signIn, signInWithGoogle } = useAuth();
+    const router = useRouter();
     const [form, setForm] = useState({
         nombre: "",
         apellido: "",
@@ -61,13 +64,30 @@ export default function RegisterConductorPage() {
                 throw new Error(error || 'No se pudo crear la cuenta de conductor.');
             }
 
+            // Mostrar mensaje de éxito
+            toast({
+                title: "¡Cuenta creada exitosamente!",
+                description: `Bienvenido ${form.nombre}. Tu cuenta de conductor ha sido creada.`,
+                variant: "default",
+            });
+
             // 2) Iniciar sesión automática para continuar flujo
             await signIn({
                 email: form.email,
                 password: form.password,
             });
+
+            // 3) Redirigir al dashboard del conductor
+            setTimeout(() => {
+                router.push('/conductor');
+            }, 1500); // Delay para que el usuario vea el mensaje de éxito
         } catch (err: any) {
             setError(err.message || "No se pudo crear la cuenta de conductor.");
+            toast({
+                title: "Error al crear cuenta",
+                description: err.message || "No se pudo crear la cuenta de conductor.",
+                variant: "destructive",
+            });
         } finally {
             setLoading(false);
         }
