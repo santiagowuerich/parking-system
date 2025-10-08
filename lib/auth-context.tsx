@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import { createBrowserClient } from "@supabase/ssr";
@@ -144,9 +145,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [parkingCapacity, setParkingCapacity] = useState<Record<VehicleType, number> | null>(null);
   const [loadingUserData, setLoadingUserData] = useState(false);
   const [initRatesDone, setInitRatesDone] = useState(false);
-  const [estId, setEstId] = useState<number | null>(null); // No asignar por defecto hasta verificar
+
+  // 🟢 SOLUCIÓN DEFINITIVA: Inicializar estId desde localStorage DIRECTAMENTE
+  const [estId, setEstId] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('parking_est_id');
+      if (saved) {
+        console.log(`🚀 Inicializando estId desde localStorage: ${saved}`);
+        return parseInt(saved);
+      }
+    }
+    return null;
+  });
+
+  // Función mejorada para setEstId que optimiza el caché
+  const setEstIdWithCache = useCallback((newEstId: number | null) => {
+    setEstId(newEstId);
+
+    // Guardar en localStorage para persistencia local
+    if (typeof window !== 'undefined') {
+      if (newEstId !== null) {
+        localStorage.setItem('parking_est_id', String(newEstId));
+        console.log(`💾 Guardando estId en localStorage: ${newEstId}`);
+      } else {
+        localStorage.removeItem('parking_est_id');
+        console.log(`🗑️ Limpiando estId de localStorage`);
+      }
+    }
+  }, []);
+
   const router = useRouter();
   const pathname = usePathname();
+
+  // 🟢 Ref para controlar que getUserEstId solo se ejecute UNA VEZ por usuario
+  const estIdInitialized = useRef(false);
 
   // Hook centralizado para gestionar parkings
   const {
@@ -459,6 +491,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Limpiar el caché al cerrar sesión
   const clearCache = () => {
+    console.log('🧹 Ejecutando clearCache()');
+
     // Limpiar datos específicos de la app
     localStorage.removeItem(STORAGE_KEYS.RATES);
     localStorage.removeItem(STORAGE_KEYS.RATES_TIMESTAMP);
@@ -467,7 +501,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEYS.CAPACITY);
     localStorage.removeItem(STORAGE_KEYS.CAPACITY_TIMESTAMP);
 
-    // Limpiar cualquier otro dato de autenticación
+    // 🟢 SOLUCIÓN: NO borrar parking_est_id aquí
+    // parking_est_id debe persistir entre recargas de página para owners
+    // Solo se borra en logout INTENCIONAL (ver signOut())
+    console.log('✅ Preservando parking_est_id en localStorage');
+
+    // Limpiar tokens de Supabase
     if (typeof window !== 'undefined') {
       // Buscar y eliminar cualquier clave relacionada con supabase
       Object.keys(localStorage).forEach(key => {
@@ -477,7 +516,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    // No eliminamos INIT_RATES_DONE, ya que es independiente del usuario
+    // No eliminamos INIT_RATES_DONE ni parking_est_id, ya que son independientes del ciclo de sesión
   };
 
   // Función para limpiar completamente la autenticación (útil para errores de token)
@@ -542,7 +581,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para verificar y configurar estacionamiento si es necesario
   const ensureParkingSetup = async () => {
-    console.log('🔍 ensureParkingSetup llamada para:', user?.email, 'userRole actual:', userRole);
+    console.log('🔍 ensureParkingSetup llamada para:', user?.email, 'userRole actual:', userRole, 'estId actual:', estId);
+
+    // 🟢 NO ejecutar si ya hay un estId - respetar el caché
+    if (estId !== null) {
+      console.log('✅ Ya existe estId:', estId, '- Saltando ensureParkingSetup');
+      return;
+    }
 
     if (!user?.email) {
       console.log('❌ No hay usuario email en ensureParkingSetup');
@@ -656,8 +701,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
+    // 🟢 NO ejecutar si ya hay un estId o si ya se inicializó
+    if (estId !== null || estIdInitialized.current) {
+      console.log(`⏭️ Saltando getUserEstId: estId=${estId}, inicializado=${estIdInitialized.current}`);
+      return;
+    }
+
     if (user?.id && !roleLoading && userRole) {
-      console.log(`👤 Usuario autenticado: ${user.email}, userRole: ${userRole}, verificando estacionamiento...`);
+      console.log(`👤 Usuario autenticado: ${user.email}, userRole: ${userRole}, estId actual: ${estId}, estIdInitialized: ${estIdInitialized.current}`);
 
       // Función para obtener el estId del usuario
       const getUserEstId = async () => {
@@ -665,21 +716,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Si es conductor, no necesita estId
           if (userRole === 'conductor') {
             console.log('🚗 Usuario es conductor, no necesita estId');
-            setEstId(null);
+            if (estId !== null) {
+              setEstIdWithCache(null);
+            }
+            estIdInitialized.current = true;
             return null;
           }
-          // Primero verificar si hay estId guardado en localStorage
-          if (typeof window !== 'undefined') {
+
+          // 🟢 SOLUCIÓN CRÍTICA: Si ya tenemos estId, NO hacer NADA - NUNCA sobrescribir
+          if (estId !== null) {
+            console.log(`✅ Ya tenemos estId: ${estId}, NO consultando API - Marcando como inicializado`);
+            if (!estIdInitialized.current) {
+              estIdInitialized.current = true;
+            }
+            return estId;
+          }
+
+          // 🟢 Si ya se ejecutó getUserEstId antes, no ejecutar de nuevo
+          if (estIdInitialized.current) {
+            console.log(`✅ getUserEstId ya se ejecutó, saltando`);
+            return;
+          }
+
+          console.log(`🔍 No hay estId, buscando en localStorage o API...`);
+
+          // Para dueños, verificar localStorage primero antes de consultar API
+          if (userRole === 'owner' && typeof window !== 'undefined') {
             const savedEstId = localStorage.getItem('parking_est_id');
             if (savedEstId) {
-              console.log(`📦 estId encontrado en localStorage: ${savedEstId}`);
               const parsedEstId = parseInt(savedEstId);
-              setEstId(parsedEstId);
+              console.log(`🎯 Dueño: Encontrado estId en localStorage: ${parsedEstId}`);
+              setEstId(parsedEstId); // Usar setEstId directamente, no setEstIdWithCache
+              estIdInitialized.current = true;
               return parsedEstId;
             }
           }
 
-          // Si no hay en localStorage, verificar si es dueño de estacionamiento
+          // 🟢 PRIORIDAD 2: Si no hay en localStorage, consultar API (solo primera vez)
           console.log(`🔍 No hay estId en localStorage, consultando API...`);
           const ownerResponse = await fetch('/api/auth/get-parking-id');
 
@@ -687,10 +760,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const ownerData = await ownerResponse.json();
             if (ownerData && ownerData.has_parking && ownerData.est_id) {
               console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
-              setEstId(ownerData.est_id);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('parking_est_id', String(ownerData.est_id));
-              }
+              console.log(`📝 Guardando primer estacionamiento en localStorage (primera vez): ${ownerData.est_id}`);
+              setEstIdWithCache(ownerData.est_id);
+              estIdInitialized.current = true; // 🟢 Marcar como inicializado
               return ownerData.est_id;
             }
           }
@@ -703,10 +775,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const employeeData = await employeeResponse.json();
             if (employeeData.has_assignment && employeeData.est_id) {
               console.log(`✅ Usuario es EMPLEADO asignado a estacionamiento: ${employeeData.est_id}`);
-              setEstId(employeeData.est_id);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('parking_est_id', String(employeeData.est_id));
-              }
+              setEstIdWithCache(employeeData.est_id);
+              estIdInitialized.current = true; // 🟢 Marcar como inicializado
               return employeeData.est_id;
             }
           }
@@ -714,11 +784,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Si no es dueño ni empleado asignado
           console.log(`⚠️ Usuario no tiene estacionamiento ni asignación`);
           setEstId(null);
+          estIdInitialized.current = true; // 🟢 Marcar como inicializado (aunque sea null)
           return null;
 
         } catch (error) {
           console.error(`❌ Error obteniendo estId:`, error);
           setEstId(null);
+          estIdInitialized.current = true; // Marcar como inicializado incluso con error
           return null;
         }
       };
@@ -728,6 +800,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       console.log(`🚪 Usuario no autenticado, reseteando datos`);
       // Resetear los datos cuando no hay usuario
+      estIdInitialized.current = false; // 🟢 Permitir reinicialización en próximo login
       setEstId(null);
       setRates(null);
       setUserSettings(null);
@@ -735,7 +808,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingHistory(null);
       setParkingCapacity(null);
     }
-  }, [user?.id, userRole, roleLoading]);
+  }, [user?.id, userRole, roleLoading, estId]);
 
 
   // Función para obtener el rol del usuario
@@ -842,43 +915,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No hay timeout que limpiar
   }, [user?.id, userRole]); // Agregar userRole como dependencia para evitar recargas innecesarias
 
-  // Efecto separado: no cargar datos hasta que tengamos rol y estId
-  // Solo cargar automáticamente si no estamos en una página que ya maneje sus propios datos
-  useEffect(() => {
-    if (!user?.id || loadingData) return;
-    if (roleLoading || !userRole) return; // esperar a rol
-
-    // Si es conductor, no necesita cargar datos de estacionamiento
-    if (userRole === 'conductor') {
-      console.log('🚗 Usuario es conductor, evitando carga de datos de estacionamiento');
-      return;
-    }
-
-    // Para otros roles, necesitamos estId
-    if (estId === null) return;
-
-    // Solo hacer carga automática si estamos en páginas que lo necesitan
-    const currentPath = pathname || '';
-    const shouldAutoLoad = !currentPath.includes('/dashboard'); // El dashboard maneja sus propios datos
-
-    if (!shouldAutoLoad) return;
-
-    const timeoutId = setTimeout(() => {
-      fetchUserData();
-    }, 800);
-
-    return () => clearTimeout(timeoutId);
-  }, [user?.id, estId, userRole, roleLoading]);
+  // 🟢 DESACTIVADO: Este useEffect causaba llamadas duplicadas
+  // Los componentes deben llamar a fetchUserData() cuando lo necesiten
+  // useEffect(() => {
+  //   if (!user?.id || loadingData) return;
+  //   if (roleLoading || !userRole) return;
+  //   if (userRole === 'conductor') return;
+  //   if (estId === null) return;
+  //   const currentPath = pathname || '';
+  //   const shouldAutoLoad = !currentPath.includes('/dashboard');
+  //   if (!shouldAutoLoad) return;
+  //   const timeoutId = setTimeout(() => {
+  //     fetchUserData();
+  //   }, 800);
+  //   return () => clearTimeout(timeoutId);
+  // }, [user?.id, estId, userRole, roleLoading]);
 
   // Efecto específico para ensureParkingSetup - SOLO para owner y playero
   useEffect(() => {
+    // 🟢 NO ejecutar si ya hay un estId - respetar el caché
+    if (estId !== null) {
+      console.log('⏭️ Saltando ensureParkingSetup: Ya hay estId=', estId);
+      return;
+    }
+
     if (user && userRole && !roleLoading && (userRole === 'owner' || userRole === 'playero')) {
-      console.log('🏢 Usuario es owner/playero, ejecutando ensureParkingSetup');
+      console.log('🏢 Usuario es owner/playero SIN estId, ejecutando ensureParkingSetup');
       ensureParkingSetup();
     } else if (user && userRole && !roleLoading && userRole === 'conductor') {
       console.log('🚗 Usuario es conductor, evitando ensureParkingSetup');
     }
-  }, [user, userRole, roleLoading]);
+  }, [user, userRole, roleLoading, estId]);
+
+  // Efecto para cargar parkings cuando estId está definido pero parkings vacío
+  useEffect(() => {
+    // Solo ejecutar si:
+    // - estId está definido
+    // - parkings está vacío
+    // - no está cargando actualmente
+    // - no es conductor (conductores no necesitan parkings del estacionamiento)
+    if (estId !== null && parkings.length === 0 && !parkingsLoading && userRole !== 'conductor') {
+      console.log('🔄 estId definido pero parkings vacío, cargando lista...');
+      fetchParkings();
+    }
+  }, [estId, parkings.length, parkingsLoading, userRole, fetchParkings]);
 
   useEffect(() => {
     let mounted = true;
@@ -1046,15 +1126,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('🚪 Iniciando logout INTENCIONAL');
+
       // Primero limpiar el estado local y caché
       setUser(null);
-      clearCache();
+      clearCache(); // clearCache ya no borra parking_est_id
 
-      // Limpiar cualquier dato adicional que pueda quedar
+      // 🟢 SOLUCIÓN: Solo en logout INTENCIONAL borramos parking_est_id
       if (typeof window !== 'undefined') {
-        // Limpiar todo el localStorage relacionado con la app
+        console.log('🧹 Borrando parking_est_id y user_role (logout intencional)');
+
+        // Borrar datos específicos de sesión de usuario
+        localStorage.removeItem('parking_est_id');
+        localStorage.removeItem('user_role');
+
+        // Borrar tokens de Supabase
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('parking_') || key.startsWith('supabase') || key.startsWith('sb-')) {
+          if (key.startsWith('supabase') || key.startsWith('sb-')) {
             localStorage.removeItem(key);
           }
         });
@@ -1083,11 +1171,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Limpiar localStorage y sessionStorage
       if (typeof window !== 'undefined') {
+        console.log('🧹 Limpieza de error: Borrando todo');
+
+        localStorage.removeItem('parking_est_id');
+        localStorage.removeItem('user_role');
+
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('parking_') || key.startsWith('supabase') || key.startsWith('sb-')) {
+          if (key.startsWith('supabase') || key.startsWith('sb-')) {
             localStorage.removeItem(key);
           }
         });
+
         sessionStorage.clear();
       }
       router.push("/auth/login");
@@ -1118,7 +1212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshParkingHistory,
         initializeRates,
         refreshCapacity,
-        setEstId,
+        setEstId: setEstIdWithCache,
         ensureParkingSetup,
         signInWithGoogle,
         userRole,

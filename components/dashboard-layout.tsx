@@ -64,18 +64,6 @@ export function DashboardLayout({ children, className, clockComponent }: Dashboa
                                             </p>
                                         </div>
                                     </div>
-                                    {totalSpaces > 0 && (
-                                        <div className="flex items-center gap-2 ml-4">
-                                            <div className={cn(
-                                                "w-2 h-2 rounded-full",
-                                                occupancyRate >= 90 ? 'bg-red-500' :
-                                                    occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-500'
-                                            )} />
-                                            <span className="text-xs text-muted-foreground">
-                                                {occupiedSpaces}/{totalSpaces} ocupados ({occupancyRate}%)
-                                            </span>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
