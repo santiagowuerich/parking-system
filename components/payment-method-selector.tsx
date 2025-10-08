@@ -15,6 +15,10 @@ import { PaymentMethod, PaymentMethodOption, PaymentData } from "@/lib/types/pay
 import { getAvailablePaymentMethods, formatCurrency, getPaymentMethodColors } from "@/lib/utils/payment-utils"
 import { PAYMENT_METHOD_ICONS } from "@/lib/constants/payment-methods"
 import { Clock, CreditCard, Banknote, Link as LinkIcon, Smartphone } from "lucide-react"
+import dayjs from "dayjs"
+import utc from 'dayjs/plugin/utc'
+
+dayjs.extend(utc)
 
 interface PaymentMethodSelectorProps {
   isOpen: boolean
@@ -100,6 +104,20 @@ export default function PaymentMethodSelector({
         <div className="px-6 space-y-4">
           {/* Información del egreso - campos tipo input como en la imagen */}
           <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Fecha y hora de ingreso</label>
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
+                {dayjs.utc(paymentData.entryTime).local().format('DD/MM/YYYY HH:mm')}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Fecha y hora de egreso</label>
+              <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
+                {dayjs.utc(paymentData.exitTime).local().format('DD/MM/YYYY HH:mm')}
+              </div>
+            </div>
+
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Patente</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 font-medium text-sm">
