@@ -297,6 +297,34 @@ export default function CustomEgresoModal({
             </div>
           ) : calculatedData ? (
             <>
+              {/* Fecha y hora de ingreso */}
+              <div className="space-y-2">
+                <Label htmlFor="ingreso">Fecha y hora de ingreso</Label>
+                <div className="relative">
+                  <Input
+                    id="ingreso"
+                    value={dayjs.utc(vehicle.entry_time).local().format('DD/MM/YYYY HH:mm')}
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+
+              {/* Fecha y hora de egreso */}
+              <div className="space-y-2">
+                <Label htmlFor="egreso">Fecha y hora de egreso</Label>
+                <div className="relative">
+                  <Input
+                    id="egreso"
+                    value={dayjs().format('DD/MM/YYYY HH:mm')}
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+
               {/* Patente */}
               <div className="space-y-2">
                 <Label htmlFor="patente">Patente</Label>

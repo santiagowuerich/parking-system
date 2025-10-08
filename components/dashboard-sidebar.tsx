@@ -54,7 +54,7 @@ const employeeNavigationItems = [
                 href: "/dashboard/operador"
             },
             {
-                title: "Información",
+                title: "Visualización de Plazas",
                 href: "/dashboard/operador-simple"
             },
             {
@@ -130,7 +130,7 @@ const ownerNavigationItems = [
                 href: "/dashboard/operador"
             },
             {
-                title: "Información",
+                title: "Visualización de Plazas",
                 href: "/dashboard/operador-simple"
             },
             {
