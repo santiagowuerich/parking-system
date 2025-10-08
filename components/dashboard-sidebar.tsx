@@ -205,10 +205,13 @@ const ownerNavigationItems = [
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, signOut, userRole, roleLoading } = useAuth();
+    const { user, signOut, userRole, roleLoading, estId, getParkingById } = useAuth();
     const { role, isEmployee, isOwner, isDriver } = useUserRole();
     const { theme, setTheme } = useTheme();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+    // Obtener información del estacionamiento actual
+    const currentParking = estId ? getParkingById(estId) : null;
 
     // Seleccionar elementos de navegación según el rol usando useMemo para estabilidad
     const navigationItems = useMemo(() => {
@@ -327,7 +330,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     <MapPin className="h-4 w-4 text-blue-500" />
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse"></div>
-                                        <span className="text-sm font-medium">prueba35</span>
+                                        <span className="text-sm font-medium">{currentParking?.est_nombre || 'Seleccionar estacionamiento'}</span>
                                     </div>
                                 </div>
                             </div>
