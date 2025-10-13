@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { googleMapsLoader } from "@/lib/google-maps-loader";
 
 interface ParkingData {
     id: number;
@@ -60,9 +61,11 @@ export default function ParkingMap({
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+    const didMountRef = useRef(false);
+    const updateMarkersTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Función para calcular la distancia entre dos puntos (Haversine formula)
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371; // Radio de la Tierra en km
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -72,10 +75,10 @@ export default function ParkingMap({
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
-    };
+    }, []);
 
-    // Función para filtrar estacionamientos según el radio de búsqueda
-    const getFilteredParkings = (): ParkingData[] => {
+    // Función optimizada para filtrar estacionamientos según el radio de búsqueda
+    const getFilteredParkings = useMemo((): ParkingData[] => {
         if (!userLocation) {
             // Si no hay ubicación del usuario, mostrar todos los estacionamientos disponibles
             return parkings;
@@ -90,7 +93,8 @@ export default function ParkingMap({
             );
             return distance <= searchRadius;
         });
-    };
+    }, [parkings, userLocation, searchRadius, calculateDistance]);
+
     const [isDomReady, setIsDomReady] = useState(false);
     const maxRetries = 3;
 
@@ -425,8 +429,9 @@ export default function ParkingMap({
             }
         });
 
-        // Guardar referencia al info window
+        // Guardar referencia al info window y al parking
         (marker as any).infoWindow = infoWindow;
+        (marker as any).parkingData = parking;
 
         return marker;
     };
@@ -464,10 +469,10 @@ export default function ParkingMap({
                 console.log('📍 Usando estado guardado del mapa:', savedState);
             } else {
                 // Calcular centro del mapa basado en los estacionamientos
-                const latitudes = parkingsData.map(p => p.latitud);
-                const longitudes = parkingsData.map(p => p.longitud);
-                const centerLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
-                const centerLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+                const latitudes = parkingsData.map((p: ParkingData) => p.latitud);
+                const longitudes = parkingsData.map((p: ParkingData) => p.longitud);
+                const centerLat = latitudes.reduce((a: number, b: number) => a + b, 0) / latitudes.length;
+                const centerLng = longitudes.reduce((a: number, b: number) => a + b, 0) / longitudes.length;
 
                 mapCenter = { lat: centerLat, lng: centerLng };
                 mapZoom = 14;
@@ -515,8 +520,8 @@ export default function ParkingMap({
             }
 
             // Crear marcadores para cada estacionamiento (filtrar según radio si hay ubicación del usuario)
-            const filteredParkings = getFilteredParkings();
-            filteredParkings.forEach(parking => {
+            const filteredParkings = getFilteredParkings;
+            filteredParkings.forEach((parking: ParkingData) => {
                 const marker = createParkingMarker(parking, map);
                 markersRef.current.push(marker);
             });
@@ -564,7 +569,7 @@ export default function ParkingMap({
         if (isDomReady) {
             console.log('🚀 DOM listo, iniciando carga de Google Maps para estacionamientos');
 
-            const loadGoogleMaps = () => {
+            const loadGoogleMaps = async () => {
                 // Verificar API key
                 const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
                 if (!apiKey || apiKey === 'TU_API_KEY_AQUI' || apiKey === 'TU_API_KEY_REAL') {
@@ -573,51 +578,20 @@ export default function ParkingMap({
                     return;
                 }
 
-                // Verificar si la API ya está completamente cargada
-                if (window.google && window.google.maps && window.google.maps.Map) {
-                    console.log('✅ Google Maps ya cargado, inicializando mapa...');
+                try {
+                    // Usar el loader oficial
+                    await googleMapsLoader.load({
+                        apiKey,
+                        libraries: ['places'],
+                        version: 'weekly'
+                    });
+
+                    console.log('✅ Google Maps cargado, inicializando mapa...');
                     initializeMap();
-                    return;
-                }
-
-                // Verificar si ya está cargando
-                if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-                    console.log('⏳ Script de Google Maps ya existe, esperando...');
-                    const checkLoaded = () => {
-                        if (window.google && window.google.maps && window.google.maps.Map) {
-                            initializeMap();
-                        } else {
-                            setTimeout(checkLoaded, 200);
-                        }
-                    };
-                    checkLoaded();
-                    return;
-                }
-
-                // Cargar script de Google Maps
-                console.log('📡 Cargando script de Google Maps...');
-                const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly&callback=initParkingMap`;
-                script.async = true;
-                script.defer = true;
-
-                script.onload = () => {
-                    console.log('📦 Script de Google Maps cargado');
-                    setTimeout(() => {
-                        if (window.google && window.google.maps && window.google.maps.Map) {
-                            initializeMap();
-                        } else {
-                            setError('Error: Google Maps no se cargó correctamente');
-                        }
-                    }, 500);
-                };
-
-                script.onerror = (error) => {
-                    console.error('❌ Error cargando script de Google Maps:', error);
+                } catch (error) {
+                    console.error('❌ Error cargando Google Maps:', error);
                     setError('Error cargando Google Maps API. Verifica tu API key.');
-                };
-
-                document.head.appendChild(script);
+                }
             };
 
             loadGoogleMaps();
@@ -633,8 +607,9 @@ export default function ParkingMap({
         console.log(`🎯 Actualizando marcadores para selección:`, selectedParkingId);
 
         // Actualizar aspecto de todos los marcadores
-        markersRef.current.forEach((marker, index) => {
-            const parking = parkings[index];
+        markersRef.current.forEach((marker) => {
+            // Obtener el parking asociado al marcador directamente
+            const parking = (marker as any).parkingData as ParkingData;
             if (!parking) return;
 
             const isSelected = selectedParkingId === parking.id;
@@ -677,9 +652,22 @@ export default function ParkingMap({
             // Actualizar z-index
             marker.setZIndex(isSelected ? 1000 : 100);
 
-            // Actualizar animación
+            // Actualizar animación y centrar mapa si está seleccionado
             if (isSelected) {
                 marker.setAnimation(window.google.maps.Animation.BOUNCE);
+
+                // Centrar el mapa suavemente en el marcador seleccionado
+                const position = marker.getPosition();
+                if (position && mapInstanceRef.current) {
+                    mapInstanceRef.current.panTo(position);
+
+                    // Ajustar zoom si está muy alejado
+                    const currentZoom = mapInstanceRef.current.getZoom() || 14;
+                    if (currentZoom < 15) {
+                        mapInstanceRef.current.setZoom(15);
+                    }
+                }
+
                 // Quitar animación después de 2 segundos
                 setTimeout(() => {
                     marker.setAnimation(null);
@@ -687,7 +675,7 @@ export default function ParkingMap({
             }
         });
 
-    }, [selectedParkingId, parkings]);
+    }, [selectedParkingId]);
 
     // useEffect para notificar al componente padre cuando se cargan los estacionamientos
     useEffect(() => {
@@ -699,8 +687,15 @@ export default function ParkingMap({
 
     // useEffect para recargar estacionamientos cuando cambie el filtro de tipo de vehículo
     useEffect(() => {
-        if (isLoaded) {
+        // Usar didMountRef para evitar ejecutar en el primer render
+        if (!didMountRef.current) {
+            didMountRef.current = true;
+            return;
+        }
+
+        if (isLoaded && mapInstanceRef.current) {
             const reloadWithFilter = async () => {
+                console.log('🔄 Recargando estacionamientos con filtro:', vehicleTypeFilter);
                 const loadedParkings = await fetchParkings();
 
                 // Recrear marcadores con los nuevos datos
@@ -710,8 +705,8 @@ export default function ParkingMap({
                     markersRef.current = [];
 
                     // Crear nuevos marcadores
-                    const filteredParkings = getFilteredParkings();
-                    filteredParkings.forEach(parking => {
+                    const filteredParkings = getFilteredParkings;
+                    filteredParkings.forEach((parking: ParkingData) => {
                         const marker = createParkingMarker(parking, mapInstanceRef.current!);
                         markersRef.current.push(marker);
                     });
@@ -720,29 +715,43 @@ export default function ParkingMap({
 
             reloadWithFilter();
         }
-    }, [vehicleTypeFilter, isLoaded]);
+    }, [vehicleTypeFilter]);
 
     // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
-
-    // useEffect para actualizar marcadores cuando cambie el radio de búsqueda o ubicación del usuario
+    // Con debounce para evitar múltiples renders costosos
     useEffect(() => {
         if (isLoaded && mapInstanceRef.current && parkings.length > 0) {
-            console.log('🔄 Actualizando marcadores por cambio de radio o ubicación...');
+            // Limpiar timeout anterior si existe
+            if (updateMarkersTimeoutRef.current) {
+                clearTimeout(updateMarkersTimeoutRef.current);
+            }
 
-            // Limpiar marcadores existentes
-            markersRef.current.forEach(marker => marker.setMap(null));
-            markersRef.current = [];
+            // Aplicar debounce de 300ms
+            updateMarkersTimeoutRef.current = setTimeout(() => {
+                console.log('🔄 Actualizando marcadores por cambio de radio o ubicación...');
 
-            // Crear nuevos marcadores con filtro actualizado
-            const filteredParkings = getFilteredParkings();
-            filteredParkings.forEach(parking => {
-                const marker = createParkingMarker(parking, mapInstanceRef.current!);
-                markersRef.current.push(marker);
-            });
+                // Limpiar marcadores existentes
+                markersRef.current.forEach(marker => marker.setMap(null));
+                markersRef.current = [];
 
-            console.log(`✅ Actualizados ${markersRef.current.length} marcadores (filtrados por radio de ${searchRadius}km)`);
+                // Crear nuevos marcadores con filtro actualizado
+                const filteredParkings = getFilteredParkings;
+                filteredParkings.forEach((parking: ParkingData) => {
+                    const marker = createParkingMarker(parking, mapInstanceRef.current!);
+                    markersRef.current.push(marker);
+                });
+
+                console.log(`✅ Actualizados ${markersRef.current.length} marcadores (filtrados por radio de ${searchRadius}km)`);
+            }, 300);
         }
-    }, [userLocation, searchRadius, parkings, isLoaded]);
+
+        // Cleanup al desmontar
+        return () => {
+            if (updateMarkersTimeoutRef.current) {
+                clearTimeout(updateMarkersTimeoutRef.current);
+            }
+        };
+    }, [userLocation, searchRadius, parkings, isLoaded, getFilteredParkings]);
 
     // Exponer función de ubicación cuando el componente esté montado
     useEffect(() => {
@@ -808,11 +817,13 @@ export default function ParkingMap({
         return (
             <Card>
                 <CardContent className="p-6 text-center">
-                    <AlertCircle className="h-8 w-8 mx-auto text-red-500 mb-2" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        Error en el Mapa
-                    </h3>
-                    <p className="text-red-400 text-sm mb-4">{error}</p>
+                    <div role="alert" aria-live="assertive">
+                        <AlertCircle className="h-8 w-8 mx-auto text-red-500 mb-2" aria-hidden="true" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                            Error en el Mapa
+                        </h3>
+                        <p className="text-red-400 text-sm mb-4">{error}</p>
+                    </div>
                     {retryCount < maxRetries && (
                         <div className="space-y-2">
                             <Button
@@ -820,8 +831,9 @@ export default function ParkingMap({
                                 variant="outline"
                                 size="sm"
                                 className="gap-2"
+                                aria-label={`Reintentar carga del mapa. Intento ${retryCount} de ${maxRetries}`}
                             >
-                                <RefreshCw className="h-4 w-4" />
+                                <RefreshCw className="h-4 w-4" aria-hidden="true" />
                                 Reintentar ({retryCount}/{maxRetries})
                             </Button>
                             <p className="text-xs text-gray-500">
@@ -839,7 +851,7 @@ export default function ParkingMap({
             <CardHeader>
                 <CardTitle className="text-gray-900 flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    Estacionamientos Disponibles ({getFilteredParkings().length})
+                    Estacionamientos Disponibles ({getFilteredParkings.length})
                     {parkings.length > 0 && (
                         <span className="text-xs text-gray-500 ml-2">
                             (de {parkings.length} totales)
@@ -851,20 +863,20 @@ export default function ParkingMap({
                 <div className="relative">
                     {/* Popup para solicitar ubicación */}
                     {!userLocation && isLoaded && (
-                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg" role="dialog" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-description">
                             <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center">
-                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6">
+                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
                                     <MapPin className="h-8 w-8 text-blue-600" />
                                 </div>
-                                <h3 className="text-xl font-bold text-gray-900 mb-3">
+                                <h3 id="location-prompt-title" className="text-xl font-bold text-gray-900 mb-3">
                                     ¡Presiona "Mi Ubicación"!
                                 </h3>
-                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                <p id="location-prompt-description" className="text-gray-600 mb-6 leading-relaxed">
                                     Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
                                 </p>
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                     <div className="flex items-center gap-3 text-blue-700">
-                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center">
+                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center" aria-hidden="true">
                                             <span className="text-sm font-bold">1</span>
                                         </div>
                                         <span className="text-sm font-medium">
@@ -882,32 +894,33 @@ export default function ParkingMap({
                         style={{ minHeight: '400px' }}
                     />
                     {!isLoaded && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg">
+                        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg" role="status" aria-live="polite">
                             <div className="text-center">
-                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" />
+                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" aria-hidden="true" />
                                 <p className="text-gray-500 text-sm">Cargando estacionamientos...</p>
+                                <span className="sr-only">Cargando mapa de estacionamientos, por favor espere</span>
                             </div>
                         </div>
                     )}
                 </div>
 
                 {/* Leyenda */}
-                <div className="flex items-center gap-4 mt-3 text-xs">
+                <div className="flex items-center gap-4 mt-3 text-xs" role="group" aria-label="Leyenda del mapa de estacionamientos">
                     <span className="text-gray-600">Leyenda:</span>
                     <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
                         <span>Disponible</span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-orange-500" aria-hidden="true"></div>
                         <span>Pocos espacios</span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-red-500" aria-hidden="true"></div>
                         <span>Lleno</span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-blue-500" aria-hidden="true"></div>
                         <span>Seleccionado</span>
                     </div>
                 </div>
