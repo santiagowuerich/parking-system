@@ -3,19 +3,50 @@
 **Rol / propósito:** Documentación técnica detallada del sistema de estacionamiento, incluyendo análisis de flujos, cambios en base de datos, integraciones específicas y documentación automática del proyecto.
 
 ## Contenido clave
+
+### 📊 Análisis y Diseño
 - `ANALISIS_FLUJO_EMPLEADOS.md` - Análisis completo del flujo de gestión de empleados
-- `cambiosbasededatos.md` - Registro histórico de cambios en la estructura de BD
-- `GOOGLE_MAPS_README.md` - Guía detallada de integración con Google Maps
 - `README_AUTO_PARKING.md` - Documentación automática generada del sistema
+
+### 🗄️ Base de Datos
+- `DATABASE_CHANGES_README.md` - Cambios y migraciones de base de datos
+- `cambiosbasededatos.md` - Registro histórico de cambios en la estructura de BD
+
+### 🗺️ Integraciones
+- `GOOGLE_MAPS_README.md` - Guía detallada de integración con Google Maps
+- `PAYMENTS_IMPLEMENTATION_README.md` - Implementación del sistema de pagos
+
+### 📋 Planes y Soluciones
+- `PLAN_*.md` - Planes de implementación y mejoras del sistema
+- `PROBLEMA_*.md` - Documentación de problemas encontrados y diagnosticados
+- `SOLUCION_*.md` - Soluciones implementadas para diversos problemas
+
+### 📝 Documentos Técnicos
+- `OPTIMIZACIONES_REALIZADAS.md` - Optimizaciones implementadas en el sistema
+- `README_QR_IMPLEMENTATION.md` - Implementación del sistema QR
+- Archivos varios de análisis técnico y documentación específica
 
 ## Estructura
 
 ```
 docs/
-├── ANALISIS_FLUJO_EMPLEADOS.md       # Análisis de empleados
-├── cambiosbasededatos.md             # Cambios en BD
-├── GOOGLE_MAPS_README.md             # Integración Google Maps
-└── README_AUTO_PARKING.md            # Documentación automática
+├── 📊 Análisis y Diseño/
+│   ├── ANALISIS_FLUJO_EMPLEADOS.md
+│   └── README_AUTO_PARKING.md
+├── 🗄️ Base de Datos/
+│   ├── DATABASE_CHANGES_README.md
+│   └── cambiosbasededatos.md
+├── 🗺️ Integraciones/
+│   ├── GOOGLE_MAPS_README.md
+│   └── PAYMENTS_IMPLEMENTATION_README.md
+├── 📋 Planes y Soluciones/
+│   ├── PLAN_*.md
+│   ├── PROBLEMA_*.md
+│   └── SOLUCION_*.md
+└── 📝 Documentos Técnicos/
+    ├── OPTIMIZACIONES_REALIZADAS.md
+    ├── README_QR_IMPLEMENTATION.md
+    └── [otros archivos técnicos]
 ```
 
 ## Entradas/Salidas
