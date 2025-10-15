@@ -20,12 +20,15 @@ export async function GET(request: NextRequest) {
                 plantilla_id,
                 tiptar_nro,
                 tar_precio,
+                tar_fraccion,
+                tar_f_desde,
                 plantillas!inner(
                     nombre_plantilla,
                     catv_segmento
                 )
             `)
             .eq('est_id', est_id)
+            .order('tar_f_desde', { ascending: false })
             .order('plantilla_id')
             .order('tiptar_nro')
 
@@ -34,25 +37,35 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
-        // Agrupar tarifas por plantilla_id para facilitar el consumo en el frontend
+        // Agrupar tarifas por plantilla_id y deduplicar, manteniendo solo las más recientes
+        // Las tarifas están ordenadas por tar_f_desde DESC, así que la primera de cada tipo es la más reciente
         const tarifasPorPlantilla: Record<number, any> = {}
+        const processedKeys = new Set<string>();
 
         tarifas?.forEach((tarifa: any) => {
             const plantillaId = tarifa.plantilla_id
+            const key = `${plantillaId}_${tarifa.tiptar_nro}`; // Clave para deduplicación
 
-            if (!tarifasPorPlantilla[plantillaId]) {
-                tarifasPorPlantilla[plantillaId] = {
-                    plantilla_id: plantillaId,
-                    nombre_plantilla: tarifa.plantillas.nombre_plantilla,
-                    catv_segmento: tarifa.plantillas.catv_segmento,
-                    tarifas: {}
+            // Solo procesar si no hemos visto esta combinación antes (la primera es la más reciente)
+            if (!processedKeys.has(key)) {
+                processedKeys.add(key);
+
+                if (!tarifasPorPlantilla[plantillaId]) {
+                    tarifasPorPlantilla[plantillaId] = {
+                        plantilla_id: plantillaId,
+                        nombre_plantilla: tarifa.plantillas.nombre_plantilla,
+                        catv_segmento: tarifa.plantillas.catv_segmento,
+                        tarifas: {}
+                    }
                 }
-            }
 
-            // Agregar el tipo de tarifa con su precio
-            tarifasPorPlantilla[plantillaId].tarifas[tarifa.tiptar_nro] = {
-                precio: tarifa.tar_precio,
-                tipo: tarifa.tiptar_nro
+                // Agregar el tipo de tarifa con su precio y fracción
+                tarifasPorPlantilla[plantillaId].tarifas[tarifa.tiptar_nro] = {
+                    precio: tarifa.tar_precio,
+                    fraccion: tarifa.tar_fraccion,
+                    tipo: tarifa.tiptar_nro,
+                    fecha: tarifa.tar_f_desde
+                }
             }
         })
 
@@ -114,7 +127,7 @@ export async function POST(request: NextRequest) {
         const tarifasParaUpsert = []
 
         for (const tarifa of tarifas) {
-            const { plantilla_id, tiptar_nro, tar_precio } = tarifa
+            const { plantilla_id, tiptar_nro, tar_precio, tar_fraccion } = tarifa
 
             if (!plantilla_id || !tiptar_nro || tar_precio === undefined) {
                 return NextResponse.json({
@@ -135,7 +148,7 @@ export async function POST(request: NextRequest) {
                 tiptar_nro: parseInt(tiptar_nro),
                 tar_precio: parseFloat(tar_precio),
                 catv_segmento: plantillaInfo.catv_segmento,
-                tar_fraccion: 1, // Valor por defecto
+                tar_fraccion: parseFloat(tar_fraccion || tar_precio), // Usar tar_precio como default si no se especifica
                 tar_f_desde: new Date().toISOString().split('T')[0] // Fecha actual
             })
         }
