@@ -277,10 +277,6 @@ export default function MapaEstacionamientos() {
                     {/* Panel Izquierdo - Detalle del Estacionamiento Seleccionado */}
                     <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
                         <div className="p-8">
-                            {/* 🟢 NUEVO: Selector de vehículo */}
-                            <div className="mb-6">
-                                <VehicleSelector />
-                            </div>
 
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl font-bold text-gray-900">
