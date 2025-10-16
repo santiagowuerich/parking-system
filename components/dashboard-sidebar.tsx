@@ -60,6 +60,10 @@ const employeeNavigationItems = [
             {
                 title: "Movimientos",
                 href: "/dashboard/movimientos"
+            },
+            {
+                title: "Crear Abono",
+                href: "/dashboard/crear-abono"
             }
         ]
     },
