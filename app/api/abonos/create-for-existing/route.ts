@@ -213,14 +213,69 @@ export async function POST(request: NextRequest) {
 
         const abonoNro = nuevoAbono.abo_nro;
 
-        // 9. ACTUALIZAR ESTADO DE PLAZA
+        // 9. CREAR PAGO INICIAL (NUEVO)
+        // Obtener tarifa de la plaza (plantilla)
+        const { data: plantillaData } = await supabase
+            .from('plazas')
+            .select('plantilla_id')
+            .eq('pla_numero', abono.plaza.pla_numero)
+            .eq('est_id', abono.plaza.est_id)
+            .single();
+
+        let pago_nro: number | null = null;
+
+        if (plantillaData?.plantilla_id) {
+            // Obtener tarifa por MES (tiptar_nro = 3)
+            const { data: tarifaData } = await supabase
+                .from('tarifas')
+                .select('tar_precio')
+                .eq('est_id', abono.est_id)
+                .eq('tiptar_nro', 3) // MES
+                .eq('plantilla_id', plantillaData.plantilla_id)
+                .order('tar_f_desde', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (tarifaData) {
+                // Crear pago inicial
+                const { data: nuevoPago, error: errorPago } = await supabase
+                    .from('pagos')
+                    .insert({
+                        pag_monto: Number(tarifaData.tar_precio),
+                        pag_h_fh: new Date().toISOString(),
+                        est_id: abono.est_id,
+                        mepa_metodo: 'Efectivo',
+                        veh_patente: todasLasPatentes[0] || '',
+                        pag_tipo: 'abono_inicial',
+                        pag_descripcion: `Abono ${abono.tipoAbono}`,
+                        pag_estado: 'completado',
+                        abo_nro: abonoNro
+                    })
+                    .select('pag_nro')
+                    .single();
+
+                if (nuevoPago && !errorPago) {
+                    pago_nro = nuevoPago.pag_nro;
+
+                    // Actualizar abonos.pag_nro
+                    await supabase
+                        .from('abonos')
+                        .update({ pag_nro: pago_nro })
+                        .eq('abo_nro', abonoNro);
+                } else {
+                    console.warn('Error creando pago inicial:', errorPago);
+                }
+            }
+        }
+
+        // 10. ACTUALIZAR ESTADO DE PLAZA
         await supabase
             .from('plazas')
             .update({ pla_estado: 'Abonado' })
             .eq('pla_numero', abono.plaza.pla_numero)
             .eq('est_id', abono.plaza.est_id);
 
-        // 10. CREAR RELACIONES VEHÍCULOS-ABONOS
+        // 11. CREAR RELACIONES VEHÍCULOS-ABONOS
         if (todasLasPatentes.length > 0) {
             const vehiculosAbonadosParaInsertar = todasLasPatentes.map((patente: string) => ({
                 est_id: abono.est_id,
@@ -233,7 +288,7 @@ export async function POST(request: NextRequest) {
                 .insert(vehiculosAbonadosParaInsertar);
         }
 
-        // 11. RESPUESTA EXITOSA
+        // 12. RESPUESTA EXITOSA
         return NextResponse.json({
             success: true,
             data: {
