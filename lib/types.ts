@@ -154,6 +154,10 @@ export interface CrearConductorConAbonoRequest {
     tipoAbono: TipoAbono;
     fechaInicio: string;
     fechaFin: string;
+    plaza: {
+      pla_numero: number;
+      est_id: number;
+    };
   };
 }
 

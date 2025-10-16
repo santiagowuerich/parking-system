@@ -51,7 +51,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
     // Formulario de nuevo vehículo
     const [nuevoVehiculoPatente, setNuevoVehiculoPatente] = useState('');
-    const [nuevoVehiculoTipo, setNuevoVehiculoTipo] = useState('Auto');
+    const [nuevoVehiculoTipo, setNuevoVehiculoTipo] = useState<'Auto' | 'Moto' | 'Camioneta'>('Auto');
     const [nuevoVehiculoMarca, setNuevoVehiculoMarca] = useState('');
     const [nuevoVehiculoModelo, setNuevoVehiculoModelo] = useState('');
     const [nuevoVehiculoColor, setNuevoVehiculoColor] = useState('');
@@ -178,7 +178,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
         // Limpiar formulario
         setNuevoVehiculoPatente('');
-        setNuevoVehiculoTipo('Auto');
+        setNuevoVehiculoTipo('Auto' as const);
         setNuevoVehiculoMarca('');
         setNuevoVehiculoModelo('');
         setNuevoVehiculoColor('');
@@ -261,7 +261,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setDni('');
         setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
         setNuevoVehiculoPatente('');
-        setNuevoVehiculoTipo('Auto');
+        setNuevoVehiculoTipo('Auto' as const);
         setNuevoVehiculoMarca('');
         setNuevoVehiculoModelo('');
         setNuevoVehiculoColor('');
@@ -373,6 +373,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                     }
                 };
 
+                console.log('📦 Datos enviados a create-conductor:', JSON.stringify(requestBody, null, 2));
                 response = await fetch('/api/abonos/create-conductor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -542,7 +543,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         </div>
                                         <div>
                                             <Label>Tipo *</Label>
-                                            <Select value={nuevoVehiculoTipo} onValueChange={setNuevoVehiculoTipo}>
+                                            <Select value={nuevoVehiculoTipo} onValueChange={(value: 'Auto' | 'Moto' | 'Camioneta') => setNuevoVehiculoTipo(value)}>
                                                 <SelectTrigger>
                                                     <SelectValue />
                                                 </SelectTrigger>
@@ -826,9 +827,9 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                 {!conductorExistente && (
                                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                         <p className="text-xs text-blue-800">
-                                            <strong>🔑 Credenciales de acceso:</strong><br/>
-                                            El conductor puede iniciar sesión con:<br/>
-                                            Email: {email}<br/>
+                                            <strong>🔑 Credenciales de acceso:</strong><br />
+                                            El conductor puede iniciar sesión con:<br />
+                                            Email: {email}<br />
                                             Contraseña inicial: <strong>{dni}</strong>
                                         </p>
                                     </div>
@@ -941,9 +942,9 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                 paymentData={{
                     amount: precioTotal,
                     vehicleLicensePlate: vehiculos[0]?.patente || 'ABONO',
-                    paymentId: 'abono-' + Date.now(),
+                    paymentId: 'abono-' + Date.now().toString(),
                     duration: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
-                }}
+                } as any}
                 loading={paymentLoading}
                 paymentSettings={{
                     efectivo: { enabled: true },
@@ -971,9 +972,9 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                 paymentData={{
                     amount: precioTotal,
                     vehicleLicensePlate: vehiculos[0]?.patente || 'ABONO',
-                    paymentId: 'abono-' + Date.now(),
+                    paymentId: 'abono-' + Date.now().toString(),
                     duration: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
-                }}
+                } as any}
                 transferConfig={{
                     cbu: '0170020510000001234567',
                     alias: 'PARKING.EJEMPLO',
