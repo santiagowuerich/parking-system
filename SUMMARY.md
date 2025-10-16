@@ -48,6 +48,11 @@ Documentación de exploración rápida - Índice jerárquico de carpetas y compo
   - `test-dashboard-*.js` - Pruebas de integración
   - `test-empleado-*.js` - Pruebas de gestión de empleados
 
+### 🔧 Scripts y Utilidades
+- **[scripts/](scripts/)** - Scripts de configuración y setup
+  - `setup-env.js` - Configuración de variables de entorno
+  - `setup-google-maps.js` - Configuración de Google Maps
+
 ### 📁 Assets y Configuración
 - **[public/](public/README.md)** - Archivos estáticos públicos
   - `placeholder-logo.*` - Logos de la aplicación
@@ -57,8 +62,12 @@ Documentación de exploración rápida - Índice jerárquico de carpetas y compo
 ### 📚 Documentación
 - **[docs/](docs/README.md)** - Documentación técnica detallada
   - `ANALISIS_FLUJO_EMPLEADOS.md` - Análisis de gestión de empleados
-  - `cambiosbasededatos.md` - Historial de cambios en BD
+  - `DATABASE_CHANGES_README.md` - Cambios en base de datos
   - `GOOGLE_MAPS_README.md` - Integración Google Maps
+  - `PAYMENTS_IMPLEMENTATION_README.md` - Implementación de pagos
+  - `PLAN_*.md` - Planes de implementación y mejoras
+  - `PROBLEMA_*.md` - Documentación de problemas encontrados
+  - `SOLUCION_*.md` - Soluciones implementadas
   - `README_AUTO_PARKING.md` - Documentación automática
 
 ## 🚀 Inicio Rápido
@@ -85,10 +94,11 @@ npm run dev
 4. **[lib/README.md](lib/README.md)** - Utilidades y configuraciones
 5. **[hooks/README.md](hooks/README.md)** - Custom hooks reutilizables
 6. **[supabase/README.md](supabase/README.md)** - Base de datos y seguridad
-7. **[docs/README.md](docs/README.md)** - Documentación técnica detallada
-8. **[debug/README.md](debug/README.md)** - Herramientas de diagnóstico
-9. **[tests/README.md](tests/README.md)** - Scripts de testing
-10. **[public/README.md](public/README.md)** - Assets estáticos
+7. **[scripts/README.md](scripts/README.md)** - Scripts de configuración
+8. **[docs/README.md](docs/README.md)** - Documentación técnica detallada
+9. **[debug/README.md](debug/README.md)** - Herramientas de diagnóstico
+10. **[tests/README.md](tests/README.md)** - Scripts de testing
+11. **[public/README.md](public/README.md)** - Assets estáticos
 
 ## 🔍 Búsqueda Rápida
 
@@ -99,6 +109,7 @@ npm run dev
 | Custom hooks | [hooks/README.md](hooks/README.md) |
 | Configuración BD | [supabase/README.md](supabase/README.md) |
 | Utilidades | [lib/README.md](lib/README.md) |
+| Scripts y configuración | [scripts/](scripts/) |
 | Assets estáticos | [public/README.md](public/README.md) |
 | Testing | [tests/README.md](tests/README.md) |
 | Debugging | [debug/README.md](debug/README.md) |
@@ -113,9 +124,11 @@ parking-system/
 ├── hooks/         # Custom hooks reutilizables
 ├── lib/           # Utilidades y contextos
 ├── public/        # Assets estáticos
+├── scripts/       # Scripts de configuración y setup
 ├── supabase/      # Migraciones y políticas BD
 ├── sql/           # Migraciones adicionales
 ├── debug/         # Scripts de diagnóstico
 ├── tests/         # Scripts de testing
+├── temp/          # Archivos temporales
 └── docs/          # Documentación técnica
 ```

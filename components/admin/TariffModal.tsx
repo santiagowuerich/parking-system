@@ -112,7 +112,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 tarifas.push({
                     plantilla_id: template.plantilla_id,
                     tiptar_nro: 1,
-                    tar_precio: parseFloat(prices.hora)
+                    tar_precio: parseFloat(prices.hora),
+                    tar_fraccion: parseFloat(prices.hora)
                 });
             }
 
@@ -121,7 +122,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 tarifas.push({
                     plantilla_id: template.plantilla_id,
                     tiptar_nro: 2,
-                    tar_precio: parseFloat(prices.dia)
+                    tar_precio: parseFloat(prices.dia),
+                    tar_fraccion: parseFloat(prices.dia)
                 });
             }
 
@@ -130,7 +132,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 tarifas.push({
                     plantilla_id: template.plantilla_id,
                     tiptar_nro: 3,
-                    tar_precio: parseFloat(prices.mes)
+                    tar_precio: parseFloat(prices.mes),
+                    tar_fraccion: parseFloat(prices.mes)
                 });
             }
 
@@ -139,7 +142,8 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                 tarifas.push({
                     plantilla_id: template.plantilla_id,
                     tiptar_nro: 4,
-                    tar_precio: parseFloat(prices.semana)
+                    tar_precio: parseFloat(prices.semana),
+                    tar_fraccion: parseFloat(prices.semana)
                 });
             }
 
@@ -228,7 +232,7 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                             <span className="text-gray-600">Cargando precios existentes...</span>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-4">
                             {/* Precio por Hora */}
                             <div className="space-y-2">
                                 <Label htmlFor="hora" className="text-gray-700 flex items-center gap-1">
@@ -244,6 +248,7 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                     className="text-right"
                                     disabled={saving}
                                 />
+                                <p className="text-xs text-gray-500">Se cobra este precio por cada hora completa</p>
                             </div>
 
                             {/* Precio por Día */}
@@ -261,23 +266,7 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                     className="text-right"
                                     disabled={saving}
                                 />
-                            </div>
-
-                            {/* Precio por Mes */}
-                            <div className="space-y-2">
-                                <Label htmlFor="mes" className="text-gray-700 flex items-center gap-1">
-                                    <DollarSign className="h-4 w-4" />
-                                    Por mes
-                                </Label>
-                                <Input
-                                    id="mes"
-                                    type="text"
-                                    placeholder="0.00"
-                                    value={prices.mes}
-                                    onChange={(e) => handlePriceChange('mes', e.target.value)}
-                                    className="text-right"
-                                    disabled={saving}
-                                />
+                                <p className="text-xs text-gray-500">Se cobra este precio por cada día completo</p>
                             </div>
 
                             {/* Precio por Semana */}
@@ -295,6 +284,25 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                     className="text-right"
                                     disabled={saving}
                                 />
+                                <p className="text-xs text-gray-500">Se cobra este precio por cada semana completa</p>
+                            </div>
+
+                            {/* Precio por Mes */}
+                            <div className="space-y-2">
+                                <Label htmlFor="mes" className="text-gray-700 flex items-center gap-1">
+                                    <DollarSign className="h-4 w-4" />
+                                    Por mes
+                                </Label>
+                                <Input
+                                    id="mes"
+                                    type="text"
+                                    placeholder="0.00"
+                                    value={prices.mes}
+                                    onChange={(e) => handlePriceChange('mes', e.target.value)}
+                                    className="text-right"
+                                    disabled={saving}
+                                />
+                                <p className="text-xs text-gray-500">Se cobra este precio por cada mes completo</p>
                             </div>
                         </div>
                     )}

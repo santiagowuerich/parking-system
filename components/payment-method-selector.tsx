@@ -43,6 +43,24 @@ export default function PaymentMethodSelector({
 
   const availableMethods = getAvailablePaymentMethods(paymentSettings)
 
+  // Función para formatear el tipo de tarifa para mostrar
+  const getTariffTypeDisplay = (tariffType?: string): string => {
+    if (!tariffType) return 'por hora' // Fallback
+
+    switch (tariffType) {
+      case 'hora':
+        return 'por hora'
+      case 'dia':
+        return 'por día'
+      case 'semana':
+        return 'por semana'
+      case 'mes':
+        return 'por mes'
+      default:
+        return `por ${tariffType}`
+    }
+  }
+
   // Debug para ver qué métodos están disponibles
   console.log('🎯 PaymentMethodSelector - métodos disponibles:', {
     availableMethods: availableMethods.map(m => ({ id: m.id, name: m.name })),
@@ -135,9 +153,18 @@ export default function PaymentMethodSelector({
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Tarifa vigente</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
-                {formatCurrency(paymentData.calculatedFee || paymentData.amount)} por hora
+                {formatCurrency(paymentData.precioBase || 0)} {getTariffTypeDisplay(paymentData.tariffType)}
               </div>
             </div>
+
+            {paymentData.durationUnits && paymentData.precioBase && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Cálculo del total</label>
+                <div className="w-full p-2 bg-blue-50 rounded-lg text-gray-900 text-sm">
+                  {paymentData.durationUnits} {paymentData.tariffType === 'hora' ? 'horas' : paymentData.tariffType} × {formatCurrency(paymentData.precioBase)} = {formatCurrency(paymentData.calculatedFee || paymentData.amount)}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Total a cobrar</label>

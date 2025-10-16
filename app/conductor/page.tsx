@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ParkingMap from "@/components/parking-map";
 import { useUserRole } from "@/lib/use-user-role";
+import { VehicleSelector } from "@/components/vehicle-selector";
+import { VehicleDisplay } from "@/components/vehicle-display";
+import { useVehicle } from "@/lib/contexts/vehicle-context";
 
 declare global {
     interface Window {
@@ -48,11 +51,23 @@ export default function MapaEstacionamientos() {
     const [searchText, setSearchText] = useState("");
     const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
+    const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(null);
     const [selectedParking, setSelectedParking] = useState<ParkingData | null>(null);
     const [allParkings, setAllParkings] = useState<ParkingData[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const [searchRadius, setSearchRadius] = useState<number>(2); // Radio en km
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
+    const { selectedVehicle } = useVehicle();
+
+    // Auto-aplicar filtro según vehículo seleccionado (solo si no hay filtro manual)
+    useEffect(() => {
+        if (selectedVehicle && !vehicleTypeFilter) {
+            setVehicleTypeFilter(selectedVehicle.tipo);
+        } else if (!selectedVehicle && vehicleTypeFilter) {
+            // Resetear filtro cuando no hay vehículo seleccionado
+            setVehicleTypeFilter(null);
+        }
+    }, [selectedVehicle, vehicleTypeFilter]);
 
     // Función para calcular la distancia entre dos puntos (Haversine formula)
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -169,6 +184,9 @@ export default function MapaEstacionamientos() {
                                 Encontrá y navegá a los estacionamientos disponibles cerca tuyo
                             </p>
                         </div>
+
+                        {/* 🟢 NUEVO: Mostrar vehículo seleccionado */}
+                        <VehicleDisplay />
                     </div>
 
                     {/* Search y Controles */}
@@ -215,8 +233,40 @@ export default function MapaEstacionamientos() {
                                         Sólo disponibles
                                     </div>
                                 </Button>
-
                             </div>
+
+                            {/* Filtro por tipo de vehículo */}
+                            <div className="flex items-center gap-3 border-l border-gray-300 pl-6">
+                                <span className="text-sm font-medium text-gray-700">Tipo de vehículo:</span>
+                                <Button
+                                    variant={vehicleTypeFilter === 'AUT' ? 'default' : 'outline'}
+                                    size="lg"
+                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'AUT' ? null : 'AUT')}
+                                    className={`h-12 px-5 ${vehicleTypeFilter === 'AUT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
+                                >
+                                    <span className="text-lg mr-2">🚗</span>
+                                    Auto
+                                </Button>
+                                <Button
+                                    variant={vehicleTypeFilter === 'MOT' ? 'default' : 'outline'}
+                                    size="lg"
+                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'MOT' ? null : 'MOT')}
+                                    className={`h-12 px-5 ${vehicleTypeFilter === 'MOT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
+                                >
+                                    <span className="text-lg mr-2">🏍️</span>
+                                    Moto
+                                </Button>
+                                <Button
+                                    variant={vehicleTypeFilter === 'CAM' ? 'default' : 'outline'}
+                                    size="lg"
+                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'CAM' ? null : 'CAM')}
+                                    className={`h-12 px-5 ${vehicleTypeFilter === 'CAM' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
+                                >
+                                    <span className="text-lg mr-2">🚙</span>
+                                    Camioneta
+                                </Button>
+                            </div>
+
                         </div>
                     </div>
 
@@ -227,6 +277,7 @@ export default function MapaEstacionamientos() {
                     {/* Panel Izquierdo - Detalle del Estacionamiento Seleccionado */}
                     <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
                         <div className="p-8">
+
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl font-bold text-gray-900">
                                     {userLocation ? "Información y Cercanos" : "Información del Estacionamiento"}
@@ -430,6 +481,7 @@ export default function MapaEstacionamientos() {
                                 userLocation={userLocation}
                                 searchRadius={searchRadius}
                                 onParkingsLoaded={handleParkingsLoaded}
+                                vehicleTypeFilter={vehicleTypeFilter}
                             />
                         </div>
                     </div>

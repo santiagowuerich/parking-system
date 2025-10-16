@@ -23,6 +23,7 @@ import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 import { formatDuration } from "@/lib/utils";
+import { calculateParkingFee } from "@/lib/tariff-calculator";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -67,9 +68,6 @@ export default function OperadorPage() {
     const [modalLoading, setModalLoading] = useState(false);
     const [availableTariffs, setAvailableTariffs] = useState<any[]>([]);
     const [availablePlazas, setAvailablePlazas] = useState<any[]>([]);
-
-    // Estado para tarifas reales del sistema
-    const [rates, setRates] = useState<any>(null);
 
     // Estados para egreso
     const [selectedVehicleForExit, setSelectedVehicleForExit] = useState<Vehicle | null>(null);
@@ -123,38 +121,6 @@ export default function OperadorPage() {
             setVehiclesList(parkedVehicles);
         }
     }, [parkedVehicles]);
-
-    // Cargar tarifas reales del sistema
-    useEffect(() => {
-        if (!estId) return;
-
-        const timeoutId = setTimeout(() => {
-            const loadRates = async () => {
-                try {
-                    const supabase = createBrowserClient(
-                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-                    );
-
-                    const { data, error } = await supabase
-                        .from('tarifas')
-                        .select('*')
-                        .eq('est_id', estId);
-
-                    if (error) throw error;
-
-                    setRates(data || []);
-                    console.log('🏷️ Tarifas cargadas:', data);
-                } catch (error) {
-                    console.error("Error al cargar tarifas:", error);
-                }
-            };
-
-            loadRates();
-        }, 300);
-
-        return () => clearTimeout(timeoutId);
-    }, [estId]);
 
     // Cargar configuración de métodos de pago
     useEffect(() => {
@@ -484,137 +450,6 @@ export default function OperadorPage() {
         handleExit(vehicle.license_plate);
     };
 
-    // Función para calcular tarifa por plantilla (igual que operador-simple)
-    const calculateFeeByTemplate = async (ocupacion: any) => {
-        try {
-            const supabase = createBrowserClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-            );
-
-            // Calcular duración
-            const entryTime = dayjs.utc(ocupacion.entry_time).local();
-            const exitTime = dayjs();
-            const durationMs = exitTime.diff(entryTime);
-            const durationHours = durationMs / (1000 * 60 * 60);
-
-            let fee = 0;
-            let calculatedFee = 0;
-            let agreedPrice = ocupacion.ocu_precio_acordado || 0;
-            let vehicleRate = null;
-
-            if (rates && rates.length > 0) {
-                // Determinar el tipo de tarifa basado en la duración acordada
-                let tiptar = 1; // Por defecto hora
-                if (ocupacion.ocu_duracion_tipo === 'dia') {
-                    tiptar = 2; // Diaria
-                } else if (ocupacion.ocu_duracion_tipo === 'mes') {
-                    tiptar = 3; // Mensual
-                } else if (ocupacion.ocu_duracion_tipo === 'semana') {
-                    tiptar = 4; // Semanal
-                }
-
-
-                // Obtener información de la plaza para determinar la plantilla
-                let plazaPlantillaId = null;
-                if (ocupacion.plaza_number) {
-                    try {
-                        const { data: plazaData, error: plazaError } = await supabase
-                            .from('plazas')
-                            .select('plantilla_id')
-                            .eq('pla_numero', ocupacion.plaza_number)
-                            .eq('est_id', estId)
-                            .single();
-
-                        if (!plazaError && plazaData?.plantilla_id) {
-                            plazaPlantillaId = plazaData.plantilla_id;
-                        }
-                    } catch (error) {
-                        console.warn('Error obteniendo plantilla de plaza:', error);
-                    }
-                }
-
-                // Primero intentar buscar por plantilla_id de la plaza (si existe)
-                if (plazaPlantillaId) {
-                    vehicleRate = rates.find((r: any) => {
-                        return r.plantilla_id === plazaPlantillaId && r.tiptar_nro === tiptar;
-                    });
-                }
-
-                // Si no se encontró por plantilla, buscar por catv_segmento (fallback)
-                if (!vehicleRate) {
-                    vehicleRate = rates.find((r: any) => {
-                        const rateSegmento = r.catv_segmento;
-                        const rateTipo = r.tiptar_nro;
-                        return rateSegmento === ocupacion.type && rateTipo === tiptar;
-                    });
-                }
-
-                if (vehicleRate) {
-                    const basePrice = parseFloat(vehicleRate.tar_precio) || 0;
-                    const hourlyRate = parseFloat(vehicleRate.tar_fraccion) || 0;
-
-                    // Lógica de cálculo según el tipo de tarifa
-                    if (tiptar === 1) { // HORA: calcular dinámicamente
-                        if (durationHours <= 1) {
-                            calculatedFee = basePrice;
-                        } else {
-                            calculatedFee = basePrice + (hourlyRate * (durationHours - 1));
-                        }
-                    } else if (tiptar === 2) { // DÍA
-                        const durationDays = Math.ceil(durationHours / 24);
-                        calculatedFee = basePrice * durationDays;
-                    } else if (tiptar === 4) { // SEMANA
-                        const durationWeeks = Math.ceil(durationHours / (24 * 7));
-                        calculatedFee = basePrice * durationWeeks;
-                    } else if (tiptar === 3) { // MES
-                        const durationMonths = Math.ceil(durationHours / (24 * 30));
-                        calculatedFee = basePrice * durationMonths;
-                    } else {
-                        calculatedFee = basePrice;
-                    }
-
-                    // Usar el máximo entre la tarifa calculada y el precio acordado
-                    fee = Math.max(calculatedFee, agreedPrice);
-
-                    console.log('💰 Cálculo de tarifa:', {
-                        vehicleRate,
-                        basePrice,
-                        hourlyRate,
-                        durationHours,
-                        tiptar,
-                        calculatedFee,
-                        agreedPrice,
-                        fee
-                    });
-                } else {
-                    console.warn('⚠️ No se encontró tarifa para el vehículo, usando precio acordado');
-                    fee = agreedPrice > 0 ? agreedPrice : 200; // Fallback
-                }
-            } else {
-                console.warn('⚠️ No hay tarifas configuradas, usando precio acordado');
-                fee = agreedPrice > 0 ? agreedPrice : 200; // Fallback
-            }
-
-            return {
-                fee,
-                calculatedFee,
-                agreedPrice,
-                durationMs,
-                baseRate: vehicleRate ? parseFloat(vehicleRate.tar_precio) : 200
-            };
-        } catch (error) {
-            console.error('Error calculando tarifa:', error);
-            return {
-                fee: 200, // Fallback
-                calculatedFee: 200,
-                agreedPrice: 0,
-                durationMs: 0,
-                baseRate: 200
-            };
-        }
-    };
-
     // Iniciar proceso de salida (calcular tarifa y mostrar selector de pago)
     const handleExit = async (licensePlate: string) => {
         if (!estId || !user?.id) {
@@ -644,13 +479,18 @@ export default function OperadorPage() {
                 throw new Error("Vehículo no encontrado o ya ha salido");
             }
 
-            // Calcular tarifa usando el sistema de plantillas
-            const feeData = await calculateFeeByTemplate(ocupacion);
+            // ✅ CALCULAR TARIFA USANDO FUNCIÓN CENTRALIZADA
+            const feeData = await calculateParkingFee(
+                {
+                    entry_time: ocupacion.entry_time,
+                    plaza_number: ocupacion.plaza_number,
+                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
+                },
+                estId
+            );
 
-            // Calcular tarifa
-            const entryTime = dayjs.utc(ocupacion.entry_time).local();
             const exitTime = dayjs();
-            const durationMs = exitTime.diff(entryTime);
 
             // Preparar datos para el sistema de pagos
             const paymentInfo: PaymentData = {
@@ -660,11 +500,12 @@ export default function OperadorPage() {
                 agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
                 entryTime: ocupacion.entry_time,
                 exitTime: exitTime.toISOString(),
-                duration: durationMs,
-                method: 'efectivo', // Se actualizará cuando el usuario seleccione
+                duration: feeData.durationMs,
+                method: 'efectivo',
                 estId: estId,
                 plazaNumber: ocupacion.plaza_number,
-                zone: ocupacion.plaza_number ? 'Zona General' : undefined
+                zone: ocupacion.plaza_number ? 'Zona General' : undefined,
+                tariffType: feeData.tariffType // Tipo de tarifa seleccionado al ingreso
             };
 
             setPaymentData(paymentInfo);
@@ -672,18 +513,21 @@ export default function OperadorPage() {
 
             console.log('💰 Iniciando proceso de pago:', {
                 vehicle: licensePlate,
+                plaza: ocupacion.plaza_number,
+                plantilla: feeData.plantillaNombre,
+                tipo: feeData.tariffType,
+                unidades: feeData.durationUnits,
                 amount: formatCurrency(feeData.fee),
-                duration: formatDuration(durationMs)
+                duration: formatDuration(feeData.durationMs)
             });
 
         } catch (error) {
-            console.error("Error al registrar salida:", error);
+            console.error("Error al calcular tarifa:", error);
             toast({
                 variant: "destructive",
-                title: "Error",
-                description: "No se pudo registrar la salida del vehículo"
+                title: "Error al calcular tarifa",
+                description: error instanceof Error ? error.message : "No se pudo calcular la tarifa del vehículo"
             });
-            throw error;
         }
     };
 

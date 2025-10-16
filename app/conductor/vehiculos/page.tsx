@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Edit, Trash2 } from "lucide-react";
 import { useUserRole } from "@/lib/use-user-role";
+import { useVehicle } from "@/lib/contexts/vehicle-context";
 
 interface Vehicle {
     id: string;
@@ -36,6 +38,7 @@ export default function ConductorVehiculosPage() {
 
     const { toast } = useToast();
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
+    const { selectedVehicle, setSelectedVehicle } = useVehicle();
 
     useEffect(() => {
         fetchVehicles();
@@ -312,17 +315,34 @@ export default function ConductorVehiculosPage() {
                                                     <TableHead>Marca</TableHead>
                                                     <TableHead>Modelo</TableHead>
                                                     <TableHead>Color</TableHead>
+                                                    <TableHead className="text-center">Seleccionar</TableHead>
                                                     <TableHead className="text-center">Acción</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {vehicles.map((vehicle) => (
-                                                    <TableRow key={vehicle.id}>
-                                                        <TableCell>{vehicle.tipo}</TableCell>
+                                                    <TableRow key={vehicle.id} className={selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-2">
+                                                                {vehicle.tipo}
+                                                                {selectedVehicle?.patente === vehicle.patente && (
+                                                                    <Badge className="bg-blue-600 text-white">Seleccionado</Badge>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
                                                         <TableCell className="font-medium">{vehicle.patente}</TableCell>
                                                         <TableCell>{vehicle.marca}</TableCell>
                                                         <TableCell>{vehicle.modelo}</TableCell>
                                                         <TableCell>{vehicle.color}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Button
+                                                                variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
+                                                                size="sm"
+                                                                onClick={() => setSelectedVehicle(vehicle)}
+                                                            >
+                                                                {selectedVehicle?.patente === vehicle.patente ? 'Seleccionado' : 'Seleccionar'}
+                                                            </Button>
+                                                        </TableCell>
                                                         <TableCell className="text-center">
                                                             <div className="flex justify-center gap-2">
                                                                 <Button

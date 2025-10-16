@@ -22,6 +22,7 @@ import PaymentMethodSelector from "@/components/payment-method-selector";
 import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
+import { calculateParkingFee } from "@/lib/tariff-calculator";
 
 
 type ExitInfo = {
@@ -57,7 +58,6 @@ export default function OperadorSimplePage() {
     }, [user?.id, estId, roleLoading, fetchUserData]);
 
     const [parking, setParking] = useState<Parking | null>(null);
-    const [rates, setRates] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [exitInfo, setExitInfo] = useState<ExitInfo | null>(null);
     const [plazasData, setPlazasData] = useState<any>(null);
@@ -86,48 +86,11 @@ export default function OperadorSimplePage() {
             setParking({
                 capacity: parkingCapacity,
                 parkedVehicles: parkedVehicles,
-                rates: rates || {},
+                rates: {},
                 history: [] // Se puede cargar después si es necesario
             });
         }
-    }, [parkedVehicles, parkingCapacity, estId, rates]);
-
-    // Cargar tarifas con debounce
-    useEffect(() => {
-        if (!estId) {
-            console.log('⚠️ No hay estId, no se pueden cargar tarifas');
-            return;
-        }
-
-        console.log(`💰 Cargando tarifas para estId: ${estId}`);
-
-        const timeoutId = setTimeout(() => {
-            const loadRates = async () => {
-                try {
-                    const supabase = createBrowserClient(
-                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-                    );
-
-                    const { data, error } = await supabase
-                        .from('tarifas')
-                        .select('*')
-                        .eq('est_id', estId);
-
-                    if (error) throw error;
-
-                    console.log(`✅ Tarifas cargadas (${data?.length || 0} tarifas):`, data);
-                    setRates(data || []);
-                } catch (error) {
-                    console.error("❌ Error al cargar tarifas:", error);
-                }
-            };
-
-            loadRates();
-        }, 300);
-
-        return () => clearTimeout(timeoutId);
-    }, [estId]);
+    }, [parkedVehicles, parkingCapacity, estId]);
 
     // Cargar configuración de métodos de pago
     useEffect(() => {
@@ -553,7 +516,7 @@ export default function OperadorSimplePage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Buscar la ocupación activa del vehículo usando la vista
+            // Buscar la ocupación activa del vehículo
             const { data: ocupacion, error: ocupacionError } = await supabase
                 .from('vw_ocupacion_actual')
                 .select('*')
@@ -565,150 +528,37 @@ export default function OperadorSimplePage() {
                 throw new Error("Vehículo no encontrado o ya ha salido");
             }
 
-            // Calcular tarifa
-            const entryTime = dayjs.utc(ocupacion.entry_time).local();
+            // ✅ CALCULAR TARIFA USANDO FUNCIÓN CENTRALIZADA
+            const feeData = await calculateParkingFee(
+                {
+                    entry_time: ocupacion.entry_time,
+                    plaza_number: ocupacion.plaza_number,
+                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
+                },
+                estId
+            );
+
             const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
-            const durationMs = exitTime.diff(entryTime);
-            const durationHours = durationMs / (1000 * 60 * 60);
-
-            // Calcular tarifa basada en las tarifas configuradas
-            let fee = 0;
-            let calculatedFee = 0; // Tarifa calculada por tiempo real
-            let agreedPrice = ocupacion.ocu_precio_acordado || 0; // Precio acordado mínimo
-
-            if (rates && rates.length > 0) {
-                // Determinar el tipo de tarifa basado en la duración acordada
-                let tiptar = 1; // Por defecto hora
-                if (ocupacion.ocu_duracion_tipo === 'dia') {
-                    tiptar = 2; // Diaria
-                } else if (ocupacion.ocu_duracion_tipo === 'mes') {
-                    tiptar = 3; // Mensual
-                } else if (ocupacion.ocu_duracion_tipo === 'semana') {
-                    tiptar = 4; // Semanal
-                }
-
-                let vehicleRate = null;
-
-                // Obtener información de la plaza para determinar la plantilla
-                let plazaPlantillaId = null;
-                if (ocupacion.plaza_number) {
-                    try {
-                        const { data: plazaData, error: plazaError } = await supabase
-                            .from('plazas')
-                            .select('plantilla_id')
-                            .eq('pla_numero', ocupacion.plaza_number)
-                            .eq('est_id', estId)
-                            .single();
-
-                        if (!plazaError && plazaData?.plantilla_id) {
-                            plazaPlantillaId = plazaData.plantilla_id;
-                        }
-                    } catch (error) {
-                        console.warn('Error obteniendo plantilla de plaza:', error);
-                    }
-                }
-
-                // Primero intentar buscar por plantilla_id de la plaza (si existe)
-                if (plazaPlantillaId) {
-                    vehicleRate = rates.find((r: any) => {
-                        return r.plantilla_id === plazaPlantillaId && r.tiptar_nro === tiptar;
-                    });
-                }
-
-                // Si no se encontró por plantilla, buscar por catv_segmento (fallback)
-                if (!vehicleRate) {
-                    vehicleRate = rates.find((r: any) => {
-                        const rateSegmento = r.catv_segmento;
-                        const rateTipo = r.tiptar_nro;
-                        return rateSegmento === ocupacion.type && rateTipo === tiptar;
-                    });
-                }
-
-                if (vehicleRate) {
-                    const basePrice = parseFloat(vehicleRate.tar_precio) || 0;
-                    const hourlyRate = parseFloat(vehicleRate.tar_fraccion) || 0;
-
-                    // Lógica de cálculo según el tipo de tarifa
-                    if (tiptar === 1) { // HORA: calcular dinámicamente
-                        // Mínimo 1 hora
-                        const hoursToCharge = Math.max(1, Math.ceil(durationHours));
-                        if (hoursToCharge <= 1) {
-                            calculatedFee = basePrice;
-                        } else {
-                            calculatedFee = basePrice + (hourlyRate * (hoursToCharge - 1));
-                        }
-                    } else if (tiptar === 2) { // DÍA
-                        // Mínimo 1 día
-                        const durationDays = Math.max(1, Math.ceil(durationHours / 24));
-                        calculatedFee = basePrice * durationDays;
-                    } else if (tiptar === 4) { // SEMANA
-                        // Mínimo 1 semana
-                        const durationWeeks = Math.max(1, Math.ceil(durationHours / (24 * 7)));
-                        calculatedFee = basePrice * durationWeeks;
-                    } else if (tiptar === 3) { // MES
-                        // Mínimo 1 mes
-                        const durationMonths = Math.max(1, Math.ceil(durationHours / (24 * 30))); // 30 días por mes
-                        calculatedFee = basePrice * durationMonths;
-                    } else {
-                        // Fallback: usar precio base
-                        calculatedFee = basePrice;
-                    }
-
-                    // Usar el máximo entre la tarifa calculada y el precio acordado
-                    fee = Math.max(calculatedFee, agreedPrice);
-
-                    console.log('💰 Cálculo de tarifa handleExit:', {
-                        vehicleRate,
-                        basePrice,
-                        hourlyRate,
-                        durationHours,
-                        tiptar,
-                        tipoTarifa: tiptar === 1 ? 'HORA' : tiptar === 2 ? 'DÍA' : tiptar === 3 ? 'MES' : tiptar === 4 ? 'SEMANA' : 'OTRO',
-                        unidadesCalculadas: tiptar === 1 ? Math.max(1, Math.ceil(durationHours)) :
-                            tiptar === 2 ? Math.max(1, Math.ceil(durationHours / 24)) :
-                                tiptar === 3 ? Math.max(1, Math.ceil(durationHours / (24 * 30))) :
-                                    tiptar === 4 ? Math.max(1, Math.ceil(durationHours / (24 * 7))) : 0,
-                        calculatedFee,
-                        agreedPrice,
-                        fee,
-                        plazaPlantillaId
-                    });
-                } else {
-                    console.warn('⚠️ No se encontró tarifa para:', {
-                        plazaPlantillaId,
-                        tipoVehiculo: ocupacion.type,
-                        tiptar,
-                        ratesDisponibles: rates?.length || 0
-                    });
-                }
-            }
-
-            // 🟢 SOLUCIÓN: Si después de todo el fee es 0, usar precio acordado o mínimo
-            if (fee === 0) {
-                if (agreedPrice > 0) {
-                    fee = agreedPrice;
-                    console.log('✅ Usando precio acordado como fallback:', agreedPrice);
-                } else {
-                    // Si no hay precio acordado ni tarifa, advertir pero permitir continuar
-                    console.warn('⚠️ ADVERTENCIA: No hay tarifa configurada ni precio acordado. Fee = 0');
-                }
-            }
 
             // Preparar datos para el sistema de pagos
             const paymentInfo: PaymentData = {
                 vehicleLicensePlate: licensePlate,
-                amount: fee,
-                calculatedFee: calculatedFee,
-                agreedFee: agreedPrice > 0 ? agreedPrice : undefined,
+                amount: feeData.fee,
+                calculatedFee: feeData.calculatedFee,
+                agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
                 entryTime: ocupacion.entry_time,
                 exitTime: exitTime.toISOString(),
-                duration: durationMs,
-                method: 'efectivo', // Se actualizará cuando el usuario seleccione
+                duration: feeData.durationMs,
+                method: 'efectivo',
                 estId: estId,
                 plazaNumber: ocupacion.plaza_number,
                 zone: ocupacion.plaza_number ?
                     plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
-                    undefined
+                    undefined,
+                tariffType: feeData.tariffType, // Tipo de tarifa seleccionado al ingreso
+                precioBase: feeData.precioBase, // Precio base de la tarifa
+                durationUnits: feeData.durationUnits // Unidades de tiempo cobradas
             };
 
             setPaymentData(paymentInfo);
@@ -716,16 +566,20 @@ export default function OperadorSimplePage() {
 
             console.log('💰 Iniciando proceso de pago:', {
                 vehicle: licensePlate,
-                amount: formatCurrency(fee),
-                duration: formatDuration(durationMs)
+                plaza: ocupacion.plaza_number,
+                plantilla: feeData.plantillaNombre,
+                tipo: feeData.tariffType,
+                unidades: feeData.durationUnits,
+                amount: formatCurrency(feeData.fee),
+                duration: formatDuration(feeData.durationMs)
             });
 
         } catch (error) {
-            console.error("Error al iniciar proceso de pago:", error);
+            console.error("Error al calcular tarifa:", error);
             toast({
                 variant: "destructive",
-                title: "Error",
-                description: "No se pudo calcular la tarifa del vehículo"
+                title: "Error al calcular tarifa",
+                description: error instanceof Error ? error.message : "No se pudo calcular la tarifa del vehículo"
             });
         }
     };

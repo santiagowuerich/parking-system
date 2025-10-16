@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
             }
         );
 
-        console.log('🔍 Obteniendo estacionamientos públicos para mapa...');
+        // Obtener parámetro de filtro por tipo de vehículo
+        const { searchParams } = new URL(request.url);
+        const vehicleType = searchParams.get('vehicleType'); // AUT, MOT, CAM o null
+
+        console.log('🔍 Obteniendo estacionamientos públicos para mapa...', vehicleType ? `Filtro: ${vehicleType}` : '');
 
         // Obtener estacionamientos que tengan coordenadas válidas
         const { data: estacionamientos, error } = await supabase
@@ -56,10 +60,17 @@ export async function GET(request: NextRequest) {
             estacionamientos?.map(async (parking) => {
                 try {
                     // Calcular disponibilidad real consultando plazas
-                    const { data: plazasData, error: plazasError } = await supabase
+                    let plazasQuery = supabase
                         .from('plazas')
-                        .select('pla_estado')
+                        .select('pla_estado, catv_segmento')
                         .eq('est_id', parking.est_id);
+
+                    // Filtrar por tipo de vehículo si se especifica
+                    if (vehicleType) {
+                        plazasQuery = plazasQuery.eq('catv_segmento', vehicleType);
+                    }
+
+                    const { data: plazasData, error: plazasError } = await plazasQuery;
 
                     if (plazasError) {
                         console.error(`❌ Error obteniendo plazas para ${parking.est_id}:`, plazasError);
@@ -91,7 +102,17 @@ export async function GET(request: NextRequest) {
                     const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
                     const libres = total - ocupadas;
 
-                    console.log(`📊 Estacionamiento ${parking.est_id}: ${total} total, ${ocupadas} ocupadas, ${libres} libres`);
+                    // Si no hay plazas libres de ningún tipo, excluir el estacionamiento
+                    if (libres === 0) {
+                        return null;
+                    }
+
+                    // Si se filtra por tipo, verificar que haya plazas disponibles de ese tipo
+                    if (vehicleType) {
+                        if (total === 0 || libres === 0) {
+                            return null;
+                        }
+                    }
 
                     return {
                         id: parking.est_id,
@@ -137,12 +158,14 @@ export async function GET(request: NextRequest) {
             }) || []
         );
 
-        console.log(`✅ Encontrados ${parkingsForMap.length} estacionamientos con coordenadas`);
+        // Filtrar nulls (estacionamientos sin plazas del tipo solicitado)
+        const filteredParkings = parkingsForMap.filter(p => p !== null);
 
         return NextResponse.json({
             success: true,
-            count: parkingsForMap.length,
-            parkings: parkingsForMap
+            count: filteredParkings.length,
+            parkings: filteredParkings,
+            vehicleType: vehicleType || 'all'
         });
 
     } catch (error) {

@@ -51,9 +51,12 @@ export interface PaymentData {
   estId: number;
   plazaNumber?: number;
   zone?: string;
+  tariffType?: string; // Tipo de tarifa seleccionado al ingreso (hora/día/semana/mes)
   paymentId?: string; // ID del pago (generado después de crear el pago)
   preferenceId?: string; // ID de preferencia de MercadoPago
   expiresAt?: string; // Fecha de expiración del pago
+  precioBase?: number; // Precio base de la tarifa por unidad de tiempo
+  durationUnits?: number; // Unidades de tiempo cobradas
 }
 
 // Respuesta al crear un pago

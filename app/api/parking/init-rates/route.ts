@@ -9,7 +9,8 @@ const DEFAULT_RATES = [
     catv_segmento: 'AUT',
     tar_f_desde: new Date().toISOString(),
     tar_precio: 2000,
-    tar_fraccion: 1,
+    tar_fraccion: 2000, // Usar el mismo valor que tar_precio para horas adicionales
+    plantilla_id: 1, // Asumir plantilla por defecto
     // pla_tipo eliminado - columna ya no existe
   },
   {
@@ -18,7 +19,8 @@ const DEFAULT_RATES = [
     catv_segmento: 'MOT',
     tar_f_desde: new Date().toISOString(),
     tar_precio: 1000,
-    tar_fraccion: 1,
+    tar_fraccion: 1000, // Usar el mismo valor que tar_precio para horas adicionales
+    plantilla_id: 1, // Asumir plantilla por defecto
     // pla_tipo eliminado - columna ya no existe
   },
   {
@@ -27,7 +29,8 @@ const DEFAULT_RATES = [
     catv_segmento: 'CAM',
     tar_f_desde: new Date().toISOString(),
     tar_precio: 3000,
-    tar_fraccion: 1,
+    tar_fraccion: 3000, // Usar el mismo valor que tar_precio para horas adicionales
+    plantilla_id: 1, // Asumir plantilla por defecto
     // pla_tipo eliminado - columna ya no existe
   }
 ];
