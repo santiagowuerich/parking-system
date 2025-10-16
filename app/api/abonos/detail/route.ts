@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         pla_numero,
         est_id,
         abon_id,
-        abonado(abon_id, abon_nombre, abon_apellido, abon_dni),
+        abonado(abon_id, con_id, abon_nombre, abon_apellido, abon_dni),
         plazas(pla_zona)
       `)
             .eq('abo_nro', abo_nro)
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         const { data: conductor, error: condError } = await supabase
             .from('usuario')
             .select('usu_nom, usu_ape, usu_dni, usu_email, usu_tel')
-            .eq('usu_id', (abono as any)?.abonado?.abon_id)
+            .eq('usu_id', (abono as any)?.abonado?.con_id)
             .single()
 
         if (condError) {
