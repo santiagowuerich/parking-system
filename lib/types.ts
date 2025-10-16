@@ -218,3 +218,58 @@ export const CONFIGURACIONES_ABONOS: Record<TipoAbono, ConfiguracionAbono> = {
   }
 };
 
+// ========================================
+// INTERFACES PARA SELECCIÓN DE PLAZAS
+// ========================================
+
+export interface PlazaInfo {
+  pla_numero: number;
+  est_id: number;
+  pla_estado: 'Libre' | 'Ocupada' | 'Abonado';
+  catv_segmento: string; // AUT, MOT, CAM
+  zona?: string; // A, B, C, etc
+}
+
+export interface ZonaPlazasResponse {
+  success: boolean;
+  data?: {
+    plazas: PlazaInfo[];
+    totalLibres: number;
+  };
+  error?: string;
+}
+
+// ========================================
+// ACTUALIZACIONES A INTERFACES EXISTENTES
+// ========================================
+
+// Actualizar CrearConductorConAbonoRequest para incluir plaza
+export interface CrearConductorConAbonoRequestActualizado extends Omit<CrearConductorConAbonoRequest, 'abono'> {
+  abono: {
+    est_id: number;
+    tipoAbono: TipoAbono;
+    fechaInicio: string;
+    fechaFin: string;
+    plaza: {
+      pla_numero: number;
+      est_id: number;
+    };
+  };
+}
+
+// Actualizar CrearConductorConAbonoResponse para incluir plaza asignada
+export interface CrearConductorConAbonoResponseActualizado extends Omit<CrearConductorConAbonoResponse, 'data'> {
+  data: {
+    usuario_id: number;
+    conductor_id: number;
+    vehiculo_ids: string[];
+    abonado_id: number;
+    abono_nro: number;
+    plaza_asignada: {
+      pla_numero: number;
+      est_id: number;
+    };
+    abono: any;
+  };
+}
+

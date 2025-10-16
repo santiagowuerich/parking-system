@@ -7,22 +7,26 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Trash2, User, Car, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Search, Plus, Trash2, User, Car, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2, MapPin } from "lucide-react";
 import {
     ConductorConVehiculos,
     VehiculoFormData,
     TipoAbono,
     CONFIGURACIONES_ABONOS,
     CrearConductorConAbonoRequest,
-    CrearConductorConAbonoResponse
+    CrearConductorConAbonoResponse,
+    PlazaInfo
 } from "@/lib/types";
+import { ZonaPlazaSelector } from "./zona-plaza-selector";
+import PaymentMethodSelector from "@/components/payment-method-selector";
+import TransferInfoDialog from "@/components/transfer-info-dialog";
 
 interface CrearAbonoPanelProps {
     estacionamientoId: number;
     estacionamientoNombre: string;
 }
 
-type Paso = 'buscar' | 'datos-conductor' | 'configurar-abono' | 'confirmacion';
+type Paso = 'buscar' | 'datos-conductor' | 'configurar-abono' | 'seleccionar-plaza' | 'confirmacion-pago' | 'confirmacion';
 
 export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: CrearAbonoPanelProps) {
     // ========================================
@@ -54,6 +58,17 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const [creando, setCreando] = useState(false);
     const [abonoCreado, setAbonoCreado] = useState<any>(null);
 
+    // Estados para selección de plaza
+    const [plazaSeleccionada, setPlazaSeleccionada] = useState<PlazaInfo | null>(null);
+    const [showZonaPlazaModal, setShowZonaPlazaModal] = useState(false);
+
+    // Estados para sistema de pagos
+    const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+    const [showTransferDialog, setShowTransferDialog] = useState(false);
+    const [paymentData, setPaymentData] = useState<any>(null);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<any>(null);
+    const [paymentLoading, setPaymentLoading] = useState(false);
+
     // ========================================
     // FUNCIONES DE BÚSQUEDA
     // ========================================
@@ -73,7 +88,6 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
             if (data.success && data.data) {
                 // Conductor encontrado
                 setConductorExistente(data.data);
-                setPaso('configurar-abono');
 
                 // Pre-llenar datos para vista previa
                 setNombre(data.data.usu_nom);
@@ -81,6 +95,20 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                 setEmail(data.data.usu_email);
                 setTelefono(data.data.usu_tel || '');
                 setDni(data.data.usu_dni);
+
+                // Cargar vehículos encontrados
+                if (data.data.vehiculos && data.data.vehiculos.length > 0) {
+                    const vehiculosFormato = data.data.vehiculos.map((v: any) => ({
+                        patente: v.veh_patente || '',
+                        tipo: v.catv_segmento === 'MOT' ? 'Moto' : v.catv_segmento === 'CAM' ? 'Camioneta' : 'Auto',
+                        marca: v.veh_marca || '',
+                        modelo: v.veh_modelo || '',
+                        color: v.veh_color || ''
+                    }));
+                    setVehiculos(vehiculosFormato);
+                }
+
+                setPaso('configurar-abono');
             } else {
                 // Conductor no encontrado - ir a formulario de creación
                 setConductorExistente(null);
@@ -170,6 +198,73 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
             return;
         }
 
+        // Ir al paso de selección de plaza
+        setPaso('seleccionar-plaza');
+    };
+
+    // ========================================
+    // REINICIAR FORMULARIO
+    // ========================================
+    const reiniciar = () => {
+        setBusqueda('');
+        setConductorExistente(null);
+        setNombre('');
+        setApellido('');
+        setEmail('');
+        setTelefono('');
+        setDni('');
+        setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
+        setTipoAbono('mensual');
+        setFechaInicio(new Date().toISOString().split('T')[0]);
+        setError('');
+        setAbonoCreado(null);
+        setPlazaSeleccionada(null);
+        setShowZonaPlazaModal(false);
+        setShowPaymentSelector(false);
+        setShowTransferDialog(false);
+        setPaymentData(null);
+        setSelectedPaymentMethod(null);
+        setPaymentLoading(false);
+        setPaso('buscar');
+    };
+
+    // ========================================
+    // FUNCIONES DE SELECCIÓN DE PLAZA
+    // ========================================
+    const handleSelectPlaza = (plaza: PlazaInfo) => {
+        setPlazaSeleccionada(plaza);
+        setShowZonaPlazaModal(false);
+        setPaso('confirmacion-pago');
+    };
+
+    // ========================================
+    // FUNCIONES DE PAGO
+    // ========================================
+    const handlePaymentMethodSelect = (method: any) => {
+        setSelectedPaymentMethod(method);
+        setShowPaymentSelector(false);
+
+        if (method === 'efectivo') {
+            // Crear abono inmediatamente para efectivo
+            crearAbonoConPago('efectivo');
+        } else if (method === 'transferencia') {
+            // Mostrar modal de transferencia
+            setPaymentData({
+                amount: precioTotal,
+                method: 'transferencia',
+                conductor: `${nombre} ${apellido}`,
+                dni: dni
+            });
+            setShowTransferDialog(true);
+        }
+    };
+
+    const crearAbonoConPago = async (metodoPago: string) => {
+        if (!plazaSeleccionada) {
+            setError('Debe seleccionar una plaza');
+            return;
+        }
+
         setCreando(true);
         setError('');
 
@@ -190,7 +285,11 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                     est_id: estacionamientoId,
                     tipoAbono,
                     fechaInicio,
-                    fechaFin: calcularFechaFin()
+                    fechaFin: calcularFechaFin(),
+                    plaza: {
+                        pla_numero: plazaSeleccionada.pla_numero,
+                        est_id: plazaSeleccionada.est_id
+                    }
                 }
             };
 
@@ -203,7 +302,10 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
             const data: CrearConductorConAbonoResponse = await response.json();
 
             if (data.success && data.data) {
-                setAbonoCreado(data.data);
+                setAbonoCreado({
+                    ...data.data,
+                    metodoPago: metodoPago
+                });
                 setPaso('confirmacion');
             } else {
                 setError(data.error || 'Error al crear abono');
@@ -214,25 +316,6 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         } finally {
             setCreando(false);
         }
-    };
-
-    // ========================================
-    // REINICIAR FORMULARIO
-    // ========================================
-    const reiniciar = () => {
-        setBusqueda('');
-        setConductorExistente(null);
-        setNombre('');
-        setApellido('');
-        setEmail('');
-        setTelefono('');
-        setDni('');
-        setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
-        setTipoAbono('mensual');
-        setFechaInicio(new Date().toISOString().split('T')[0]);
-        setError('');
-        setAbonoCreado(null);
-        setPaso('buscar');
     };
 
     // ========================================
@@ -515,13 +598,98 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </Button>
                             <Button onClick={crearAbono} disabled={creando}>
                                 {creando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                                {creando ? 'Creando...' : 'Crear Abono'}
+                                {creando ? 'Creando...' : 'Seleccionar Plaza'}
                             </Button>
                         </div>
                     </>
                 )}
 
-                {/* PASO 4: CONFIRMACIÓN */}
+                {/* PASO 4: SELECCIONAR PLAZA */}
+                {paso === 'seleccionar-plaza' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <MapPin className="w-5 h-5" />
+                                Seleccionar Plaza
+                            </CardTitle>
+                            <CardDescription>
+                                Elige una plaza disponible para el abono
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-4 border rounded-lg bg-gray-50">
+                                <p className="text-sm text-gray-600 mb-2">Estacionamiento:</p>
+                                <p className="font-semibold">{estacionamientoNombre}</p>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setPaso('configurar-abono')}>
+                                    Atrás
+                                </Button>
+                                <Button onClick={() => setShowZonaPlazaModal(true)}>
+                                    <MapPin className="w-4 h-4 mr-2" />
+                                    Elegir Plaza
+                                </Button>
+                            </div>
+
+                            {plazaSeleccionada && (
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <h4 className="font-semibold text-blue-900 mb-2">Plaza Seleccionada</h4>
+                                    <div className="text-sm text-blue-800">
+                                        <p><strong>Número:</strong> {plazaSeleccionada.pla_numero}</p>
+                                        <p><strong>Tipo:</strong> {plazaSeleccionada.catv_segmento}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* PASO 5: CONFIRMACIÓN DE PAGO */}
+                {paso === 'confirmacion-pago' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <DollarSign className="w-5 h-5" />
+                                Confirmación de Pago
+                            </CardTitle>
+                            <CardDescription>
+                                Selecciona el método de pago para el abono
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {/* Resumen del abono */}
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                                <p><strong>Conductor:</strong> {nombre} {apellido}</p>
+                                <p><strong>DNI:</strong> {dni}</p>
+                                <p><strong>Email:</strong> {email}</p>
+                                <p><strong>Tipo de Abono:</strong> {CONFIGURACIONES_ABONOS[tipoAbono].descripcion}</p>
+                                <p><strong>Vigencia:</strong> {fechaInicio} hasta {calcularFechaFin()}</p>
+                                <p><strong>Plaza:</strong> {plazaSeleccionada?.pla_numero}</p>
+                                <p><strong>Total:</strong> ${precioTotal.toLocaleString('es-AR')}</p>
+                            </div>
+
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setPaso('seleccionar-plaza')}>
+                                    Atrás
+                                </Button>
+                                <Button onClick={() => setShowPaymentSelector(true)} disabled={creando}>
+                                    {creando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                                    {creando ? 'Procesando...' : 'Seleccionar Método de Pago'}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* PASO 6: CONFIRMACIÓN */}
                 {paso === 'confirmacion' && abonoCreado && (
                     <Card>
                         <CardHeader>
@@ -538,7 +706,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                 <p><strong>Abono Nº:</strong> {abonoCreado.abono_nro}</p>
                                 <p><strong>Tipo:</strong> {CONFIGURACIONES_ABONOS[tipoAbono].descripcion}</p>
                                 <p><strong>Vigencia:</strong> {fechaInicio} hasta {calcularFechaFin()}</p>
-                                <p><strong>Vehículos:</strong> {abonoCreado.vehiculo_ids.join(', ')}</p>
+                                <p><strong>Plaza:</strong> {plazaSeleccionada?.pla_numero}</p>
+                                <p><strong>Método de Pago:</strong> {abonoCreado.metodoPago}</p>
+                                <p><strong>Total:</strong> ${precioTotal.toLocaleString('es-AR')}</p>
+
+                                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs text-blue-800">
+                                        <strong>🔑 Credenciales de acceso:</strong><br/>
+                                        El conductor puede iniciar sesión con:<br/>
+                                        Email: {email}<br/>
+                                        Contraseña inicial: <strong>{dni}</strong>
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="flex gap-2">
@@ -623,6 +802,67 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                     </CardContent>
                 </Card>
             </div>
+
+            {/* ============ MODALES ============ */}
+
+            {/* Modal de selección de zona y plaza */}
+            <ZonaPlazaSelector
+                isOpen={showZonaPlazaModal}
+                estacionamientoId={estacionamientoId}
+                estacionamientoNombre={estacionamientoNombre}
+                onSelectPlaza={handleSelectPlaza}
+                onCancel={() => setShowZonaPlazaModal(false)}
+            />
+
+            {/* Modal de selección de método de pago */}
+            <PaymentMethodSelector
+                isOpen={showPaymentSelector}
+                onClose={() => setShowPaymentSelector(false)}
+                onSelectMethod={handlePaymentMethodSelect}
+                paymentData={{
+                    amount: precioTotal,
+                    vehicleLicensePlate: vehiculos[0]?.patente || 'ABONO',
+                    paymentId: 'abono-' + Date.now(),
+                    duration: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
+                }}
+                loading={paymentLoading}
+                paymentSettings={{
+                    efectivo: { enabled: true },
+                    transfer: { enabled: true, cbu: '0170020510000001234567', alias: 'PARKING.EJEMPLO' },
+                    mercadopago: { enabled: false, accessToken: 'test', publicKey: 'test' }
+                }}
+            />
+
+            {/* Modal de transferencia */}
+            <TransferInfoDialog
+                isOpen={showTransferDialog}
+                onClose={() => setShowTransferDialog(false)}
+                onConfirmTransfer={async () => {
+                    setPaymentLoading(true);
+                    try {
+                        await crearAbonoConPago('transferencia');
+                        setShowTransferDialog(false);
+                    } catch (error) {
+                        console.error('Error confirmando transferencia:', error);
+                        setError('Error al confirmar transferencia');
+                    } finally {
+                        setPaymentLoading(false);
+                    }
+                }}
+                paymentData={{
+                    amount: precioTotal,
+                    vehicleLicensePlate: vehiculos[0]?.patente || 'ABONO',
+                    paymentId: 'abono-' + Date.now(),
+                    duration: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
+                }}
+                transferConfig={{
+                    cbu: '0170020510000001234567',
+                    alias: 'PARKING.EJEMPLO',
+                    accountHolder: 'Estacionamiento Ejemplo S.A.',
+                    bank: 'Banco Ejemplo'
+                }}
+                loading={paymentLoading}
+            />
         </div>
     );
 }

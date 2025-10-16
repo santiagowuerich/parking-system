@@ -12,6 +12,26 @@ import { CrearConductorConAbonoRequest, CrearConductorConAbonoResponse } from "@
  * @body CrearConductorConAbonoRequest
  * @returns CrearConductorConAbonoResponse
  */
+
+// Función auxiliar para eliminar usuario de auth
+async function deleteAuthUser(usuarioId: string) {
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${usuarioId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            console.error('Error eliminando usuario de auth:', response.statusText);
+        }
+    } catch (err) {
+        console.error('Error eliminando usuario de auth:', err);
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const cookieStore = await cookies();
@@ -81,8 +101,40 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Validar datos de la plaza
+        if (!body.abono.plaza || !body.abono.plaza.pla_numero || !body.abono.plaza.est_id) {
+            return NextResponse.json(
+                { success: false, error: "Debe seleccionar una plaza" },
+                { status: 400 }
+            );
+        }
+
         // ========================================
-        // 3. VALIDAR DNI Y EMAIL ÚNICOS
+        // 3. VALIDAR PLAZA DISPONIBLE
+        // ========================================
+        const { data: plazaData, error: plazaError } = await supabase
+            .from('plazas')
+            .select('pla_numero, pla_estado, est_id')
+            .eq('pla_numero', body.abono.plaza.pla_numero)
+            .eq('est_id', body.abono.plaza.est_id)
+            .single();
+
+        if (plazaError || !plazaData) {
+            return NextResponse.json(
+                { success: false, error: "Plaza no encontrada" },
+                { status: 404 }
+            );
+        }
+
+        if (plazaData.pla_estado !== 'Libre') {
+            return NextResponse.json(
+                { success: false, error: `Plaza ${plazaData.pla_numero} no está disponible (estado: ${plazaData.pla_estado})` },
+                { status: 409 }
+            );
+        }
+
+        // ========================================
+        // 4. VALIDAR DNI Y EMAIL ÚNICOS
         // ========================================
         const { data: usuarioExistente } = await supabase
             .from('usuario')
@@ -126,11 +178,55 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 5. CREAR USUARIO EN TABLA USUARIO
+        // 5. CREAR USUARIO EN AUTENTICACIÓN SUPABASE
+        // ========================================
+        // Crear cuenta de autenticación con DNI como contraseña inicial
+        // Usar el endpoint de auth de Supabase directamente
+        let usuarioId: string;
+        let authError: any = null;
+
+        try {
+            const authResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+                },
+                body: JSON.stringify({
+                    email: body.conductor.email,
+                    password: body.conductor.dni, // DNI como contraseña inicial
+                    data: {
+                        nombre: body.conductor.nombre,
+                        apellido: body.conductor.apellido,
+                        dni: body.conductor.dni,
+                        telefono: body.conductor.telefono || null
+                    }
+                })
+            });
+
+            const authData = await authResponse.json();
+
+            if (!authResponse.ok || authData.error) {
+                authError = authData.error || { message: authData.error_description || 'Error creando usuario en auth' };
+                throw new Error(authError.message || 'Error creando usuario');
+            }
+
+            usuarioId = authData.user.id;
+        } catch (err: any) {
+            console.error('Error creando usuario en auth:', err.message);
+            return NextResponse.json(
+                { success: false, error: `Error creando cuenta de usuario: ${err.message}` },
+                { status: 500 }
+            );
+        }
+
+        // ========================================
+        // 6. CREAR USUARIO EN TABLA USUARIO
         // ========================================
         const { data: nuevoUsuario, error: errorUsuario } = await supabase
             .from('usuario')
             .insert({
+                usu_id: usuarioId, // Usar el ID de auth como usu_id
                 usu_nom: body.conductor.nombre,
                 usu_ape: body.conductor.apellido,
                 usu_email: body.conductor.email,
@@ -143,17 +239,21 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (errorUsuario || !nuevoUsuario) {
-            console.error('Error creando usuario:', errorUsuario);
+            console.error('Error creando usuario en tabla:', errorUsuario);
+            // Si falla la creación en tabla, eliminar el usuario de auth
+            try {
+                await deleteAuthUser(usuarioId);
+            } catch (delErr) {
+                console.error('Error eliminando usuario de auth:', delErr);
+            }
             return NextResponse.json(
                 { success: false, error: `Error creando usuario: ${errorUsuario?.message}` },
                 { status: 500 }
             );
         }
 
-        const usuarioId = nuevoUsuario.usu_id;
-
         // ========================================
-        // 6. CREAR REGISTRO EN TABLA CONDUCTORES
+        // 7. CREAR REGISTRO EN TABLA CONDUCTORES
         // ========================================
         const { error: errorConductor } = await supabase
             .from('conductores')
@@ -163,6 +263,7 @@ export async function POST(request: NextRequest) {
 
         if (errorConductor) {
             console.error('Error creando conductor:', errorConductor);
+            await deleteAuthUser(usuarioId);
             await supabase.from('usuario').delete().eq('usu_id', usuarioId);
             return NextResponse.json(
                 { success: false, error: `Error creando conductor: ${errorConductor.message}` },
@@ -171,7 +272,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 7. CREAR VEHÍCULOS
+        // 8. CREAR VEHÍCULOS
         // ========================================
         const tipoMapping: Record<string, string> = {
             'Auto': 'AUT',
@@ -195,6 +296,7 @@ export async function POST(request: NextRequest) {
 
         if (errorVehiculos || !vehiculosCreados) {
             console.error('Error creando vehículos:', errorVehiculos);
+            await deleteAuthUser(usuarioId);
             await supabase.from('conductores').delete().eq('con_id', usuarioId);
             await supabase.from('usuario').delete().eq('usu_id', usuarioId);
             return NextResponse.json(
@@ -204,7 +306,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 8. CREAR REGISTRO EN TABLA ABONADO
+        // 9. CREAR REGISTRO EN TABLA ABONADO
         // ========================================
         const { data: nuevoAbonado, error: errorAbonado } = await supabase
             .from('abonado')
@@ -219,6 +321,7 @@ export async function POST(request: NextRequest) {
 
         if (errorAbonado || !nuevoAbonado) {
             console.error('Error creando abonado:', errorAbonado);
+            await deleteAuthUser(usuarioId);
             await supabase.from('vehiculos').delete().eq('con_id', usuarioId);
             await supabase.from('conductores').delete().eq('con_id', usuarioId);
             await supabase.from('usuario').delete().eq('usu_id', usuarioId);
@@ -231,7 +334,7 @@ export async function POST(request: NextRequest) {
         const abonadoId = nuevoAbonado.abon_id;
 
         // ========================================
-        // 9. CREAR ABONO
+        // 10. CREAR ABONO
         // ========================================
         const { data: nuevoAbono, error: errorAbono } = await supabase
             .from('abonos')
@@ -241,13 +344,16 @@ export async function POST(request: NextRequest) {
                 abo_fecha_inicio: body.abono.fechaInicio,
                 abo_fecha_fin: body.abono.fechaFin,
                 abo_tipoabono: body.abono.tipoAbono,
-                pag_nro: null
+                pag_nro: null,
+                pla_numero: body.abono.plaza.pla_numero,
+                est_id: body.abono.plaza.est_id
             })
             .select('abo_nro')
             .single();
 
         if (errorAbono || !nuevoAbono) {
             console.error('Error creando abono:', errorAbono);
+            await deleteAuthUser(usuarioId);
             await supabase.from('abonado').delete().eq('abon_id', abonadoId);
             await supabase.from('vehiculos').delete().eq('con_id', usuarioId);
             await supabase.from('conductores').delete().eq('con_id', usuarioId);
@@ -261,7 +367,30 @@ export async function POST(request: NextRequest) {
         const abonoNro = nuevoAbono.abo_nro;
 
         // ========================================
-        // 10. CREAR RELACIONES VEHÍCULOS-ABONOS
+        // 11. ACTUALIZAR ESTADO DE PLAZA A "ABONADO"
+        // ========================================
+        const { error: errorPlazaUpdate } = await supabase
+            .from('plazas')
+            .update({ pla_estado: 'Abonado' })
+            .eq('pla_numero', body.abono.plaza.pla_numero)
+            .eq('est_id', body.abono.plaza.est_id);
+
+        if (errorPlazaUpdate) {
+            console.error('Error actualizando estado de plaza:', errorPlazaUpdate);
+            // Rollback: eliminar abono creado
+            await supabase.from('abonos').delete().eq('abo_nro', abonoNro);
+            await supabase.from('abonado').delete().eq('abon_id', abonadoId);
+            await supabase.from('vehiculos').delete().eq('con_id', usuarioId);
+            await supabase.from('conductores').delete().eq('con_id', usuarioId);
+            await supabase.from('usuario').delete().eq('usu_id', usuarioId);
+            return NextResponse.json(
+                { success: false, error: `Error actualizando plaza: ${errorPlazaUpdate.message}` },
+                { status: 500 }
+            );
+        }
+
+        // ========================================
+        // 11. CREAR RELACIONES VEHÍCULOS-ABONOS
         // ========================================
         const vehiculosAbonadosParaInsertar = vehiculosCreados.map((v: any) => ({
             est_id: body.abono.est_id,
@@ -279,7 +408,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 11. OBTENER DATOS COMPLETOS DEL ABONO CREADO
+        // 12. OBTENER DATOS COMPLETOS DEL ABONO CREADO
         // ========================================
         const { data: abonoCompleto, error: errorAbonoCompleto } = await supabase
             .from('abonos')
@@ -311,7 +440,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 12. RESPUESTA EXITOSA
+        // 13. RESPUESTA EXITOSA
         // ========================================
         const response: CrearConductorConAbonoResponse = {
             success: true,
@@ -321,6 +450,10 @@ export async function POST(request: NextRequest) {
                 vehiculo_ids: vehiculosCreados.map((v: any) => v.veh_patente),
                 abonado_id: abonadoId,
                 abono_nro: abonoNro,
+                plaza_asignada: {
+                    pla_numero: body.abono.plaza.pla_numero,
+                    est_id: body.abono.plaza.est_id
+                },
                 abono: abonoCompleto || (nuevoAbono as any)
             }
         };
