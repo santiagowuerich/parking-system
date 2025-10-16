@@ -18,6 +18,7 @@ interface VehicleContextType {
     vehicles: Vehicle[];
     loadingVehicles: boolean;
     refreshVehicles: () => Promise<void>;
+    clearVehicleData: () => void;
 }
 
 const VehicleContext = createContext<VehicleContextType>({
@@ -26,6 +27,7 @@ const VehicleContext = createContext<VehicleContextType>({
     vehicles: [],
     loadingVehicles: false,
     refreshVehicles: async () => { },
+    clearVehicleData: () => { },
 });
 
 export const useVehicle = () => useContext(VehicleContext);
@@ -43,7 +45,12 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
             if (saved) {
                 try {
                     const vehicle = JSON.parse(saved);
-                    setSelectedVehicleState(vehicle);
+                    if (vehicle && vehicle.patente) {
+                        console.log('🔄 Cargando vehículo desde localStorage:', vehicle.patente);
+                        setSelectedVehicleState(vehicle);
+                    } else {
+                        localStorage.removeItem('selected_vehicle');
+                    }
                 } catch (error) {
                     console.error('Error parseando vehículo guardado:', error);
                     localStorage.removeItem('selected_vehicle');
@@ -62,7 +69,14 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
 
             if (response.ok) {
                 const data = await response.json();
-                setVehicles(data.vehicles || []);
+                const vehicleList = data.vehicles || [];
+                setVehicles(vehicleList);
+
+                // Si no hay vehículo seleccionado y hay vehículos disponibles, seleccionar el primero
+                if (!selectedVehicle && vehicleList.length > 0) {
+                    console.log('🚗 Seleccionando automáticamente el primer vehículo:', vehicleList[0].patente);
+                    setSelectedVehicle(vehicleList[0]);
+                }
             }
         } catch (error) {
             console.error('Error cargando vehículos:', error);
@@ -115,6 +129,22 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Función para limpiar completamente los datos de vehículos
+    const clearVehicleData = () => {
+        console.log('🧹 Limpiando datos de vehículos...');
+        setSelectedVehicleState(null);
+
+        // Limpiar localStorage
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('selected_vehicle');
+        }
+
+        // Recargar vehículos (automáticamente seleccionará el primero)
+        if (user?.id && userRole === 'conductor') {
+            refreshVehicles();
+        }
+    };
+
     return (
         <VehicleContext.Provider
             value={{
@@ -122,7 +152,8 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
                 setSelectedVehicle,
                 vehicles,
                 loadingVehicles,
-                refreshVehicles
+                refreshVehicles,
+                clearVehicleData
             }}
         >
             {children}
