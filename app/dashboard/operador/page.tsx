@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ArrowRight } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import IngresoModal from "@/components/ingreso-modal";
 import VehicleSelectorModal from "@/components/vehicle-selector-modal";
 import { toast } from "@/components/ui/use-toast";
@@ -815,7 +815,7 @@ export default function OperadorPage() {
                     <div className="min-h-screen bg-white">
                         {/* Main Content */}
                         <div className="max-w-7xl mx-auto px-6 py-16">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
 
                                 {/* Tarjeta de Ingreso */}
                                 <div
@@ -862,6 +862,30 @@ export default function OperadorPage() {
                                     {/* Badge con información */}
                                     <div className="bg-red-600 text-white px-6 py-3 rounded-full font-medium">
                                         {availableSpaces.total.occupied} vehículos estacionados
+                                    </div>
+                                </div>
+
+                                {/* Tarjeta de Crear Abono */}
+                                <div
+                                    className="bg-gradient-to-br from-blue-100 to-blue-200 rounded-3xl p-8 border-2 border-blue-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                    onClick={() => router.push('/dashboard/crear-abono')}
+                                >
+                                    {/* Círculo con icono Plus */}
+                                    <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
+                                        <Plus className="w-8 h-8 text-white" />
+                                    </div>
+
+                                    {/* Título */}
+                                    <h2 className="text-4xl font-bold text-blue-800 mb-4">ABONO</h2>
+
+                                    {/* Descripción */}
+                                    <p className="text-blue-700 text-center mb-8 text-lg">
+                                        Crear nuevo abono
+                                    </p>
+
+                                    {/* Badge con información */}
+                                    <div className="bg-blue-600 text-white px-6 py-3 rounded-full font-medium">
+                                        Registrar conductor
                                     </div>
                                 </div>
                             </div>
