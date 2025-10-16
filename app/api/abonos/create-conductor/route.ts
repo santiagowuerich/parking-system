@@ -367,7 +367,64 @@ export async function POST(request: NextRequest) {
         const abonoNro = nuevoAbono.abo_nro;
 
         // ========================================
-        // 11. ACTUALIZAR ESTADO DE PLAZA A "ABONADO"
+        // 11. CREAR PAGO INICIAL (NUEVO)
+        // ========================================
+        // Obtener tarifa de la plaza (plantilla)
+        const { data: plantillaData } = await supabase
+            .from('plazas')
+            .select('plantilla_id')
+            .eq('pla_numero', body.abono.plaza.pla_numero)
+            .eq('est_id', body.abono.plaza.est_id)
+            .single();
+
+        let pago_nro: number | null = null;
+
+        if (plantillaData?.plantilla_id) {
+            // Obtener tarifa por MES (tiptar_nro = 3)
+            const { data: tarifaData } = await supabase
+                .from('tarifas')
+                .select('tar_precio')
+                .eq('est_id', body.abono.est_id)
+                .eq('tiptar_nro', 3) // MES
+                .eq('plantilla_id', plantillaData.plantilla_id)
+                .order('tar_f_desde', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (tarifaData) {
+                // Crear pago inicial
+                const { data: nuevoPago, error: errorPago } = await supabase
+                    .from('pagos')
+                    .insert({
+                        pag_monto: Number(tarifaData.tar_precio),
+                        pag_h_fh: new Date().toISOString(),
+                        est_id: body.abono.est_id,
+                        mepa_metodo: 'Efectivo',
+                        veh_patente: vehiculosCreados[0]?.veh_patente || '',
+                        pag_tipo: 'abono_inicial',
+                        pag_descripcion: `Abono ${body.abono.tipoAbono}`,
+                        pag_estado: 'completado',
+                        abo_nro: abonoNro
+                    })
+                    .select('pag_nro')
+                    .single();
+
+                if (nuevoPago && !errorPago) {
+                    pago_nro = nuevoPago.pag_nro;
+
+                    // Actualizar abonos.pag_nro
+                    await supabase
+                        .from('abonos')
+                        .update({ pag_nro: pago_nro })
+                        .eq('abo_nro', abonoNro);
+                } else {
+                    console.warn('Error creando pago inicial:', errorPago);
+                }
+            }
+        }
+
+        // ========================================
+        // 12. ACTUALIZAR ESTADO DE PLAZA A "ABONADO"
         // ========================================
         const { error: errorPlazaUpdate } = await supabase
             .from('plazas')
@@ -408,7 +465,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ========================================
-        // 12. OBTENER DATOS COMPLETOS DEL ABONO CREADO
+        // 13. OBTENER DATOS COMPLETOS DEL ABONO CREADO
         // ========================================
         const { data: abonoCompleto, error: errorAbonoCompleto } = await supabase
             .from('abonos')
