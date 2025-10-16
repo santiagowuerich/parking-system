@@ -43,6 +43,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Error obteniendo plazas: ${plazasError.message}` }, { status: 500 });
     }
 
+    const plazasBase = plazasCompletas || [];
+
+    // 1.1 Obtener abonos vigentes para mapear titulares de plazas abonadas
+    const { data: abonosData, error: abonosError } = await supabase
+      .from('abonos')
+      .select(`
+        abo_nro,
+        est_id,
+        pla_numero,
+        abo_fecha_inicio,
+        abo_fecha_fin,
+        abo_tipoabono,
+        abonado (
+          abon_id,
+          abon_nombre,
+          abon_apellido,
+          abon_dni
+        )
+      `)
+      .eq('est_id', estId)
+      .not('pla_numero', 'is', null)
+      .order('abo_fecha_fin', { ascending: false });
+
+    if (abonosError) {
+      console.error('Error obteniendo abonos asociados a plazas:', abonosError);
+    }
+
+    const now = new Date();
+    const abonosPorPlaza = new Map<number, any>();
+
+    (abonosData || []).forEach((abono) => {
+      if (abono.pla_numero == null) return;
+      const plazaNumero = Number(abono.pla_numero);
+      if (Number.isNaN(plazaNumero)) return;
+
+      const inicio = abono.abo_fecha_inicio ? new Date(abono.abo_fecha_inicio) : null;
+      const fin = abono.abo_fecha_fin ? new Date(abono.abo_fecha_fin) : null;
+      const vigente = (!inicio || inicio <= now) && (!fin || fin >= now);
+      if (!vigente) return;
+
+      const existente = abonosPorPlaza.get(plazaNumero);
+      if (!existente) {
+        abonosPorPlaza.set(plazaNumero, abono);
+        return;
+      }
+
+      const existenteFin = existente.abo_fecha_fin ? new Date(existente.abo_fecha_fin) : null;
+      if (!existenteFin || (fin && existenteFin < fin)) {
+        abonosPorPlaza.set(plazaNumero, abono);
+      }
+    });
+
+    const plazasEnriquecidas = plazasBase.map((plaza) => {
+      const plazaNumero = plaza.pla_numero == null ? null : Number(plaza.pla_numero);
+      if (plazaNumero == null || Number.isNaN(plazaNumero)) {
+        return {
+          ...plaza,
+          abono: null,
+        };
+      }
+
+      const abonoAsociado = abonosPorPlaza.get(plazaNumero);
+      if (!abonoAsociado) {
+        return {
+          ...plaza,
+          abono: null,
+        };
+      }
+
+      const plazaConAbono = {
+        ...plaza,
+        abono: abonoAsociado,
+      };
+
+      if (plazaConAbono.pla_estado === 'Libre' || plazaConAbono.pla_estado === 'Abonado') {
+        plazaConAbono.pla_estado = 'Abonado';
+      }
+
+      return plazaConAbono;
+    });
+
     // 2. Obtener ocupaciones activas que tienen plaza asignada (para status)
     const { data: ocupaciones, error: ocupError } = await supabase
       .from('ocupacion')
@@ -70,20 +151,22 @@ export async function GET(request: NextRequest) {
     const occupiedSet = new Set<number>((ocupaciones || []).map(o => o.pla_numero as number));
 
     // 4. Detectar si hay zonas configuradas (lógica del /api/plazas/status)
-    const hasZones = (plazasCompletas || []).some(p => p.pla_zona !== null && p.pla_zona !== '');
+    const hasZones = plazasEnriquecidas.some(p => p.pla_zona !== null && p.pla_zona !== '');
 
     let statusData: any;
 
     if (!hasZones) {
       // MODO SIMPLE: Sin zonas
-      const totalPlazas = plazasCompletas?.length || 0;
+      const totalPlazas = plazasEnriquecidas.length;
       const ocupadas = occupiedSet.size;
       const libres = totalPlazas - ocupadas;
 
-      const todasLasPlazas = (plazasCompletas || []).map(p => ({
+      const todasLasPlazas = plazasEnriquecidas.map(p => ({
         numero: p.pla_numero,
         ocupado: occupiedSet.has(p.pla_numero as number),
-        tipo: p.catv_segmento
+        tipo: p.catv_segmento,
+        estado: p.pla_estado,
+        abono: p.abono || null,
       })).sort((a, b) => a.numero - b.numero);
 
       statusData = {
@@ -97,7 +180,7 @@ export async function GET(request: NextRequest) {
       // MODO ZONAS: Zonas configuradas
       const zonesData: { [key: string]: any } = {};
 
-      for (const p of plazasCompletas || []) {
+      for (const p of plazasEnriquecidas) {
         const zonaNombre = p.pla_zona || 'Sin Zona';
         const seg = (p.catv_segmento as 'AUT' | 'MOT' | 'CAM') || 'AUT';
 
@@ -147,13 +230,13 @@ export async function GET(request: NextRequest) {
 
     // 5. Calcular estadísticas para plazas completas
     const estadisticas = {
-      total_plazas: plazasCompletas?.length || 0,
-      plazas_libres: plazasCompletas?.filter(p => p.pla_estado === 'Libre').length || 0,
-      plazas_ocupadas: plazasCompletas?.filter(p => p.pla_estado === 'Ocupada').length || 0,
-      plazas_reservadas: plazasCompletas?.filter(p => p.pla_estado === 'Reservada').length || 0,
-      plazas_mantenimiento: plazasCompletas?.filter(p => p.pla_estado === 'Mantenimiento').length || 0,
-      ocupacion_porcentaje: plazasCompletas && plazasCompletas.length > 0
-        ? ((plazasCompletas.filter(p => p.pla_estado === 'Ocupada').length / plazasCompletas.length) * 100)
+      total_plazas: plazasEnriquecidas.length,
+      plazas_libres: plazasEnriquecidas.filter(p => p.pla_estado === 'Libre').length || 0,
+      plazas_ocupadas: plazasEnriquecidas.filter(p => p.pla_estado === 'Ocupada').length || 0,
+      plazas_reservadas: plazasEnriquecidas.filter(p => p.pla_estado === 'Reservada').length || 0,
+      plazas_mantenimiento: plazasEnriquecidas.filter(p => p.pla_estado === 'Mantenimiento').length || 0,
+      ocupacion_porcentaje: plazasEnriquecidas.length > 0
+        ? ((plazasEnriquecidas.filter(p => p.pla_estado === 'Ocupada').length / plazasEnriquecidas.length) * 100)
         : 0
     };
 
@@ -164,7 +247,7 @@ export async function GET(request: NextRequest) {
       // Datos para operador (reemplaza /api/plazas/status)
       status: statusData,
       // Datos completos (reemplaza /api/plazas)
-      plazasCompletas: plazasCompletas || [],
+      plazasCompletas: plazasEnriquecidas,
       estadisticas,
       // Vehículos básicos (reduce necesidad de /api/parking/parked)
       vehiculosEstacionados: vehiculosEstacionados || [],

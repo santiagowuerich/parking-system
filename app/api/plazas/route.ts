@@ -293,7 +293,7 @@ export async function GET(request: Request) {
         }
 
         // Si no se especifica zona_id, obtener todas las plazas con información de plantillas (comportamiento original)
-        console.log('📊 Consultando todas las plazas del estacionamiento con información de plantillas');
+        console.log('📊 Consultando todas las plazas del estacionamiento con información de plantillas y abonos');
 
         const { data: plazas, error: plazasError } = await supabase
             .from('plazas')
@@ -307,6 +307,62 @@ export async function GET(request: Request) {
             `)
             .eq('est_id', estId)
             .order('pla_numero');
+
+        // Si hay plazas con estado "Abonado", obtener información de los abonos
+        let plazasConAbonos = plazas;
+        if (plazas && plazas.length > 0) {
+            const plazasAbonadas = plazas.filter((p: any) => p.pla_estado === 'Abonado');
+
+            if (plazasAbonadas.length > 0) {
+                console.log(`🎫 Obteniendo información de ${plazasAbonadas.length} plazas abonadas...`);
+
+                // Obtener abonos activos para estas plazas
+                const { data: abonos, error: abonosError } = await supabase
+                    .from('abonos')
+                    .select(`
+                        abo_nro,
+                        pla_numero,
+                        est_id,
+                        abo_fecha_inicio,
+                        abo_fecha_fin,
+                        abo_tipoabono,
+                        abonado (
+                            abon_id,
+                            abon_nombre,
+                            abon_apellido,
+                            abon_dni
+                        )
+                    `)
+                    .eq('est_id', estId)
+                    .in('pla_numero', plazasAbonadas.map((p: any) => p.pla_numero));
+
+                if (!abonosError && abonos) {
+                    console.log(`✅ Información de abonos obtenida: ${abonos.length}`);
+
+                    // Crear mapa de abonos por pla_numero
+                    const abonosMap = new Map();
+                    abonos.forEach((abono: any) => {
+                        abonosMap.set(abono.pla_numero, abono);
+                    });
+
+                    // Combinar plazas con información de abonos
+                    plazasConAbonos = plazas.map((plaza: any) => {
+                        if (plaza.pla_estado === 'Abonado' && abonosMap.has(plaza.pla_numero)) {
+                            const abonoInfo = abonosMap.get(plaza.pla_numero);
+                            return {
+                                ...plaza,
+                                abono: abonoInfo
+                            };
+                        }
+                        return plaza;
+                    });
+
+                    console.log(`🔄 Plazas combinadas con información de abonos`);
+                } else {
+                    console.error('❌ Error obteniendo abonos:', abonosError);
+                }
+            }
+        }
 
         if (plazasError) {
             console.error('❌ Error obteniendo plazas:', plazasError);
@@ -331,13 +387,14 @@ export async function GET(request: Request) {
 
         // Calcular estadísticas
         const estadisticas = {
-            total_plazas: plazas?.length || 0,
-            plazas_libres: plazas?.filter(p => p.pla_estado === 'Libre').length || 0,
-            plazas_ocupadas: plazas?.filter(p => p.pla_estado === 'Ocupada').length || 0,
-            plazas_reservadas: plazas?.filter(p => p.pla_estado === 'Reservada').length || 0,
-            plazas_mantenimiento: plazas?.filter(p => p.pla_estado === 'Mantenimiento').length || 0,
-            ocupacion_porcentaje: plazas && plazas.length > 0
-                ? ((plazas.filter(p => p.pla_estado === 'Ocupada').length / plazas.length) * 100)
+            total_plazas: plazasConAbonos?.length || 0,
+            plazas_libres: plazasConAbonos?.filter(p => p.pla_estado === 'Libre').length || 0,
+            plazas_ocupadas: plazasConAbonos?.filter(p => p.pla_estado === 'Ocupada').length || 0,
+            plazas_reservadas: plazasConAbonos?.filter(p => p.pla_estado === 'Reservada').length || 0,
+            plazas_abonadas: plazasConAbonos?.filter(p => p.pla_estado === 'Abonado').length || 0,
+            plazas_mantenimiento: plazasConAbonos?.filter(p => p.pla_estado === 'Mantenimiento').length || 0,
+            ocupacion_porcentaje: plazasConAbonos && plazasConAbonos.length > 0
+                ? ((plazasConAbonos.filter(p => p.pla_estado === 'Ocupada').length / plazasConAbonos.length) * 100)
                 : 0,
             zonas_activas: zonas?.length || 0
         };
@@ -346,7 +403,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            plazas: plazas || [],
+            plazas: plazasConAbonos || [],
             zonas: zonas || [],
             estadisticas
         });

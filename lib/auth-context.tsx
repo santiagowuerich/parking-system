@@ -701,9 +701,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Efecto para cargar los datos del usuario cuando esté autenticado
   useEffect(() => {
-    // 🟢 NO ejecutar si ya hay un estId o si ya se inicializó
-    if (estId !== null || estIdInitialized.current) {
-      console.log(`⏭️ Saltando getUserEstId: estId=${estId}, inicializado=${estIdInitialized.current}`);
+    // 🟢 NO ejecutar si ya se inicializó (pero permitir primera vez incluso si hay estId en caché)
+    if (estIdInitialized.current) {
+      console.log(`⏭️ Saltando getUserEstId: ya inicializado=${estIdInitialized.current}`);
       return;
     }
 
@@ -723,74 +723,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return null;
           }
 
-          // 🟢 SOLUCIÓN CRÍTICA: Si ya tenemos estId, NO hacer NADA - NUNCA sobrescribir
-          if (estId !== null) {
-            console.log(`✅ Ya tenemos estId: ${estId}, NO consultando API - Marcando como inicializado`);
-            if (!estIdInitialized.current) {
-              estIdInitialized.current = true;
-            }
-            return estId;
-          }
-
           // 🟢 Si ya se ejecutó getUserEstId antes, no ejecutar de nuevo
           if (estIdInitialized.current) {
             console.log(`✅ getUserEstId ya se ejecutó, saltando`);
             return;
           }
 
-          console.log(`🔍 No hay estId, buscando en localStorage o API...`);
+          console.log(`🔍 Iniciando validación de estId...`);
 
-          // Para dueños, verificar localStorage primero antes de consultar API
-          if (userRole === 'owner' && typeof window !== 'undefined') {
-            const savedEstId = localStorage.getItem('parking_est_id');
-            if (savedEstId) {
-              const parsedEstId = parseInt(savedEstId);
-              console.log(`🎯 Dueño: Encontrado estId en localStorage: ${parsedEstId}`);
-              setEstId(parsedEstId); // Usar setEstId directamente, no setEstIdWithCache
-              estIdInitialized.current = true;
-              return parsedEstId;
-            }
-          }
+          // 🟢 NUEVO: Siempre consultar la API para obtener los estacionamientos válidos del usuario
+          let validEstIds: number[] = [];
 
-          // 🟢 PRIORIDAD 2: Si no hay en localStorage, consultar API (solo primera vez)
-          console.log(`🔍 No hay estId en localStorage, consultando API...`);
+          // Consultar si es dueño
           const ownerResponse = await fetch('/api/auth/get-parking-id');
-
           if (ownerResponse.ok) {
             const ownerData = await ownerResponse.json();
             if (ownerData && ownerData.has_parking && ownerData.est_id) {
               console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
-              console.log(`📝 Guardando primer estacionamiento en localStorage (primera vez): ${ownerData.est_id}`);
-              setEstIdWithCache(ownerData.est_id);
-              estIdInitialized.current = true; // 🟢 Marcar como inicializado
-              return ownerData.est_id;
+              validEstIds.push(ownerData.est_id);
+
+              // Si la respuesta incluye múltiples estacionamientos, agregarlos todos
+              if (ownerData.estacionamiento_ids && Array.isArray(ownerData.estacionamiento_ids)) {
+                validEstIds = [...new Set([...validEstIds, ...ownerData.estacionamiento_ids])];
+              }
             }
           }
 
           // Si no es dueño, verificar si es empleado asignado
-          console.log(`👷 Usuario no es dueño, verificando si es empleado...`);
-          const employeeResponse = await fetch('/api/auth/get-employee-parking');
+          if (validEstIds.length === 0) {
+            console.log(`👷 Usuario no es dueño, verificando si es empleado...`);
+            const employeeResponse = await fetch('/api/auth/get-employee-parking');
 
-          if (employeeResponse.ok) {
-            const employeeData = await employeeResponse.json();
-            if (employeeData.has_assignment && employeeData.est_id) {
-              console.log(`✅ Usuario es EMPLEADO asignado a estacionamiento: ${employeeData.est_id}`);
-              setEstIdWithCache(employeeData.est_id);
-              estIdInitialized.current = true; // 🟢 Marcar como inicializado
-              return employeeData.est_id;
+            if (employeeResponse.ok) {
+              const employeeData = await employeeResponse.json();
+              if (employeeData.has_assignment && employeeData.est_id) {
+                console.log(`✅ Usuario es EMPLEADO asignado a estacionamiento: ${employeeData.est_id}`);
+                validEstIds.push(employeeData.est_id);
+              }
             }
           }
 
-          // Si no es dueño ni empleado asignado
-          console.log(`⚠️ Usuario no tiene estacionamiento ni asignación`);
-          setEstId(null);
-          estIdInitialized.current = true; // 🟢 Marcar como inicializado (aunque sea null)
-          return null;
+          // Si no tiene ningún estacionamiento válido
+          if (validEstIds.length === 0) {
+            console.log(`⚠️ Usuario no tiene estacionamiento ni asignación`);
+            setEstId(null);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('parking_est_id');
+            }
+            estIdInitialized.current = true;
+            return null;
+          }
+
+          console.log(`📋 Estacionamientos válidos para el usuario: [${validEstIds.join(', ')}]`);
+
+          // 🟢 VALIDACIÓN: Verificar si el estId en caché es válido
+          let cachedEstId: number | null = null;
+
+          if (typeof window !== 'undefined') {
+            const savedEstId = localStorage.getItem('parking_est_id');
+            if (savedEstId) {
+              cachedEstId = parseInt(savedEstId);
+              console.log(`🔍 EstId en caché: ${cachedEstId}`);
+            }
+          }
+
+          // Si hay estId en caché Y es válido, usarlo
+          if (cachedEstId !== null && validEstIds.includes(cachedEstId)) {
+            console.log(`✅ EstId en caché ${cachedEstId} es válido, usando ese`);
+            setEstId(cachedEstId);
+            estIdInitialized.current = true;
+            return cachedEstId;
+          }
+
+          // Si el estId en caché no es válido, usar el primer estacionamiento válido
+          if (cachedEstId !== null && !validEstIds.includes(cachedEstId)) {
+            console.log(`⚠️ EstId en caché ${cachedEstId} NO es válido para este usuario`);
+            console.log(`🔄 Corrigiendo a estacionamiento válido: ${validEstIds[0]}`);
+          }
+
+          const correctEstId = validEstIds[0];
+          console.log(`📝 Guardando estacionamiento correcto en localStorage: ${correctEstId}`);
+          setEstIdWithCache(correctEstId);
+          estIdInitialized.current = true;
+          return correctEstId;
 
         } catch (error) {
           console.error(`❌ Error obteniendo estId:`, error);
           setEstId(null);
-          estIdInitialized.current = true; // Marcar como inicializado incluso con error
+          estIdInitialized.current = true;
           return null;
         }
       };

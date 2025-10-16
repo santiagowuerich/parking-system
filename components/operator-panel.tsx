@@ -601,6 +601,9 @@ export default function OperatorPanel({
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
               </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-orange-500"></div>Abonado
+              </span>
             </div>
             <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
               Actualizar
@@ -691,6 +694,26 @@ export default function OperatorPanel({
                                     </div>
                                     <div className="text-sm">
                                       <span className="font-medium">Tipo Vehículo:</span> {plaza.plantillas.catv_segmento}
+                                    </div>
+                                  </div>
+                                )}
+                                {plaza.pla_estado === 'Abonado' && plaza.abono && (
+                                  <div className="border-t pt-2 mt-2">
+                                    <div className="text-sm font-medium text-orange-600 mb-1">🎫 Abono Asignado</div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Titular:</span> {plaza.abono.abonado.abon_nombre} {plaza.abono.abonado.abon_apellido}
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">DNI:</span> {plaza.abono.abonado.abon_dni}
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Tipo:</span> {plaza.abono.abo_tipoabono}
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Inicio:</span> {new Date(plaza.abono.abo_fecha_inicio).toLocaleDateString('es-AR')}
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="font-medium">Fin:</span> {new Date(plaza.abono.abo_fecha_fin).toLocaleDateString('es-AR')}
                                     </div>
                                   </div>
                                 )}
