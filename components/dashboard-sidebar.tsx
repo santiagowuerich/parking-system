@@ -60,10 +60,22 @@ const employeeNavigationItems = [
             {
                 title: "Movimientos",
                 href: "/dashboard/movimientos"
-            },
+            }
+        ]
+    },
+    {
+        title: "Abonos",
+        href: "/dashboard/abonos",
+        icon: Calendar,
+        description: "Gestión de abonos",
+        subItems: [
             {
                 title: "Crear Abono",
                 href: "/dashboard/crear-abono"
+            },
+            {
+                title: "Gestión de Abonos",
+                href: "/dashboard/gestion-abonos"
             }
         ]
     },
