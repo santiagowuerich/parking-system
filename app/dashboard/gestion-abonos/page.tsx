@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
 
 interface Abono {
     abo_nro: number;
@@ -40,6 +41,7 @@ export default function GestionAbonosPage() {
     const [sortByExpiry, setSortByExpiry] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
+    const [abonoDialog, setAbonoDialog] = useState<any | null>(null);
 
     useEffect(() => {
         if (estId) {
@@ -126,135 +128,146 @@ export default function GestionAbonosPage() {
                             </div>
                         </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                        <div className="flex-1 w-full sm:w-auto">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                    placeholder="Buscar por DNI, correo..."
-                                    value={searchTerm}
-                                    onChange={(e) => {
-                                        setSearchTerm(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
-                            <Button
-                                variant={sortByExpiry ? "default" : "outline"}
-                                onClick={() => setSortByExpiry(!sortByExpiry)}
-                                className="flex-1 sm:flex-none"
-                            >
-                                {sortByExpiry ? "✓ " : ""}Ordenar por proximidad a vencer
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={cargarAbonos}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                )}
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                            <span className="ml-2 text-gray-600">Cargando abonos...</span>
-                        </div>
-                    ) : abonosPaginados.length === 0 ? (
-                        <Alert>
-                            <AlertDescription>
-                                {searchTerm ? 'No se encontraron abonos con ese criterio de búsqueda.' : 'No hay abonos activos en este estacionamiento.'}
-                            </AlertDescription>
-                        </Alert>
-                    ) : (
-                        <>
-                            <div className="rounded-md border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Conductor</TableHead>
-                                            <TableHead>DNI</TableHead>
-                                            <TableHead>Zona</TableHead>
-                                            <TableHead>Plaza</TableHead>
-                                            <TableHead>Tipo</TableHead>
-                                            <TableHead>Inicio</TableHead>
-                                            <TableHead>Vence</TableHead>
-                                            <TableHead>Restan</TableHead>
-                                            <TableHead>Aviso</TableHead>
-                                            <TableHead className="text-right">Acciones</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {abonosPaginados.map((abono) => (
-                                            <TableRow key={abono.abo_nro}>
-                                                <TableCell className="font-medium">
-                                                    {abono.conductor_nombre} {abono.conductor_apellido}
-                                                </TableCell>
-                                                <TableCell>{abono.conductor_dni}</TableCell>
-                                                <TableCell>{abono.zona}</TableCell>
-                                                <TableCell>{abono.pla_numero}</TableCell>
-                                                <TableCell>{getTipoAbono(abono.tipo_abono)}</TableCell>
-                                                <TableCell>{new Date(abono.fecha_inicio).toLocaleDateString('es-AR')}</TableCell>
-                                                <TableCell>{new Date(abono.fecha_fin).toLocaleDateString('es-AR')}</TableCell>
-                                                <TableCell>{abono.dias_restantes} días</TableCell>
-                                                <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex gap-2 justify-end">
-                                                        <Button variant="outline" size="sm">
-                                                            Ver detalle
-                                                        </Button>
-                                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                                                            Extender abono
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-
-                            {/* Paginación */}
-                            <div className="flex items-center justify-between mt-4">
-                                <p className="text-sm text-gray-600">
-                                    Mostrando {startIndex + 1}-{Math.min(endIndex, abonosOrdenados.length)} de {abonosOrdenados.length}
-                                </p>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        disabled={currentPage === 1}
-                                    >
-                                        <ChevronLeft className="h-4 w-4" />
-                                        Anterior
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={currentPage === totalPages}
-                                    >
-                                        Siguiente
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
+                        <Card>
+                            <CardHeader>
+                                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                                    <div className="flex-1 w-full sm:w-auto">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                            <Input
+                                                placeholder="Buscar por DNI, correo..."
+                                                value={searchTerm}
+                                                onChange={(e) => {
+                                                    setSearchTerm(e.target.value);
+                                                    setCurrentPage(1);
+                                                }}
+                                                className="pl-10"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 w-full sm:w-auto">
+                                        <Button
+                                            variant={sortByExpiry ? "default" : "outline"}
+                                            onClick={() => setSortByExpiry(!sortByExpiry)}
+                                            className="flex-1 sm:flex-none"
+                                        >
+                                            {sortByExpiry ? "✓ " : ""}Ordenar por proximidad a vencer
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={cargarAbonos}
+                                            disabled={loading}
+                                        >
+                                            {loading ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        </>
-                    )}
-                </CardContent>
-            </Card>
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                                        <span className="ml-2 text-gray-600">Cargando abonos...</span>
+                                    </div>
+                                ) : abonosPaginados.length === 0 ? (
+                                    <Alert>
+                                        <AlertDescription>
+                                            {searchTerm ? 'No se encontraron abonos con ese criterio de búsqueda.' : 'No hay abonos activos en este estacionamiento.'}
+                                        </AlertDescription>
+                                    </Alert>
+                                ) : (
+                                    <>
+                                        <div className="rounded-md border">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Conductor</TableHead>
+                                                        <TableHead>DNI</TableHead>
+                                                        <TableHead>Zona</TableHead>
+                                                        <TableHead>Plaza</TableHead>
+                                                        <TableHead>Tipo</TableHead>
+                                                        <TableHead>Inicio</TableHead>
+                                                        <TableHead>Vence</TableHead>
+                                                        <TableHead>Restan</TableHead>
+                                                        <TableHead>Aviso</TableHead>
+                                                        <TableHead className="text-right">Acciones</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {abonosPaginados.map((abono) => (
+                                                        <TableRow key={abono.abo_nro}>
+                                                            <TableCell className="font-medium">
+                                                                {abono.conductor_nombre} {abono.conductor_apellido}
+                                                            </TableCell>
+                                                            <TableCell>{abono.conductor_dni}</TableCell>
+                                                            <TableCell>{abono.zona}</TableCell>
+                                                            <TableCell>{abono.pla_numero}</TableCell>
+                                                            <TableCell>{getTipoAbono(abono.tipo_abono)}</TableCell>
+                                                            <TableCell>{new Date(abono.fecha_inicio).toLocaleDateString('es-AR')}</TableCell>
+                                                            <TableCell>{new Date(abono.fecha_fin).toLocaleDateString('es-AR')}</TableCell>
+                                                            <TableCell>{abono.dias_restantes} días</TableCell>
+                                                            <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className="flex gap-2 justify-end">
+                                                                    <Button variant="outline" size="sm">
+                                                                        Ver detalle
+                                                                    </Button>
+                                                                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setAbonoDialog({
+                                                                        abo_nro: abono.abo_nro,
+                                                                        titular: `${abono.conductor_nombre} ${abono.conductor_apellido}`,
+                                                                        tipoActual: getTipoAbono(abono.tipo_abono),
+                                                                        fechaFinActual: abono.fecha_fin,
+                                                                        zona: abono.zona,
+                                                                        codigo: `P${abono.pla_numero}`,
+                                                                        est_id: (typeof estId === 'number' ? estId : Number(estId)),
+                                                                        pla_numero: abono.pla_numero,
+                                                                        plantilla_id: 0
+                                                                    })}>
+                                                                        Extender abono
+                                                                    </Button>
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+
+                                        {/* Paginación */}
+                                        <div className="flex items-center justify-between mt-4">
+                                            <p className="text-sm text-gray-600">
+                                                Mostrando {startIndex + 1}-{Math.min(endIndex, abonosOrdenados.length)} de {abonosOrdenados.length}
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    Anterior
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={currentPage === totalPages}
+                                                >
+                                                    Siguiente
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                        <ExtenderAbonoDialog open={!!abonoDialog} onOpenChange={(v) => !v && setAbonoDialog(null)} abono={abonoDialog} />
                     </div>
                 </main>
             </div>

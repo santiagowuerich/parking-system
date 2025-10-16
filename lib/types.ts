@@ -245,6 +245,37 @@ export interface CrearConductorConAbonoRequestActualizado extends Omit<CrearCond
   };
 }
 
+// ===============================
+// TIPOS PARA EXTENSIÓN DE ABONOS
+// ===============================
+
+export type TipoExtension = 'mensual' | 'bimestral' | 'trimestral' | 'anual'
+
+export interface AbonoData {
+  abo_nro: number
+  titular: string
+  tipoActual: string
+  fechaFinActual: string
+  zona: string
+  codigo: string
+  est_id: number
+  pla_numero: number
+  plantilla_id: number
+}
+
+export interface ExtensionState {
+  tipoExtension: TipoExtension
+  cantidad: number
+  desde: string
+  nuevoVencimiento: string
+  metodoPago: 'efectivo' | 'tarjeta' | 'transferencia'
+  monto: number
+  nota: string
+  tarjeta: { numero: string; vencimiento: string; cvv: string }
+  loading: boolean
+  calculating: boolean
+}
+
 // Actualizar CrearConductorConAbonoResponse para incluir plaza asignada
 export interface CrearConductorConAbonoResponseActualizado extends Omit<CrearConductorConAbonoResponse, 'data'> {
   data: {
