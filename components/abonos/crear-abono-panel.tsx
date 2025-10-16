@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,16 +26,16 @@ interface CrearAbonoPanelProps {
     estacionamientoNombre: string;
 }
 
-type Paso = 'buscar' | 'datos-conductor' | 'configurar-abono' | 'seleccionar-plaza' | 'confirmacion-pago' | 'confirmacion';
+type Paso = 'datos-conductor' | 'configurar-abono' | 'seleccionar-plaza' | 'confirmacion-pago' | 'confirmacion';
 
 export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: CrearAbonoPanelProps) {
     // ========================================
     // ESTADO
     // ========================================
-    const [paso, setPaso] = useState<Paso>('buscar');
-    const [busqueda, setBusqueda] = useState('');
+    const [paso, setPaso] = useState<Paso>('datos-conductor');
     const [buscando, setBuscando] = useState(false);
     const [conductorExistente, setConductorExistente] = useState<ConductorConVehiculos | null>(null);
+    const [conductorEncontrado, setConductorEncontrado] = useState<boolean | null>(null); // null = no buscado, true = encontrado, false = no encontrado
 
     // Datos del nuevo conductor
     const [nombre, setNombre] = useState('');
@@ -48,6 +48,13 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const [vehiculos, setVehiculos] = useState<VehiculoFormData[]>([
         { patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }
     ]);
+
+    // Formulario de nuevo vehículo
+    const [nuevoVehiculoPatente, setNuevoVehiculoPatente] = useState('');
+    const [nuevoVehiculoTipo, setNuevoVehiculoTipo] = useState('Auto');
+    const [nuevoVehiculoMarca, setNuevoVehiculoMarca] = useState('');
+    const [nuevoVehiculoModelo, setNuevoVehiculoModelo] = useState('');
+    const [nuevoVehiculoColor, setNuevoVehiculoColor] = useState('');
 
     // Configuración del abono
     const [tipoAbono, setTipoAbono] = useState<TipoAbono>('mensual');
@@ -70,26 +77,27 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const [paymentLoading, setPaymentLoading] = useState(false);
 
     // ========================================
-    // FUNCIONES DE BÚSQUEDA
+    // FUNCIONES DE BÚSQUEDA AUTOMÁTICA
     // ========================================
-    const buscarConductor = async () => {
-        if (!busqueda.trim()) {
-            setError('Ingrese un email o DNI');
+    const buscarConductorAutomatico = async (query: string) => {
+        if (!query.trim()) {
+            setConductorExistente(null);
+            setConductorEncontrado(null);
             return;
         }
 
         setBuscando(true);
-        setError('');
 
         try {
-            const response = await fetch(`/api/conductor/search?query=${encodeURIComponent(busqueda)}`);
+            const response = await fetch(`/api/conductor/search?query=${encodeURIComponent(query)}`);
             const data = await response.json();
 
             if (data.success && data.data) {
                 // Conductor encontrado
                 setConductorExistente(data.data);
+                setConductorEncontrado(true);
 
-                // Pre-llenar datos para vista previa
+                // Pre-llenar datos automáticamente
                 setNombre(data.data.usu_nom);
                 setApellido(data.data.usu_ape);
                 setEmail(data.data.usu_email);
@@ -106,37 +114,82 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         color: v.veh_color || ''
                     }));
                     setVehiculos(vehiculosFormato);
+                } else {
+                    // Si no tiene vehículos, resetear a uno vacío
+                    setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
                 }
-
-                setPaso('configurar-abono');
             } else {
-                // Conductor no encontrado - ir a formulario de creación
+                // Conductor no encontrado
                 setConductorExistente(null);
-                setNombre('');
-                setApellido('');
-                setEmail(busqueda.includes('@') ? busqueda : '');
-                setTelefono('');
-                setDni(busqueda.match(/^\d{8}$/) ? busqueda : '');
-                setPaso('datos-conductor');
+                setConductorEncontrado(false);
             }
         } catch (err) {
             console.error('Error buscando conductor:', err);
-            setError('Error al buscar conductor');
+            setConductorEncontrado(null);
         } finally {
             setBuscando(false);
         }
     };
 
+    // Debounce para la búsqueda automática
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            // Solo buscar si el DNI tiene 8 dígitos o si el email tiene formato válido
+            const dniValido = dni.length === 8 && /^\d{8}$/.test(dni);
+            const emailValido = email.includes('@') && email.includes('.');
+
+            if (dniValido) {
+                buscarConductorAutomatico(dni);
+            } else if (emailValido) {
+                buscarConductorAutomatico(email);
+            } else {
+                setConductorEncontrado(null);
+                setConductorExistente(null);
+            }
+        }, 500); // 500ms de debounce
+
+        return () => clearTimeout(timer);
+    }, [dni, email]);
+
     // ========================================
     // FUNCIONES DE VEHÍCULOS
     // ========================================
-    const agregarVehiculo = () => {
-        setVehiculos([...vehiculos, { patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
+    const agregarVehiculoDesdeFormulario = () => {
+        if (!nuevoVehiculoPatente || !nuevoVehiculoMarca || !nuevoVehiculoModelo || !nuevoVehiculoColor) {
+            setError('Complete todos los campos del vehículo');
+            return;
+        }
+
+        const nuevoVehiculo: VehiculoFormData = {
+            patente: nuevoVehiculoPatente.toUpperCase(),
+            tipo: nuevoVehiculoTipo,
+            marca: nuevoVehiculoMarca,
+            modelo: nuevoVehiculoModelo,
+            color: nuevoVehiculoColor
+        };
+
+        // Si el primer vehículo está vacío, reemplazarlo
+        if (vehiculos.length === 1 && vehiculos[0].patente === '') {
+            setVehiculos([nuevoVehiculo]);
+        } else {
+            setVehiculos([...vehiculos, nuevoVehiculo]);
+        }
+
+        // Limpiar formulario
+        setNuevoVehiculoPatente('');
+        setNuevoVehiculoTipo('Auto');
+        setNuevoVehiculoMarca('');
+        setNuevoVehiculoModelo('');
+        setNuevoVehiculoColor('');
+        setError('');
     };
 
     const eliminarVehiculo = (index: number) => {
         if (vehiculos.length > 1) {
             setVehiculos(vehiculos.filter((_, i) => i !== index));
+        } else {
+            // Si es el último vehículo, resetear a uno vacío
+            setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
         }
     };
 
@@ -206,14 +259,19 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     // REINICIAR FORMULARIO
     // ========================================
     const reiniciar = () => {
-        setBusqueda('');
         setConductorExistente(null);
+        setConductorEncontrado(null);
         setNombre('');
         setApellido('');
         setEmail('');
         setTelefono('');
         setDni('');
         setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
+        setNuevoVehiculoPatente('');
+        setNuevoVehiculoTipo('Auto');
+        setNuevoVehiculoMarca('');
+        setNuevoVehiculoModelo('');
+        setNuevoVehiculoColor('');
         setTipoAbono('mensual');
         setFechaInicio(new Date().toISOString().split('T')[0]);
         setError('');
@@ -225,7 +283,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setPaymentData(null);
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
-        setPaso('buscar');
+        setPaso('datos-conductor');
     };
 
     // ========================================
@@ -326,43 +384,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
             {/* ============ COLUMNA IZQUIERDA: FORMULARIO ============ */}
             <div className="lg:col-span-2 space-y-6">
 
-                {/* PASO 1: BÚSQUEDA */}
-                {paso === 'buscar' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Search className="w-5 h-5" />
-                                Buscar Conductor
-                            </CardTitle>
-                            <CardDescription>
-                                Busca un conductor existente por email o DNI
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex gap-2">
-                                <Input
-                                    placeholder="Email o DNI"
-                                    value={busqueda}
-                                    onChange={(e) => setBusqueda(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && buscarConductor()}
-                                />
-                                <Button onClick={buscarConductor} disabled={buscando}>
-                                    {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                                    {buscando ? 'Buscando...' : 'Buscar'}
-                                </Button>
-                            </div>
-
-                            {error && (
-                                <Alert variant="destructive">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertDescription>{error}</AlertDescription>
-                                </Alert>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* PASO 2: DATOS DEL CONDUCTOR */}
+                {/* PASO 1: DATOS DEL CONDUCTOR (con búsqueda automática) */}
                 {paso === 'datos-conductor' && (
                     <>
                         <Card>
@@ -372,7 +394,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                     Datos del Conductor
                                 </CardTitle>
                                 <CardDescription>
-                                    Ingresa los datos del nuevo conductor
+                                    Cargá los datos del conductor. El sistema verificará si ya existe y, de ser así, cargará sus vehículos automáticamente.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -382,9 +404,15 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         <Input
                                             id="dni"
                                             value={dni}
-                                            onChange={(e) => setDni(e.target.value.replace(/\D/g, ''))}
-                                            placeholder="12345678"
+                                            onChange={(e) => {
+                                                setDni(e.target.value.replace(/\D/g, ''));
+                                                // Resetear búsqueda cuando cambia manualmente
+                                                if (!conductorExistente) {
+                                                    setConductorEncontrado(null);
+                                                }
+                                            }}
                                             maxLength={8}
+                                            disabled={conductorExistente !== null}
                                         />
                                     </div>
                                     <div>
@@ -393,11 +421,47 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             id="email"
                                             type="email"
                                             value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            placeholder="juan@email.com"
+                                            onChange={(e) => {
+                                                setEmail(e.target.value);
+                                                // Resetear búsqueda cuando cambia manualmente
+                                                if (!conductorExistente) {
+                                                    setConductorEncontrado(null);
+                                                }
+                                            }}
+                                            disabled={conductorExistente !== null}
                                         />
                                     </div>
                                 </div>
+
+                                {/* Mensaje de búsqueda */}
+                                {buscando && (
+                                    <Alert className="bg-blue-50 border-blue-200">
+                                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                        <AlertDescription className="text-blue-800">
+                                            Buscando conductor...
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {/* Mensaje: Conductor encontrado */}
+                                {!buscando && conductorEncontrado === true && (
+                                    <Alert className="bg-green-50 border-green-200">
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                        <AlertDescription className="text-green-800">
+                                            <strong>Conductor Encontrado - {nombre} {apellido}</strong>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {/* Mensaje: Conductor no encontrado */}
+                                {!buscando && conductorEncontrado === false && (
+                                    <Alert className="bg-orange-50 border-orange-200">
+                                        <AlertCircle className="h-4 w-4 text-orange-600" />
+                                        <AlertDescription className="text-orange-800">
+                                            Conductor no encontrado. Se creará un nuevo registro.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -406,7 +470,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             id="nombre"
                                             value={nombre}
                                             onChange={(e) => setNombre(e.target.value)}
-                                            placeholder="Juan"
+                                            disabled={conductorExistente !== null}
                                         />
                                     </div>
                                     <div>
@@ -415,7 +479,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             id="apellido"
                                             value={apellido}
                                             onChange={(e) => setApellido(e.target.value)}
-                                            placeholder="Pérez"
+                                            disabled={conductorExistente !== null}
                                         />
                                     </div>
                                 </div>
@@ -426,7 +490,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         id="telefono"
                                         value={telefono}
                                         onChange={(e) => setTelefono(e.target.value)}
-                                        placeholder="1234567890"
+                                        disabled={conductorExistente !== null}
                                     />
                                 </div>
                             </CardContent>
@@ -434,30 +498,85 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
                         <Card>
                             <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Car className="w-5 h-5" />
-                                            Vehículo (manual)
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Registra al menos 1 vehículo
-                                        </CardDescription>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Car className="w-5 h-5" />
+                                    Vehículo
+                                </CardTitle>
+                                <CardDescription>
+                                    Registra al menos 1 vehículo
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {/* Formulario para agregar vehículo */}
+                                <div className="p-4 border rounded-lg space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <Label>Patente *</Label>
+                                            <Input
+                                                value={nuevoVehiculoPatente}
+                                                onChange={(e) => setNuevoVehiculoPatente(e.target.value.toUpperCase())}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Tipo *</Label>
+                                            <Select value={nuevoVehiculoTipo} onValueChange={setNuevoVehiculoTipo}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Auto">Auto</SelectItem>
+                                                    <SelectItem value="Moto">Moto</SelectItem>
+                                                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
-                                    {vehiculos.length < 5 && (
-                                        <Button onClick={agregarVehiculo} variant="outline" size="sm">
+
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <Label>Marca *</Label>
+                                            <Input
+                                                value={nuevoVehiculoMarca}
+                                                onChange={(e) => setNuevoVehiculoMarca(e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Modelo *</Label>
+                                            <Input
+                                                value={nuevoVehiculoModelo}
+                                                onChange={(e) => setNuevoVehiculoModelo(e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Color *</Label>
+                                            <Input
+                                                value={nuevoVehiculoColor}
+                                                onChange={(e) => setNuevoVehiculoColor(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <Button
+                                            onClick={agregarVehiculoDesdeFormulario}
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={vehiculos.length >= 5 && !(vehiculos.length === 1 && vehiculos[0].patente === '')}
+                                        >
                                             <Plus className="w-4 h-4 mr-1" />
                                             Agregar
                                         </Button>
-                                    )}
+                                    </div>
                                 </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {vehiculos.map((vehiculo, index) => (
-                                    <div key={index} className="p-4 border rounded-lg space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <h4 className="font-semibold">Vehículo {index + 1}</h4>
-                                            {vehiculos.length > 1 && (
+
+                                {/* Lista de vehículos agregados */}
+                                {vehiculos.length > 0 && vehiculos[0].patente !== '' && (
+                                    <div className="space-y-2">
+                                        {vehiculos.map((vehiculo, index) => (
+                                            <div key={index} className="p-3 bg-gray-50 border rounded-lg flex justify-between items-center">
+                                                <div className="text-sm">
+                                                    <p className="font-semibold">{vehiculo.patente} • {vehiculo.tipo} • {vehiculo.marca} {vehiculo.modelo} • {vehiculo.color}</p>
+                                                </div>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -465,64 +584,10 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                                 >
                                                     <Trash2 className="w-4 h-4 text-red-500" />
                                                 </Button>
-                                            )}
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <Label>Patente *</Label>
-                                                <Input
-                                                    value={vehiculo.patente}
-                                                    onChange={(e) => actualizarVehiculo(index, 'patente', e.target.value.toUpperCase())}
-                                                    placeholder="ABC123"
-                                                />
                                             </div>
-                                            <div>
-                                                <Label>Tipo *</Label>
-                                                <Select
-                                                    value={vehiculo.tipo}
-                                                    onValueChange={(valor: any) => actualizarVehiculo(index, 'tipo', valor)}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Auto">Auto</SelectItem>
-                                                        <SelectItem value="Moto">Moto</SelectItem>
-                                                        <SelectItem value="Camioneta">Camioneta</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div>
-                                                <Label>Marca *</Label>
-                                                <Input
-                                                    value={vehiculo.marca}
-                                                    onChange={(e) => actualizarVehiculo(index, 'marca', e.target.value)}
-                                                    placeholder="Toyota"
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label>Modelo *</Label>
-                                                <Input
-                                                    value={vehiculo.modelo}
-                                                    onChange={(e) => actualizarVehiculo(index, 'modelo', e.target.value)}
-                                                    placeholder="Corolla"
-                                                />
-                                            </div>
-                                            <div>
-                                                <Label>Color *</Label>
-                                                <Input
-                                                    value={vehiculo.color}
-                                                    onChange={(e) => actualizarVehiculo(index, 'color', e.target.value)}
-                                                    placeholder="Rojo"
-                                                />
-                                            </div>
-                                        </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </CardContent>
                         </Card>
 
@@ -593,7 +658,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         )}
 
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setPaso(conductorExistente ? 'buscar' : 'datos-conductor')}>
+                            <Button variant="outline" onClick={() => setPaso('datos-conductor')}>
                                 Atrás
                             </Button>
                             <Button onClick={crearAbono} disabled={creando}>
@@ -743,13 +808,13 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-sm">
-                        {paso === 'buscar' && (
+                        {!nombre && !conductorExistente && (
                             <div className="text-center py-8 text-gray-400">
                                 <p>Busca o crea un conductor para comenzar</p>
                             </div>
                         )}
 
-                        {paso !== 'buscar' && (
+                        {(nombre || conductorExistente) && (
                             <>
                                 <div className="pb-3 border-b">
                                     <p className="text-xs text-gray-600">Estacionamiento</p>
