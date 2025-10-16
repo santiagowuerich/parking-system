@@ -949,6 +949,7 @@ export default function OperadorSimplePage() {
             case 'Libre': return 'bg-green-500';
             case 'Ocupada': return 'bg-red-500';
             case 'Reservada': return 'bg-yellow-500';
+            case 'Abonado': return 'bg-orange-500';
             case 'Mantenimiento': return 'bg-gray-500';
             default: return 'bg-gray-400';
         }
@@ -959,6 +960,7 @@ export default function OperadorSimplePage() {
             case 'Libre': return '🟢';
             case 'Ocupada': return '🔴';
             case 'Reservada': return '🟡';
+            case 'Abonado': return '🟠';
             case 'Mantenimiento': return '⚫';
             default: return '❓';
         }

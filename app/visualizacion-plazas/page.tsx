@@ -23,6 +23,20 @@ interface Plaza {
         nombre_plantilla: string;
         catv_segmento: string;
     } | null;
+    abono?: {
+        abo_nro: number;
+        pla_numero: number;
+        est_id: number;
+        abo_fecha_inicio: string;
+        abo_fecha_fin: string;
+        abo_tipoabono: string;
+        abonado: {
+            abon_id: number;
+            abon_nombre: string;
+            abon_apellido: string;
+            abon_dni: string;
+        };
+    } | null;
 }
 
 interface Zona {
@@ -112,6 +126,7 @@ export default function VisualizacionPlazasPage() {
             case 'Libre': return 'bg-green-500';
             case 'Ocupada': return 'bg-red-500';
             case 'Reservada': return 'bg-yellow-500';
+            case 'Abonado': return 'bg-orange-500';
             case 'Mantenimiento': return 'bg-gray-500';
             default: return 'bg-gray-400';
         }
@@ -122,6 +137,7 @@ export default function VisualizacionPlazasPage() {
             case 'Libre': return '🟢';
             case 'Ocupada': return '🔴';
             case 'Reservada': return '🟡';
+            case 'Abonado': return '🟠';
             case 'Mantenimiento': return '⚫';
             default: return '❓';
         }
@@ -344,6 +360,7 @@ export default function VisualizacionPlazasPage() {
                                                 libres: plazasZona.filter((p: Plaza) => p.pla_estado === 'Libre').length,
                                                 ocupadas: plazasZona.filter((p: Plaza) => p.pla_estado === 'Ocupada').length,
                                                 reservadas: plazasZona.filter((p: Plaza) => p.pla_estado === 'Reservada').length,
+                                                abonadas: plazasZona.filter((p: Plaza) => p.pla_estado === 'Abonado').length,
                                                 conPlantilla: plazasZona.filter((p: Plaza) => p.plantillas).length,
                                                 sinPlantilla: plazasZona.filter((p: Plaza) => !p.plantillas).length
                                             };
@@ -402,6 +419,26 @@ export default function VisualizacionPlazasPage() {
                                                                                     <div className="text-sm">
                                                                                         <span className="font-medium">Zona:</span> {plaza.pla_zona || 'Sin zona'}
                                                                                     </div>
+                                                                                    {plaza.pla_estado === 'Abonado' && plaza.abono && (
+                                                                                        <div className="border-t pt-2 mt-2">
+                                                                                            <div className="text-sm font-medium text-orange-600 mb-1">🎫 Abono Asignado</div>
+                                                                                            <div className="text-sm">
+                                                                                                <span className="font-medium">Titular:</span> {plaza.abono.abonado.abon_nombre} {plaza.abono.abonado.abon_apellido}
+                                                                                            </div>
+                                                                                            <div className="text-sm">
+                                                                                                <span className="font-medium">DNI:</span> {plaza.abono.abonado.abon_dni}
+                                                                                            </div>
+                                                                                            <div className="text-sm">
+                                                                                                <span className="font-medium">Tipo:</span> {plaza.abono.abo_tipoabono}
+                                                                                            </div>
+                                                                                            <div className="text-sm">
+                                                                                                <span className="font-medium">Inicio:</span> {new Date(plaza.abono.abo_fecha_inicio).toLocaleDateString('es-AR')}
+                                                                                            </div>
+                                                                                            <div className="text-sm">
+                                                                                                <span className="font-medium">Fin:</span> {new Date(plaza.abono.abo_fecha_fin).toLocaleDateString('es-AR')}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
                                                                                     {plaza.plantillas && (
                                                                                         <div className="border-t pt-2 mt-2">
                                                                                             <div className="text-sm font-medium text-blue-600 mb-1">📋 Plantilla Asignada</div>
@@ -423,7 +460,7 @@ export default function VisualizacionPlazasPage() {
 
                                                         {/* Información adicional de la zona */}
                                                         <div className="mt-4 pt-4 border-t">
-                                                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                                                            <div className="grid grid-cols-2 md:grid-cols-7 gap-4 text-sm">
                                                                 <div>
                                                                     <span className="font-medium">Total:</span> {estadisticasZona.total}
                                                                 </div>
@@ -435,6 +472,9 @@ export default function VisualizacionPlazasPage() {
                                                                 </div>
                                                                 <div>
                                                                     <span className="font-medium text-yellow-600">Reservadas:</span> {estadisticasZona.reservadas}
+                                                                </div>
+                                                                <div>
+                                                                    <span className="font-medium text-orange-600">Abonadas:</span> {estadisticasZona.abonadas}
                                                                 </div>
                                                                 <div>
                                                                     <span className="font-medium text-blue-600">Con Plantilla:</span> {estadisticasZona.conPlantilla}
