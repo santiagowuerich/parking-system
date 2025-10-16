@@ -57,11 +57,14 @@ export async function GET(request: NextRequest) {
 
         console.log(`✅ Usuario ${userEmail} tiene asignación activa al estacionamiento: ${asignacionData.est_id}`);
 
+        // El join con .single() devuelve el objeto relacionado directamente, no como array
+        const estacionamiento = asignacionData.estacionamientos as any;
+
         return NextResponse.json({
             has_assignment: true,
             est_id: asignacionData.est_id,
-            est_nombre: asignacionData.estacionamientos?.[0]?.est_nombre || 'Sin nombre',
-            est_locali: asignacionData.estacionamientos?.[0]?.est_locali || 'Sin localidad',
+            est_nombre: estacionamiento?.est_nombre || 'Sin nombre',
+            est_locali: estacionamiento?.est_locali || 'Sin localidad',
             fecha_asignacion: asignacionData.fecha_asignacion,
             usuario_id: usuarioData.usu_id
         });

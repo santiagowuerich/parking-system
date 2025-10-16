@@ -26,7 +26,7 @@ interface CrearAbonoPanelProps {
     estacionamientoNombre: string;
 }
 
-type Paso = 'datos-conductor' | 'configurar-abono' | 'seleccionar-plaza' | 'confirmacion-pago' | 'confirmacion';
+type Paso = 'datos-conductor' | 'confirmacion-pago' | 'confirmacion';
 
 export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: CrearAbonoPanelProps) {
     // ========================================
@@ -58,6 +58,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
     // Configuración del abono
     const [tipoAbono, setTipoAbono] = useState<TipoAbono>('mensual');
+    const [cantidadDuracion, setCantidadDuracion] = useState<number>(1);
     const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().split('T')[0]);
 
     // Estado de la UI
@@ -206,11 +207,17 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         const config = CONFIGURACIONES_ABONOS[tipoAbono];
         const inicio = new Date(fechaInicio);
         const fin = new Date(inicio);
-        fin.setMonth(fin.getMonth() + config.duracionMeses);
+
+        if (config.unidad === 'semanas') {
+            fin.setDate(fin.getDate() + (cantidadDuracion * 7));
+        } else { // meses
+            fin.setMonth(fin.getMonth() + cantidadDuracion);
+        }
+
         return fin.toISOString().split('T')[0];
     };
 
-    const precioTotal = CONFIGURACIONES_ABONOS[tipoAbono].precioBase;
+    const precioTotal = CONFIGURACIONES_ABONOS[tipoAbono].precioUnitario * cantidadDuracion;
 
     // ========================================
     // VALIDACIONES
@@ -240,20 +247,6 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         return null;
     };
 
-    // ========================================
-    // CREAR ABONO
-    // ========================================
-    const crearAbono = async () => {
-        // Validar formulario
-        const errorValidacion = validarFormulario();
-        if (errorValidacion) {
-            setError(errorValidacion);
-            return;
-        }
-
-        // Ir al paso de selección de plaza
-        setPaso('seleccionar-plaza');
-    };
 
     // ========================================
     // REINICIAR FORMULARIO
@@ -273,6 +266,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setNuevoVehiculoModelo('');
         setNuevoVehiculoColor('');
         setTipoAbono('mensual');
+        setCantidadDuracion(1);
         setFechaInicio(new Date().toISOString().split('T')[0]);
         setError('');
         setAbonoCreado(null);
@@ -292,7 +286,8 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const handleSelectPlaza = (plaza: PlazaInfo) => {
         setPlazaSeleccionada(plaza);
         setShowZonaPlazaModal(false);
-        setPaso('confirmacion-pago');
+        // No cambiar de paso aquí, solo cerrar el modal
+        // El flujo continuará desde donde se abrió el modal
     };
 
     // ========================================
@@ -327,37 +322,65 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setError('');
 
         try {
-            const requestBody: CrearConductorConAbonoRequest = {
-                conductor: {
-                    nombre,
-                    apellido,
-                    email,
-                    telefono,
-                    dni
-                },
-                vehiculos: vehiculos.map(v => ({
-                    ...v,
-                    patente: v.patente.toUpperCase()
-                })),
-                abono: {
-                    est_id: estacionamientoId,
-                    tipoAbono,
-                    fechaInicio,
-                    fechaFin: calcularFechaFin(),
-                    plaza: {
-                        pla_numero: plazaSeleccionada.pla_numero,
-                        est_id: plazaSeleccionada.est_id
+            let response;
+            let requestBody;
+
+            if (conductorExistente) {
+                // CONDUCTOR YA EXISTE - Usar endpoint para conductor existente
+                requestBody = {
+                    conductor_id: conductorExistente.con_id, // ← CORREGIDO: era usu_id
+                    vehiculos: [], // Los vehículos ya están registrados
+                    abono: {
+                        est_id: estacionamientoId,
+                        tipoAbono,
+                        fechaInicio,
+                        fechaFin: calcularFechaFin(),
+                        plaza: {
+                            pla_numero: plazaSeleccionada.pla_numero,
+                            est_id: plazaSeleccionada.est_id
+                        }
                     }
-                }
-            };
+                };
 
-            const response = await fetch('/api/abonos/create-conductor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
+                response = await fetch('/api/abonos/create-for-existing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+            } else {
+                // CONDUCTOR NUEVO - Usar endpoint original
+                requestBody = {
+                    conductor: {
+                        nombre,
+                        apellido,
+                        email,
+                        telefono,
+                        dni
+                    },
+                    vehiculos: vehiculos.map(v => ({
+                        ...v,
+                        patente: v.patente.toUpperCase()
+                    })),
+                    abono: {
+                        est_id: estacionamientoId,
+                        tipoAbono,
+                        fechaInicio,
+                        fechaFin: calcularFechaFin(),
+                        plaza: {
+                            pla_numero: plazaSeleccionada.pla_numero,
+                            est_id: plazaSeleccionada.est_id
+                        }
+                    }
+                };
 
-            const data: CrearConductorConAbonoResponse = await response.json();
+                response = await fetch('/api/abonos/create-conductor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+            }
+
+            const data = await response.json();
 
             if (data.success && data.data) {
                 setAbonoCreado({
@@ -591,20 +614,41 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </CardContent>
                         </Card>
 
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={reiniciar}>
-                                Cancelar
-                            </Button>
-                            <Button onClick={() => setPaso('configurar-abono')}>
-                                Continuar
-                            </Button>
-                        </div>
-                    </>
-                )}
+                        {/* Selección de plaza */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <MapPin className="w-5 h-5" />
+                                    Plaza
+                                </CardTitle>
+                                <CardDescription>
+                                    Selecciona la plaza para este abono
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {plazaSeleccionada ? (
+                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-sm font-semibold text-blue-900">Plaza seleccionada</p>
+                                                <p className="text-sm text-blue-800 mt-1">Zona {plazaSeleccionada.zona || 'A'} - Nº {plazaSeleccionada.pla_numero}</p>
+                                                <p className="text-xs text-blue-600 mt-1">Tipo: {plazaSeleccionada.catv_segmento}</p>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => setShowZonaPlazaModal(true)}>
+                                                Cambiar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Button onClick={() => setShowZonaPlazaModal(true)} className="w-full">
+                                        <MapPin className="w-4 h-4 mr-2" />
+                                        Seleccionar Plaza
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                {/* PASO 3: CONFIGURAR ABONO */}
-                {paso === 'configurar-abono' && (
-                    <>
+                        {/* Configuración del abono */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
@@ -616,20 +660,36 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div>
-                                    <Label htmlFor="tipoAbono">Tipo de Abono</Label>
-                                    <Select value={tipoAbono} onValueChange={(v: any) => setTipoAbono(v)}>
-                                        <SelectTrigger id="tipoAbono">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {Object.entries(CONFIGURACIONES_ABONOS).map(([key, config]) => (
-                                                <SelectItem key={key} value={key}>
-                                                    {config.descripcion}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="tipoAbono">Tipo de abono y duración</Label>
+                                        <Select value={tipoAbono} onValueChange={(v: any) => setTipoAbono(v)}>
+                                            <SelectTrigger id="tipoAbono">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {Object.entries(CONFIGURACIONES_ABONOS).map(([key, config]) => (
+                                                    <SelectItem key={key} value={key}>
+                                                        {config.descripcion}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="cantidadDuracion">
+                                            Cantidad ({CONFIGURACIONES_ABONOS[tipoAbono].unidad})
+                                        </Label>
+                                        <Input
+                                            id="cantidadDuracion"
+                                            type="number"
+                                            min="1"
+                                            max="52"
+                                            value={cantidadDuracion}
+                                            onChange={(e) => setCantidadDuracion(Math.max(1, parseInt(e.target.value) || 1))}
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
@@ -642,9 +702,15 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                     />
                                 </div>
 
-                                <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                                    <p className="text-sm text-gray-600">
+                                        <strong>Duración:</strong> {cantidadDuracion} {CONFIGURACIONES_ABONOS[tipoAbono].unidad}
+                                    </p>
                                     <p className="text-sm text-gray-600">
                                         <strong>Fecha de fin:</strong> {calcularFechaFin()}
+                                    </p>
+                                    <p className="text-lg font-bold text-blue-600">
+                                        Total: ${precioTotal.toLocaleString('es-AR')}
                                     </p>
                                 </div>
                             </CardContent>
@@ -658,59 +724,40 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         )}
 
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setPaso('datos-conductor')}>
-                                Atrás
+                            <Button variant="outline" onClick={reiniciar}>
+                                Cancelar
                             </Button>
-                            <Button onClick={crearAbono} disabled={creando}>
-                                {creando ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                                {creando ? 'Creando...' : 'Seleccionar Plaza'}
+                            <Button
+                                onClick={() => {
+                                    // Validar que haya al menos un vehículo con datos
+                                    if (!vehiculos[0]?.patente) {
+                                        setError('Debes agregar al menos un vehículo');
+                                        return;
+                                    }
+                                    // Validar que haya una plaza seleccionada
+                                    if (!plazaSeleccionada) {
+                                        setError('Debes seleccionar una plaza');
+                                        return;
+                                    }
+                                    // Validar formulario completo
+                                    const errorValidacion = validarFormulario();
+                                    if (errorValidacion) {
+                                        setError(errorValidacion);
+                                        return;
+                                    }
+                                    // Ir directo a confirmación de pago
+                                    setError('');
+                                    setPaso('confirmacion-pago');
+                                }}
+                                disabled={!plazaSeleccionada || !vehiculos[0]?.patente}
+                            >
+                                Continuar a Pago
                             </Button>
                         </div>
                     </>
                 )}
 
-                {/* PASO 4: SELECCIONAR PLAZA */}
-                {paso === 'seleccionar-plaza' && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <MapPin className="w-5 h-5" />
-                                Seleccionar Plaza
-                            </CardTitle>
-                            <CardDescription>
-                                Elige una plaza disponible para el abono
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="p-4 border rounded-lg bg-gray-50">
-                                <p className="text-sm text-gray-600 mb-2">Estacionamiento:</p>
-                                <p className="font-semibold">{estacionamientoNombre}</p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => setPaso('configurar-abono')}>
-                                    Atrás
-                                </Button>
-                                <Button onClick={() => setShowZonaPlazaModal(true)}>
-                                    <MapPin className="w-4 h-4 mr-2" />
-                                    Elegir Plaza
-                                </Button>
-                            </div>
-
-                            {plazaSeleccionada && (
-                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <h4 className="font-semibold text-blue-900 mb-2">Plaza Seleccionada</h4>
-                                    <div className="text-sm text-blue-800">
-                                        <p><strong>Número:</strong> {plazaSeleccionada.pla_numero}</p>
-                                        <p><strong>Tipo:</strong> {plazaSeleccionada.catv_segmento}</p>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* PASO 5: CONFIRMACIÓN DE PAGO */}
+                {/* PASO 2: CONFIRMACIÓN DE PAGO */}
                 {paso === 'confirmacion-pago' && (
                     <Card>
                         <CardHeader>
@@ -742,7 +789,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             )}
 
                             <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => setPaso('seleccionar-plaza')}>
+                                <Button variant="outline" onClick={() => setPaso('datos-conductor')}>
                                     Atrás
                                 </Button>
                                 <Button onClick={() => setShowPaymentSelector(true)} disabled={creando}>
@@ -775,14 +822,17 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                 <p><strong>Método de Pago:</strong> {abonoCreado.metodoPago}</p>
                                 <p><strong>Total:</strong> ${precioTotal.toLocaleString('es-AR')}</p>
 
-                                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <p className="text-xs text-blue-800">
-                                        <strong>🔑 Credenciales de acceso:</strong><br/>
-                                        El conductor puede iniciar sesión con:<br/>
-                                        Email: {email}<br/>
-                                        Contraseña inicial: <strong>{dni}</strong>
-                                    </p>
-                                </div>
+                                {/* Solo mostrar credenciales si es un CONDUCTOR NUEVO */}
+                                {!conductorExistente && (
+                                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <p className="text-xs text-blue-800">
+                                            <strong>🔑 Credenciales de acceso:</strong><br/>
+                                            El conductor puede iniciar sesión con:<br/>
+                                            Email: {email}<br/>
+                                            Contraseña inicial: <strong>{dni}</strong>
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex gap-2">
@@ -841,27 +891,31 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                     </div>
                                 )}
 
-                                {(paso === 'configurar-abono' || paso === 'confirmacion') && (
-                                    <>
-                                        <div className="pb-3 border-b">
-                                            <p className="text-xs text-gray-600">Tipo de Abono</p>
-                                            <p className="font-semibold">{CONFIGURACIONES_ABONOS[tipoAbono].descripcion}</p>
-                                        </div>
-
-                                        <div className="pb-3 border-b">
-                                            <p className="text-xs text-gray-600">Período</p>
-                                            <p className="text-xs">{fechaInicio}</p>
-                                            <p className="text-xs">{calcularFechaFin()}</p>
-                                        </div>
-
-                                        <div className="pt-3 bg-blue-50 p-3 rounded-lg">
-                                            <p className="text-xs text-gray-600">Total</p>
-                                            <p className="text-lg font-bold text-blue-600">
-                                                ${precioTotal.toLocaleString('es-AR')}
-                                            </p>
-                                        </div>
-                                    </>
+                                {plazaSeleccionada && (
+                                    <div className="pb-3 border-b">
+                                        <p className="text-xs text-gray-600">Plaza</p>
+                                        <p className="font-semibold">Nº {plazaSeleccionada.pla_numero}</p>
+                                        <p className="text-xs text-gray-600">Zona {plazaSeleccionada.zona || 'A'}</p>
+                                    </div>
                                 )}
+
+                                <div className="pb-3 border-b">
+                                    <p className="text-xs text-gray-600">Tipo de Abono</p>
+                                    <p className="font-semibold">{CONFIGURACIONES_ABONOS[tipoAbono].descripcion}</p>
+                                </div>
+
+                                <div className="pb-3 border-b">
+                                    <p className="text-xs text-gray-600">Período</p>
+                                    <p className="text-xs">{fechaInicio}</p>
+                                    <p className="text-xs">{calcularFechaFin()}</p>
+                                </div>
+
+                                <div className="pt-3 bg-blue-50 p-3 rounded-lg">
+                                    <p className="text-xs text-gray-600">Total</p>
+                                    <p className="text-lg font-bold text-blue-600">
+                                        ${precioTotal.toLocaleString('es-AR')}
+                                    </p>
+                                </div>
                             </>
                         )}
                     </CardContent>

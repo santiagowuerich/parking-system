@@ -63,8 +63,8 @@ export * from './types/payment';
 // TIPOS PARA ABONOS
 // ============================================
 
-export type TipoAbono = 'mensual' | 'trimestral' | 'semestral' | 'anual';
-export type UnidadDuracion = 'dias' | 'meses' | 'años';
+export type TipoAbono = 'semanal' | 'mensual';
+export type UnidadDuracion = 'semanas' | 'meses';
 
 export interface Conductor {
   con_id: number;
@@ -186,35 +186,23 @@ export interface BuscarConductorResponse {
 
 export interface ConfiguracionAbono {
   tipo: TipoAbono;
-  duracionMeses: number;
-  precioBase: number;
+  precioUnitario: number; // Precio por semana o por mes
+  unidad: UnidadDuracion;
   descripcion: string;
 }
 
 export const CONFIGURACIONES_ABONOS: Record<TipoAbono, ConfiguracionAbono> = {
+  semanal: {
+    tipo: 'semanal',
+    precioUnitario: 1500, // Precio por semana
+    unidad: 'semanas',
+    descripcion: 'Abono Semanal'
+  },
   mensual: {
     tipo: 'mensual',
-    duracionMeses: 1,
-    precioBase: 5000,
-    descripcion: 'Abono válido por 1 mes'
-  },
-  trimestral: {
-    tipo: 'trimestral',
-    duracionMeses: 3,
-    precioBase: 13500,
-    descripcion: 'Abono válido por 3 meses'
-  },
-  semestral: {
-    tipo: 'semestral',
-    duracionMeses: 6,
-    precioBase: 25500,
-    descripcion: 'Abono válido por 6 meses'
-  },
-  anual: {
-    tipo: 'anual',
-    duracionMeses: 12,
-    precioBase: 48000,
-    descripcion: 'Abono válido por 1 año'
+    precioUnitario: 5000, // Precio por mes
+    unidad: 'meses',
+    descripcion: 'Abono Mensual'
   }
 };
 
