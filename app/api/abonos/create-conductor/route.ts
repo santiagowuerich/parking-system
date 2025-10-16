@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { CrearConductorConAbonoRequest, CrearConductorConAbonoResponse } from "@/lib/types";
+import { supabaseAdmin } from "@/lib/supabase";
 
 /**
  * POST /api/abonos/create-conductor
@@ -183,72 +184,42 @@ export async function POST(request: NextRequest) {
         // 5. CREAR USUARIO EN AUTENTICACIÓN SUPABASE
         // ========================================
         // Crear cuenta de autenticación con DNI como contraseña inicial
-        // Usar el endpoint de auth de Supabase directamente
-        let usuarioId: string;
-        let authError: any = null;
+        // Usar el cliente admin para confirmar email automáticamente
+        console.log('🔑 Intentando crear usuario en auth...');
+        console.log('🔑 Datos de usuario:', {
+            email: body.conductor.email,
+            dni: body.conductor.dni,
+            nombre: body.conductor.nombre,
+            apellido: body.conductor.apellido,
+            telefono: body.conductor.telefono || null
+        });
 
-        try {
-            console.log('🔑 Intentando crear usuario en auth...');
-            console.log('🔑 Datos de usuario:', {
-                email: body.conductor.email,
-                dni: body.conductor.dni,
+        const { data: createdUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+            email: body.conductor.email,
+            password: body.conductor.dni, // DNI como contraseña inicial
+            email_confirm: true, // Confirmar email automáticamente
+            user_metadata: {
                 nombre: body.conductor.nombre,
                 apellido: body.conductor.apellido,
+                dni: body.conductor.dni,
                 telefono: body.conductor.telefono || null
-            });
-
-            const authResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/signup`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                },
-                body: JSON.stringify({
-                    email: body.conductor.email,
-                    password: body.conductor.dni, // DNI como contraseña inicial
-                    data: {
-                        nombre: body.conductor.nombre,
-                        apellido: body.conductor.apellido,
-                        dni: body.conductor.dni,
-                        telefono: body.conductor.telefono || null
-                    }
-                })
-            });
-
-            const authData = await authResponse.json();
-
-            console.log('🔐 Respuesta de Auth completa:', JSON.stringify(authData, null, 2));
-            console.log('🔐 Status de respuesta:', authResponse.status);
-
-            if (!authResponse.ok || authData.error) {
-                const errorMsg = authData.error?.message || authData.error_description || authData.message || 'Error desconocido en auth';
-                console.error('❌ Error en respuesta de auth:', errorMsg);
-                console.error('❌ Respuesta completa de auth:', JSON.stringify(authData, null, 2));
-                throw new Error(`Error creando usuario en auth: ${errorMsg}`);
             }
+        });
 
-            // El endpoint devuelve el usuario directamente, no dentro de un objeto "user"
-            const userId = authData.user?.id || authData.id;
-
-            if (!userId) {
-                console.error('⚠️ Respuesta de auth sin ID de usuario:', JSON.stringify(authData, null, 2));
-                throw new Error('El servidor de autenticación no devolvió un ID de usuario válido');
-            }
-
-            usuarioId = userId;
-        } catch (err: any) {
-            console.error('❌ Error creando usuario en auth (catch):', err.message);
-            console.error('❌ Error completo:', err);
+        if (createUserError || !createdUser.user) {
+            console.error('❌ Error creando usuario en auth:', createUserError);
             return NextResponse.json(
-                { success: false, error: `Error creando cuenta de usuario: ${err.message}` },
+                { success: false, error: `Error creando cuenta de usuario: ${createUserError?.message}` },
                 { status: 500 }
             );
         }
 
+        const usuarioId = createdUser.user.id;
+        console.log('✅ Usuario creado en auth con email confirmado, UUID:', usuarioId);
+
         // ========================================
         // 6. CREAR USUARIO EN TABLA USUARIO
         // ========================================
-        console.log('✅ Usuario creado en auth, UUID:', usuarioId);
         console.log('📝 Creando usuario en tabla usuario...');
 
         const { data: nuevoUsuario, error: errorUsuario } = await supabase

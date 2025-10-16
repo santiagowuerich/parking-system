@@ -186,7 +186,9 @@ export default function MapaEstacionamientos() {
                         </div>
 
                         {/* 🟢 NUEVO: Mostrar vehículo seleccionado */}
-                        <VehicleDisplay />
+                        <div className="flex items-center gap-4">
+                            <VehicleDisplay />
+                        </div>
                     </div>
 
                     {/* Search y Controles */}

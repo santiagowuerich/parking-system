@@ -140,6 +140,19 @@ export interface CrearAbonoFormData {
   fechaInicio?: string;
 }
 
+export interface AbonoConductor {
+  abo_nro: number;
+  estacionamiento_nombre: string;
+  estacionamiento_direccion: string;
+  pla_zona: string;
+  pla_numero: number;
+  abo_tipoabono: string;
+  abo_fecha_inicio: string;
+  abo_fecha_fin: string;
+  dias_restantes: number;
+  estado: 'Activo' | 'Por vencer' | 'Vencido';
+}
+
 export interface CrearConductorConAbonoRequest {
   conductor: {
     nombre: string;
