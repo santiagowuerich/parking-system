@@ -18,6 +18,7 @@ import {
 import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
+import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
 
 interface Abono {
     abo_nro: number;
@@ -42,6 +43,7 @@ export default function GestionAbonosPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const [abonoDialog, setAbonoDialog] = useState<any | null>(null);
+    const [abonoDetailDialog, setAbonoDetailDialog] = useState<any | null>(null);
 
     useEffect(() => {
         if (estId) {
@@ -213,7 +215,7 @@ export default function GestionAbonosPage() {
                                                             <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
                                                             <TableCell className="text-right">
                                                                 <div className="flex gap-2 justify-end">
-                                                                    <Button variant="outline" size="sm">
+                                                                    <Button variant="outline" size="sm" onClick={() => setAbonoDetailDialog({ abo_nro: abono.abo_nro })}>
                                                                         Ver detalle
                                                                     </Button>
                                                                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setAbonoDialog({
@@ -268,6 +270,7 @@ export default function GestionAbonosPage() {
                             </CardContent>
                         </Card>
                         <ExtenderAbonoDialog open={!!abonoDialog} onOpenChange={(v) => !v && setAbonoDialog(null)} abono={abonoDialog} />
+                        <AbonoDetailDialog open={!!abonoDetailDialog} onOpenChange={(v) => !v && setAbonoDetailDialog(null)} abo_nro={abonoDetailDialog?.abo_nro} />
                     </div>
                 </main>
             </div>
