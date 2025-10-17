@@ -47,9 +47,14 @@ export async function GET(request: NextRequest) {
         ? movement.pagos[0]
         : null;
 
+      const duracionTipoLower = movement.ocu_duracion_tipo?.toLowerCase();
+      const esAbono = duracionTipoLower === 'abono';
+
       // Formatear tarifa basada en el tipo de duración y precio acordado
       let tarifaBase = '';
-      if (movement.ocu_duracion_tipo && movement.ocu_precio_acordado) {
+      if (esAbono) {
+        tarifaBase = 'Abono';
+      } else if (movement.ocu_duracion_tipo && movement.ocu_precio_acordado) {
         const duracionTipo = movement.ocu_duracion_tipo.toLowerCase();
         const precioAcordado = `$${movement.ocu_precio_acordado.toLocaleString('es-AR')}`;
 
@@ -84,7 +89,9 @@ export async function GET(request: NextRequest) {
 
       // Determinar método de pago
       let metodoPago = '-';
-      if (movement.ocu_fh_salida) {
+      if (esAbono && movement.ocu_fh_salida) {
+        metodoPago = 'Abono';
+      } else if (movement.ocu_fh_salida) {
         if (payment?.mepa_metodo) {
           // Mapear nombres de métodos desde BD a nombres amigables
           metodoPago = payment.mepa_metodo === 'Efectivo' ? 'Efectivo' :
@@ -99,7 +106,9 @@ export async function GET(request: NextRequest) {
 
       // Determinar total pagado
       let totalPagado = '-';
-      if (movement.ocu_fh_salida) {
+      if (esAbono && movement.ocu_fh_salida) {
+        totalPagado = 'Incluido';
+      } else if (movement.ocu_fh_salida) {
         if (payment?.pag_monto) {
           totalPagado = `$${payment.pag_monto.toLocaleString('es-AR')}`;
         } else if (movement.ocu_precio_acordado) {

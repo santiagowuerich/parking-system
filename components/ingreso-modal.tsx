@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { VehicleType } from "@/lib/types"
+import { VehicleType, VehiculoAbonado } from "@/lib/types"
 import { Loader2, Lock } from "lucide-react"
 
 interface PlazaCompleta {
@@ -26,6 +26,16 @@ interface PlazaCompleta {
   pla_estado: 'Libre' | 'Ocupada' | 'Reservada' | 'Mantenimiento'
   pla_zona: string
   catv_segmento: 'AUT' | 'MOT' | 'CAM'
+  abono?: {
+    abo_nro: number
+    abo_tipoabono: string
+    abonado?: {
+      abon_nombre: string
+      abon_apellido: string
+      abon_dni: string
+    }
+    vehiculos?: VehiculoAbonado[]
+  } | null
 }
 
 interface Tarifa {
@@ -45,6 +55,8 @@ interface IngresoModalProps {
     plaza_number: number
     modality: string
     agreed_price: number
+    isAbono?: boolean
+    abono_nro?: number
   }) => Promise<void>
   loading?: boolean
   tarifas?: Tarifa[]
@@ -74,6 +86,34 @@ export default function IngresoModal({
   const [selectedPlaza, setSelectedPlaza] = useState<number | null>(null)
   const [selectedModality, setSelectedModality] = useState<string>("Hora")
   const [agreedPrice, setAgreedPrice] = useState<number>(0)
+  const [selectedAbonoVehicle, setSelectedAbonoVehicle] = useState<string>("")
+
+  const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
+  const abonoSource = matchedAbonoPlaza?.abono || plaza?.abono || null
+  const abonoVehicles: VehiculoAbonado[] = useMemo(() => {
+    return (abonoSource?.vehiculos || []).filter(
+      (vehiculo): vehiculo is VehiculoAbonado => Boolean(vehiculo?.veh_patente)
+    );
+  }, [abonoSource])
+  const isAbono = abonoVehicles.length > 0
+
+  const computeDefaultTariff = () => {
+    let defaultModality = "Hora"
+    let defaultPrice = 200
+
+    if (tarifas && tarifas.length > 0) {
+      const horaTarifa = tarifas.find(t => t.tar_nombre.toLowerCase().includes('hora'))
+      if (horaTarifa) {
+        defaultModality = horaTarifa.tar_nombre
+        defaultPrice = horaTarifa.tar_precio_hora
+      } else {
+        defaultModality = tarifas[0].tar_nombre
+        defaultPrice = tarifas[0].tar_precio_hora
+      }
+    }
+
+    return { defaultModality, defaultPrice }
+  }
 
   // Mapear tipo de vehículo a segmento de base de datos
   const mapVehicleTypeToSegment = (type: VehicleType): string => {
@@ -87,6 +127,11 @@ export default function IngresoModal({
 
   // Obtener plazas disponibles para el tipo de vehículo seleccionado
   const getAvailablePlazasForVehicleType = (type: VehicleType): PlazaCompleta[] => {
+    if (isAbono) {
+      const sourcePlaza = matchedAbonoPlaza || plaza
+      return sourcePlaza ? [sourcePlaza] : []
+    }
+
     const segment = mapVehicleTypeToSegment(type)
     const filteredPlazas = availablePlazas.filter(p =>
       p.pla_estado === 'Libre' &&
@@ -101,52 +146,82 @@ export default function IngresoModal({
     return filteredPlazas
   }
 
+  const handleAbonoVehicleSelect = (value: string) => {
+    if (value === '__manual__') {
+      setMatchedAbonoPlaza(null)
+      setSelectedAbonoVehicle("")
+      setLicensePlate("")
+      setSelectedPlaza(null)
+      const { defaultModality, defaultPrice } = computeDefaultTariff()
+      setSelectedModality(defaultModality)
+      setAgreedPrice(defaultPrice)
+      return
+    }
+
+    const normalized = value.toUpperCase()
+    setSelectedAbonoVehicle(normalized)
+    setLicensePlate(normalized)
+
+    const vehiculoSeleccionado = abonoVehicles.find(
+      v => v.veh_patente?.toUpperCase() === normalized
+    )
+    if (vehiculoSeleccionado?.catv_segmento) {
+      setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
+    }
+  }
+
   // Initialize when modal opens
   useEffect(() => {
-    if (isOpen) {
-      // Reset all fields
+    if (!isOpen) return
+
+    setMatchedAbonoPlaza(null)
+
+    if (plaza?.abono) {
+      const defaultVehicle = plaza.abono.vehiculos?.[0]
+      const defaultPlate = defaultVehicle?.veh_patente?.toUpperCase() || ""
+      setSelectedAbonoVehicle(defaultPlate)
+      setLicensePlate(defaultPlate)
+
+      const segmentoPreferido = defaultVehicle?.catv_segmento || plaza.catv_segmento || 'AUT'
+      setVehicleType(mapearTipoVehiculo(segmentoPreferido))
+
+      setSelectedPlaza(plaza.pla_numero ?? null)
+      setSelectedModality("Abono")
+      setAgreedPrice(0)
+    } else {
+      setSelectedAbonoVehicle("")
       setLicensePlate("")
 
-      // Si hay una plaza preseleccionada, usar su información
       if (plaza) {
-        // Mapear el tipo de vehículo basado en el segmento de la plaza
         const vehicleTypeFromPlaza = mapearTipoVehiculo(plaza.catv_segmento)
         setVehicleType(vehicleTypeFromPlaza)
         setSelectedPlaza(plaza.pla_numero)
       } else {
-        // Si no hay plaza preseleccionada, usar valores por defecto
         setVehicleType("Auto")
         setSelectedPlaza(null)
       }
 
-      // Set default modality and price based on available tariffs
-      let defaultModality = "Hora"
-      let defaultPrice = 200 // Fallback
-
-      if (tarifas && tarifas.length > 0) {
-        const horaTarifa = tarifas.find(t => t.tar_nombre.toLowerCase().includes('hora'))
-        if (horaTarifa) {
-          defaultModality = horaTarifa.tar_nombre
-          defaultPrice = horaTarifa.tar_precio_hora
-        }
-      }
-
+      const { defaultModality, defaultPrice } = computeDefaultTariff()
       setSelectedModality(defaultModality)
       setAgreedPrice(defaultPrice)
     }
-  }, [isOpen, tarifas, plaza])
+  }, [isOpen, plaza, tarifas])
 
   // Update selected plaza when vehicle type changes
   useEffect(() => {
+    if (isAbono) return
+
     // Solo resetear la plaza si no hay una plaza preseleccionada
     // o si la plaza preseleccionada no es compatible con el nuevo tipo de vehículo
     if (!plaza || mapearTipoVehiculo(plaza.catv_segmento) !== vehicleType) {
       setSelectedPlaza(null)
     }
-  }, [vehicleType, plaza])
+  }, [vehicleType, plaza, isAbono])
 
   // Update price when modality changes
   useEffect(() => {
+    if (isAbono) return
+
     if (tarifas && tarifas.length > 0) {
       // Buscar tarifa por nombre exacto o por coincidencia parcial
       const tarifa = tarifas.find(t => t.tar_nombre === selectedModality) ||
@@ -155,18 +230,65 @@ export default function IngresoModal({
         setAgreedPrice(tarifa.tar_precio_hora)
       }
     }
-  }, [selectedModality, tarifas])
+  }, [selectedModality, tarifas, isAbono])
+
+  useEffect(() => {
+    if (!isOpen || plaza) return
+
+    const normalized = licensePlate.trim().toUpperCase()
+    if (!normalized) {
+      if (matchedAbonoPlaza) {
+        setMatchedAbonoPlaza(null)
+        setSelectedAbonoVehicle("")
+        setSelectedPlaza(null)
+        const { defaultModality, defaultPrice } = computeDefaultTariff()
+        setSelectedModality(defaultModality)
+        setAgreedPrice(defaultPrice)
+      }
+      return
+    }
+
+    const plazaAbono = availablePlazas.find(p =>
+      p.abono?.vehiculos?.some(v => v.veh_patente?.toUpperCase() === normalized)
+    )
+
+    if (plazaAbono) {
+      setMatchedAbonoPlaza(plazaAbono)
+      setSelectedPlaza(plazaAbono.pla_numero)
+      setSelectedModality("Abono")
+      setAgreedPrice(0)
+      setSelectedAbonoVehicle(normalized)
+
+      const vehiculoSeleccionado = plazaAbono.abono?.vehiculos?.find(
+        v => v.veh_patente?.toUpperCase() === normalized
+      )
+      if (vehiculoSeleccionado?.catv_segmento) {
+        setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
+      }
+    } else if (matchedAbonoPlaza) {
+      setMatchedAbonoPlaza(null)
+      setSelectedAbonoVehicle("")
+      setSelectedPlaza(null)
+      const { defaultModality, defaultPrice } = computeDefaultTariff()
+      setSelectedModality(defaultModality)
+      setAgreedPrice(defaultPrice)
+    }
+  }, [licensePlate, availablePlazas, isOpen, plaza])
 
   const handleConfirm = async () => {
-    if (!licensePlate.trim() || !selectedPlaza) return
+    if (!selectedPlaza) return
+    const trimmedPlate = licensePlate.trim()
+    if (!trimmedPlate) return
 
     try {
       await onConfirm({
-        license_plate: licensePlate.trim(),
+        license_plate: trimmedPlate,
         type: vehicleType,
         plaza_number: selectedPlaza,
-        modality: selectedModality,
-        agreed_price: agreedPrice
+        modality: isAbono ? 'Abono' : selectedModality,
+        agreed_price: isAbono ? 0 : agreedPrice,
+        isAbono,
+        abono_nro: abonoSource?.abo_nro
       })
       onClose()
     } catch (error) {
@@ -174,13 +296,16 @@ export default function IngresoModal({
     }
   }
 
-  const isFormValid = licensePlate.trim().length > 0 && selectedPlaza !== null
+  const isFormValid = isAbono
+    ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0
+    : licensePlate.trim().length > 0 && selectedPlaza !== null
   const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
   const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
+  const selectedPlazaInfo = matchedAbonoPlaza || selectedPlazaData || plaza || null
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Ingreso</DialogTitle>
           <DialogDescription>
@@ -188,43 +313,109 @@ export default function IngresoModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Patente */}
+        <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+          {isAbono && abonoSource && (
+            <div className="p-3 border rounded-lg bg-orange-50 text-sm space-y-1">
+              <p className="font-semibold text-orange-700">Plaza abonada</p>
+              <p>
+                <span className="font-medium">Titular:</span>{" "}
+                {abonoSource.abonado
+                  ? `${abonoSource.abonado.abon_nombre} ${abonoSource.abonado.abon_apellido}`.trim()
+                  : 'Sin datos'}
+              </p>
+              {abonoSource.abonado?.abon_dni && (
+                <p>
+                  <span className="font-medium">DNI:</span> {abonoSource.abonado.abon_dni}
+                </p>
+              )}
+              <p>
+                <span className="font-medium">Vehículos habilitados:</span>{" "}
+                {abonoVehicles.map(v => v.veh_patente).join(', ')}
+              </p>
+            </div>
+          )}
+
+          {/* Patente / Vehículos abonados */}
           <div className="space-y-2">
             <Label htmlFor="patente">Patente</Label>
-            <Input
-              id="patente"
-              placeholder="ABC123"
-              value={licensePlate}
-              onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
-              maxLength={10}
-            />
+            {isAbono ? (
+              <>
+                <Select
+                  value={selectedAbonoVehicle}
+                  onValueChange={handleAbonoVehicleSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar vehículo del abono" />
+                  </SelectTrigger>
+                    <SelectContent>
+                    {!plaza?.abono && matchedAbonoPlaza && (
+                      <SelectItem value="__manual__">Ingresar otra patente</SelectItem>
+                    )}
+                    {abonoVehicles.map(vehiculo => (
+                      <SelectItem
+                        key={vehiculo.veh_patente}
+                        value={vehiculo.veh_patente?.toUpperCase() || ''}
+                      >
+                        {vehiculo.veh_patente?.toUpperCase() || 'Sin patente'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Solo se permiten los vehículos asociados al abono.
+                </p>
+              </>
+            ) : (
+              <Input
+                id="patente"
+                placeholder="ABC123"
+                value={licensePlate}
+                onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                maxLength={10}
+              />
+            )}
           </div>
 
           {/* Tarifa */}
           <div className="space-y-2">
             <Label htmlFor="modality">Modalidad de Tarifa</Label>
-            <Select
-              value={selectedModality}
-              onValueChange={setSelectedModality}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar modalidad" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Hora">Hora</SelectItem>
-                <SelectItem value="Día">Día</SelectItem>
-                <SelectItem value="Semana">Semana</SelectItem>
-                <SelectItem value="Mensual">Mensual</SelectItem>
-              </SelectContent>
-            </Select>
+            {isAbono ? (
+              <Input
+                id="modality"
+                value="Abono (sin cargo)"
+                readOnly
+                className="bg-muted cursor-not-allowed"
+              />
+            ) : (
+              <Select
+                value={selectedModality}
+                onValueChange={setSelectedModality}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar modalidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hora">Hora</SelectItem>
+                  <SelectItem value="Día">Día</SelectItem>
+                  <SelectItem value="Semana">Semana</SelectItem>
+                  <SelectItem value="Mensual">Mensual</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Tipo de vehículo */}
           <div className="space-y-2">
             <Label htmlFor="vehicle-type">Tipo de vehículo</Label>
-            <Select value={vehicleType} onValueChange={(value: VehicleType) => setVehicleType(value)}>
-              <SelectTrigger disabled={!!plaza}>
+            <Select
+              value={vehicleType}
+              onValueChange={(value: VehicleType) => {
+                if (!isAbono) {
+                  setVehicleType(value)
+                }
+              }}
+            >
+              <SelectTrigger disabled={!!plaza || isAbono}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -233,8 +424,11 @@ export default function IngresoModal({
                 <SelectItem value="Camioneta">🚛 Camioneta</SelectItem>
               </SelectContent>
             </Select>
-            {plaza && (
+            {(plaza || isAbono) && (
               <p className="text-xs text-muted-foreground">Bloqueado: deriva del tipo de la plaza seleccionada</p>
+            )}
+            {isAbono && (
+              <p className="text-xs text-orange-600">Asignado por el abono.</p>
             )}
           </div>
 
@@ -274,7 +468,9 @@ export default function IngresoModal({
 
           {/* Precio aplicado */}
           <div className="space-y-2">
-            <Label htmlFor="precio">Precio aplicado ($ por {selectedModality.toLowerCase()})</Label>
+            <Label htmlFor="precio">
+              {isAbono ? 'Precio aplicado' : `Precio aplicado ($ por ${selectedModality.toLowerCase()})`}
+            </Label>
             <div className="relative">
               <Input
                 id="precio"
@@ -287,14 +483,18 @@ export default function IngresoModal({
               />
               <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
-            {tarifas && tarifas.length > 0 && (
+            {isAbono ? (
+              <p className="text-xs text-orange-600">
+                Ingreso de abono: no genera cobro al momento del egreso.
+              </p>
+            ) : (tarifas && tarifas.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Precio estándar: ${tarifas.find(t => t.tar_nombre === selectedModality)?.tar_precio_hora.toLocaleString()} por {selectedModality.toLowerCase()}
               </p>
-            )}
-            {selectedPlazaData && (
+            ))}
+            {selectedPlazaInfo && (
               <p className="text-xs text-blue-600">
-                Plaza seleccionada: {selectedPlazaData.pla_numero} - {selectedPlazaData.pla_zona}
+                Plaza seleccionada: {selectedPlazaInfo.pla_numero} - {selectedPlazaInfo.pla_zona}
               </p>
             )}
           </div>

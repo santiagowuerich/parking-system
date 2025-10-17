@@ -11,6 +11,8 @@ export interface Vehicle {
 
 export interface VehicleEntryData extends Omit<Vehicle, 'entry_time'> {
   pla_numero?: number | null
+  isAbono?: boolean
+  abono_nro?: number
 }
 
 export interface ParkingHistory extends Omit<Vehicle, 'entry_time'> {
@@ -90,6 +92,14 @@ export interface VehiculoDB {
   veh_color: string;
 }
 
+export interface VehiculoAbonado {
+  veh_patente: string;
+  catv_segmento?: 'AUT' | 'MOT' | 'CAM';
+  veh_marca?: string | null;
+  veh_modelo?: string | null;
+  veh_color?: string | null;
+}
+
 export interface VehiculoFormData {
   patente: string;
   tipo: 'Auto' | 'Moto' | 'Camioneta';
@@ -114,6 +124,7 @@ export interface Abono {
   abo_fecha_fin: string;
   pag_nro?: number;
   abo_tipoabono: TipoAbono;
+  vehiculos?: VehiculoAbonado[];
 }
 
 export interface AbonoConDetalles extends Abono {
