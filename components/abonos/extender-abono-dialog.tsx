@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,19 +10,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2 } from 'lucide-react'
 import { useAbonoExtension } from '@/hooks/use-abono-extension'
-import type { AbonoData } from '@/lib/types'
+import type { AbonoData, TipoExtension } from '@/lib/types'
+import { CONFIGURACIONES_ABONOS } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 
 interface Props {
     open: boolean
-    onOpenChange: (v: boolean) => void
+    onOpenChange: (open: boolean) => void
     abono: AbonoData | null
+}
+
+const formatDate = (value: string) => {
+    if (!value) return '-'
+    const iso = value.split('T')[0] ?? value
+    const parts = iso.split('-')
+    if (parts.length === 3) {
+        const [year, month, day] = parts
+        return `${day}/${month}/${year}`
+    }
+    return iso
 }
 
 export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
     const ext = useAbonoExtension(abono)
-
-    const subtotal = ext.state.monto
+    const config = CONFIGURACIONES_ABONOS[ext.state.tipoExtension]
+    const unidadLabel = config?.unidad ?? 'periodos'
+    const tipoDescripcion = config?.descripcion ?? `Abono ${ext.state.tipoExtension}`
+    const total = ext.state.monto
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,87 +45,147 @@ export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
                     <DialogTitle>Extender abono</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-6">
-                    {/* Info actual */}
+                <div className="max-h-[70vh] overflow-y-auto pr-1 space-y-6">
                     {abono && (
                         <Card className="p-4 bg-muted/50 space-y-1 text-sm">
                             <div className="font-medium">Abono actual</div>
-                            <div>{abono.titular} · {abono.tipoActual} — Vence: {new Date(abono.fechaFinActual).toLocaleDateString('es-AR')} · zona {abono.zona} - {abono.codigo}</div>
+                            <div>
+                                {abono.titular} - {abono.tipoActual} - Vence: {formatDate(abono.fechaFinActual)} - Zona {abono.zona} - {abono.codigo}
+                            </div>
                         </Card>
                     )}
 
-                    {/* Configuración */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                        <div className="md:col-span-2">
-                            <Label>Tipo de extensión</Label>
-                            <Select value={ext.state.tipoExtension} onValueChange={v => ext.setTipoExtension(v as any)}>
-                                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="mensual">Mensual</SelectItem>
-                                    <SelectItem value="bimestral">Bimestral</SelectItem>
-                                    <SelectItem value="trimestral">Trimestral</SelectItem>
-                                    <SelectItem value="anual">Anual</SelectItem>
-                                </SelectContent>
-                            </Select>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-2">
+                                <Label>Tipo de abono y duracion</Label>
+                                <Select
+                                    value={ext.state.tipoExtension}
+                                    onValueChange={value => ext.setTipoExtension(value as TipoExtension)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(CONFIGURACIONES_ABONOS).map(([key, cfg]) => (
+                                            <SelectItem key={key} value={key}>
+                                                {cfg.descripcion}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label>Cantidad ({unidadLabel})</Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={ext.state.cantidad}
+                                    onChange={event => ext.setCantidad(parseInt(event.target.value, 10))}
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <Label>Cantidad</Label>
-                            <Input type="number" min={1} value={ext.state.cantidad} onChange={e => ext.setCantidad(parseInt(e.target.value))} />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label>Fecha de inicio</Label>
+                                <Input type="date" value={ext.state.desde} onChange={event => ext.setDesde(event.target.value)} />
+                            </div>
+                            <div>
+                                <Label>Nuevo vencimiento</Label>
+                                <Input type="date" value={ext.state.nuevoVencimiento} readOnly className="bg-muted" />
+                            </div>
                         </div>
-                        <div>
-                            <Label>Desde</Label>
-                            <Input type="date" value={ext.state.desde} onChange={e => ext.setDesde(e.target.value)} />
-                        </div>
-                        <div className="md:col-span-2">
-                            <Label>Nuevo vencimiento</Label>
-                            <Input type="date" value={ext.state.nuevoVencimiento} readOnly className="bg-muted" />
-                        </div>
-                        <div className="md:col-span-4">
-                            <Label>Observación (opcional)</Label>
-                            <Textarea value={ext.state.nota} onChange={e => ext.setNota(e.target.value)} rows={2} />
+
+                        <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm text-gray-600">
+                            <p>
+                                <span className="font-medium">Tipo seleccionado:</span> {tipoDescripcion}
+                            </p>
+                            <p>
+                                <span className="font-medium">Duracion:</span> {ext.state.cantidad} {unidadLabel}
+                            </p>
+                            <p>
+                                <span className="font-medium">Fecha estimada de fin:</span> {formatDate(ext.state.nuevoVencimiento)}
+                            </p>
                         </div>
                     </div>
 
-                    {/* Pago */}
                     <div className="space-y-3">
-                        <Label>Método de pago</Label>
-                        <RadioGroup className="flex gap-6" value={ext.state.metodoPago} onValueChange={v => ext.setMetodoPago(v as any)}>
-                            <div className="flex items-center gap-2"><RadioGroupItem value="efectivo" id="efectivo" /><Label htmlFor="efectivo">Efectivo</Label></div>
-                            <div className="flex items-center gap-2"><RadioGroupItem value="tarjeta" id="tarjeta" /><Label htmlFor="tarjeta">Tarjeta (MercadoPago)</Label></div>
-                            <div className="flex items-center gap-2"><RadioGroupItem value="transferencia" id="transferencia" /><Label htmlFor="transferencia">Transferencia</Label></div>
+                        <Label>Metodo de pago</Label>
+                        <RadioGroup
+                            className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6"
+                            value={ext.state.metodoPago}
+                            onValueChange={value =>
+                                ext.setMetodoPago(value as 'efectivo' | 'tarjeta' | 'transferencia')
+                            }
+                        >
+                            <div className="flex items-center gap-2">
+                                <RadioGroupItem value="efectivo" id="efectivo" />
+                                <Label htmlFor="efectivo">Efectivo</Label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <RadioGroupItem value="tarjeta" id="tarjeta" />
+                                <Label htmlFor="tarjeta">Tarjeta (MercadoPago)</Label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <RadioGroupItem value="transferencia" id="transferencia" />
+                                <Label htmlFor="transferencia">Transferencia</Label>
+                            </div>
                         </RadioGroup>
 
                         {ext.state.metodoPago === 'tarjeta' && (
                             <Card className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <Input placeholder="Nº" value={ext.state.tarjeta.numero} onChange={e => ext.setTarjeta({ ...ext.state.tarjeta, numero: e.target.value })} />
-                                <Input placeholder="Venc." value={ext.state.tarjeta.vencimiento} onChange={e => ext.setTarjeta({ ...ext.state.tarjeta, vencimiento: e.target.value })} />
-                                <Input placeholder="CVV" value={ext.state.tarjeta.cvv} onChange={e => ext.setTarjeta({ ...ext.state.tarjeta, cvv: e.target.value })} />
+                                <Input
+                                    placeholder="Numero"
+                                    value={ext.state.tarjeta.numero}
+                                    onChange={event => ext.setTarjeta({ ...ext.state.tarjeta, numero: event.target.value })}
+                                />
+                                <Input
+                                    placeholder="Venc."
+                                    value={ext.state.tarjeta.vencimiento}
+                                    onChange={event => ext.setTarjeta({ ...ext.state.tarjeta, vencimiento: event.target.value })}
+                                />
+                                <Input
+                                    placeholder="CVV"
+                                    value={ext.state.tarjeta.cvv}
+                                    onChange={event => ext.setTarjeta({ ...ext.state.tarjeta, cvv: event.target.value })}
+                                />
                             </Card>
                         )}
                     </div>
 
-                    {/* Resumen */}
                     <Card className="p-4 space-y-2">
-                        <div className="flex justify-between text-sm">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                            <span>Subtotal estimado</span>
+                            <span className="flex items-center gap-2">
+                                {ext.state.calculating ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : formatCurrency(total)}
+                            </span>
                         </div>
-                        <div className="flex justify-between text-lg font-semibold">
+                        <div className="flex items-center justify-between text-lg font-semibold">
                             <span>Total a cobrar</span>
-                            <span>{formatCurrency(subtotal)}</span>
+                            <span className="flex items-center gap-2">
+                                {ext.state.calculating ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : formatCurrency(total)}
+                            </span>
                         </div>
                     </Card>
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={ext.state.loading}>Cancelar</Button>
-                    <Button onClick={ext.submit} disabled={!ext.isValid() || ext.state.loading}>
-                        {ext.state.loading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Procesando...</>) : 'Confirmar extensión'}
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={ext.state.loading}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={ext.submit} disabled={!ext.isValid() || ext.state.loading || ext.state.calculating}>
+                        {ext.state.loading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Procesando...
+                            </>
+                        ) : (
+                            'Confirmar extension'
+                        )}
                     </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     )
 }
-
-

@@ -6,7 +6,6 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     Table,
     TableBody,
@@ -19,6 +18,7 @@ import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
+import { ManageAbonoVehiclesDialog } from "@/components/abonos/manage-abono-vehicles-dialog";
 
 interface Abono {
     abo_nro: number;
@@ -44,6 +44,7 @@ export default function GestionAbonosPage() {
     const itemsPerPage = 5;
     const [abonoDialog, setAbonoDialog] = useState<any | null>(null);
     const [abonoDetailDialog, setAbonoDetailDialog] = useState<any | null>(null);
+    const [vehiculosDialog, setVehiculosDialog] = useState<number | null>(null);
 
     useEffect(() => {
         if (estId) {
@@ -91,16 +92,24 @@ export default function GestionAbonosPage() {
     const abonosPaginados = abonosOrdenados.slice(startIndex, endIndex);
 
     const getEstadoBadge = (estado: string) => {
-        switch (estado) {
-            case 'Activo':
-                return <Badge className="bg-green-100 text-green-800 border-green-200">Activo</Badge>;
-            case 'Por vencer':
-                return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Por vencer</Badge>;
-            case 'Vencido':
-                return <Badge className="bg-red-100 text-red-800 border-red-200">Vencido</Badge>;
-            default:
-                return <Badge>{estado}</Badge>;
-        }
+        const styles: Record<string, { dot: string; text: string; label: string }> = {
+            'Activo': { dot: 'bg-emerald-500', text: 'text-emerald-600', label: 'Activo' },
+            'Por vencer': { dot: 'bg-amber-500', text: 'text-amber-600', label: 'Por vencer' },
+            'Vencido': { dot: 'bg-red-500', text: 'text-red-600', label: 'Vencido' },
+        };
+
+        const { dot, text, label } = styles[estado] || {
+            dot: 'bg-gray-400',
+            text: 'text-gray-600',
+            label: estado,
+        };
+
+        return (
+            <span className={`inline-flex items-center gap-2 text-sm font-medium ${text}`}>
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${dot}`} />
+                {label}
+            </span>
+        );
     };
 
     const getTipoAbono = (tipo: string) => {
@@ -216,7 +225,7 @@ export default function GestionAbonosPage() {
                                                             <TableCell className="text-right">
                                                                 <div className="flex gap-2 justify-end">
                                                                     <Button variant="outline" size="sm" onClick={() => setAbonoDetailDialog({ abo_nro: abono.abo_nro })}>
-                                                                        Ver detalle
+                                                                        Detalles
                                                                     </Button>
                                                                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setAbonoDialog({
                                                                         abo_nro: abono.abo_nro,
@@ -229,7 +238,10 @@ export default function GestionAbonosPage() {
                                                                         pla_numero: abono.pla_numero,
                                                                         plantilla_id: 0
                                                                     })}>
-                                                                        Extender abono
+                                                                        Extender
+                                                                    </Button>
+                                                                    <Button variant="outline" size="sm" onClick={() => setVehiculosDialog(abono.abo_nro)}>
+                                                                        Vehiculos
                                                                     </Button>
                                                                 </div>
                                                             </TableCell>
@@ -271,6 +283,7 @@ export default function GestionAbonosPage() {
                         </Card>
                         <ExtenderAbonoDialog open={!!abonoDialog} onOpenChange={(v) => !v && setAbonoDialog(null)} abono={abonoDialog} />
                         <AbonoDetailDialog open={!!abonoDetailDialog} onOpenChange={(v) => !v && setAbonoDetailDialog(null)} abo_nro={abonoDetailDialog?.abo_nro} />
+                        <ManageAbonoVehiclesDialog open={vehiculosDialog !== null} onOpenChange={(v) => !v && setVehiculosDialog(null)} abo_nro={vehiculosDialog} />
                     </div>
                 </main>
             </div>

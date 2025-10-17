@@ -277,7 +277,7 @@ export interface CrearConductorConAbonoRequestActualizado extends Omit<CrearCond
 // TIPOS PARA EXTENSIÓN DE ABONOS
 // ===============================
 
-export type TipoExtension = 'mensual' | 'bimestral' | 'trimestral' | 'anual'
+export type TipoExtension = TipoAbono
 
 export interface AbonoData {
   abo_nro: number
