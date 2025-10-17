@@ -65,6 +65,8 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const [error, setError] = useState('');
     const [creando, setCreando] = useState(false);
     const [abonoCreado, setAbonoCreado] = useState<any>(null);
+    const [calculandoPrecio, setCalculandoPrecio] = useState(false);
+    const [precioTotal, setPrecioTotal] = useState(0);
 
     // Estados para selección de plaza
     const [plazaSeleccionada, setPlazaSeleccionada] = useState<PlazaInfo | null>(null);
@@ -217,7 +219,39 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         return fin.toISOString().split('T')[0];
     };
 
-    const precioTotal = CONFIGURACIONES_ABONOS[tipoAbono].precioUnitario * cantidadDuracion;
+    // Calcular precio dinámicamente cuando cambia la plaza, tipo o cantidad
+    useEffect(() => {
+        const fetchPrecio = async () => {
+            if (!plazaSeleccionada) {
+                setPrecioTotal(0);
+                setCalculandoPrecio(false);
+                return;
+            }
+
+            setCalculandoPrecio(true);
+            try {
+                const res = await fetch(
+                    `/api/abonos/plaza-period-price?est_id=${plazaSeleccionada.est_id}&pla_numero=${plazaSeleccionada.pla_numero}&tipo=${tipoAbono}`
+                );
+
+                if (!res.ok) {
+                    throw new Error('No se pudo obtener precio');
+                }
+
+                const data = await res.json();
+                const precioPorPeriodo = Number(data.precioPorPeriodo || 0);
+                setPrecioTotal(precioPorPeriodo * cantidadDuracion);
+            } catch (err) {
+                console.error('Error calculando precio:', err);
+                setError('No se pudo calcular el precio para esta plaza');
+                setPrecioTotal(0);
+            } finally {
+                setCalculandoPrecio(false);
+            }
+        };
+
+        fetchPrecio();
+    }, [plazaSeleccionada, tipoAbono, cantidadDuracion]);
 
     // ========================================
     // VALIDACIONES
@@ -277,6 +311,8 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setPaymentData(null);
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
+        setPrecioTotal(0);
+        setCalculandoPrecio(false);
         setPaso('datos-conductor');
     };
 
@@ -708,9 +744,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                     <p className="text-sm text-gray-600">
                                         <strong>Fecha de fin:</strong> {calcularFechaFin()}
                                     </p>
-                                    <p className="text-lg font-bold text-blue-600">
-                                        Total: ${precioTotal.toLocaleString('es-AR')}
+                                    <p className="text-lg font-bold text-blue-600 flex items-center gap-2">
+                                        Total: {calculandoPrecio ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            `$${precioTotal.toLocaleString('es-AR')}`
+                                        )}
                                     </p>
+                                    {!plazaSeleccionada && (
+                                        <p className="text-xs text-gray-500">
+                                            Seleccione una plaza para ver el precio
+                                        </p>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -911,9 +956,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
                                 <div className="pt-3 bg-blue-50 p-3 rounded-lg">
                                     <p className="text-xs text-gray-600">Total</p>
-                                    <p className="text-lg font-bold text-blue-600">
-                                        ${precioTotal.toLocaleString('es-AR')}
+                                    <p className="text-lg font-bold text-blue-600 flex items-center gap-2">
+                                        {calculandoPrecio ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            `$${precioTotal.toLocaleString('es-AR')}`
+                                        )}
                                     </p>
+                                    {!plazaSeleccionada && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Seleccione plaza
+                                        </p>
+                                    )}
                                 </div>
                             </>
                         )}
