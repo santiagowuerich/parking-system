@@ -62,7 +62,8 @@ export function ZonaPlazaSelector({
                 est_id: estacionamientoId,
                 pla_estado: p.pla_estado, // Estado real de la base de datos
                 catv_segmento: p.catv_segmento || 'AUT',
-                zona: p.pla_zona || 'A'
+                zona: p.pla_zona || 'A',
+                plantilla_id: p.plantillas?.[0]?.plantilla_id || p.plantilla_id // Obtener de la relación o directo
             })) || [];
 
             console.log(`Plazas cargadas: ${plazasFormateadas.length}`);

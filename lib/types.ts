@@ -244,6 +244,7 @@ export interface PlazaInfo {
   pla_estado: 'Libre' | 'Ocupada' | 'Abonado';
   catv_segmento: string; // AUT, MOT, CAM
   zona?: string; // A, B, C, etc
+  plantilla_id?: number; // ID de la plantilla de tarifa asignada
 }
 
 export interface ZonaPlazasResponse {
