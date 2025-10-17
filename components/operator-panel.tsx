@@ -350,6 +350,11 @@ export default function OperatorPanel({
       } else {
         toast.error('No se encontró vehículo en esta plaza');
       }
+    } else if (plaza.pla_estado === 'Abonado') {
+      setSelectedPlazaForActions(plaza);
+      setTarifasIngreso([]);
+      setShowIngresoModal(true);
+      toast.success(`Plaza ${plaza.pla_numero} habilitada para ingreso de abono`);
     } else if (plaza.pla_estado === 'Libre') {
       // Abrir modal de ingreso para plazas libres
       setSelectedPlazaForActions(plaza);
@@ -533,15 +538,22 @@ export default function OperatorPanel({
 
     setModalLoading(true);
     try {
+      const esPlazaAbonada = Boolean(selectedPlazaForActions.abono);
       await onRegisterEntry({
         license_plate: data.license_plate,
         type: data.type,
         pla_numero: selectedPlazaForActions.pla_numero,
         duracion_tipo: data.modality.toLowerCase(),
-        precio_acordado: data.agreed_price
+        precio_acordado: data.agreed_price,
+        isAbono: esPlazaAbonada,
+        abono_nro: selectedPlazaForActions.abono?.abo_nro
       });
 
-      toast.success(`Vehículo ${data.license_plate} registrado en plaza ${selectedPlazaForActions.pla_numero}`);
+      toast.success(
+        esPlazaAbonada
+          ? `Vehículo abonado ${data.license_plate} ingresó a la plaza ${selectedPlazaForActions.pla_numero}`
+          : `Vehículo ${data.license_plate} registrado en plaza ${selectedPlazaForActions.pla_numero}`
+      );
       handleCloseModals();
 
       // Refrescar datos incluyendo movimientos

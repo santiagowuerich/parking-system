@@ -70,6 +70,34 @@ export async function GET(request: NextRequest) {
       console.error('Error obteniendo abonos asociados a plazas:', abonosError);
     }
 
+    // 1.2 Vehículos permitidos por abono
+    const { data: abonoVehiculosData, error: abonoVehiculosError } = await supabase
+      .from('vehiculos_abonados')
+      .select(`
+        abo_nro,
+        est_id,
+        veh_patente,
+        vehiculos (
+          catv_segmento,
+          veh_marca,
+          veh_modelo,
+          veh_color
+        )
+      `)
+      .eq('est_id', estId);
+
+    if (abonoVehiculosError) {
+      console.error('Error obteniendo vehículos de abonos:', abonoVehiculosError);
+    }
+
+    const vehiculosPorAbono = new Map<number, any[]>();
+    (abonoVehiculosData || []).forEach((row) => {
+      if (!vehiculosPorAbono.has(row.abo_nro)) {
+        vehiculosPorAbono.set(row.abo_nro, []);
+      }
+      vehiculosPorAbono.get(row.abo_nro)?.push(row);
+    });
+
     const now = new Date();
     const abonosPorPlaza = new Map<number, any>();
 
@@ -112,9 +140,22 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      const vehiculosAbono = (vehiculosPorAbono.get(abonoAsociado.abo_nro) || []).map((vehiculo) => ({
+        veh_patente: vehiculo.veh_patente,
+        catv_segmento: vehiculo.vehiculos?.catv_segmento ?? null,
+        veh_marca: vehiculo.vehiculos?.veh_marca ?? null,
+        veh_modelo: vehiculo.vehiculos?.veh_modelo ?? null,
+        veh_color: vehiculo.vehiculos?.veh_color ?? null,
+      }));
+
+      const abonoDetallado = {
+        ...abonoAsociado,
+        vehiculos: vehiculosAbono,
+      };
+
       const plazaConAbono = {
         ...plaza,
-        abono: abonoAsociado,
+        abono: abonoDetallado,
       };
 
       if (plazaConAbono.pla_estado === 'Libre' || plazaConAbono.pla_estado === 'Abonado') {

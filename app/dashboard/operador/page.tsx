@@ -250,6 +250,51 @@ export default function OperadorPage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
+            const payload: VehicleEntryData = {
+                ...vehicleData,
+                license_plate: vehicleData.license_plate.toUpperCase(),
+            };
+
+            const plazasData = availablePlazas.length > 0 ? availablePlazas : await loadAvailablePlazas();
+            const plazaSeleccionada = payload.pla_numero != null
+                ? plazasData.find((plaza: any) => plaza.pla_numero === payload.pla_numero) || null
+                : null;
+
+            const abonoInfo = plazaSeleccionada?.abono || null;
+            const patentesAbono = (abonoInfo?.vehiculos || [])
+                .map(v => v.veh_patente?.toUpperCase())
+                .filter((patente): patente is string => Boolean(patente));
+
+            const esAbono = Boolean(payload.isAbono || abonoInfo);
+
+            if (esAbono) {
+                if (!abonoInfo) {
+                    toast({
+                        variant: "destructive",
+                        title: "Abono no encontrado",
+                        description: "La plaza seleccionada no tiene un abono activo."
+                    });
+                    return;
+                }
+
+                if (!patentesAbono.includes(payload.license_plate)) {
+                    toast({
+                        variant: "destructive",
+                        title: "Vehículo no autorizado",
+                        description: `La patente ${payload.license_plate} no pertenece al abono asignado a esta plaza.`
+                    });
+                    return;
+                }
+
+                payload.isAbono = true;
+                payload.abono_nro = abonoInfo.abo_nro;
+                payload.duracion_tipo = 'abono';
+                payload.precio_acordado = 0;
+            } else {
+                payload.isAbono = false;
+                payload.abono_nro = undefined;
+            }
+
             // Mapeo de tipos de vehículo del frontend a códigos de BD
             const vehicleTypeMapping = {
                 'Auto': 'AUT',
@@ -257,59 +302,71 @@ export default function OperadorPage() {
                 'Camioneta': 'CAM'
             };
 
-            const dbVehicleType = vehicleTypeMapping[vehicleData.type as keyof typeof vehicleTypeMapping] || 'AUT';
+            let dbVehicleType = vehicleTypeMapping[payload.type as keyof typeof vehicleTypeMapping] || 'AUT';
+
+            if (payload.isAbono && abonoInfo?.vehiculos) {
+                const vehiculoAsociado = abonoInfo.vehiculos.find(
+                    v => v.veh_patente?.toUpperCase() === payload.license_plate
+                );
+
+                if (vehiculoAsociado?.catv_segmento) {
+                    dbVehicleType = vehiculoAsociado.catv_segmento;
+                    payload.type = vehiculoAsociado.catv_segmento === 'MOT'
+                        ? 'Moto'
+                        : vehiculoAsociado.catv_segmento === 'CAM'
+                            ? 'Camioneta'
+                            : 'Auto';
+                }
+            }
 
             // Verificar si el vehículo ya existe, si no, crearlo
             const { data: existingVehicle, error: vehicleCheckError } = await supabase
                 .from('vehiculos')
                 .select('veh_patente')
-                .eq('veh_patente', vehicleData.license_plate)
+                .eq('veh_patente', payload.license_plate)
                 .single();
 
-            if (vehicleCheckError && vehicleCheckError.code !== 'PGRST116') { // PGRST116 es "not found"
+            if (vehicleCheckError && vehicleCheckError.code !== 'PGRST116') {
                 throw vehicleCheckError;
             }
 
-            // Si el vehículo no existe, crearlo
             if (!existingVehicle) {
                 const { error: createVehicleError } = await supabase
                     .from('vehiculos')
                     .insert({
-                        veh_patente: vehicleData.license_plate,
+                        veh_patente: payload.license_plate,
                         catv_segmento: dbVehicleType
                     });
 
                 if (createVehicleError) throw createVehicleError;
             }
 
-            // Calcular fecha límite basada en duración seleccionada
             let fechaLimite: Date | null = null;
-            if (vehicleData.duracion_tipo && vehicleData.duracion_tipo !== 'hora') {
+            if (payload.duracion_tipo && payload.duracion_tipo !== 'hora' && payload.duracion_tipo !== 'abono') {
                 const now = new Date();
-                switch (vehicleData.duracion_tipo) {
+                switch (payload.duracion_tipo) {
                     case 'dia':
-                        fechaLimite = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // +1 día
+                        fechaLimite = new Date(now.getTime() + (24 * 60 * 60 * 1000));
                         break;
                     case 'semana':
-                        fechaLimite = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 días
+                        fechaLimite = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
                         break;
                     case 'mes':
-                        fechaLimite = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // +30 días (aproximado)
+                        fechaLimite = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
                         break;
                 }
             }
 
-            // Registrar la ocupación
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
                 .insert({
                     est_id: estId,
-                    veh_patente: vehicleData.license_plate,
+                    veh_patente: payload.license_plate,
                     ocu_fh_entrada: entryTime,
-                    pla_numero: vehicleData.pla_numero,
-                    ocu_duracion_tipo: vehicleData.duracion_tipo || 'hora',
-                    ocu_precio_acordado: vehicleData.precio_acordado || 0,
+                    pla_numero: payload.pla_numero,
+                    ocu_duracion_tipo: payload.duracion_tipo || 'hora',
+                    ocu_precio_acordado: payload.precio_acordado || 0,
                     ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
                 });
 
@@ -318,17 +375,16 @@ export default function OperadorPage() {
                 throw new Error(`Error al registrar ocupación: ${ocupacionError.message}`);
             }
 
-            // Si se asignó una plaza específica, actualizarla como ocupada
-            if (vehicleData.pla_numero) {
+            if (payload.pla_numero) {
+                const nuevoEstado = payload.isAbono ? 'Abonado' : 'Ocupada';
                 const { error: plazaUpdateError } = await supabase
                     .from('plazas')
-                    .update({ pla_estado: 'Ocupada' })
-                    .eq('pla_numero', vehicleData.pla_numero)
+                    .update({ pla_estado: nuevoEstado })
+                    .eq('pla_numero', payload.pla_numero)
                     .eq('est_id', estId);
 
                 if (plazaUpdateError) {
                     console.warn('Error actualizando estado de plaza:', plazaUpdateError);
-                    // No lanzar error aquí porque la ocupación ya se registró exitosamente
                 }
             }
 
@@ -337,7 +393,9 @@ export default function OperadorPage() {
 
             toast({
                 title: "Entrada registrada",
-                description: `${vehicleData.license_plate} ha sido registrado exitosamente`
+                description: payload.isAbono
+                    ? `Vehículo abonado ${payload.license_plate} ingresó correctamente`
+                    : `${payload.license_plate} ha sido registrado exitosamente`
             });
         } catch (error) {
             console.error("Error al registrar entrada:", error);
@@ -351,29 +409,27 @@ export default function OperadorPage() {
 
     // Función para cargar plazas disponibles
     const loadAvailablePlazas = async () => {
-        if (!estId) return;
+        if (!estId) return [];
 
         try {
-            const supabase = createBrowserClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-            );
-
-            const { data: plazas, error } = await supabase
-                .from('plazas')
-                .select('*')
-                .eq('est_id', estId)
-                .eq('pla_estado', 'Libre');
-
-            if (error) {
-                console.error('Error loading available plazas:', error);
-                return;
+            const response = await fetch(`/api/plazas/dashboard?est_id=${estId}`);
+            if (!response.ok) {
+                console.error('Error loading available plazas:', response.statusText);
+                return [];
             }
 
-            setAvailablePlazas(plazas || []);
-            console.log('Plazas disponibles cargadas:', plazas?.length || 0);
+            const result = await response.json();
+            if (result.success) {
+                setAvailablePlazas(result.plazasCompletas || []);
+                console.log('Plazas disponibles cargadas:', result.plazasCompletas?.length || 0);
+                return result.plazasCompletas || [];
+            } else {
+                console.error('Error en respuesta al cargar plazas:', result.error);
+                return [];
+            }
         } catch (error) {
             console.error('Error loading available plazas:', error);
+            return [];
         }
     };
 
@@ -391,6 +447,8 @@ export default function OperadorPage() {
         plaza_number: number
         modality: string
         agreed_price: number
+        isAbono?: boolean
+        abono_nro?: number
     }) => {
         setModalLoading(true);
         try {
@@ -399,7 +457,9 @@ export default function OperadorPage() {
                 type: data.type,
                 pla_numero: data.plaza_number,
                 duracion_tipo: data.modality.toLowerCase(),
-                precio_acordado: data.agreed_price
+                precio_acordado: data.agreed_price,
+                isAbono: Boolean(data.isAbono),
+                abono_nro: data.abono_nro
             });
 
             toast({
@@ -467,7 +527,8 @@ export default function OperadorPage() {
                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
             );
 
-            // Buscar la ocupación activa del vehículo
+            const plazasData = availablePlazas.length > 0 ? availablePlazas : await loadAvailablePlazas();
+
             const { data: ocupacion, error: ocupacionError } = await supabase
                 .from('vw_ocupacion_actual')
                 .select('*')
@@ -479,7 +540,28 @@ export default function OperadorPage() {
                 throw new Error("Vehículo no encontrado o ya ha salido");
             }
 
-            // ✅ CALCULAR TARIFA USANDO FUNCIÓN CENTRALIZADA
+            const plazaInfo = plazasData.find((plaza: any) => plaza.pla_numero === ocupacion.plaza_number);
+            const esVehiculoAbonado = plazaInfo?.abono?.vehiculos?.some(
+                (vehiculo: any) => vehiculo.veh_patente?.toUpperCase() === licensePlate.toUpperCase()
+            ) ?? false;
+
+            if (esVehiculoAbonado) {
+                await finalizeSubscriptionExit({
+                    licensePlate,
+                    entryTime: ocupacion.entry_time,
+                    plazaNumber: ocupacion.plaza_number
+                });
+
+                toast({
+                    title: "Egreso abonado",
+                    description: `Vehículo ${licensePlate} egresó sin cargo`
+                });
+
+                await refreshParkedVehicles();
+                await refreshCapacity();
+                return;
+            }
+
             const feeData = await calculateParkingFee(
                 {
                     entry_time: ocupacion.entry_time,
@@ -490,9 +572,8 @@ export default function OperadorPage() {
                 estId
             );
 
-            const exitTime = dayjs();
+            const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
 
-            // Preparar datos para el sistema de pagos
             const paymentInfo: PaymentData = {
                 vehicleLicensePlate: licensePlate,
                 amount: feeData.fee,
@@ -504,8 +585,12 @@ export default function OperadorPage() {
                 method: 'efectivo',
                 estId: estId,
                 plazaNumber: ocupacion.plaza_number,
-                zone: ocupacion.plaza_number ? 'Zona General' : undefined,
-                tariffType: feeData.tariffType // Tipo de tarifa seleccionado al ingreso
+                zone: plazaInfo?.pla_zona || 'Zona General',
+                tariffType: feeData.tariffType,
+                precioBase: feeData.precioBase,
+                durationUnits: feeData.durationUnits,
+                isSubscription: false,
+                subscriptionNumber: plazaInfo?.abono?.abo_nro
             };
 
             setPaymentData(paymentInfo);
@@ -691,8 +776,65 @@ export default function OperadorPage() {
     };
 
     // Finalizar salida del vehículo (actualizar DB)
+    const finalizeSubscriptionExit = async ({
+        licensePlate,
+        entryTime,
+        plazaNumber
+    }: {
+        licensePlate: string;
+        entryTime: string;
+        plazaNumber?: number | null;
+    }) => {
+        if (!estId || !user?.id) return;
+
+        const supabase = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+
+        const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+
+        const { error: updateError } = await supabase
+            .from('ocupacion')
+            .update({
+                ocu_fh_salida: exitTimestamp
+            })
+            .eq('est_id', estId)
+            .eq('veh_patente', licensePlate)
+            .eq('ocu_fh_entrada', entryTime)
+            .is('ocu_fh_salida', null);
+
+        if (updateError) {
+            throw updateError;
+        }
+
+        if (plazaNumber) {
+            const { error: plazaUpdateError } = await supabase
+                .from('plazas')
+                .update({ pla_estado: 'Abonado' })
+                .eq('pla_numero', plazaNumber)
+                .eq('est_id', estId);
+
+            if (plazaUpdateError) {
+                console.warn('Error restaurando estado de plaza abonada:', plazaUpdateError);
+            }
+        }
+
+        await refreshParkedVehicles();
+        await refreshCapacity();
+    };
+
     const finalizeVehicleExit = async (data: PaymentData) => {
         if (!estId || !user?.id) return;
+
+        if (data.isSubscription) {
+            await finalizeSubscriptionExit({
+                licensePlate: data.vehicleLicensePlate,
+                entryTime: data.entryTime,
+                plazaNumber: data.plazaNumber
+            });
+            return;
+        }
 
         try {
             const supabase = createBrowserClient(
