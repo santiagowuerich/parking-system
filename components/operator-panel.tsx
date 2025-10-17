@@ -138,7 +138,6 @@ export default function OperatorPanel({
 
       // Si no hay tarifas específicas o plantillaId es 0, usar genéricas
       if (tariffs.length === 0) {
-        console.log('Usando tarifas genéricas por defecto')
         tariffs = [
           { tar_id: 1, tar_nombre: 'Hora', tar_precio_hora: 1200 },
           { tar_id: 2, tar_nombre: 'Día', tar_precio_hora: 8000 },
@@ -267,7 +266,6 @@ export default function OperatorPanel({
   // Forzar actualización de la visualización cuando cambian los vehículos estacionados
   useEffect(() => {
     setVisualizationKey(prev => prev + 1);
-    console.log('🔄 Actualizando visualización por cambio en vehículos estacionados');
   }, [parking.parkedVehicles])
 
 
@@ -478,8 +476,6 @@ export default function OperatorPanel({
 
       // Actualización inmediata y secuencial para evitar conflicts
       try {
-        console.log('🔄 Iniciando actualización post-movimiento...');
-
         // 1. Actualizar estado de plazas primero
         await fetchPlazasStatus();
 
@@ -491,11 +487,8 @@ export default function OperatorPanel({
         // 3. ELIMINADO: Actualizar movimientos recientes (para evitar consultas excesivas)
         // Los movimientos se actualizarán con el realtime del operador-simple
 
-        console.log('✅ Actualización post-movimiento completada');
-
         // 4. Forzar actualización adicional para asegurar consistencia visual
         setTimeout(async () => {
-          console.log('🔄 Ejecutando actualización de seguimiento...');
           if (refreshParkedVehicles) {
             await refreshParkedVehicles();
           }
@@ -503,10 +496,9 @@ export default function OperatorPanel({
         }, 300);
 
       } catch (updateError) {
-        console.warn('❌ Error durante actualización post-movimiento:', updateError);
+        console.warn('Error durante actualización post-movimiento:', updateError);
         // Fallback: recargar página si las actualizaciones fallan
         setTimeout(() => {
-          console.log('🔄 Fallback: recargando página...');
           window.location.reload();
         }, 1000);
       }
@@ -539,6 +531,7 @@ export default function OperatorPanel({
     setModalLoading(true);
     try {
       const esPlazaAbonada = Boolean(selectedPlazaForActions.abono);
+
       await onRegisterEntry({
         license_plate: data.license_plate,
         type: data.type,
@@ -556,7 +549,6 @@ export default function OperatorPanel({
       );
       handleCloseModals();
 
-      // Refrescar datos incluyendo movimientos
       // Refrescar datos (sin movimientos para evitar consultas excesivas)
       await fetchPlazasStatus();
       if (refreshParkedVehicles) {

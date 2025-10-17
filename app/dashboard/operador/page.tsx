@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
@@ -216,9 +216,10 @@ export default function OperadorPage() {
     const availableSpaces = getAvailableSpaces();
     const totalAvailable = availableSpaces.total.capacity - availableSpaces.total.occupied;
 
-    // Función para cargar tarifas genéricas
+    // Función para cargar tarifas desde la API o usar genéricas como fallback
     const loadTariffs = async () => {
-        try {
+        if (!estId) {
+            console.warn('⚠️ [TARIFAS] No hay est_id, usando tarifas genéricas');
             const tariffs = [
                 { tar_id: 1, tar_nombre: 'Hora', tar_precio_hora: 200 },
                 { tar_id: 2, tar_nombre: 'Día', tar_precio_hora: 1500 },
@@ -227,9 +228,72 @@ export default function OperadorPage() {
             ];
             setAvailableTariffs(tariffs);
             return tariffs;
+        }
+
+        try {
+            console.log(`🔄 [TARIFAS] Consultando /api/tarifas?est_id=${estId}`);
+            const response = await fetch(`/api/tarifas?est_id=${estId}`);
+            const data = await response.json();
+
+            console.log(`📥 [TARIFAS] Respuesta del API:`, {
+                success: data.success,
+                totalPlantillas: data.tarifas?.length || 0,
+                plantillas: data.tarifas?.map((p: any) => ({
+                    id: p.plantilla_id,
+                    nombre: p.nombre_plantilla,
+                    tiposTarifa: Object.keys(p.tarifas || {})
+                }))
+            });
+
+            // Si no hay plantillas, usar tarifas genéricas
+            if (!data.tarifas || data.tarifas.length === 0) {
+                console.log('⚙️ [TARIFAS] No hay plantillas, usando tarifas genéricas hardcodeadas');
+                const tariffs = [
+                    { tar_id: 1, tar_nombre: 'Hora', tar_precio_hora: 200 },
+                    { tar_id: 2, tar_nombre: 'Día', tar_precio_hora: 1500 },
+                    { tar_id: 3, tar_nombre: 'Semana', tar_precio_hora: 8000 },
+                    { tar_id: 4, tar_nombre: 'Mensual', tar_precio_hora: 25000 }
+                ];
+                setAvailableTariffs(tariffs);
+                return tariffs;
+            }
+
+            // Usar tarifas de la primera plantilla disponible
+            const primeraPlantilla = data.tarifas[0];
+            console.log(`✅ [TARIFAS] Usando tarifas de plantilla: ${primeraPlantilla.nombre_plantilla} (ID: ${primeraPlantilla.plantilla_id})`);
+
+            const tariffs = Object.entries(primeraPlantilla.tarifas).map(([tipo, data]: [string, any]) => ({
+                tar_id: parseInt(tipo),
+                tar_nombre: mapTariffTypeToName(parseInt(tipo)),
+                tar_precio_hora: data.precio
+            }));
+
+            console.log(`✅ [TARIFAS] Tarifas cargadas:`, tariffs);
+            setAvailableTariffs(tariffs);
+            return tariffs;
         } catch (error) {
-            console.error('Error loading tariffs:', error);
-            return [];
+            console.error('❌ [TARIFAS] Error loading tariffs:', error);
+            // Fallback a tarifas genéricas
+            console.log('⚙️ [TARIFAS] Usando tarifas genéricas por error');
+            const tariffs = [
+                { tar_id: 1, tar_nombre: 'Hora', tar_precio_hora: 200 },
+                { tar_id: 2, tar_nombre: 'Día', tar_precio_hora: 1500 },
+                { tar_id: 3, tar_nombre: 'Semana', tar_precio_hora: 8000 },
+                { tar_id: 4, tar_nombre: 'Mensual', tar_precio_hora: 25000 }
+            ];
+            setAvailableTariffs(tariffs);
+            return tariffs;
+        }
+    };
+
+    // Función para mapear tipos de tarifa numéricos a nombres descriptivos
+    const mapTariffTypeToName = (tipoTarifa: number): string => {
+        switch (tipoTarifa) {
+            case 1: return 'Hora'
+            case 2: return 'Día'
+            case 3: return 'Semana'
+            case 4: return 'Mensual'
+            default: return `Tipo ${tipoTarifa}`
         }
     };
 
@@ -433,10 +497,55 @@ export default function OperadorPage() {
         }
     };
 
+    // Función para cargar tarifas de una plantilla específica
+    const loadTariffsForPlantilla = useCallback(async (plantillaId: number | null) => {
+        // Solo cargar si el modal está abierto
+        if (!showIngresoModal) {
+            return [];
+        }
+
+        if (!estId) {
+            return [];
+        }
+
+        if (!plantillaId || plantillaId === 0) {
+            return loadTariffs();
+        }
+
+        try {
+            const response = await fetch(`/api/tarifas?est_id=${estId}`);
+            const data = await response.json();
+
+            if (!data.tarifas || data.tarifas.length === 0) {
+                return loadTariffs();
+            }
+
+            // Buscar la plantilla específica
+            const plantilla = data.tarifas.find((p: any) => p.plantilla_id === plantillaId);
+
+            if (!plantilla) {
+                return loadTariffs();
+            }
+
+            const tariffs = Object.entries(plantilla.tarifas).map(([tipo, data]: [string, any]) => ({
+                tar_id: parseInt(tipo),
+                tar_nombre: mapTariffTypeToName(parseInt(tipo)),
+                tar_precio_hora: data.precio
+            }));
+
+            setAvailableTariffs(tariffs);
+            return tariffs;
+        } catch (error) {
+            console.error('Error loading tariffs for plantilla:', error);
+            return loadTariffs();
+        }
+    }, [estId, showIngresoModal]);
+
     // Función para abrir modal de ingreso
-    const handleOpenIngresoModal = () => {
-        loadTariffs();
-        loadAvailablePlazas();
+    const handleOpenIngresoModal = async () => {
+        // No cargar tarifas aquí, se cargarán cuando se seleccione la plaza
+        setAvailableTariffs([]); // Resetear tarifas
+        await loadAvailablePlazas();
         setShowIngresoModal(true);
     };
 
@@ -1043,6 +1152,7 @@ export default function OperadorPage() {
                         loading={modalLoading}
                         tarifas={availableTariffs}
                         availablePlazas={availablePlazas}
+                        onPlazaChange={loadTariffsForPlantilla}
                     />
 
                     {/* Modal de Selección de Vehículos */}

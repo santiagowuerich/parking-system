@@ -61,6 +61,7 @@ interface IngresoModalProps {
   loading?: boolean
   tarifas?: Tarifa[]
   availablePlazas?: PlazaCompleta[]
+  onPlazaChange?: (plantillaId: number | null) => Promise<Tarifa[]>
 }
 
 const mapearTipoVehiculo = (segmento: string): VehicleType => {
@@ -79,7 +80,8 @@ export default function IngresoModal({
   onConfirm,
   loading = false,
   tarifas = [],
-  availablePlazas = []
+  availablePlazas = [],
+  onPlazaChange
 }: IngresoModalProps) {
   const [licensePlate, setLicensePlate] = useState("")
   const [vehicleType, setVehicleType] = useState<VehicleType>("Auto")
@@ -196,16 +198,20 @@ export default function IngresoModal({
         const vehicleTypeFromPlaza = mapearTipoVehiculo(plaza.catv_segmento)
         setVehicleType(vehicleTypeFromPlaza)
         setSelectedPlaza(plaza.pla_numero)
+
+        // Si hay plaza preseleccionada, calcular precio
+        const { defaultModality, defaultPrice } = computeDefaultTariff()
+        setSelectedModality(defaultModality)
+        setAgreedPrice(defaultPrice)
       } else {
         setVehicleType("Auto")
         setSelectedPlaza(null)
+        // SIN plaza seleccionada = SIN precio
+        setSelectedModality("Hora")
+        setAgreedPrice(0)
       }
-
-      const { defaultModality, defaultPrice } = computeDefaultTariff()
-      setSelectedModality(defaultModality)
-      setAgreedPrice(defaultPrice)
     }
-  }, [isOpen, plaza, tarifas])
+  }, [isOpen, plaza])
 
   // Update selected plaza when vehicle type changes
   useEffect(() => {
@@ -231,6 +237,34 @@ export default function IngresoModal({
       }
     }
   }, [selectedModality, tarifas, isAbono])
+
+  // Load tariffs when plaza changes
+  useEffect(() => {
+    if (isAbono || !selectedPlaza || !onPlazaChange) return
+
+    const plazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
+    if (!plazaData) return
+
+    // Obtener plantilla_id de la plaza
+    const plantillaId = (plazaData as any).plantillas?.plantilla_id || null
+
+    // Cargar tarifas de esta plantilla
+    onPlazaChange(plantillaId).then(newTarifas => {
+      // Actualizar precio con la nueva tarifa
+      if (newTarifas && newTarifas.length > 0) {
+        const tarifa = newTarifas.find(t => t.tar_nombre === selectedModality) ||
+          newTarifas.find(t => t.tar_nombre.toLowerCase().includes(selectedModality.toLowerCase()))
+
+        if (tarifa) {
+          setAgreedPrice(tarifa.tar_precio_hora)
+        } else {
+          setAgreedPrice(0)
+        }
+      } else {
+        setAgreedPrice(0)
+      }
+    })
+  }, [selectedPlaza, isAbono, onPlazaChange])
 
   useEffect(() => {
     if (!isOpen || plaza) return
@@ -390,9 +424,10 @@ export default function IngresoModal({
               <Select
                 value={selectedModality}
                 onValueChange={setSelectedModality}
+                disabled={!selectedPlaza}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar modalidad" />
+                  <SelectValue placeholder={selectedPlaza ? "Seleccionar modalidad" : "Primero selecciona una plaza"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Hora">Hora</SelectItem>
@@ -401,6 +436,9 @@ export default function IngresoModal({
                   <SelectItem value="Mensual">Mensual</SelectItem>
                 </SelectContent>
               </Select>
+            )}
+            {!isAbono && !selectedPlaza && (
+              <p className="text-xs text-muted-foreground">Selecciona una plaza primero</p>
             )}
           </div>
 
