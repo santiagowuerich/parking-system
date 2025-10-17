@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Trash2, User, Car, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2, MapPin } from "lucide-react";
+import { Search, Trash2, User, Car, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2, MapPin } from "lucide-react";
 import {
     ConductorConVehiculos,
     VehiculoFormData,
@@ -583,12 +583,10 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                     <div className="flex justify-end">
                                         <Button
                                             onClick={agregarVehiculoDesdeFormulario}
-                                            variant="outline"
                                             size="sm"
                                             disabled={vehiculos.length >= 5 && !(vehiculos.length === 1 && vehiculos[0].patente === '')}
                                         >
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            Agregar
+                                            + Confirmar
                                         </Button>
                                     </div>
                                 </div>

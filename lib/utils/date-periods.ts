@@ -1,6 +1,6 @@
 // Utilidades de fechas para extensiones de abonos
 
-export type PeriodType = 'mensual' | 'bimestral' | 'trimestral' | 'anual'
+export type PeriodType = 'mensual' | 'semanal'
 
 export function addMonths(date: Date, months: number): Date {
     const d = new Date(date)
@@ -27,12 +27,8 @@ export function calculateNewExpiry(
     switch (period) {
         case 'mensual':
             return addMonths(start, quantity).toISOString().split('T')[0]
-        case 'bimestral':
-            return addMonths(start, quantity * 2).toISOString().split('T')[0]
-        case 'trimestral':
-            return addMonths(start, quantity * 3).toISOString().split('T')[0]
-        case 'anual':
-            return addMonths(start, quantity * 12).toISOString().split('T')[0]
+        case 'semanal':
+            return addDays(start, quantity * 7).toISOString().split('T')[0]
         default:
             return start.toISOString().split('T')[0]
     }
