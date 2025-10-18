@@ -38,6 +38,17 @@ export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
     const tipoDescripcion = config?.descripcion ?? `Abono ${ext.state.tipoExtension}`
     const total = ext.state.monto
 
+    const handleSubmit = async () => {
+        try {
+            await ext.submit()
+            // Si el submit fue exitoso, cerrar el modal
+            onOpenChange(false)
+        } catch (error) {
+            // El error ya se maneja en el hook con un toast
+            console.error('Error al extender abono:', error)
+        }
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
@@ -174,7 +185,7 @@ export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={ext.state.loading}>
                         Cancelar
                     </Button>
-                    <Button onClick={ext.submit} disabled={!ext.isValid() || ext.state.loading || ext.state.calculating}>
+                    <Button onClick={handleSubmit} disabled={!ext.isValid() || ext.state.loading || ext.state.calculating}>
                         {ext.state.loading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

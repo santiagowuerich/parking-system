@@ -18,7 +18,7 @@ import {
     PlazaInfo
 } from "@/lib/types";
 import { ZonaPlazaSelector } from "./zona-plaza-selector";
-import PaymentMethodSelector from "@/components/payment-method-selector";
+import AbonoPaymentSelector from "@/components/abono-payment-selector";
 import TransferInfoDialog from "@/components/transfer-info-dialog";
 
 interface CrearAbonoPanelProps {
@@ -986,17 +986,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                 onCancel={() => setShowZonaPlazaModal(false)}
             />
 
-            {/* Modal de selección de método de pago */}
-            <PaymentMethodSelector
+            {/* Modal de selección de método de pago para abonos */}
+            <AbonoPaymentSelector
                 isOpen={showPaymentSelector}
                 onClose={() => setShowPaymentSelector(false)}
                 onSelectMethod={handlePaymentMethodSelect}
                 paymentData={{
                     amount: precioTotal,
-                    vehicleLicensePlate: vehiculos[0]?.patente || 'ABONO',
-                    paymentId: 'abono-' + Date.now().toString(),
-                    duration: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
-                } as any}
+                    fechaInicio: fechaInicio,
+                    fechaFin: calcularFechaFin(),
+                    conductor: `${nombre} ${apellido}`,
+                    tipoAbono: CONFIGURACIONES_ABONOS[tipoAbono].descripcion
+                }}
                 loading={paymentLoading}
                 paymentSettings={{
                     efectivo: { enabled: true },
