@@ -93,6 +93,11 @@ export default function PlazaActionsModal({
   const isReservada = plaza.pla_estado === 'Reservada'
   const isAbonado = plaza.pla_estado === 'Abonado'
 
+  // Verificar si el vehículo actual es un vehículo abonado
+  const isVehiculoAbonado = vehicle && plaza.abono?.vehiculos?.some(
+    (vehiculoAbono) => vehiculoAbono.veh_patente?.toUpperCase() === vehicle.license_plate?.toUpperCase()
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="sm:max-w-sm p-0 rounded-2xl shadow-xl border-0 bg-white">
@@ -132,7 +137,8 @@ export default function PlazaActionsModal({
                   Egreso
                 </Button>
               )}
-              {onMover && (
+              {/* Solo mostrar botón Mover si NO es un vehículo abonado */}
+              {onMover && !isVehiculoAbonado && (
                 <Button
                   onClick={onMover}
                   className="w-full h-12 text-white font-medium rounded-xl bg-blue-500 hover:bg-blue-600 shadow-sm transition-all duration-200"

@@ -281,7 +281,17 @@ export default function GestionAbonosPage() {
                                 )}
                             </CardContent>
                         </Card>
-                        <ExtenderAbonoDialog open={!!abonoDialog} onOpenChange={(v) => !v && setAbonoDialog(null)} abono={abonoDialog} />
+                        <ExtenderAbonoDialog
+                            open={!!abonoDialog}
+                            onOpenChange={(v) => {
+                                if (!v) {
+                                    setAbonoDialog(null)
+                                    // Recargar la lista de abonos después de cerrar el modal
+                                    cargarAbonos()
+                                }
+                            }}
+                            abono={abonoDialog}
+                        />
                         <AbonoDetailDialog open={!!abonoDetailDialog} onOpenChange={(v) => !v && setAbonoDetailDialog(null)} abo_nro={abonoDetailDialog?.abo_nro} />
                         <ManageAbonoVehiclesDialog open={vehiculosDialog !== null} onOpenChange={(v) => !v && setVehiculosDialog(null)} abo_nro={vehiculosDialog} />
                     </div>
