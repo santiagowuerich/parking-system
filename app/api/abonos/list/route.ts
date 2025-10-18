@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // 3. OBTENER ABONOS DEL ESTACIONAMIENTO
+        // 3. OBTENER ABONOS ACTIVOS DEL ESTACIONAMIENTO
         const { data: abonosData, error: abonosError } = await supabase
             .from('abonos')
             .select(`
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
                 abo_fecha_inicio,
                 abo_fecha_fin,
                 abo_tipoabono,
+                abo_estado,
                 pla_numero,
                 abonado (
                     abon_nombre,
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
                 )
             `)
             .eq('est_id', estId)
+            .eq('abo_estado', 'activo')
             .order('abo_fecha_fin', { ascending: true });
 
         if (abonosError) {

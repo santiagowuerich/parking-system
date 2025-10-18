@@ -3,6 +3,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { processExpiredSubscriptionsBatch } from '@/lib/utils/abono-expiry-processor'
 
 export async function GET(request: NextRequest) {
   let response = NextResponse.next()
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     const plazasBase = plazasCompletas || [];
 
-    // 1.1 Obtener abonos vigentes para mapear titulares de plazas abonadas
+    // 1.1 Obtener abonos activos para mapear titulares de plazas abonadas
     const { data: abonosData, error: abonosError } = await supabase
       .from('abonos')
       .select(`
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
         abo_fecha_inicio,
         abo_fecha_fin,
         abo_tipoabono,
+        abo_estado,
         abonado (
           abon_id,
           abon_nombre,
@@ -63,6 +65,7 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('est_id', estId)
+      .eq('abo_estado', 'activo')
       .not('pla_numero', 'is', null)
       .order('abo_fecha_fin', { ascending: false });
 
@@ -122,6 +125,58 @@ export async function GET(request: NextRequest) {
         abonosPorPlaza.set(plazaNumero, abono);
       }
     });
+
+    // ========== PROCESAMIENTO DE ABONOS VENCIDOS ==========
+    // Detectar abonos activos que ya vencieron (solo los activos, porque ya filtramos por abo_estado='activo')
+    const abonosVencidos = (abonosData || []).filter((abono) => {
+      const fin = abono.abo_fecha_fin ? new Date(abono.abo_fecha_fin) : null;
+      return fin && fin < now;
+    });
+
+    if (abonosVencidos.length > 0) {
+      console.log(`⚠️ [Vencimientos] Detectados ${abonosVencidos.length} abonos vencidos que requieren procesamiento`);
+
+      // Obtener todas las ocupaciones activas del estacionamiento
+      const { data: ocupacionesActivas } = await supabase
+        .from('ocupacion')
+        .select('ocu_id, veh_patente, pla_numero, ocu_fh_entrada')
+        .eq('est_id', estId)
+        .is('ocu_fh_salida', null);
+
+      // Crear mapa de ocupaciones por plaza para búsqueda eficiente
+      const ocupacionesPorPlaza = new Map();
+      (ocupacionesActivas || []).forEach((ocu) => {
+        if (ocu.pla_numero) {
+          ocupacionesPorPlaza.set(ocu.pla_numero, ocu);
+        }
+      });
+
+      // DEBUG: Ver qué datos tienen los abonos vencidos
+      console.log(`🔍 DEBUG - Abonos vencidos antes de mapear:`);
+      abonosVencidos.forEach(a => {
+        console.log(`  Abono ${a.abo_nro}:`, {
+          abo_fecha_inicio: a.abo_fecha_inicio,
+          abo_fecha_fin: a.abo_fecha_fin,
+          pla_numero: a.pla_numero
+        });
+      });
+
+      // Procesar vencimientos en lote
+      const resultados = await processExpiredSubscriptionsBatch(
+        supabase,
+        abonosVencidos.map((abono) => ({
+          abo_nro: abono.abo_nro,
+          est_id: abono.est_id,
+          pla_numero: abono.pla_numero,
+          abo_fecha_fin: abono.abo_fecha_fin
+        })),
+        ocupacionesPorPlaza
+      );
+
+      const exitosos = resultados.filter(r => r.success).length;
+      console.log(`✅ [Vencimientos] Procesados ${exitosos}/${resultados.length} abonos vencidos`);
+    }
+    // ========== FIN PROCESAMIENTO VENCIMIENTOS ==========
 
     const plazasEnriquecidas = plazasBase.map((plaza) => {
       const plazaNumero = plaza.pla_numero == null ? null : Number(plaza.pla_numero);

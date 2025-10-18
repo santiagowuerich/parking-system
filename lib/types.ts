@@ -124,6 +124,7 @@ export interface Abono {
   abo_fecha_fin: string;
   pag_nro?: number;
   abo_tipoabono: TipoAbono;
+  abo_estado?: 'activo' | 'inactivo';
   vehiculos?: VehiculoAbonado[];
 }
 

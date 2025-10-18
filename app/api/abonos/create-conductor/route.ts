@@ -371,6 +371,7 @@ export async function POST(request: NextRequest) {
                 abo_fecha_inicio: body.abono.fechaInicio,
                 abo_fecha_fin: body.abono.fechaFin,
                 abo_tipoabono: body.abono.tipoAbono,
+                abo_estado: 'activo',
                 pag_nro: null,
                 pla_numero: body.abono.plaza.pla_numero
             })

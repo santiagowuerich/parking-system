@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
         abo_fecha_inicio,
         abo_fecha_fin,
         abo_tipoabono,
+        abo_estado,
         pla_numero,
         est_id,
         abon_id,
