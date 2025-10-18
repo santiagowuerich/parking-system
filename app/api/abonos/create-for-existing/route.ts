@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
                 abo_fecha_inicio: abono.fechaInicio,
                 abo_fecha_fin: abono.fechaFin,
                 abo_tipoabono: abono.tipoAbono,
+                abo_estado: 'activo',
                 pag_nro: null,
                 pla_numero: abono.plaza.pla_numero
             })
