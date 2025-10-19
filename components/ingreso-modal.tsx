@@ -584,8 +584,6 @@ export default function IngresoModal({
                 <SelectContent>
                   <SelectItem value="Hora">Hora</SelectItem>
                   <SelectItem value="Día">Día</SelectItem>
-                  <SelectItem value="Semana">Semana</SelectItem>
-                  <SelectItem value="Mensual">Mensual</SelectItem>
                 </SelectContent>
               </Select>
             )}
