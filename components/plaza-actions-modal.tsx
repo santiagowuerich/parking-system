@@ -10,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Vehicle, VehicleType, VehiculoAbonado } from "@/lib/types"
+import { useTurnos } from "@/lib/hooks/use-turnos"
+import { toast } from "@/components/ui/use-toast"
 import dayjs from "dayjs"
 import utc from 'dayjs/plugin/utc'
 
@@ -84,6 +86,8 @@ export default function PlazaActionsModal({
   onBloquear,
   loading = false
 }: PlazaActionsModalProps) {
+  const { puedeOperar, isEmployee } = useTurnos();
+
   if (!plaza) return null
 
   const tipoVehiculo = mapearTipoVehiculo(plaza.catv_segmento)
@@ -97,6 +101,54 @@ export default function PlazaActionsModal({
   const isVehiculoAbonado = vehicle && plaza.abono?.vehiculos?.some(
     (vehiculoAbono) => vehiculoAbono.veh_patente?.toUpperCase() === vehicle.license_plate?.toUpperCase()
   )
+
+  // Handler para egreso con validación de turno
+  const handleEgresoClick = () => {
+    if (isEmployee && !puedeOperar()) {
+      toast({
+        variant: "destructive",
+        title: "Turno no iniciado",
+        description: "Debes abrir tu turno antes de registrar egresos"
+      });
+      onClose();
+      return;
+    }
+    if (onEgreso) {
+      onEgreso();
+    }
+  };
+
+  // Handler para ingreso con validación de turno
+  const handleIngresoClick = () => {
+    if (isEmployee && !puedeOperar()) {
+      toast({
+        variant: "destructive",
+        title: "Turno no iniciado",
+        description: "Debes abrir tu turno antes de registrar ingresos"
+      });
+      onClose();
+      return;
+    }
+    if (onIngreso) {
+      onIngreso();
+    }
+  };
+
+  // Handler para mover con validación de turno
+  const handleMoverClick = () => {
+    if (isEmployee && !puedeOperar()) {
+      toast({
+        variant: "destructive",
+        title: "Turno no iniciado",
+        description: "Debes abrir tu turno antes de mover vehículos"
+      });
+      onClose();
+      return;
+    }
+    if (onMover) {
+      onMover();
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -130,7 +182,7 @@ export default function PlazaActionsModal({
             <div className="space-y-3">
               {onEgreso && (
                 <Button
-                  onClick={onEgreso}
+                  onClick={handleEgresoClick}
                   className="w-full h-12 text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 shadow-sm transition-all duration-200"
                   disabled={loading}
                 >
@@ -140,7 +192,7 @@ export default function PlazaActionsModal({
               {/* Solo mostrar botón Mover si NO es un vehículo abonado */}
               {onMover && !isVehiculoAbonado && (
                 <Button
-                  onClick={onMover}
+                  onClick={handleMoverClick}
                   className="w-full h-12 text-white font-medium rounded-xl bg-blue-500 hover:bg-blue-600 shadow-sm transition-all duration-200"
                   disabled={loading}
                 >
@@ -154,7 +206,7 @@ export default function PlazaActionsModal({
             <div className="space-y-3">
               {onIngreso && (
                 <Button
-                  onClick={onIngreso}
+                  onClick={handleIngresoClick}
                   className="w-full h-12 text-white font-medium rounded-xl bg-orange-500 hover:bg-orange-600 shadow-sm transition-all duration-200"
                   disabled={loading}
                 >

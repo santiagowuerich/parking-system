@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
 import { ManageAbonoVehiclesDialog } from "@/components/abonos/manage-abono-vehicles-dialog";
+import { TurnoGuard } from "@/components/turno-guard";
 
 interface Abono {
     abo_nro: number;
@@ -129,7 +130,8 @@ export default function GestionAbonosPage() {
             <div className="flex-1 flex flex-col overflow-hidden">
                 <main className="flex-1 overflow-auto">
                     <div className="container mx-auto p-6 space-y-6">
-                        <div className="flex items-center gap-3">
+                        <TurnoGuard showAlert={true} redirectButton={true}>
+                            <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
                                 <Calendar className="h-6 w-6 text-white" />
                             </div>
@@ -294,6 +296,7 @@ export default function GestionAbonosPage() {
                         />
                         <AbonoDetailDialog open={!!abonoDetailDialog} onOpenChange={(v) => !v && setAbonoDetailDialog(null)} abo_nro={abonoDetailDialog?.abo_nro} />
                         <ManageAbonoVehiclesDialog open={vehiculosDialog !== null} onOpenChange={(v) => !v && setVehiculosDialog(null)} abo_nro={vehiculosDialog} />
+                        </TurnoGuard>
                     </div>
                 </main>
             </div>

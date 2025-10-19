@@ -28,7 +28,7 @@ export function useAutoRedirect() {
                     redirectPath = '/dashboard';
                     break;
                 case 'playero':
-                    redirectPath = '/dashboard/operador-simple';
+                    redirectPath = '/dashboard/turnos'; // Playeros van directo a gestión de turnos
                     break;
                 case 'conductor':
                     redirectPath = '/conductor';

@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { CrearAbonoPanel } from "@/components/abonos/crear-abono-panel";
 import { useUserRole } from "@/lib/use-user-role";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TurnoGuard } from "@/components/turno-guard";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -103,10 +104,12 @@ export default function CrearAbonoPage() {
 
                 {/* Content */}
                 <div className="p-6">
-                    <CrearAbonoPanel
-                        estacionamientoId={estacionamientoId}
-                        estacionamientoNombre={estacionamientoNombre}
-                    />
+                    <TurnoGuard showAlert={true} redirectButton={true}>
+                        <CrearAbonoPanel
+                            estacionamientoId={estacionamientoId}
+                            estacionamientoNombre={estacionamientoNombre}
+                        />
+                    </TurnoGuard>
                 </div>
             </div>
         </DashboardLayout>

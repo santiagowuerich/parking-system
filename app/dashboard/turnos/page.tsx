@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { RouteGuard } from "@/components/route-guard";
 import { useAuth } from "@/lib/auth-context";
@@ -205,6 +206,20 @@ export default function TurnosPage() {
                             Registra tus horarios de entrada y salida de trabajo
                         </p>
                     </div>
+
+                    {/* Alert destacado si no hay turno activo */}
+                    {!turnoActivo && (
+                        <Alert variant="destructive" className="mb-6">
+                            <AlertCircle className="h-5 w-5" />
+                            <AlertTitle className="text-lg font-semibold">No tienes un turno activo</AlertTitle>
+                            <AlertDescription className="mt-2">
+                                <p>No podrás registrar ingresos, egresos ni crear abonos hasta que inicies tu turno.</p>
+                                <p className="mt-1 text-sm">
+                                    Para comenzar a trabajar, haz clic en <strong>"Iniciar Turno"</strong> abajo.
+                                </p>
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
                     <div className="space-y-6">
                         {/* Estado Actual del Turno */}
