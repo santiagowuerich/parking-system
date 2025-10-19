@@ -10,9 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Edit, Trash2 } from "lucide-react";
+import { Loader2, Edit, Trash2, Plus } from "lucide-react";
 import { useUserRole } from "@/lib/use-user-role";
 import { useVehicle } from "@/lib/contexts/vehicle-context";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Vehicle {
     id: string;
@@ -27,6 +35,7 @@ export default function ConductorVehiculosPage() {
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
     const [formData, setFormData] = useState({
         tipo: "",
@@ -107,8 +116,9 @@ export default function ConductorVehiculosPage() {
             // Actualizar lista de vehículos
             await fetchVehicles();
 
-            // Limpiar formulario
+            // Limpiar formulario y cerrar modal
             handleClearForm();
+            setIsDialogOpen(false);
 
         } catch (error) {
             console.error('Error:', error);
@@ -123,14 +133,27 @@ export default function ConductorVehiculosPage() {
     };
 
     const handleEditVehicle = (vehicle: Vehicle) => {
+        // Mapear tipo de BD a tipo de formulario
+        const tipoMapping: Record<string, string> = {
+            'AUT': 'Auto',
+            'MOT': 'Moto',
+            'CAM': 'Camioneta'
+        };
+
         setEditingVehicle(vehicle);
         setFormData({
-            tipo: vehicle.tipo,
+            tipo: tipoMapping[vehicle.tipo] || vehicle.tipo,
             patente: vehicle.patente,
             marca: vehicle.marca,
             modelo: vehicle.modelo,
             color: vehicle.color
         });
+        setIsDialogOpen(true);
+    };
+
+    const handleOpenCreateDialog = () => {
+        handleClearForm();
+        setIsDialogOpen(true);
     };
 
     const handleDeleteVehicle = async (vehicleId: string) => {
@@ -186,192 +209,203 @@ export default function ConductorVehiculosPage() {
     return (
         <DashboardLayout>
             <div className="h-screen bg-white flex flex-col">
-                <div className="border-b bg-card h-16 flex items-center">
-                    <div className="px-6 py-3 flex justify-between items-center w-full">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Mis Vehículos</h1>
-                            <p className="text-gray-600 mt-1">
-                                Registrá tus vehículos y gestioná los ya cargados
-                            </p>
-                        </div>
+                <div className="border-b bg-card px-6 py-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Mis Vehículos</h1>
+                        <p className="text-gray-600 mt-1">
+                            Registrá tus vehículos y gestioná los ya cargados
+                        </p>
                     </div>
                 </div>
 
-                <div className="flex-1 p-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-                        {/* Panel Izquierdo - Formulario */}
-                        <div className="flex flex-col">
-                            <Card className="shadow-2xl border-0">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg">Registrar vehículo</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="tipo">Tipo de vehículo</Label>
-                                        <Select
-                                            value={formData.tipo}
-                                            onValueChange={(value) => setFormData({ ...formData, tipo: value })}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Auto / Camioneta / Moto" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Auto">Auto</SelectItem>
-                                                <SelectItem value="Moto">Moto</SelectItem>
-                                                <SelectItem value="Camioneta">Camioneta</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="patente">Patente</Label>
-                                        <Input
-                                            id="patente"
-                                            value={formData.patente}
-                                            onChange={(e) => setFormData({ ...formData, patente: e.target.value.toUpperCase() })}
-                                            placeholder="AA123BB"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="marca">Marca</Label>
-                                        <Input
-                                            id="marca"
-                                            value={formData.marca}
-                                            onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
-                                            placeholder="Toyota"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="modelo">Modelo</Label>
-                                        <Input
-                                            id="modelo"
-                                            value={formData.modelo}
-                                            onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
-                                            placeholder="Corolla 2021"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="color">Color</Label>
-                                        <Input
-                                            id="color"
-                                            value={formData.color}
-                                            onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                            placeholder="Blanco"
-                                        />
-                                    </div>
-
-                                    <div className="flex gap-3 pt-4">
-                                        <Button
-                                            onClick={handleSaveVehicle}
-                                            disabled={saving}
-                                            className="flex-1 bg-blue-600 hover:bg-blue-700"
-                                        >
-                                            {saving ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                    Guardando...
-                                                </>
-                                            ) : (
-                                                'Guardar vehículo'
-                                            )}
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            onClick={handleClearForm}
-                                            className="flex-1"
-                                        >
-                                            Limpiar
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Panel Derecho - Tabla */}
-                        <div className="flex flex-col">
-                            <Card className="shadow-2xl border-0">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg">Vehículos registrados</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {loading ? (
-                                        <div className="flex items-center justify-center py-8">
-                                            <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                                            Cargando vehículos...
-                                        </div>
-                                    ) : vehicles.length === 0 ? (
-                                        <div className="text-center py-8 text-gray-500">
-                                            No hay vehículos registrados
-                                        </div>
-                                    ) : (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Tipo</TableHead>
-                                                    <TableHead>Patente</TableHead>
-                                                    <TableHead>Marca</TableHead>
-                                                    <TableHead>Modelo</TableHead>
-                                                    <TableHead>Color</TableHead>
-                                                    <TableHead className="text-center">Seleccionar</TableHead>
-                                                    <TableHead className="text-center">Acción</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {vehicles.map((vehicle) => (
-                                                    <TableRow key={vehicle.id} className={selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                {vehicle.tipo}
-                                                                {selectedVehicle?.patente === vehicle.patente && (
-                                                                    <Badge className="bg-blue-600 text-white">Seleccionado</Badge>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="font-medium">{vehicle.patente}</TableCell>
-                                                        <TableCell>{vehicle.marca}</TableCell>
-                                                        <TableCell>{vehicle.modelo}</TableCell>
-                                                        <TableCell>{vehicle.color}</TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Button
-                                                                variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
-                                                                size="sm"
-                                                                onClick={() => setSelectedVehicle(vehicle)}
-                                                            >
-                                                                {selectedVehicle?.patente === vehicle.patente ? 'Seleccionado' : 'Seleccionar'}
-                                                            </Button>
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <div className="flex justify-center gap-2">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() => handleEditVehicle(vehicle)}
-                                                                >
-                                                                    <Edit className="w-4 h-4" />
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    onClick={() => handleDeleteVehicle(vehicle.id)}
-                                                                    className="text-red-600 hover:text-red-700"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </Button>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
+                <div className="flex-1 p-6">
+                    <Card className="shadow-lg">
+                        <CardHeader className="pb-4">
+                            <div>
+                                <Button
+                                    onClick={handleOpenCreateDialog}
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                    size="default"
+                                >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Registrar vehículo
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                                    Cargando vehículos...
+                                </div>
+                            ) : vehicles.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-gray-500 mb-4">No hay vehículos registrados</p>
+                                    <Button
+                                        onClick={handleOpenCreateDialog}
+                                        variant="outline"
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Registrar primer vehículo
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Tipo</TableHead>
+                                            <TableHead>Patente</TableHead>
+                                            <TableHead>Marca</TableHead>
+                                            <TableHead>Modelo</TableHead>
+                                            <TableHead>Color</TableHead>
+                                            <TableHead className="text-center">Seleccionar</TableHead>
+                                            <TableHead className="text-center">Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {vehicles.map((vehicle) => (
+                                            <TableRow
+                                                key={vehicle.id}
+                                                className={selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}
+                                            >
+                                                <TableCell>{vehicle.tipo}</TableCell>
+                                                <TableCell className="font-medium">{vehicle.patente}</TableCell>
+                                                <TableCell>{vehicle.marca}</TableCell>
+                                                <TableCell>{vehicle.modelo}</TableCell>
+                                                <TableCell>{vehicle.color}</TableCell>
+                                                <TableCell className="text-center">
+                                                    <Button
+                                                        variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
+                                                        size="sm"
+                                                        onClick={() => setSelectedVehicle(vehicle)}
+                                                    >
+                                                        {selectedVehicle?.patente === vehicle.patente ? 'Seleccionado' : 'Seleccionar'}
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => handleEditVehicle(vehicle)}
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => handleDeleteVehicle(vehicle.id)}
+                                                            className="text-red-600 hover:text-red-700"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
+
+                {/* Modal para Crear/Editar Vehículo */}
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {editingVehicle ? 'Editar vehículo' : 'Registrar vehículo'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {editingVehicle
+                                    ? 'Modificá los datos de tu vehículo'
+                                    : 'Completá los datos de tu vehículo'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="tipo">Tipo de vehículo</Label>
+                                <Select
+                                    value={formData.tipo}
+                                    onValueChange={(value) => setFormData({ ...formData, tipo: value })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Auto">Auto</SelectItem>
+                                        <SelectItem value="Moto">Moto</SelectItem>
+                                        <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="patente">Patente</Label>
+                                <Input
+                                    id="patente"
+                                    value={formData.patente}
+                                    onChange={(e) => setFormData({ ...formData, patente: e.target.value.toUpperCase() })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="marca">Marca</Label>
+                                <Input
+                                    id="marca"
+                                    value={formData.marca}
+                                    onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="modelo">Modelo</Label>
+                                <Input
+                                    id="modelo"
+                                    value={formData.modelo}
+                                    onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="color">Color</Label>
+                                <Input
+                                    id="color"
+                                    value={formData.color}
+                                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setIsDialogOpen(false);
+                                    handleClearForm();
+                                }}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSaveVehicle}
+                                disabled={saving}
+                                className="bg-blue-600 hover:bg-blue-700"
+                            >
+                                {saving ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    editingVehicle ? 'Actualizar' : 'Guardar'
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </DashboardLayout>
     );
