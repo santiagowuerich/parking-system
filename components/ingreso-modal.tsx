@@ -19,7 +19,9 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { VehicleType, VehiculoAbonado } from "@/lib/types"
-import { Loader2, Lock } from "lucide-react"
+import { Loader2, Lock, AlertCircle } from "lucide-react"
+import { Plaza } from "@/components/Plaza"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface PlazaCompleta {
   pla_numero: number
@@ -89,6 +91,7 @@ export default function IngresoModal({
   const [selectedModality, setSelectedModality] = useState<string>("Hora")
   const [agreedPrice, setAgreedPrice] = useState<number>(0)
   const [selectedAbonoVehicle, setSelectedAbonoVehicle] = useState<string>("")
+  const [selectedZona, setSelectedZona] = useState<string>("")
 
   const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
   const abonoSource = matchedAbonoPlaza?.abono || plaza?.abono || null
@@ -174,7 +177,10 @@ export default function IngresoModal({
 
   // Initialize when modal opens
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      setSelectedZona(""); // Reset zona cuando se cierra
+      return;
+    }
 
     setMatchedAbonoPlaza(null)
 
@@ -337,9 +343,37 @@ export default function IngresoModal({
   const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
   const selectedPlazaInfo = matchedAbonoPlaza || selectedPlazaData || plaza || null
 
+  // Función helper para mapear tipo de vehículo
+  const getTipoVehiculo = (segmento: string) => {
+    switch (segmento) {
+      case 'AUT': return 'Auto';
+      case 'MOT': return 'Moto';
+      case 'CAM': return 'Camioneta';
+      default: return 'Auto';
+    }
+  };
+
+  // Obtener zonas disponibles
+  const zonasDisponibles = useMemo(() => {
+    return Array.from(new Set(availablePlazasForVehicle.map(p => p.pla_zona || 'A')));
+  }, [availablePlazasForVehicle]);
+
+  // Filtrar plazas por zona seleccionada
+  const plazasFiltradas = useMemo(() => {
+    if (!selectedZona) return availablePlazasForVehicle;
+    return availablePlazasForVehicle.filter(p => (p.pla_zona || 'A') === selectedZona);
+  }, [availablePlazasForVehicle, selectedZona]);
+
+  // Auto-seleccionar primera zona disponible
+  useEffect(() => {
+    if (!isAbono && zonasDisponibles.length > 0 && !selectedZona) {
+      setSelectedZona(zonasDisponibles[0]);
+    }
+  }, [zonasDisponibles, isAbono, selectedZona]);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col overflow-visible">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Ingreso</DialogTitle>
           <DialogDescription>
@@ -410,38 +444,6 @@ export default function IngresoModal({
             )}
           </div>
 
-          {/* Tarifa */}
-          <div className="space-y-2">
-            <Label htmlFor="modality">Modalidad de Tarifa</Label>
-            {isAbono ? (
-              <Input
-                id="modality"
-                value="Abono (sin cargo)"
-                readOnly
-                className="bg-muted cursor-not-allowed"
-              />
-            ) : (
-              <Select
-                value={selectedModality}
-                onValueChange={setSelectedModality}
-                disabled={!selectedPlaza}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={selectedPlaza ? "Seleccionar modalidad" : "Primero selecciona una plaza"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hora">Hora</SelectItem>
-                  <SelectItem value="Día">Día</SelectItem>
-                  <SelectItem value="Semana">Semana</SelectItem>
-                  <SelectItem value="Mensual">Mensual</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            {!isAbono && !selectedPlaza && (
-              <p className="text-xs text-muted-foreground">Selecciona una plaza primero</p>
-            )}
-          </div>
-
           {/* Tipo de vehículo */}
           <div className="space-y-2">
             <Label htmlFor="vehicle-type">Tipo de vehículo</Label>
@@ -470,37 +472,125 @@ export default function IngresoModal({
             )}
           </div>
 
-          {/* Plaza a asignar */}
-          <div className="space-y-2">
-            <Label htmlFor="plaza-selector">Plaza asignada</Label>
-            <Select
-              value={selectedPlaza?.toString() || ""}
-              onValueChange={(value) => setSelectedPlaza(Number(value))}
-            >
-              <SelectTrigger disabled={!!plaza}>
-                <SelectValue placeholder="Seleccionar plaza disponible..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePlazasForVehicle.length > 0 ? (
-                  availablePlazasForVehicle.map((plaza) => (
-                    <SelectItem key={plaza.pla_numero} value={plaza.pla_numero.toString()}>
-                      Plaza {plaza.pla_numero} - {plaza.pla_zona}
+          {/* Selector de Zona */}
+          {!plaza && !isAbono && zonasDisponibles.length > 1 && (
+            <div className="space-y-2">
+              <Label htmlFor="zona-selector">Zona destino</Label>
+              <Select value={selectedZona} onValueChange={setSelectedZona}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Elegir una zona (A, B, C...)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {zonasDisponibles.map((zona) => (
+                    <SelectItem key={zona} value={zona}>
+                      Zona {zona}
                     </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-plazas" disabled>
-                    No hay plazas disponibles para {vehicleType}
-                  </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Plaza a asignar - Grid visual */}
+          <div className="space-y-2">
+            <Label>Plaza asignada</Label>
+
+            {plaza ? (
+              <>
+                <Input
+                  value={`Plaza ${plaza.pla_numero} - Zona ${plaza.pla_zona}`}
+                  readOnly
+                  className="bg-muted cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">Bloqueado: ya seleccionaste esta plaza desde el mapa</p>
+              </>
+            ) : plazasFiltradas.length === 0 ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No hay plazas libres para vehículos tipo {vehicleType} en zona {selectedZona}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {/* Leyenda */}
+                <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Plazas disponibles: {plazasFiltradas.length}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-600 rounded"></div>
+                    <span className="text-xs">Disponibles</span>
+                  </div>
+                </div>
+
+                {/* Grid de plazas */}
+                <div className="border rounded-lg bg-gray-50 p-4 overflow-hidden">
+                  <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-2">
+                    {plazasFiltradas.map((plazaItem) => (
+                      <Plaza
+                        key={plazaItem.pla_numero}
+                        numero={plazaItem.pla_numero}
+                        ocupado={false}
+                        abonado={false}
+                        tipo={getTipoVehiculo(plazaItem.catv_segmento)}
+                        onClick={() => setSelectedPlaza(plazaItem.pla_numero)}
+                        selected={selectedPlaza === plazaItem.pla_numero}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Plaza seleccionada */}
+                {selectedPlaza && selectedPlazaInfo && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900">Plaza seleccionada</p>
+                        <p className="text-sm text-blue-800 mt-1">
+                          Zona {selectedPlazaInfo.pla_zona || 'A'} - Nº {selectedPlazaInfo.pla_numero}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Tipo: {getTipoVehiculo(selectedPlazaInfo.catv_segmento)}
+                        </p>
+                      </div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {selectedPlazaInfo.pla_numero}
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </SelectContent>
-            </Select>
-            {plaza && (
-              <p className="text-xs text-muted-foreground">Bloqueado: ya seleccionaste esta plaza desde el mapa</p>
+              </>
             )}
-            {availablePlazasForVehicle.length === 0 && (
-              <p className="text-sm text-red-600">
-                No hay plazas libres para vehículos tipo {vehicleType}
-              </p>
+          </div>
+
+          {/* Modalidad de Tarifa */}
+          <div className="space-y-2">
+            <Label htmlFor="modality">Modalidad de Tarifa</Label>
+            {isAbono ? (
+              <Input
+                id="modality"
+                value="Abono (sin cargo)"
+                readOnly
+                className="bg-muted cursor-not-allowed"
+              />
+            ) : (
+              <Select
+                value={selectedModality}
+                onValueChange={setSelectedModality}
+                disabled={!selectedPlaza}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={selectedPlaza ? "Seleccionar modalidad" : "Primero selecciona una plaza"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hora">Hora</SelectItem>
+                  <SelectItem value="Día">Día</SelectItem>
+                  <SelectItem value="Semana">Semana</SelectItem>
+                  <SelectItem value="Mensual">Mensual</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            {!isAbono && !selectedPlaza && (
+              <p className="text-xs text-muted-foreground">Selecciona una plaza primero</p>
             )}
           </div>
 

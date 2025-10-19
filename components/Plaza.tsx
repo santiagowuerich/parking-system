@@ -8,11 +8,15 @@ interface PlazaProps {
     abonado?: boolean; // Nuevo prop para estado abonado
     tipo?: string; // Tipo de plaza (Auto, Moto, Camioneta)
     onClick: () => void;
+    selected?: boolean; // Nuevo prop para indicar si la plaza está seleccionada
 }
 
-export function Plaza({ numero, ocupado, abonado = false, tipo = 'Auto', onClick }: PlazaProps) {
+export function Plaza({ numero, ocupado, abonado = false, tipo = 'Auto', onClick, selected = false }: PlazaProps) {
     const getButtonStyles = () => {
-        if (abonado) {
+        if (selected) {
+            // Estado Seleccionado: azul brillante
+            return "bg-blue-600 hover:bg-blue-700 cursor-pointer ring-4 ring-blue-300";
+        } else if (abonado) {
             // Estado Abonado: gris, no clickeable
             return "bg-gray-500 hover:bg-gray-500 cursor-not-allowed opacity-75";
         } else if (ocupado) {
@@ -32,7 +36,9 @@ export function Plaza({ numero, ocupado, abonado = false, tipo = 'Auto', onClick
     };
 
     const getTooltipText = () => {
-        if (abonado) {
+        if (selected) {
+            return `Plaza ${numero} - ${tipo} (Seleccionada)`;
+        } else if (abonado) {
             return `Plaza ${numero} - ${tipo} (Abonada)`;
         } else if (ocupado) {
             return `Plaza ${numero} - ${tipo} (Ocupada)`;
