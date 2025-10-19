@@ -154,6 +154,7 @@ export default function ParkingMap({
 
             const data = await response.json();
             setParkings(data.parkings || []);
+            console.log(`${logPrefix} Estacionamientos encontrados:`, data.parkings?.length || 0);
             return data.parkings || [];
         } catch (error) {
             console.error('❌ Error obteniendo estacionamientos:', error);

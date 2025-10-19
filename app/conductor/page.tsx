@@ -59,15 +59,12 @@ export default function MapaEstacionamientos() {
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
     const { selectedVehicle } = useVehicle();
 
-    // Auto-aplicar filtro según vehículo seleccionado (solo si no hay filtro manual)
+    // Auto-aplicar filtro según vehículo seleccionado
     useEffect(() => {
-        if (selectedVehicle && !vehicleTypeFilter) {
+        if (selectedVehicle) {
             setVehicleTypeFilter(selectedVehicle.tipo);
-        } else if (!selectedVehicle && vehicleTypeFilter) {
-            // Resetear filtro cuando no hay vehículo seleccionado
-            setVehicleTypeFilter(null);
         }
-    }, [selectedVehicle, vehicleTypeFilter]);
+    }, [selectedVehicle]);
 
     // Función para calcular la distancia entre dos puntos (Haversine formula)
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {

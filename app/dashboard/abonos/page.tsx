@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useUserRole } from "@/lib/use-user-role";
 import { AbonoConductor } from "@/lib/types";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
@@ -18,7 +20,7 @@ export default function AbonosPage() {
     const [abonos, setAbonos] = useState<AbonoConductor[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortByExpiry, setSortByExpiry] = useState(false);
+    const [mostrarVencidos, setMostrarVencidos] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [abonoDetailDialog, setAbonoDetailDialog] = useState<number | null>(null);
 
@@ -53,19 +55,29 @@ export default function AbonosPage() {
         }
     };
 
-    // Filtrar abonos por búsqueda
+    // Filtrar abonos por búsqueda y estado (vencidos)
     const abonosFiltrados = abonos.filter(abono => {
         const searchLower = searchTerm.toLowerCase();
-        return (
+        const matchesSearch = (
             abono.estacionamiento_nombre.toLowerCase().includes(searchLower) ||
             abono.estacionamiento_direccion.toLowerCase().includes(searchLower)
         );
+
+        // Si no se quieren mostrar vencidos, filtrar solo activos y por vencer
+        const matchesEstado = mostrarVencidos || abono.estado !== 'Vencido';
+
+        return matchesSearch && matchesEstado;
     });
 
-    // Ordenar por proximidad a vencer si está activado
-    const abonosOrdenados = sortByExpiry
-        ? [...abonosFiltrados].sort((a, b) => a.dias_restantes - b.dias_restantes)
-        : abonosFiltrados;
+    // Ordenar: primero activos por proximidad a vencer, luego vencidos
+    const abonosOrdenados = [...abonosFiltrados].sort((a, b) => {
+        // Si uno está vencido y el otro no, el vencido va al final
+        if (a.estado === 'Vencido' && b.estado !== 'Vencido') return 1;
+        if (a.estado !== 'Vencido' && b.estado === 'Vencido') return -1;
+
+        // Si ambos tienen el mismo estado (ambos vencidos o ambos activos), ordenar por días restantes
+        return a.dias_restantes - b.dias_restantes;
+    });
 
     // Paginación
     const totalPages = Math.ceil(abonosOrdenados.length / itemsPerPage);
@@ -122,29 +134,38 @@ export default function AbonosPage() {
 
                             <Card>
                                 <CardHeader>
-                                    <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                                        <div className="flex-1 w-full sm:w-auto">
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                                <Input
-                                                    placeholder="Buscar por Estacionamiento"
-                                                    value={searchTerm}
-                                                    onChange={(e) => {
-                                                        setSearchTerm(e.target.value);
-                                                        setCurrentPage(1);
-                                                    }}
-                                                    className="pl-10"
-                                                />
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                                            <div className="flex-1 w-full sm:w-auto">
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                                    <Input
+                                                        placeholder="Buscar por Estacionamiento"
+                                                        value={searchTerm}
+                                                        onChange={(e) => {
+                                                            setSearchTerm(e.target.value);
+                                                            setCurrentPage(1);
+                                                        }}
+                                                        className="pl-10"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 w-full sm:w-auto">
-                                            <Button
-                                                variant={sortByExpiry ? "default" : "outline"}
-                                                onClick={() => setSortByExpiry(!sortByExpiry)}
-                                                className="flex-1 sm:flex-none"
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="mostrar-vencidos"
+                                                checked={mostrarVencidos}
+                                                onCheckedChange={(checked) => {
+                                                    setMostrarVencidos(checked as boolean);
+                                                    setCurrentPage(1);
+                                                }}
+                                            />
+                                            <Label
+                                                htmlFor="mostrar-vencidos"
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                                             >
-                                                {sortByExpiry ? "✓ " : ""}Ordenar por proximidad a vencer
-                                            </Button>
+                                                Mostrar abonos vencidos
+                                            </Label>
                                         </div>
                                     </div>
                                 </CardHeader>
