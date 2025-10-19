@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { formatArgentineTimeWithDayjs } from "@/lib/utils";
+import { TurnoGuard } from "@/components/turno-guard";
 
 
 export default function MovimientosPage() {
@@ -82,7 +83,8 @@ export default function MovimientosPage() {
                 <main className="flex-1 overflow-auto">
                     <div className="min-h-screen bg-white">
                         <div className="p-6 space-y-6">
-                            <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+                            <TurnoGuard showAlert={true} redirectButton={true}>
+                                <Card className="dark:bg-zinc-900 dark:border-zinc-800">
                                 <CardHeader>
                                     <CardTitle className="dark:text-zinc-100">Movimientos</CardTitle>
                                 </CardHeader>
@@ -150,6 +152,7 @@ export default function MovimientosPage() {
                                     </Table>
                                 </CardContent>
                             </Card>
+                            </TurnoGuard>
                         </div>
                     </div>
                 </main>

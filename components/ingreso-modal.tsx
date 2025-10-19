@@ -22,6 +22,8 @@ import { VehicleType, VehiculoAbonado } from "@/lib/types"
 import { Loader2, Lock, AlertCircle } from "lucide-react"
 import { Plaza } from "@/components/Plaza"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useTurnos } from "@/lib/hooks/use-turnos"
+import { toast } from "@/components/ui/use-toast"
 
 interface PlazaCompleta {
   pla_numero: number
@@ -94,6 +96,9 @@ export default function IngresoModal({
   const [selectedZona, setSelectedZona] = useState<string>("")
 
   const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
+
+  // Verificación de turno activo
+  const { puedeOperar, isEmployee } = useTurnos()
   const abonoSource = matchedAbonoPlaza?.abono || plaza?.abono || null
   const abonoVehicles: VehiculoAbonado[] = useMemo(() => {
     return (abonoSource?.vehiculos || []).filter(
@@ -174,6 +179,18 @@ export default function IngresoModal({
       setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
     }
   }
+
+  // Verificar turno activo al abrir modal (solo para empleados)
+  useEffect(() => {
+    if (isOpen && isEmployee && !puedeOperar()) {
+      toast({
+        variant: "destructive",
+        title: "Turno no iniciado",
+        description: "Debes abrir tu turno antes de registrar ingresos"
+      });
+      onClose();
+    }
+  }, [isOpen, isEmployee, puedeOperar, onClose]);
 
   // Initialize when modal opens
   useEffect(() => {

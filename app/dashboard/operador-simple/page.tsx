@@ -23,6 +23,8 @@ import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 import { calculateParkingFee } from "@/lib/tariff-calculator";
+import { useTurnos } from "@/lib/hooks/use-turnos";
+import { TurnoGuard } from "@/components/turno-guard";
 
 
 type ExitInfo = {
@@ -37,6 +39,7 @@ type ExitInfo = {
 export default function OperadorSimplePage() {
     const { user, estId, parkedVehicles, parkingCapacity, refreshParkedVehicles, refreshParkingHistory, refreshCapacity, fetchUserData } = useAuth();
     const { canOperateParking, loading: roleLoading, role } = useUserRole();
+    const { puedeOperar, isEmployee } = useTurnos();
     const router = useRouter();
 
     // Verificar que el usuario pueda operar el estacionamiento
@@ -563,6 +566,16 @@ export default function OperadorSimplePage() {
 
     // Iniciar proceso de salida (calcular tarifa y mostrar selector de pago)
     const handleExit = async (licensePlate: string) => {
+        // Validar turno activo para empleados
+        if (isEmployee && !puedeOperar()) {
+            toast({
+                variant: "destructive",
+                title: "Turno no iniciado",
+                description: "Debes abrir tu turno antes de registrar egresos"
+            });
+            return;
+        }
+
         if (!estId || !user?.id) {
             toast({
                 variant: "destructive",
@@ -1217,8 +1230,9 @@ export default function OperadorSimplePage() {
                 <main className="flex-1 overflow-auto">
                     <div className="min-h-screen bg-white">
                         <div className="p-6 space-y-6">
-                            {/* Panel de Operador Original */}
-                            <OperatorPanel
+                            <TurnoGuard showAlert={true} redirectButton={true}>
+                                {/* Panel de Operador Original */}
+                                <OperatorPanel
                                 parking={parking}
                                 availableSpaces={getAvailableSpaces()}
                                 onRegisterEntry={registerEntry}
@@ -1236,7 +1250,7 @@ export default function OperadorSimplePage() {
                                 getEstadoIcon={getEstadoIcon}
                                 refreshParkedVehicles={refreshParkedVehicles}
                             />
-
+                            </TurnoGuard>
                         </div>
                     </div>
 

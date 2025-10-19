@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
+import { useTurnos } from "@/lib/hooks/use-turnos";
+import { Badge } from "@/components/ui/badge";
 import { useTheme } from "next-themes";
 
 interface SidebarProps {
@@ -223,6 +225,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
     const pathname = usePathname();
     const { user, signOut, userRole, roleLoading, estId, getParkingById } = useAuth();
     const { role, isEmployee, isOwner, isDriver } = useUserRole();
+    const { tieneTurnoActivo, turnoActivo } = useTurnos();
     const { theme, setTheme } = useTheme();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
@@ -347,6 +350,33 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse"></div>
                                         <span className="text-sm font-medium">{currentParking?.est_nombre || 'Seleccionar estacionamiento'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Indicador de turno activo - solo visible para empleados */}
+                    {isEmployee && (
+                        <div className="mb-6">
+                            <div className={cn(
+                                "rounded-xl p-3.5 shadow-sm border transition-all duration-200",
+                                tieneTurnoActivo
+                                    ? "bg-gradient-to-r from-green-50/50 to-transparent border-green-200 dark:from-green-950/20 dark:border-green-800"
+                                    : "bg-gradient-to-r from-red-50/50 to-transparent border-red-200 dark:from-red-950/20 dark:border-red-800"
+                            )}>
+                                <div className="flex items-center gap-2.5">
+                                    <Clock className={cn(
+                                        "h-4 w-4",
+                                        tieneTurnoActivo ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                                    )} />
+                                    <div className="flex-1">
+                                        <Badge variant={tieneTurnoActivo ? "default" : "destructive"} className="text-xs">
+                                            {tieneTurnoActivo
+                                                ? `Turno activo desde ${turnoActivo?.tur_hora_entrada}`
+                                                : "Sin turno activo"
+                                            }
+                                        </Badge>
                                     </div>
                                 </div>
                             </div>

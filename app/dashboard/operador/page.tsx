@@ -24,6 +24,8 @@ import QRPaymentDialog from "@/components/qr-payment-dialog";
 import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 import { formatDuration } from "@/lib/utils";
 import { calculateParkingFee } from "@/lib/tariff-calculator";
+import { useTurnos } from "@/lib/hooks/use-turnos";
+import { TurnoGuard } from "@/components/turno-guard";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -58,6 +60,7 @@ const Clock = () => {
 export default function OperadorPage() {
     const { user, estId, parkedVehicles, parkingCapacity, fetchUserData, refreshParkedVehicles, refreshCapacity } = useAuth();
     const { canOperateParking, loading: roleLoading } = useUserRole();
+    const { puedeOperar, isEmployee } = useTurnos();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('ingreso');
@@ -1066,13 +1069,14 @@ export default function OperadorPage() {
                     <div className="min-h-screen bg-white">
                         {/* Main Content */}
                         <div className="max-w-7xl mx-auto px-6 py-16">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                            <TurnoGuard showAlert={true} redirectButton={true}>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
 
-                                {/* Tarjeta de Ingreso */}
-                                <div
-                                    className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 border-2 border-green-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
-                                    onClick={handleOpenIngresoModal}
-                                >
+                                    {/* Tarjeta de Ingreso */}
+                                    <div
+                                        className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 border-2 border-green-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                        onClick={handleOpenIngresoModal}
+                                    >
                                     {/* Círculo con flecha */}
                                     <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mb-8">
                                         <ArrowLeft className="w-8 h-8 text-white" />
@@ -1116,6 +1120,7 @@ export default function OperadorPage() {
                                     </div>
                                 </div>
                             </div>
+                            </TurnoGuard>
                         </div>
                     </div>
 
