@@ -896,10 +896,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
           console.log('⏰ Timeout en consulta de rol después de 10 segundos');
+          // No re-lanzamos el error de timeout, es un error esperado
         } else {
           console.error('❌ Error en consulta de rol:', fetchError);
+          // Solo re-lanzamos errores que no sean de timeout
+          throw fetchError;
         }
-        throw fetchError; // Re-lanzar para que sea manejado por el catch exterior
       }
     } catch (error) {
       console.error('❌ Error obteniendo rol:', error);

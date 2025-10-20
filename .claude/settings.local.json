@@ -9,7 +9,8 @@
       "WebFetch(domain:www.mercadopago.com.ar)",
       "WebFetch(domain:www.figma.com)",
       "Bash(curl:*)",
-      "Bash(code --list-extensions)"
+      "Bash(code --list-extensions)",
+      "Bash(npm run build:components)"
     ],
     "deny": [],
     "ask": []

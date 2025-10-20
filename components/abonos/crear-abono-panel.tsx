@@ -63,6 +63,8 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
     // Estado de la UI
     const [error, setError] = useState('');
+    const [erroresConductor, setErroresConductor] = useState<string[]>([]);
+    const [erroresVehiculos, setErroresVehiculos] = useState<string[]>([]);
     const [creando, setCreando] = useState(false);
     const [abonoCreado, setAbonoCreado] = useState<any>(null);
     const [calculandoPrecio, setCalculandoPrecio] = useState(false);
@@ -256,29 +258,41 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     // ========================================
     // VALIDACIONES
     // ========================================
-    const validarFormulario = (): string | null => {
-        if (!nombre.trim()) return 'El nombre es requerido';
-        if (!apellido.trim()) return 'El apellido es requerido';
-        if (!email.trim()) return 'El email es requerido';
-        if (!dni.trim()) return 'El DNI es requerido';
+    const validarFormulario = (): { conductor: string[], vehiculos: string[] } => {
+        const erroresConductor: string[] = [];
+        const erroresVehiculos: string[] = [];
 
-        // Validar formato de email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) return 'Email inválido';
-
-        // Validar DNI (8 dígitos)
-        if (!/^\d{8}$/.test(dni)) return 'DNI debe tener 8 dígitos';
-
-        // Validar vehículos
-        for (let i = 0; i < vehiculos.length; i++) {
-            const veh = vehiculos[i];
-            if (!veh.patente.trim()) return `Patente del vehículo ${i + 1} es requerida`;
-            if (!veh.marca.trim()) return `Marca del vehículo ${i + 1} es requerida`;
-            if (!veh.modelo.trim()) return `Modelo del vehículo ${i + 1} es requerido`;
-            if (!veh.color.trim()) return `Color del vehículo ${i + 1} es requerido`;
+        // Validar datos del conductor
+        if (!nombre.trim()) erroresConductor.push('El nombre es requerido');
+        if (!apellido.trim()) erroresConductor.push('El apellido es requerido');
+        if (!email.trim()) {
+            erroresConductor.push('El email es requerido');
+        } else {
+            // Validar formato de email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) erroresConductor.push('Email inválido');
+        }
+        if (!dni.trim()) {
+            erroresConductor.push('El DNI es requerido');
+        } else {
+            // Validar DNI (8 dígitos)
+            if (!/^\d{8}$/.test(dni)) erroresConductor.push('DNI debe tener 8 dígitos');
         }
 
-        return null;
+        // Validar vehículos
+        if (vehiculos.length === 0) {
+            erroresVehiculos.push('Debe agregar al menos un vehículo');
+        } else {
+            for (let i = 0; i < vehiculos.length; i++) {
+                const veh = vehiculos[i];
+                if (!veh.patente.trim()) erroresVehiculos.push(`Patente del vehículo ${i + 1} es requerida`);
+                if (!veh.marca.trim()) erroresVehiculos.push(`Marca del vehículo ${i + 1} es requerida`);
+                if (!veh.modelo.trim()) erroresVehiculos.push(`Modelo del vehículo ${i + 1} es requerido`);
+                if (!veh.color.trim()) erroresVehiculos.push(`Color del vehículo ${i + 1} es requerido`);
+            }
+        }
+
+        return { conductor: erroresConductor, vehiculos: erroresVehiculos };
     };
 
 
@@ -303,6 +317,8 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
         setCantidadDuracion(1);
         setFechaInicio(new Date().toISOString().split('T')[0]);
         setError('');
+        setErroresConductor([]);
+        setErroresVehiculos([]);
         setAbonoCreado(null);
         setPlazaSeleccionada(null);
         setShowZonaPlazaModal(false);
@@ -553,6 +569,20 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         disabled={conductorExistente !== null}
                                     />
                                 </div>
+
+                                {/* Errores de validación de datos del conductor */}
+                                {erroresConductor.length > 0 && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            <ul className="list-disc list-inside space-y-1">
+                                                {erroresConductor.map((error, index) => (
+                                                    <li key={index}>{error}</li>
+                                                ))}
+                                            </ul>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -645,6 +675,20 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             </div>
                                         ))}
                                     </div>
+                                )}
+
+                                {/* Errores de validación de vehículos */}
+                                {erroresVehiculos.length > 0 && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            <ul className="list-disc list-inside space-y-1">
+                                                {erroresVehiculos.map((error, index) => (
+                                                    <li key={index}>{error}</li>
+                                                ))}
+                                            </ul>
+                                        </AlertDescription>
+                                    </Alert>
                                 )}
                             </CardContent>
                         </Card>
@@ -773,27 +817,31 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </Button>
                             <Button
                                 onClick={() => {
-                                    // Validar que haya al menos un vehículo con datos
-                                    if (!vehiculos[0]?.patente) {
-                                        setError('Debes agregar al menos un vehículo');
-                                        return;
-                                    }
+                                    // Limpiar errores previos
+                                    setError('');
+                                    setErroresConductor([]);
+                                    setErroresVehiculos([]);
+
                                     // Validar que haya una plaza seleccionada
                                     if (!plazaSeleccionada) {
                                         setError('Debes seleccionar una plaza');
                                         return;
                                     }
+
                                     // Validar formulario completo
-                                    const errorValidacion = validarFormulario();
-                                    if (errorValidacion) {
-                                        setError(errorValidacion);
+                                    const errores = validarFormulario();
+
+                                    // Si hay errores, mostrarlos en sus respectivas secciones
+                                    if (errores.conductor.length > 0 || errores.vehiculos.length > 0) {
+                                        setErroresConductor(errores.conductor);
+                                        setErroresVehiculos(errores.vehiculos);
                                         return;
                                     }
+
                                     // Ir directo a confirmación de pago
-                                    setError('');
                                     setPaso('confirmacion-pago');
                                 }}
-                                disabled={!plazaSeleccionada || !vehiculos[0]?.patente}
+                                disabled={!plazaSeleccionada}
                             >
                                 Continuar a Pago
                             </Button>
