@@ -1,38 +1,32 @@
 "use client";
 
+
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 
 export default function ResetPasswordPage() {
   const { updatePassword } = useAuth();
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setMessage(null);
 
     if (password !== confirm) {
       setError("Las contraseñas no coinciden.");
       return;
     }
-
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-
     setLoading(true);
     try {
       await updatePassword({ newPassword: password });
-      // Redirigir al login con un parámetro de éxito
-      router.push("/auth/login?reset=ok");
+      setMessage("Contraseña actualizada correctamente.");
     } catch (err: any) {
       setError(err.message || "No se pudo actualizar la contraseña.");
     } finally {
@@ -57,30 +51,31 @@ export default function ResetPasswordPage() {
         </p>
         <form onSubmit={handleSubmit} className="w-full space-y-4">
           <div>
+            <label htmlFor="password" className="block text-sm text-gray-600 mb-1">Nueva contraseña</label>
             <input
               id="password"
               name="password"
               type="password"
               required
-              placeholder="Nueva contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
             />
           </div>
           <div>
+            <label htmlFor="confirm" className="block text-sm text-gray-600 mb-1">Confirmar contraseña</label>
             <input
               id="confirm"
               name="confirm"
               type="password"
               required
-              placeholder="Confirmar contraseña"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
             />
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
+          {message && <p className="text-sm text-green-500">{message}</p>}
           <div className="flex gap-2">
             <button
               type="submit"
