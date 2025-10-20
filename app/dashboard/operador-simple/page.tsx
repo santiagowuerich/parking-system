@@ -707,7 +707,13 @@ export default function OperadorSimplePage() {
 
     // Manejar selección de método de pago
     const handlePaymentMethodSelect = async (method: PaymentMethod) => {
-        if (!paymentData) return;
+        console.log('🎯 handlePaymentMethodSelect llamado con método:', method);
+        console.log('📦 paymentData actual:', paymentData);
+
+        if (!paymentData) {
+            console.error('❌ No hay paymentData disponible');
+            return;
+        }
 
         setSelectedPaymentMethod(method);
         setPaymentLoading(true);
@@ -717,11 +723,12 @@ export default function OperadorSimplePage() {
             const updatedPaymentData = { ...paymentData, method };
             setPaymentData(updatedPaymentData);
 
-            console.log(`💳 Método seleccionado: ${method}`);
+            console.log(`💳 Método seleccionado: ${method}, procesando...`);
 
             // Procesar según el método seleccionado
             switch (method) {
                 case 'efectivo':
+                    console.log('➡️ Llamando a processEffectivoPago');
                     await processEffectivoPago(updatedPaymentData);
                     break;
                 case 'transferencia':
@@ -750,6 +757,7 @@ export default function OperadorSimplePage() {
 
     // Procesar pago en efectivo (inmediato)
     const processEffectivoPago = async (data: PaymentData) => {
+        console.log('💵 processEffectivoPago llamado con:', data);
         await finalizeVehicleExit(data);
         setShowPaymentSelector(false);
 
@@ -1024,8 +1032,17 @@ export default function OperadorSimplePage() {
     const finalizeVehicleExit = async (data: PaymentData) => {
         if (!estId || !user?.id) return;
 
+        console.log('🚀 finalizeVehicleExit llamado con:', {
+            vehicleLicensePlate: data.vehicleLicensePlate,
+            method: data.method,
+            amount: data.amount,
+            estId: estId,
+            userId: user?.id
+        });
+
         try {
             if (data.isSubscription) {
+                console.log('📦 Es vehículo de abono, procesando salida sin pago');
                 await finalizeSubscriptionExit({
                     licensePlate: data.vehicleLicensePlate,
                     entryTime: data.entryTime,
@@ -1044,6 +1061,13 @@ export default function OperadorSimplePage() {
                 data.method === 'tarjeta' ? 'Tarjeta' :
                     data.method === 'app' ? 'MercadoPago' :
                         data.method === 'transferencia' ? 'Transferencia' : 'Efectivo';
+
+            console.log('💰 Registrando pago:', {
+                metodoOriginal: data.method,
+                metodoNormalizado: normalizedMethod,
+                monto: data.amount,
+                vehiculo: data.vehicleLicensePlate
+            });
 
             const { data: payment, error: paymentError } = await supabase
                 .from('pagos')
@@ -1076,7 +1100,12 @@ export default function OperadorSimplePage() {
                 .eq('ocu_fh_entrada', data.entryTime)
                 .is('ocu_fh_salida', null);
 
-            if (updateError) throw updateError;
+            if (updateError) {
+                console.error('❌ Error actualizando ocupación:', updateError);
+                throw updateError;
+            }
+
+            console.log('✅ Ocupación actualizada - pag_nro vinculado:', payment.pag_nro);
 
             // Si había una plaza asignada, liberarla
             if (data.plazaNumber) {
