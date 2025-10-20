@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { formatArgentineTimeWithDayjs } from "@/lib/utils";
 import { TurnoGuard } from "@/components/turno-guard";
-import { VehicleMovementsHistoryModal } from "@/components/vehicle-movements-history-modal";
 
 
 export default function MovimientosPage() {
@@ -19,10 +18,6 @@ export default function MovimientosPage() {
     const { canOperateParking, loading: roleLoading } = useUserRole();
     const [movements, setMovements] = useState<any[]>([]);
     const [loadingMovements, setLoadingMovements] = useState(true);
-    const [selectedMovement, setSelectedMovement] = useState<{
-        ocupacionId: number;
-        licensePlate: string;
-    } | null>(null);
 
     useEffect(() => {
         if (!estId) return;
@@ -98,7 +93,7 @@ export default function MovimientosPage() {
                                         <TableHeader>
                                             <TableRow className="dark:border-zinc-800">
                                                 <TableHead className="dark:text-zinc-400">Patente</TableHead>
-                                                <TableHead className="dark:text-zinc-400">Estado</TableHead>
+                                                <TableHead className="dark:text-zinc-400">Acción</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Fecha Ingreso</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Fecha Egreso</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Zona</TableHead>
@@ -106,19 +101,18 @@ export default function MovimientosPage() {
                                                 <TableHead className="dark:text-zinc-400">Método</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
                                                 <TableHead className="text-right dark:text-zinc-400">Total</TableHead>
-                                                <TableHead className="dark:text-zinc-400">Movimientos</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {loadingMovements ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={10} className="text-center py-8">
+                                                    <TableCell colSpan={9} className="text-center py-8">
                                                         <Loader2 className="w-6 h-6 animate-spin mx-auto text-zinc-400" />
                                                     </TableCell>
                                                 </TableRow>
                                             ) : movements.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={10} className="text-center py-8 text-zinc-500">
+                                                    <TableCell colSpan={9} className="text-center py-8 text-zinc-500">
                                                         No hay movimientos registrados
                                                     </TableCell>
                                                 </TableRow>
@@ -129,12 +123,16 @@ export default function MovimientosPage() {
                                                             {movement.license_plate}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`w-2 h-2 rounded-full ${movement.action === 'Ingreso' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                                                <span className={`text-sm font-medium ${movement.action === 'Ingreso' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                                                                    {movement.action}
-                                                                </span>
-                                                            </div>
+                                                            <Badge
+                                                                variant={movement.action === 'Ingreso' ? 'default' : 'secondary'}
+                                                                className={
+                                                                    movement.action === 'Ingreso'
+                                                                        ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                                                                        : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
+                                                                }
+                                                            >
+                                                                {movement.action}
+                                                            </Badge>
                                                         </TableCell>
                                                         <TableCell className="dark:text-zinc-100">
                                                             {formatArgentineTimeWithDayjs(movement.fecha_ingreso)}
@@ -147,25 +145,6 @@ export default function MovimientosPage() {
                                                         <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
                                                         <TableCell className="dark:text-zinc-100">{movement.tarifa || '$1200/h'}</TableCell>
                                                         <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
-                                                        <TableCell className="dark:text-zinc-100">
-                                                            {movement.movement_count > 0 ? (
-                                                                <button
-                                                                    onClick={() =>
-                                                                        setSelectedMovement({
-                                                                            ocupacionId: movement.ocu_id,
-                                                                            licensePlate: movement.license_plate,
-                                                                        })
-                                                                    }
-                                                                    className="px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                                                                >
-                                                                    Movimientos ({movement.movement_count})
-                                                                </button>
-                                                            ) : (
-                                                                <span className="text-gray-400 dark:text-gray-600 text-sm italic">
-                                                                    Sin movimientos
-                                                                </span>
-                                                            )}
-                                                        </TableCell>
                                                     </TableRow>
                                                 ))
                                             )}
@@ -178,13 +157,6 @@ export default function MovimientosPage() {
                     </div>
                 </main>
             </div>
-
-            <VehicleMovementsHistoryModal
-                isOpen={!!selectedMovement}
-                onClose={() => setSelectedMovement(null)}
-                ocupacionId={selectedMovement?.ocupacionId || null}
-                licensePlate={selectedMovement?.licensePlate || ""}
-            />
         </div>
     );
 }

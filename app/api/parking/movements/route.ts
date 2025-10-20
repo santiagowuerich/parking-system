@@ -37,34 +37,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Obtener contador de movimientos para cada ocupación
-    const movementCounts = new Map<number, number>();
-
-    if (movements && movements.length > 0) {
-      // Obtener todos los movimientos de vehículos para este estacionamiento
-      const { data: vehicleMovements, error: vmError } = await supabase
-        .from('vehicle_movements')
-        .select('veh_patente, mov_fecha_hora')
-        .eq('est_id', estId);
-
-      if (!vmError && vehicleMovements) {
-        // Contar movimientos por ocupación
-        movements.forEach(ocu => {
-          const count = vehicleMovements.filter(vm => {
-            const isMatchingVehicle = vm.veh_patente === ocu.veh_patente;
-            const isAfterEntry = new Date(vm.mov_fecha_hora) >= new Date(ocu.ocu_fh_entrada);
-            const isBeforeExit = ocu.ocu_fh_salida
-              ? new Date(vm.mov_fecha_hora) <= new Date(ocu.ocu_fh_salida)
-              : true;
-
-            return isMatchingVehicle && isAfterEntry && isBeforeExit;
-          }).length;
-
-          movementCounts.set(ocu.ocu_id, count);
-        });
-      }
-    }
-
     // Transform data to match the expected format
     const formattedMovements = movements?.map(movement => {
       const isEntry = !movement.ocu_fh_salida;
@@ -148,7 +120,6 @@ export async function GET(request: NextRequest) {
 
       return {
         id: movement.ocu_id,
-        ocu_id: movement.ocu_id,
         fecha_ingreso: movement.ocu_fh_entrada,
         fecha_egreso: movement.ocu_fh_salida,
         license_plate: movement.veh_patente,
@@ -157,8 +128,7 @@ export async function GET(request: NextRequest) {
         plaza: movement.pla_numero ? `P${movement.pla_numero.toString().padStart(3, '0')}` : 'Sin asignar',
         method: metodoPago,
         tarifa: tarifaBase,
-        total: totalPagado,
-        movement_count: movementCounts.get(movement.ocu_id) || 0
+        total: totalPagado
       };
     }) || [];
 
