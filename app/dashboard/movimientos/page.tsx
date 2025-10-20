@@ -93,7 +93,7 @@ export default function MovimientosPage() {
                                         <TableHeader>
                                             <TableRow className="dark:border-zinc-800">
                                                 <TableHead className="dark:text-zinc-400">Patente</TableHead>
-                                                <TableHead className="dark:text-zinc-400">Acción</TableHead>
+                                                <TableHead className="dark:text-zinc-400">Estado</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Fecha Ingreso</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Fecha Egreso</TableHead>
                                                 <TableHead className="dark:text-zinc-400">Zona</TableHead>
@@ -123,16 +123,12 @@ export default function MovimientosPage() {
                                                             {movement.license_plate}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Badge
-                                                                variant={movement.action === 'Ingreso' ? 'default' : 'secondary'}
-                                                                className={
-                                                                    movement.action === 'Ingreso'
-                                                                        ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                                                                        : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-                                                                }
-                                                            >
-                                                                {movement.action}
-                                                            </Badge>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`w-2 h-2 rounded-full ${movement.action === 'Ingreso' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                                <span className={`text-sm font-medium ${movement.action === 'Ingreso' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                                                                    {movement.action}
+                                                                </span>
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="dark:text-zinc-100">
                                                             {formatArgentineTimeWithDayjs(movement.fecha_ingreso)}
