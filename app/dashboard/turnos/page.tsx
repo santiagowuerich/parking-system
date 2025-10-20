@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import IniciarTurnoModal from "@/components/turnos/iniciar-turno-modal";
 import FinalizarTurnoModal from "@/components/turnos/finalizar-turno-modal";
 import HistorialTurnos from "@/components/turnos/historial-turnos";
+import ResumenTurnoModal from "@/components/turnos/resumen-turno-modal";
 
 interface TurnoActivo {
     tur_id: number;
@@ -47,6 +48,8 @@ export default function TurnosPage() {
     const [showIniciarModal, setShowIniciarModal] = useState(false);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
     const [showHistorial, setShowHistorial] = useState(false);
+    const [showResumenModal, setShowResumenModal] = useState(false);
+    const [turnoParaResumen, setTurnoParaResumen] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Actualizar la hora actual cada minuto para que la duración sea dinámica
@@ -116,24 +119,21 @@ export default function TurnosPage() {
         });
     };
 
-    const handleTurnoFinalizado = () => {
+    const handleTurnoFinalizado = (turId: number) => {
         setShowFinalizarModal(false);
-        loadTurnoEstado();
-        toast({
-            title: "Turno finalizado",
-            description: "Tu turno ha sido cerrado correctamente"
-        });
+        setTurnoParaResumen(turId);
+        setShowResumenModal(true);
     };
 
-    const calcularDuracion = (horaEntrada: string) => {
+    const calcularDuracion = (horaEntrada: string, fechaTurno?: string) => {
         try {
             // Intentar diferentes formatos para la hora de entrada
             let entrada;
 
-            // Si viene solo la hora (HH:mm:ss), combinar con fecha actual
+            // Si viene solo la hora (HH:mm:ss), combinar con fecha del turno
             if (horaEntrada && horaEntrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-                const hoy = dayjs().format('YYYY-MM-DD');
-                entrada = dayjs(`${hoy} ${horaEntrada}`);
+                const fecha = fechaTurno || dayjs().format('YYYY-MM-DD');
+                entrada = dayjs(`${fecha} ${horaEntrada}`);
             } else {
                 // Si viene con fecha completa o timestamp
                 entrada = dayjs(horaEntrada);
@@ -253,7 +253,7 @@ export default function TurnosPage() {
                                                     <span className="text-sm font-medium text-gray-700">Duración Trabajada</span>
                                                 </div>
                                                 <p className="text-xl font-bold text-gray-900">
-                                                    {calcularDuracion(turnoActivo.tur_hora_entrada)}
+                                                    {calcularDuracion(turnoActivo.tur_hora_entrada, turnoActivo.tur_fecha)}
                                                 </p>
                                             </div>
 
@@ -365,6 +365,19 @@ export default function TurnosPage() {
                         isOpen={showHistorial}
                         onClose={() => setShowHistorial(false)}
                         estId={estId}
+                    />
+
+                    <ResumenTurnoModal
+                        isOpen={showResumenModal}
+                        onClose={() => {
+                            setShowResumenModal(false);
+                            loadTurnoEstado();
+                            toast({
+                                title: "Turno finalizado",
+                                description: "Tu turno ha sido cerrado correctamente"
+                            });
+                        }}
+                        turnoId={turnoParaResumen}
                     />
                 </div>
             </DashboardLayout>

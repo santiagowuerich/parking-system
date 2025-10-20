@@ -23,7 +23,7 @@ interface TurnoActivo {
 interface FinalizarTurnoModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (turId: number) => void;
     turnoActivo: TurnoActivo | null;
 }
 
@@ -58,8 +58,9 @@ export default function FinalizarTurnoModal({ isOpen, onClose, onSuccess, turnoA
             });
 
             if (response.ok) {
-                onSuccess();
+                onSuccess(turnoActivo.tur_id);
                 resetForm();
+                onClose();
             } else {
                 const error = await response.json();
                 throw new Error(error.error || 'Error al finalizar turno');

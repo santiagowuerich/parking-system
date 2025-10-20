@@ -10,6 +10,8 @@ import type { Parking, Vehicle, VehicleType, ParkingHistory, VehicleEntryData, P
 import type { PaymentStatus } from "@/lib/types/payment";
 import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
@@ -74,6 +76,7 @@ export default function OperadorSimplePage() {
     const [showPaymentSelector, setShowPaymentSelector] = useState(false);
     const [showTransferDialog, setShowTransferDialog] = useState(false);
     const [showQRDialog, setShowQRDialog] = useState(false);
+    const [showLinkPagoConfirm, setShowLinkPagoConfirm] = useState(false);
     const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
     const [paymentLoading, setPaymentLoading] = useState(false);
@@ -861,6 +864,14 @@ export default function OperadorSimplePage() {
 
             console.log('✅ Link de pago generado exitosamente');
 
+            // Mostrar diálogo de confirmación manual
+            setShowLinkPagoConfirm(true);
+
+            toast({
+                title: "Link de pago enviado",
+                description: "Espera la confirmación del cliente antes de registrar la salida"
+            });
+
         } catch (error) {
             console.error('❌ Error generando link de pago:', error);
             toast({
@@ -924,11 +935,20 @@ export default function OperadorSimplePage() {
             if (result.success) {
                 setQRPaymentStatus(result.status);
 
-                if (result.status === 'approved') {
+                if (result.status === 'approved' && paymentData) {
                     toast({
                         title: "¡Pago aprobado!",
                         description: "El pago fue procesado exitosamente"
                     });
+
+                    // CRÍTICO: Registrar el egreso del vehículo después del pago aprobado
+                    setShowQRDialog(false);
+                    await finalizeVehicleExit({
+                        ...paymentData,
+                        method: 'app' // MercadoPago QR se registra como 'app'
+                    });
+
+                    return; // Salir para no seguir verificando el estado
                 } else if (result.status === 'rejected') {
                     toast({
                         variant: "destructive",
@@ -1344,6 +1364,54 @@ export default function OperadorSimplePage() {
                         paymentStatus={qrPaymentStatus}
                         loading={paymentLoading}
                     />
+
+                    {/* Diálogo de confirmación de Link de Pago */}
+                    {showLinkPagoConfirm && paymentData && (
+                        <Dialog open={showLinkPagoConfirm} onOpenChange={setShowLinkPagoConfirm}>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Confirmar Pago con Link de Pago</DialogTitle>
+                                    <DialogDescription>
+                                        Se envió un link de pago de ${formatCurrency(paymentData.amount)} para el vehículo {paymentData.vehicleLicensePlate}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <p className="text-sm text-muted-foreground">
+                                        ¿El cliente confirmó que realizó el pago exitosamente?
+                                    </p>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowLinkPagoConfirm(false);
+                                            toast({
+                                                title: "Pago cancelado",
+                                                description: "El egreso no fue registrado"
+                                            });
+                                        }}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        onClick={async () => {
+                                            setShowLinkPagoConfirm(false);
+                                            await finalizeVehicleExit({
+                                                ...paymentData,
+                                                method: 'app' // Link de pago se registra como 'app' (MercadoPago)
+                                            });
+                                            toast({
+                                                title: "Pago confirmado",
+                                                description: "El vehículo puede salir"
+                                            });
+                                        }}
+                                    >
+                                        Confirmar Pago
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </main>
             </div>
         </div>
