@@ -160,8 +160,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     // FUNCIONES DE VEHÍCULOS
     // ========================================
     const agregarVehiculoDesdeFormulario = () => {
-        if (!nuevoVehiculoPatente || !nuevoVehiculoMarca || !nuevoVehiculoModelo || !nuevoVehiculoColor) {
-            setError('Complete todos los campos del vehículo');
+        // Limpiar errores previos
+        setErroresVehiculos([]);
+
+        // Validar campos del vehículo
+        const errores: string[] = [];
+        if (!nuevoVehiculoPatente.trim()) errores.push('La patente es requerida');
+        if (!nuevoVehiculoMarca.trim()) errores.push('La marca es requerida');
+        if (!nuevoVehiculoModelo.trim()) errores.push('El modelo es requerido');
+        if (!nuevoVehiculoColor.trim()) errores.push('El color es requerido');
+
+        if (errores.length > 0) {
+            setErroresVehiculos(errores);
             return;
         }
 
@@ -486,6 +496,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                                 if (!conductorExistente) {
                                                     setConductorEncontrado(null);
                                                 }
+                                                if (erroresConductor.length > 0) setErroresConductor([]);
                                             }}
                                             maxLength={8}
                                             disabled={conductorExistente !== null}
@@ -503,6 +514,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                                 if (!conductorExistente) {
                                                     setConductorEncontrado(null);
                                                 }
+                                                if (erroresConductor.length > 0) setErroresConductor([]);
                                             }}
                                             disabled={conductorExistente !== null}
                                         />
@@ -545,7 +557,10 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         <Input
                                             id="nombre"
                                             value={nombre}
-                                            onChange={(e) => setNombre(e.target.value)}
+                                            onChange={(e) => {
+                                                setNombre(e.target.value);
+                                                if (erroresConductor.length > 0) setErroresConductor([]);
+                                            }}
                                             disabled={conductorExistente !== null}
                                         />
                                     </div>
@@ -554,7 +569,10 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                         <Input
                                             id="apellido"
                                             value={apellido}
-                                            onChange={(e) => setApellido(e.target.value)}
+                                            onChange={(e) => {
+                                                setApellido(e.target.value);
+                                                if (erroresConductor.length > 0) setErroresConductor([]);
+                                            }}
                                             disabled={conductorExistente !== null}
                                         />
                                     </div>
@@ -604,12 +622,18 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             <Label>Patente *</Label>
                                             <Input
                                                 value={nuevoVehiculoPatente}
-                                                onChange={(e) => setNuevoVehiculoPatente(e.target.value.toUpperCase())}
+                                                onChange={(e) => {
+                                                    setNuevoVehiculoPatente(e.target.value.toUpperCase());
+                                                    if (erroresVehiculos.length > 0) setErroresVehiculos([]);
+                                                }}
                                             />
                                         </div>
                                         <div>
                                             <Label>Tipo *</Label>
-                                            <Select value={nuevoVehiculoTipo} onValueChange={(value: 'Auto' | 'Moto' | 'Camioneta') => setNuevoVehiculoTipo(value)}>
+                                            <Select value={nuevoVehiculoTipo} onValueChange={(value: 'Auto' | 'Moto' | 'Camioneta') => {
+                                                setNuevoVehiculoTipo(value);
+                                                if (erroresVehiculos.length > 0) setErroresVehiculos([]);
+                                            }}>
                                                 <SelectTrigger>
                                                     <SelectValue />
                                                 </SelectTrigger>
@@ -627,21 +651,30 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                             <Label>Marca *</Label>
                                             <Input
                                                 value={nuevoVehiculoMarca}
-                                                onChange={(e) => setNuevoVehiculoMarca(e.target.value)}
+                                                onChange={(e) => {
+                                                    setNuevoVehiculoMarca(e.target.value);
+                                                    if (erroresVehiculos.length > 0) setErroresVehiculos([]);
+                                                }}
                                             />
                                         </div>
                                         <div>
                                             <Label>Modelo *</Label>
                                             <Input
                                                 value={nuevoVehiculoModelo}
-                                                onChange={(e) => setNuevoVehiculoModelo(e.target.value)}
+                                                onChange={(e) => {
+                                                    setNuevoVehiculoModelo(e.target.value);
+                                                    if (erroresVehiculos.length > 0) setErroresVehiculos([]);
+                                                }}
                                             />
                                         </div>
                                         <div>
                                             <Label>Color *</Label>
                                             <Input
                                                 value={nuevoVehiculoColor}
-                                                onChange={(e) => setNuevoVehiculoColor(e.target.value)}
+                                                onChange={(e) => {
+                                                    setNuevoVehiculoColor(e.target.value);
+                                                    if (erroresVehiculos.length > 0) setErroresVehiculos([]);
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -804,10 +837,13 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </CardContent>
                         </Card>
 
-                        {error && (
+                        {/* Mensaje de error general cuando hay campos incompletos */}
+                        {(erroresConductor.length > 0 || erroresVehiculos.length > 0 || error) && (
                             <Alert variant="destructive">
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>{error}</AlertDescription>
+                                <AlertDescription>
+                                    {error || 'Hay campos incompletos. Por favor, revise los datos ingresados.'}
+                                </AlertDescription>
                             </Alert>
                         )}
 
