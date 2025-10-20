@@ -12,6 +12,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
   const router = useRouter();
@@ -24,9 +25,11 @@ function LoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(false);
     setLoading(true);
     try {
       await signIn({ email, password });
+      setSuccess(true);
       // El hook useAutoRedirect se encarga de la redirección automática
     } catch (err: any) {
       if (err.message?.includes("Invalid login credentials")) {
@@ -36,20 +39,20 @@ function LoginForm() {
       } else {
         setError(err.message || "Error al iniciar sesión. Verifica tus credenciales.");
       }
-    } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
     setError(null);
+    setSuccess(false);
     setLoading(true);
     try {
       await signInWithGoogle();
+      setSuccess(true);
       // El hook useAutoRedirect se encarga de la redirección automática
     } catch (err: any) {
       setError("Error al iniciar sesión con Google.");
-    } finally {
       setLoading(false);
     }
   };
@@ -97,6 +100,7 @@ function LoginForm() {
             />
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
+          {success && <p className="text-sm text-green-500">Iniciando sesión...</p>}
           <button
             type="submit"
             disabled={loading}
