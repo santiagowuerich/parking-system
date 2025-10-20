@@ -17,10 +17,13 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
+    // Removemos configuraciones experimentales que pueden causar problemas en Vercel
+    // webpackBuildWorker: true,
+    // parallelServerBuildTraces: true,
+    // parallelServerCompiles: true,
   },
+  // Configuración específica para Vercel
+  output: 'standalone',
 }
 
 if (userConfig) {
