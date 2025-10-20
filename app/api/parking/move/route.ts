@@ -95,12 +95,13 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     let userId = null;
 
-    if (user) {
+    if (user && user.email) {
       const { data: userData } = await supabase
-        .from('usuarios')
+        .from('usuario')
         .select('usu_id')
-        .eq('usu_id', user.id)
+        .eq('usu_email', user.email)
         .single();
+
       userId = userData?.usu_id;
     }
 
@@ -174,7 +175,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Registrar el movimiento en la tabla de historial
-    // Nota: Esta tabla se creará en las migraciones de BD
     const { error: logError } = await supabase
       .from('vehicle_movements')
       .insert({
