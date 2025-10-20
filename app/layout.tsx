@@ -7,8 +7,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'GRUPO2',
-  description: 'Aplicación de estacionamiento web',
+  title: 'Parqueo',
+  description: 'Sistema de gestión de estacionamientos',
   generator: 'Next.js',
 };
 

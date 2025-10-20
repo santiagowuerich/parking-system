@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
 import { Building } from "lucide-react";
+import { Logo } from "@/components/logo";
 
 export default function RegisterPage() {
   const { signUp, signIn, signInWithGoogle } = useAuth();
@@ -90,7 +91,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="absolute top-8 left-12">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
+        <Logo width={200} height={54} />
       </div>
 
       {/* Back button */}

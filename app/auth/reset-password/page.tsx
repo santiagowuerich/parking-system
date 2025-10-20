@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 
 export default function ResetPasswordPage() {
   const { updatePassword } = useAuth();
@@ -37,7 +38,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-[#bfc3cb] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="absolute top-8 left-12">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
+        <Logo width={200} height={54} />
       </div>
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
@@ -56,7 +57,6 @@ export default function ResetPasswordPage() {
               name="password"
               type="password"
               required
-              placeholder="Nueva contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"
@@ -69,7 +69,6 @@ export default function ResetPasswordPage() {
               name="confirm"
               type="password"
               required
-              placeholder="Confirmar contraseña"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2563eb] text-gray-900"

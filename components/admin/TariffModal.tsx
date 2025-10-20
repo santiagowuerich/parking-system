@@ -242,7 +242,6 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                 <Input
                                     id="hora"
                                     type="text"
-                                    placeholder="0.00"
                                     value={prices.hora}
                                     onChange={(e) => handlePriceChange('hora', e.target.value)}
                                     className="text-right"
@@ -260,7 +259,6 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                 <Input
                                     id="dia"
                                     type="text"
-                                    placeholder="0.00"
                                     value={prices.dia}
                                     onChange={(e) => handlePriceChange('dia', e.target.value)}
                                     className="text-right"
@@ -278,7 +276,6 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                 <Input
                                     id="semana"
                                     type="text"
-                                    placeholder="0.00"
                                     value={prices.semana}
                                     onChange={(e) => handlePriceChange('semana', e.target.value)}
                                     className="text-right"
@@ -296,7 +293,6 @@ export function TariffModal({ isOpen, onClose, template, onSave }: TariffModalPr
                                 <Input
                                     id="mes"
                                     type="text"
-                                    placeholder="0.00"
                                     value={prices.mes}
                                     onChange={(e) => handlePriceChange('mes', e.target.value)}
                                     className="text-right"

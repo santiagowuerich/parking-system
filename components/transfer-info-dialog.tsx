@@ -80,9 +80,9 @@ export default function TransferInfoDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md p-0 rounded-2xl shadow-xl border-0 bg-white">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100">
+      <DialogContent className="sm:max-w-md max-h-[85vh] p-0 rounded-2xl shadow-xl border-0 bg-white flex flex-col">
+        {/* Header fijo */}
+        <div className="px-6 py-3 border-b border-gray-100 flex-shrink-0">
           <DialogTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Banknote className="h-5 w-5" />
             Pago por transferencia
@@ -92,17 +92,18 @@ export default function TransferInfoDialog({
           </DialogDescription>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        {/* Contenido con scroll */}
+        <div className="px-6 py-4 space-y-3 overflow-y-auto flex-1">
           {/* Resumen del pago */}
           <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm text-blue-700">Monto a transferir</span>
-                <span className="text-xl font-bold text-blue-900">
+            <CardContent className="p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-blue-700">Monto a transferir</span>
+                <span className="text-lg font-bold text-blue-900">
                   {formatCurrency(paymentData.amount)}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-xs text-blue-600">
+              <div className="flex items-center gap-3 text-xs text-blue-600">
                 <div>Vehículo: {paymentData.vehicleLicensePlate}</div>
                 <div className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -113,14 +114,14 @@ export default function TransferInfoDialog({
           </Card>
 
           {/* Información bancaria */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-700">
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-gray-700 uppercase">
               Datos para la transferencia
             </h3>
 
             {/* CBU */}
             <Card className="border border-gray-200">
-              <CardContent className="p-3">
+              <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-gray-500 uppercase font-medium">CBU</div>
@@ -135,7 +136,7 @@ export default function TransferInfoDialog({
 
             {/* Alias */}
             <Card className="border border-gray-200">
-              <CardContent className="p-3">
+              <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-gray-500 uppercase font-medium">Alias</div>
@@ -150,7 +151,7 @@ export default function TransferInfoDialog({
 
             {/* Titular */}
             <Card className="border border-gray-200">
-              <CardContent className="p-3">
+              <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-gray-500 uppercase font-medium">Titular</div>
@@ -165,7 +166,7 @@ export default function TransferInfoDialog({
 
             {/* Banco */}
             <Card className="border border-gray-200">
-              <CardContent className="p-3">
+              <CardContent className="p-2">
                 <div className="text-xs text-gray-500 uppercase font-medium">Banco</div>
                 <div className="text-sm font-medium text-gray-900">
                   {transferConfig.bank}
@@ -176,12 +177,12 @@ export default function TransferInfoDialog({
 
           {/* Instrucciones */}
           <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-4">
-              <div className="flex gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-800">
+            <CardContent className="p-3">
+              <div className="flex gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-800">
                   <div className="font-medium mb-1">Instrucciones importantes:</div>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
                     <li>Conservá el comprobante de transferencia</li>
                     <li>El pago será validado manualmente por el operador</li>
                     <li>Podés retirar el vehículo una vez confirmado el pago</li>
@@ -194,7 +195,7 @@ export default function TransferInfoDialog({
 
           {/* ID de referencia */}
           <Card className="bg-gray-50 border-gray-200">
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs text-gray-500 uppercase font-medium">ID de pago</div>
@@ -208,28 +209,28 @@ export default function TransferInfoDialog({
           </Card>
         </div>
 
-        {/* Botones de acción */}
-        <div className="px-6 pb-6 flex gap-3">
+        {/* Botones de acción fijos */}
+        <div className="px-6 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0">
           <Button
             variant="outline"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 h-12 rounded-xl border-gray-200 hover:bg-gray-50"
+            className="flex-1 h-10 rounded-xl border-gray-200 hover:bg-gray-50 text-sm"
           >
             Cancelar
           </Button>
           <Button
             onClick={onConfirmTransfer}
             disabled={loading}
-            className="flex-1 h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200"
+            className="flex-1 h-10 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200 text-sm"
           >
             {loading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Confirmando recepción...
+                Confirmando...
               </>
             ) : (
-              '✅ Transferencia recibida'
+              '✅ Confirmar recepción'
             )}
           </Button>
         </div>
