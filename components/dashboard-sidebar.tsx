@@ -38,6 +38,7 @@ import { useUserRole } from "@/lib/use-user-role";
 import { useTurnos } from "@/lib/hooks/use-turnos";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "next-themes";
+import { Logo } from "@/components/logo";
 
 interface SidebarProps {
     className?: string;
@@ -289,20 +290,12 @@ export function DashboardSidebar({ className }: SidebarProps) {
             className
         )}>
             {/* Header con card elevado y degradado azul */}
-            <div className="p-4">
+            <div className="px-4 pt-4 pb-1">
                 <div className="rounded-2xl shadow-lg transition-all duration-300 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950/20 dark:to-slate-900 p-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            {/* Logo con efecto de profundidad en azul */}
-                            <div className="relative">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/30">
-                                    <ParkingCircle className="h-6 w-6 text-white" />
-                                </div>
-                            </div>
-                            <div>
-                                <span className="block text-2xl font-semibold text-neutral-900 dark:text-white">Parqueo</span>
-                                <span className="block text-xs text-slate-500 dark:text-slate-400">Sistema de gestión</span>
-                            </div>
+                            {/* Logo */}
+                            <Logo width={140} height={38} />
                         </div>
 
                         {/* Dropdown de cambio de tema - ahora en la posición del botón de colapsar */}
@@ -340,16 +333,23 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
             {/* Navigation */}
             <div className="flex-1 overflow-auto">
-                <div className="px-3 py-2">
+                <div className="px-3 pt-2">
                     {/* Widget compacto con nombre de estacionamiento - solo visible para owners y playeros */}
                     {!isDriver && (
-                        <div className="mb-6">
+                        <div className="mb-1">
                             <div className="bg-gradient-to-r from-blue-50/50 to-transparent border border-blue-100 rounded-xl p-3.5 shadow-sm">
-                                <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
-                                    <MapPin className="h-4 w-4 text-blue-500" />
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse"></div>
-                                        <span className="text-sm font-medium">{currentParking?.est_nombre || 'Seleccionar estacionamiento'}</span>
+                                <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-300">
+                                    <MapPin className="h-4 w-4 text-blue-500 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse flex-shrink-0"></div>
+                                            <span className="text-sm font-medium truncate">{currentParking?.est_nombre || 'Seleccionar estacionamiento'}</span>
+                                        </div>
+                                        {currentParking?.est_direc && (
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 ml-4 truncate">
+                                                {currentParking.est_direc}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -358,7 +358,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
 
                     {/* Indicador de turno activo - solo visible para empleados */}
                     {isEmployee && (
-                        <div className="mb-6">
+                        <div className="mb-1">
                             <div className={cn(
                                 "rounded-xl p-3.5 shadow-sm border transition-all duration-200",
                                 tieneTurnoActivo

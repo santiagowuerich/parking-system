@@ -131,7 +131,6 @@ export default function IniciarTurnoModal({ isOpen, onClose, onSuccess, estId }:
                             min="0"
                             value={cajaInicio}
                             onChange={(e) => setCajaInicio(e.target.value)}
-                            placeholder="0.00"
                             required
                         />
                     </div>
@@ -142,7 +141,6 @@ export default function IniciarTurnoModal({ isOpen, onClose, onSuccess, estId }:
                             id="observaciones"
                             value={observaciones}
                             onChange={(e) => setObservaciones(e.target.value)}
-                            placeholder="Opcional..."
                             rows={3}
                         />
                     </div>

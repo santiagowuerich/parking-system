@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, MapPin, Car, Building, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 
 export default function LandingPage() {
   return (
@@ -14,12 +15,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-xl">P</span>
-              </div>
-              <span className="text-2xl font-bold text-blue-800">Parqueo</span>
-            </div>
+            <Logo width={180} height={48} priority />
 
             {/* Navigation */}
             <nav className="hidden md:flex items-center space-x-8">

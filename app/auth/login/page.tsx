@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAutoRedirect } from "@/hooks/use-auto-redirect";
+import { Logo } from "@/components/logo";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -57,7 +58,7 @@ function LoginForm() {
     <div className="min-h-screen bg-[#f6f8fa] flex flex-col items-center justify-center">
       {/* Logo */}
       <div className="mb-8">
-        <span className="text-4xl font-bold text-[#2563eb] tracking-tight">Parqueo</span>
+        <Logo width={200} height={54} priority />
       </div>
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">

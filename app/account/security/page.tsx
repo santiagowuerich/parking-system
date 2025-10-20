@@ -159,7 +159,6 @@ export default function SecuritySettingsPage() {
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Tu nombre"
                 className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
               />
             </div>
@@ -180,7 +179,6 @@ export default function SecuritySettingsPage() {
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="tu@correo.com"
                 className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
               />
             </div>

@@ -453,7 +453,6 @@ export default function IngresoModal({
             ) : (
               <Input
                 id="patente"
-                placeholder="ABC123"
                 value={licensePlate}
                 onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
                 maxLength={10}
