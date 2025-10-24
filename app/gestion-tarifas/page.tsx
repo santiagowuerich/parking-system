@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2, Settings } from "lucide-react"
-import { TariffModal } from "@/components/admin/TariffModal"
+import { useRouter } from "next/navigation"
 
 interface Plantilla {
   plantilla_id: number;
@@ -21,8 +21,7 @@ export default function GestionTarifasPage() {
   const { estId } = useAuth();
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlantilla, setSelectedPlantilla] = useState<Plantilla | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const router = useRouter();
 
   // Cargar plantillas al montar el componente
   useEffect(() => {
@@ -54,14 +53,8 @@ export default function GestionTarifasPage() {
     }
   };
 
-  const handleDefinirPrecios = (plantilla: Plantilla) => {
-    setSelectedPlantilla(plantilla);
-    setModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setSelectedPlantilla(null);
+  const handleDefinirPrecios = () => {
+    router.push("/dashboard/plantillas");
   };
 
   const getVehicleTypeDisplay = (segmento: string) => {
@@ -170,7 +163,7 @@ export default function GestionTarifasPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          onClick={() => handleDefinirPrecios(plantilla)}
+                          onClick={handleDefinirPrecios}
                           size="sm"
                           className="bg-blue-600 hover:bg-blue-700"
                         >
@@ -187,13 +180,6 @@ export default function GestionTarifasPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de Tarifas */}
-      <TariffModal
-        isOpen={modalOpen}
-        onClose={handleCloseModal}
-        template={selectedPlantilla}
-        onSave={() => loadPlantillas()}
-      />
     </div>
   );
 }
