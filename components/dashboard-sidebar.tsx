@@ -145,16 +145,16 @@ const ownerNavigationItems = [
         description: "Administración avanzada del sistema",
         subItems: [
             {
-                title: "Dashboard",
+                title: "Resumen Operativo",
                 href: "/dashboard"
-            },
-            {
-                title: "Panel del Administrador",
-                href: "/dashboard/panel-administrador"
             },
             {
                 title: "Visualización de Plazas",
                 href: "/dashboard/visualizacion-plazas"
+            },
+            {
+                title: "Historial de Movimientos",
+                href: "/dashboard/panel-administrador"
             }
         ]
     },

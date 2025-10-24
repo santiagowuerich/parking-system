@@ -1,43 +1,60 @@
 "use client";
 
-
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Edit, Trash2 } from "lucide-react";
+import { Loader2, Edit, Trash2, Plus, DollarSign } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCaracteristicas } from "@/lib/hooks/use-caracteristicas";
 import type { Caracteristica, Plantilla, PlantillaForm } from "@/lib/types";
 import { DuplicateTemplateDialog } from "@/components/duplicate-template-dialog";
 
+interface TariffPrices {
+    hora: string;
+    dia: string;
+    mes: string;
+    semana: string;
+}
+
 export default function GestionPlantillasPage() {
     const { estId } = useAuth();
     const [saving, setSaving] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalStep, setModalStep] = useState<'plantilla' | 'tarifas'>('plantilla');
+    const [savedPlantillaId, setSavedPlantillaId] = useState<number | null>(null);
+
+    // Estados para tarifas
+    const [loadingTarifas, setLoadingTarifas] = useState(false);
+    const [prices, setPrices] = useState<TariffPrices>({
+        hora: '',
+        dia: '',
+        mes: '',
+        semana: ''
+    });
 
     // Estados para los datos
-    const { caracteristicas: allCaracteristicas, loading: loadingCaracteristicas, error: errorCaracteristicas } = useCaracteristicas();
+    const { caracteristicas: allCaracteristicas, loading: loadingCaracteristicas } = useCaracteristicas();
     const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
     const [loadingPlantillas, setLoadingPlantillas] = useState(false);
 
-    // Estado de carga general (características + plantillas)
+    // Estado de carga general
     const loading = loadingCaracteristicas || loadingPlantillas;
 
-    // useCallback para evitar doble montaje en modo desarrollo
+    // useCallback para evitar doble montaje
     const loadInitialDataCallback = useCallback(async () => {
-        if (!estId || loadingCaracteristicas) return; // Evitar llamadas duplicadas
+        if (!estId || loadingCaracteristicas) return;
 
         try {
             setLoadingPlantillas(true);
 
-            // Solo cargar plantillas (características se cargan automáticamente con el hook)
             const plantillasRes = await fetch(`/api/plantillas?est_id=${estId}`);
 
-            // Procesar plantillas
             if (!plantillasRes.ok) {
                 throw new Error('Error al cargar plantillas');
             }
@@ -54,7 +71,7 @@ export default function GestionPlantillasPage() {
         } finally {
             setLoadingPlantillas(false);
         }
-    }, [estId, loadingCaracteristicas, toast]);
+    }, [estId, loadingCaracteristicas]);
 
     // Carga inicial de datos
     useEffect(() => {
@@ -92,6 +109,44 @@ export default function GestionPlantillasPage() {
         setPlantillas(plantillasData.plantillas || []);
     };
 
+    // Cargar tarifas existentes
+    const loadExistingTarifas = async (plantillaId: number) => {
+        if (!estId) return;
+
+        try {
+            setLoadingTarifas(true);
+            const response = await fetch(`/api/tarifas?est_id=${estId}`);
+
+            if (!response.ok) {
+                throw new Error('Error al cargar precios existentes');
+            }
+
+            const data = await response.json();
+            const plantillaData = data.tarifas?.find((p: any) => p.plantilla_id === plantillaId);
+
+            if (plantillaData?.tarifas) {
+                setPrices({
+                    hora: plantillaData.tarifas['1']?.precio?.toString() || '',
+                    dia: plantillaData.tarifas['2']?.precio?.toString() || '',
+                    mes: plantillaData.tarifas['3']?.precio?.toString() || '',
+                    semana: plantillaData.tarifas['4']?.precio?.toString() || ''
+                });
+            } else {
+                // Resetear si no hay tarifas
+                setPrices({ hora: '', dia: '', mes: '', semana: '' });
+            }
+        } catch (error: any) {
+            console.error('Error cargando precios:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudieron cargar los precios existentes"
+            });
+        } finally {
+            setLoadingTarifas(false);
+        }
+    };
+
     // Funciones para manejar el formulario
     const resetForm = () => {
         setCurrentTemplate({
@@ -99,6 +154,14 @@ export default function GestionPlantillasPage() {
             catv_segmento: 'AUT',
             caracteristica_ids: []
         });
+        setPrices({ hora: '', dia: '', mes: '', semana: '' });
+        setModalStep('plantilla');
+        setSavedPlantillaId(null);
+    };
+
+    const openCreateModal = () => {
+        resetForm();
+        setIsModalOpen(true);
     };
 
     const handleEditTemplate = (template: Plantilla) => {
@@ -106,7 +169,6 @@ export default function GestionPlantillasPage() {
         const caracteristicaIds: number[] = [];
         Object.values(template.caracteristicas).forEach(caracteristicas => {
             caracteristicas.forEach(valor => {
-                // Buscar el ID correspondiente en allCaracteristicas
                 const caracteristica = allCaracteristicas.find(c => c.valor === valor);
                 if (caracteristica) {
                     caracteristicaIds.push(caracteristica.caracteristica_id);
@@ -120,6 +182,14 @@ export default function GestionPlantillasPage() {
             catv_segmento: template.catv_segmento,
             caracteristica_ids: caracteristicaIds
         });
+        setSavedPlantillaId(template.plantilla_id);
+
+        // Cargar tarifas existentes si está editando
+        if (template.plantilla_id) {
+            loadExistingTarifas(template.plantilla_id);
+        }
+
+        setIsModalOpen(true);
     };
 
     const handleDeleteTemplate = async (plantillaId: number) => {
@@ -146,7 +216,6 @@ export default function GestionPlantillasPage() {
                 description: "Plantilla eliminada correctamente"
             });
 
-            // Recargar plantillas
             await loadPlantillas();
 
         } catch (error: any) {
@@ -159,7 +228,7 @@ export default function GestionPlantillasPage() {
         }
     };
 
-    const handleSaveTemplate = async () => {
+    const handleSavePlantillaAndGoToTarifas = async () => {
         if (!currentTemplate.nombre_plantilla.trim()) {
             toast({
                 variant: "destructive",
@@ -201,7 +270,6 @@ export default function GestionPlantillasPage() {
             if (!response.ok) {
                 const errorData = await response.json();
 
-                // Si es un error de duplicado, mostrar diálogo informativo
                 if (response.status === 409 && errorData.error_code) {
                     setDuplicateDialog({
                         isOpen: true,
@@ -209,13 +277,39 @@ export default function GestionPlantillasPage() {
                         existingTemplate: errorData.existing_template,
                         newTemplateName: currentTemplate.nombre_plantilla
                     });
-                    return; // No lanzar error, solo mostrar diálogo
+                    return;
                 }
 
                 throw new Error(errorData.error || 'Error al guardar plantilla');
             }
 
             const data = await response.json();
+
+            // La API retorna { plantilla: {...} } en POST y { success: true, plantilla_id: X } en PUT
+            // Necesitamos manejar ambos casos
+            let plantillaId: number;
+
+            if (currentTemplate.plantilla_id) {
+                // Caso de UPDATE (PUT)
+                plantillaId = data.plantilla_id || currentTemplate.plantilla_id;
+            } else {
+                // Caso de CREATE (POST) - la respuesta es { plantilla: { plantilla_id: X, ... } }
+                plantillaId = data.plantilla?.plantilla_id || data.plantilla_id;
+            }
+
+            // Debug: verificar qué devuelve la API
+            console.log('Respuesta API plantilla:', data);
+            console.log('ID de plantilla obtenido:', plantillaId);
+
+            if (!plantillaId) {
+                console.error('No se pudo determinar el plantilla_id');
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "No se pudo obtener el ID de la plantilla creada/actualizada"
+                });
+                return;
+            }
 
             toast({
                 title: "Éxito",
@@ -224,9 +318,13 @@ export default function GestionPlantillasPage() {
                     : "Plantilla creada correctamente"
             });
 
-            // Recargar plantillas y resetear formulario
-            await loadPlantillas();
-            resetForm();
+            // Guardar el ID de la plantilla y pasar al paso de tarifas
+            setSavedPlantillaId(plantillaId);
+
+            // Cargar tarifas existentes si están editando
+            await loadExistingTarifas(plantillaId);
+
+            setModalStep('tarifas');
 
         } catch (error: any) {
             console.error('Error guardando plantilla:', error);
@@ -240,36 +338,140 @@ export default function GestionPlantillasPage() {
         }
     };
 
+    const handlePriceChange = (field: keyof TariffPrices, value: string) => {
+        // Solo permitir números y un punto decimal
+        const regex = /^\d*\.?\d*$/;
+        if (regex.test(value) || value === '') {
+            setPrices(prev => ({
+                ...prev,
+                [field]: value
+            }));
+        }
+    };
+
+    const handleSaveTarifas = async () => {
+        if (!savedPlantillaId || !estId) {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo determinar la plantilla"
+            });
+            return;
+        }
+
+        try {
+            setSaving(true);
+
+            // Preparar los datos para enviar
+            const tarifas = [];
+
+            // Hora (tipo 1)
+            if (prices.hora) {
+                tarifas.push({
+                    plantilla_id: savedPlantillaId,
+                    tiptar_nro: 1,
+                    tar_precio: parseFloat(prices.hora),
+                    tar_fraccion: parseFloat(prices.hora)
+                });
+            }
+
+            // Día (tipo 2)
+            if (prices.dia) {
+                tarifas.push({
+                    plantilla_id: savedPlantillaId,
+                    tiptar_nro: 2,
+                    tar_precio: parseFloat(prices.dia),
+                    tar_fraccion: parseFloat(prices.dia)
+                });
+            }
+
+            // Mes (tipo 3)
+            if (prices.mes) {
+                tarifas.push({
+                    plantilla_id: savedPlantillaId,
+                    tiptar_nro: 3,
+                    tar_precio: parseFloat(prices.mes),
+                    tar_fraccion: parseFloat(prices.mes)
+                });
+            }
+
+            // Semana (tipo 4)
+            if (prices.semana) {
+                tarifas.push({
+                    plantilla_id: savedPlantillaId,
+                    tiptar_nro: 4,
+                    tar_precio: parseFloat(prices.semana),
+                    tar_fraccion: parseFloat(prices.semana)
+                });
+            }
+
+            if (tarifas.length === 0) {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Debes ingresar al menos un precio"
+                });
+                return;
+            }
+
+            const response = await fetch(`/api/tarifas?est_id=${estId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ tarifas })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al guardar tarifas');
+            }
+
+            const data = await response.json();
+
+            toast({
+                title: "¡Éxito!",
+                description: `Se guardaron ${data.tarifas_actualizadas} tarifas correctamente`
+            });
+
+            // Recargar plantillas y cerrar modal
+            await loadPlantillas();
+            resetForm();
+            setIsModalOpen(false);
+
+        } catch (error: any) {
+            console.error('Error guardando tarifas:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: error.message || "Error al guardar las tarifas"
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleCaracteristicaToggle = (caracteristicaId: number) => {
-        // Buscar la característica que se está seleccionando/deseleccionando
         const caracteristica = allCaracteristicas.find(c => c.caracteristica_id === caracteristicaId);
         if (!caracteristica) return;
 
         const tipo = caracteristica.caracteristica_tipos.nombre_tipo;
-        const valor = caracteristica.valor;
 
         setCurrentTemplate(prev => {
             const isCurrentlySelected = prev.caracteristica_ids.includes(caracteristicaId);
             let newCaracteristicaIds = [...prev.caracteristica_ids];
 
             if (isCurrentlySelected) {
-                // Si se está deseleccionando, simplemente quitar el ID
                 newCaracteristicaIds = newCaracteristicaIds.filter(id => id !== caracteristicaId);
             } else {
-                // Si se está seleccionando, aplicar lógica de validación
                 if (tipo === 'Techo') {
-                    // Para características de techo, solo puede haber una seleccionada
-                    // Primero, quitar cualquier otra característica del mismo tipo
                     const caracteristicasDelTipo = allCaracteristicas
                         .filter(c => c.caracteristica_tipos.nombre_tipo === 'Techo')
                         .map(c => c.caracteristica_id);
 
                     newCaracteristicaIds = newCaracteristicaIds.filter(id => !caracteristicasDelTipo.includes(id));
-
-                    // Agregar la nueva característica
                     newCaracteristicaIds.push(caracteristicaId);
                 } else {
-                    // Para otros tipos, agregar normalmente
                     newCaracteristicaIds.push(caracteristicaId);
                 }
             }
@@ -326,187 +528,321 @@ export default function GestionPlantillasPage() {
     return (
         <>
             <div className={`container mx-auto p-6 max-w-7xl min-h-screen ${isInDashboard ? '' : 'bg-white'}`}>
+                {/* Header */}
                 <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Plantillas de Plazas</h1>
-                    <p className="text-gray-600">Define y gestiona diferentes tipos de plazas de estacionamiento y sus características</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Plantillas</h1>
+                    <p className="text-gray-600 mt-1">Define y gestiona diferentes tipos de plazas de estacionamiento</p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Columna Izquierda: Listado de Plantillas */}
-                    <div className="lg:col-span-2">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Listado de plantillas</h2>
+                {/* Botón Crear Plantilla - Arriba de la tabla */}
+                <div className="mb-4">
+                    <Button
+                        onClick={openCreateModal}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Crear Plantilla
+                    </Button>
+                </div>
 
-                        <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
-                            <table className="w-full bg-white border-collapse">
-                                <thead>
-                                    <tr className="bg-gradient-to-r from-gray-200 to-gray-300 border-b-2 border-gray-400">
-                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Nombre</th>
-                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Vehículo</th>
-                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Techo</th>
-                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Seguridad</th>
-                                        <th className="py-4 px-4 text-left text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Conectividad</th>
-                                        <th className="py-4 px-4 text-right text-sm font-bold text-gray-900 border-r-2 border-gray-300 last:border-r-0 shadow-sm">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {plantillas.length === 0 ? (
-                                        <tr className="bg-white">
-                                            <td colSpan={6} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
-                                                No hay plantillas creadas aún. Crea tu primera plantilla usando el formulario de la derecha.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        plantillas.map((plantilla, index) => (
-                                            <tr key={plantilla.plantilla_id} className={`border-b border-gray-300 ${index % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-gray-50 hover:bg-blue-100'} transition-colors duration-150`}>
-                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium last:border-r-0">
-                                                    {plantilla.nombre_plantilla}
-                                                </td>
-                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 last:border-r-0">
-                                                    {plantilla.catv_segmento === 'AUT' ? 'Auto' :
-                                                        plantilla.catv_segmento === 'MOT' ? 'Moto' : 'Camioneta'}
-                                                </td>
-                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 last:border-r-0">
-                                                    {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1 mb-1 font-medium shadow-sm">
-                                                            {valor}
-                                                        </span>
-                                                    )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                                                </td>
-                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 last:border-r-0">
-                                                    {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-1 mb-1 font-medium shadow-sm">
-                                                            {valor}
-                                                        </span>
-                                                    )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                                                </td>
-                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 last:border-r-0">
-                                                    {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs mr-1 mb-1 font-medium shadow-sm">
-                                                            {valor}
-                                                        </span>
-                                                    )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                                                </td>
-                                                <td className="py-4 px-4 text-right last:border-r-0">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleEditTemplate(plantilla)}
-                                                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded px-2 py-1"
-                                                            title="Editar plantilla"
+                {/* Tabla de Plantillas */}
+                <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+                    <CardContent className="pt-6">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="dark:border-zinc-800">
+                                    <TableHead className="dark:text-zinc-400">Nombre</TableHead>
+                                    <TableHead className="dark:text-zinc-400">Vehículo</TableHead>
+                                    <TableHead className="dark:text-zinc-400">Techo</TableHead>
+                                    <TableHead className="dark:text-zinc-400">Seguridad</TableHead>
+                                    <TableHead className="dark:text-zinc-400">Conectividad</TableHead>
+                                    <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {plantillas.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
+                                            No hay plantillas creadas. Haz clic en "Crear Plantilla" para comenzar.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    plantillas.map((plantilla) => (
+                                        <TableRow key={plantilla.plantilla_id} className="dark:border-zinc-800">
+                                            <TableCell className="dark:text-zinc-100 font-medium">
+                                                {plantilla.nombre_plantilla}
+                                            </TableCell>
+                                            <TableCell className="dark:text-zinc-100">
+                                                {getVehicleDisplayValue(plantilla.catv_segmento)}
+                                            </TableCell>
+                                            <TableCell className="dark:text-zinc-100">
+                                                {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
+                                                    <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                        {valor}
+                                                    </span>
+                                                )) || <span className="text-gray-400 italic">-</span>}
+                                            </TableCell>
+                                            <TableCell className="dark:text-zinc-100">
+                                                {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
+                                                    <span key={idx} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                        {valor}
+                                                    </span>
+                                                )) || <span className="text-gray-400 italic">-</span>}
+                                            </TableCell>
+                                            <TableCell className="dark:text-zinc-100">
+                                                {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
+                                                    <span key={idx} className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                        {valor}
+                                                    </span>
+                                                )) || <span className="text-gray-400 italic">-</span>}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleEditTemplate(plantilla)}
+                                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
+                                                        className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Modal Crear/Editar Plantilla con 2 Pasos */}
+            <Dialog open={isModalOpen} onOpenChange={(open) => {
+                if (!open) {
+                    resetForm();
+                }
+                setIsModalOpen(open);
+            }}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {modalStep === 'plantilla'
+                                ? (currentTemplate.plantilla_id ? 'Editar Plantilla' : 'Crear Plantilla')
+                                : `Definir tarifas • ${currentTemplate.nombre_plantilla}`
+                            }
+                        </DialogTitle>
+                        {modalStep === 'tarifas' && (
+                            <p className="text-sm text-gray-600">
+                                Vehículo: {getVehicleDisplayValue(currentTemplate.catv_segmento)}
+                            </p>
+                        )}
+                    </DialogHeader>
+
+                    <div className="space-y-6 py-4">
+                        {/* PASO 1: Formulario de Plantilla */}
+                        {modalStep === 'plantilla' && (
+                            <>
+                                {/* Campo Nombre */}
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block text-gray-700">Nombre</label>
+                                    <Input
+                                        value={currentTemplate.nombre_plantilla}
+                                        onChange={(e) => setCurrentTemplate(prev => ({ ...prev, nombre_plantilla: e.target.value }))}
+                                        placeholder="Ej: Auto estándar"
+                                        className="bg-white border-gray-300"
+                                    />
+                                </div>
+
+                                {/* Campo Tipo de Vehículo */}
+                                <div>
+                                    <label className="text-sm font-medium mb-2 block text-gray-700">Tipo de vehículo</label>
+                                    <Select
+                                        value={getVehicleDisplayValue(currentTemplate.catv_segmento)}
+                                        onValueChange={(value) => setCurrentTemplate(prev => ({
+                                            ...prev,
+                                            catv_segmento: getVehicleSegmentValue(value)
+                                        }))}
+                                    >
+                                        <SelectTrigger className="bg-white border-gray-300">
+                                            <SelectValue placeholder="Selecciona un tipo de vehículo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Auto">Auto</SelectItem>
+                                            <SelectItem value="Moto">Moto</SelectItem>
+                                            <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Características */}
+                                <div>
+                                    <label className="text-sm font-medium mb-4 block text-gray-700">Características</label>
+                                    <div className="space-y-4">
+                                        {Object.entries(caracteristicasPorTipo).map(([tipo, caracteristicas]) => (
+                                            <div key={tipo}>
+                                                <h4 className="text-sm font-medium mb-2 text-gray-700">{tipo}</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {caracteristicas.map((caracteristica) => (
+                                                        <button
+                                                            key={caracteristica.caracteristica_id}
+                                                            type="button"
+                                                            className={`px-4 py-2 text-sm rounded-full transition-colors border ${currentTemplate.caracteristica_ids.includes(caracteristica.caracteristica_id)
+                                                                ? 'bg-blue-600 text-white border-transparent'
+                                                                : 'bg-gray-100 text-gray-800 border-transparent hover:bg-gray-200'
+                                                                }`}
+                                                            onClick={() => handleCaracteristicaToggle(caracteristica.caracteristica_id)}
                                                         >
-                                                            <Edit className="h-4 w-4 mr-1" />
-                                                            <span className="text-xs font-medium">Editar</span>
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
-                                                            className="text-red-600 hover:text-red-800 hover:bg-red-50 border border-transparent hover:border-red-200 rounded px-2 py-1"
-                                                            title="Eliminar plantilla"
-                                                        >
-                                                            <Trash2 className="h-4 w-4 mr-1" />
-                                                            <span className="text-xs font-medium">Eliminar</span>
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                                            {caracteristica.valor}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* PASO 2: Formulario de Tarifas */}
+                        {modalStep === 'tarifas' && (
+                            <>
+                                {loadingTarifas ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                                        <span className="text-gray-600">Cargando precios existentes...</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Precio por Hora */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="hora" className="text-gray-700 flex items-center gap-1">
+                                                <DollarSign className="h-4 w-4" />
+                                                Por hora
+                                            </Label>
+                                            <Input
+                                                id="hora"
+                                                type="text"
+                                                value={prices.hora}
+                                                onChange={(e) => handlePriceChange('hora', e.target.value)}
+                                                className="text-right"
+                                                disabled={saving}
+                                                placeholder="100"
+                                            />
+                                            <p className="text-xs text-gray-500">Se cobra este precio por cada hora completa</p>
+                                        </div>
+
+                                        {/* Precio por Día */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="dia" className="text-gray-700 flex items-center gap-1">
+                                                <DollarSign className="h-4 w-4" />
+                                                Por día
+                                            </Label>
+                                            <Input
+                                                id="dia"
+                                                type="text"
+                                                value={prices.dia}
+                                                onChange={(e) => handlePriceChange('dia', e.target.value)}
+                                                className="text-right"
+                                                disabled={saving}
+                                                placeholder="200"
+                                            />
+                                            <p className="text-xs text-gray-500">Se cobra este precio por cada día completo</p>
+                                        </div>
+
+                                        {/* Precio por Semana */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="semana" className="text-gray-700 flex items-center gap-1">
+                                                <DollarSign className="h-4 w-4" />
+                                                Por semana
+                                            </Label>
+                                            <Input
+                                                id="semana"
+                                                type="text"
+                                                value={prices.semana}
+                                                onChange={(e) => handlePriceChange('semana', e.target.value)}
+                                                className="text-right"
+                                                disabled={saving}
+                                                placeholder="300"
+                                            />
+                                            <p className="text-xs text-gray-500">Se cobra este precio por cada semana completa</p>
+                                        </div>
+
+                                        {/* Precio por Mes */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="mes" className="text-gray-700 flex items-center gap-1">
+                                                <DollarSign className="h-4 w-4" />
+                                                Por mes
+                                            </Label>
+                                            <Input
+                                                id="mes"
+                                                type="text"
+                                                value={prices.mes}
+                                                onChange={(e) => handlePriceChange('mes', e.target.value)}
+                                                className="text-right"
+                                                disabled={saving}
+                                                placeholder="400"
+                                            />
+                                            <p className="text-xs text-gray-500">Se cobra este precio por cada mes completo</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
-                    {/* Columna Derecha: Crear/Editar Plantilla */}
-                    <Card className="bg-white border border-gray-200 shadow-sm lg:col-span-1">
-                        <CardHeader>
-                            <CardTitle className="text-gray-900">
-                                Crear / Editar plantilla
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {/* Campo Nombre */}
-                            <div>
-                                <label className="text-sm font-medium mb-2 block text-gray-700">Nombre</label>
-                                <Input
-                                    value={currentTemplate.nombre_plantilla}
-                                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, nombre_plantilla: e.target.value }))}
-                                    placeholder="Ej: Auto estándar"
-                                    className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
-                                />
-                            </div>
-
-                            {/* Campo Tipo de Vehículo */}
-                            <div>
-                                <label className="text-sm font-medium mb-2 block text-gray-700">Tipo de vehículo</label>
-                                <Select
-                                    value={getVehicleDisplayValue(currentTemplate.catv_segmento)}
-                                    onValueChange={(value) => setCurrentTemplate(prev => ({
-                                        ...prev,
-                                        catv_segmento: getVehicleSegmentValue(value)
-                                    }))}
-                                >
-                                    <SelectTrigger className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500">
-                                        <SelectValue placeholder="Selecciona un tipo de vehículo" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Auto">Auto</SelectItem>
-                                        <SelectItem value="Moto">Moto</SelectItem>
-                                        <SelectItem value="Camioneta">Camioneta</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Características */}
-                            <div>
-                                <label className="text-sm font-medium mb-4 block text-gray-700">Características</label>
-                                <div className="space-y-4">
-                                    {Object.entries(caracteristicasPorTipo).map(([tipo, caracteristicas]) => (
-                                        <div key={tipo}>
-                                            <h4 className="text-sm font-medium mb-2 text-gray-700">{tipo}</h4>
-                                            <div className="flex flex-wrap gap-2">
-                                                {caracteristicas.map((caracteristica) => (
-                                                    <button
-                                                        key={caracteristica.caracteristica_id}
-                                                        type="button"
-                                                        className={`px-4 py-2 text-sm rounded-full transition-colors border ${currentTemplate.caracteristica_ids.includes(caracteristica.caracteristica_id)
-                                                            ? 'bg-blue-600 text-white border-transparent'
-                                                            : 'bg-gray-100 text-gray-800 border-transparent hover:bg-gray-200'
-                                                            }`}
-                                                        onClick={() => handleCaracteristicaToggle(caracteristica.caracteristica_id)}
-                                                    >
-                                                        {caracteristica.valor}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Botones de Acción */}
-                            <div className="flex gap-3 pt-4">
-                                <Button
-                                    onClick={handleSaveTemplate}
-                                    disabled={saving}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white border-0"
-                                >
-                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                    Guardar plantilla
-                                </Button>
+                    <DialogFooter>
+                        {modalStep === 'plantilla' ? (
+                            <>
                                 <Button
                                     variant="outline"
-                                    onClick={resetForm}
+                                    onClick={() => {
+                                        resetForm();
+                                        setIsModalOpen(false);
+                                    }}
                                     disabled={saving}
                                 >
                                     Cancelar
                                 </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                                <Button
+                                    onClick={handleSavePlantillaAndGoToTarifas}
+                                    disabled={saving}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    Definir tarifas
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setModalStep('plantilla')}
+                                    disabled={saving}
+                                >
+                                    Volver
+                                </Button>
+                                <Button
+                                    onClick={handleSaveTarifas}
+                                    disabled={saving || loadingTarifas}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    {saving ? 'Guardando...' : 'Guardar tarifas'}
+                                </Button>
+                            </>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Diálogo informativo para duplicados */}
             <DuplicateTemplateDialog
@@ -515,7 +851,7 @@ export default function GestionPlantillasPage() {
                 duplicateType={duplicateDialog.type}
                 existingTemplate={duplicateDialog.existingTemplate}
                 newTemplateName={duplicateDialog.newTemplateName}
-            />n
+            />
         </>
     );
 }

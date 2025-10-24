@@ -58,6 +58,8 @@ interface AdminPanelProps {
   onDeleteHistoryEntry?: (id: string) => Promise<void>
   onUpdateHistoryEntry?: (id: string, data: Partial<ParkingHistory>) => Promise<void>
   onReenterVehicle?: (entry: ParkingHistory) => Promise<void>
+  hideIncomeAndCapacity?: boolean
+  hideZoneManager?: boolean
 }
 
 
@@ -69,6 +71,8 @@ export default function AdminPanel({
   onDeleteHistoryEntry,
   onUpdateHistoryEntry,
   onReenterVehicle,
+  hideIncomeAndCapacity = false,
+  hideZoneManager = false,
 }: AdminPanelProps) {
 
   // Debug log para verificar los datos del historial
@@ -476,106 +480,81 @@ export default function AdminPanel({
 
   return (
     <div className="space-y-6">
-      {/* Capacidad por tipo (plazas) - OCULTO */}
-      {/* <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader>
-          <CardTitle className="dark:text-zinc-100">Capacidad por Tipo (Plazas)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(["Auto","Moto","Camioneta"] as VehicleType[]).map((t)=> {
-              const seg = t === 'Moto' ? 'MOT' : t === 'Camioneta' ? 'CAM' : 'AUT'
-              const st = plazasStatus?.[seg]
-              return (
-                <div key={t} className="p-3 bg-gray-50 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
-                  <p className="text-sm text-gray-500 dark:text-zinc-400">{t}s</p>
-                  <p className="text-lg font-medium dark:text-zinc-100">{st ? `${st.free} libres de ${st.total}` : `${availableSpaces[t]} libres de ${capacity[t]}`}</p>
-                  {st && (
-                    <div className="mt-3 grid grid-cols-5 gap-1 text-xs">
-                      {st.plazas.map((p, index) => (
-                        <span key={`${seg}-${p.pla_numero || index}`} className={`px-2 py-1 rounded ${p.occupied ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-                          {p.pla_numero || 'N/A'}
-                        </span>
-                      ))}
+      {/* Ingresos - Solo mostrar si hideIncomeAndCapacity es false */}
+      {!hideIncomeAndCapacity && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+            <CardHeader>
+              <CardTitle className="dark:text-zinc-100">Ingresos del Día</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(todayIncome)}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+            <CardHeader>
+              <CardTitle className="dark:text-zinc-100">Ingresos de la Semana</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(weekIncome)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Estado actual + botón para modificar - Solo mostrar si hideIncomeAndCapacity es false */}
+      {!hideIncomeAndCapacity && (
+        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
+          <CardHeader className="flex flex-row justify-between items-center">
+            <CardTitle className="dark:text-zinc-100">Estado Actual del Estacionamiento</CardTitle>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                  Modificar espacios
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
+                <DialogHeader>
+                  <DialogTitle className="dark:text-zinc-100">Modificar capacidad máxima</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-2">
+                  {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
+                    <div key={type} className="space-y-1">
+                      <label className="text-sm font-medium dark:text-zinc-400">{type}</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={tempCapacities[type]}
+                        onChange={(e) => handleChange(type, parseInt(e.target.value))}
+                        className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                      />
                     </div>
-                  )}
+                  ))}
                 </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card> */}
-      {/* Ingresos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Ingresos del Día</CardTitle>
+
+                <DialogFooter className="flex justify-end gap-2">
+                  {/* Botón de regenerar plazas se elimina porque Guardar ahora incluye esa operación */}
+                  <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(todayIncome)}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {renderSpaceInfo("Autos", "Auto")}
+              {renderSpaceInfo("Motos", "Moto")}
+              {renderSpaceInfo("Camionetas", "Camioneta")}
+            </div>
+            <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
+              <p className="text-center font-medium dark:text-zinc-100">
+                Total: {availableSpaces.total.occupied} vehículos ocupando {availableSpaces.total.capacity} espacios (
+                {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
+              </p>
+            </div>
           </CardContent>
         </Card>
-
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Ingresos de la Semana</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold dark:text-zinc-100">{formatCurrency(weekIncome)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Estado actual + botón para modificar */}
-      <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-        <CardHeader className="flex flex-row justify-between items-center">
-          <CardTitle className="dark:text-zinc-100">Estado Actual del Estacionamiento</CardTitle>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                Modificar espacios
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="dark:bg-zinc-950 dark:border-zinc-800">
-              <DialogHeader>
-                <DialogTitle className="dark:text-zinc-100">Modificar capacidad máxima</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-2">
-                {(["Auto", "Moto", "Camioneta"] as VehicleType[]).map((type) => (
-                  <div key={type} className="space-y-1">
-                    <label className="text-sm font-medium dark:text-zinc-400">{type}</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={tempCapacities[type]}
-                      onChange={(e) => handleChange(type, parseInt(e.target.value))}
-                      className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <DialogFooter className="flex justify-end gap-2">
-                {/* Botón de regenerar plazas se elimina porque Guardar ahora incluye esa operación */}
-                <Button onClick={handleSave} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">Guardar</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {renderSpaceInfo("Autos", "Auto")}
-            {renderSpaceInfo("Motos", "Moto")}
-            {renderSpaceInfo("Camionetas", "Camioneta")}
-          </div>
-          <div className="mt-4 p-3 bg-gray-100 rounded-md dark:bg-zinc-900 dark:border dark:border-zinc-800">
-            <p className="text-center font-medium dark:text-zinc-100">
-              Total: {availableSpaces.total.occupied} vehículos ocupando {availableSpaces.total.capacity} espacios (
-              {availableSpaces.total.capacity - availableSpaces.total.occupied} libres)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      )}
 
       {/* Historial */}
       <Card className="dark:bg-zinc-900 dark:border-zinc-800">
@@ -686,8 +665,8 @@ export default function AdminPanel({
 
       {/* <Chatbot /> */}
 
-      {/* Gestión de Zonas */}
-      <ZoneManager />
+      {/* Gestión de Zonas - Solo mostrar si hideZoneManager es false */}
+      {!hideZoneManager && <ZoneManager />}
     </div>
   )
 }
