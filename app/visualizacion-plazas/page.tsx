@@ -158,11 +158,19 @@ export default function VisualizacionPlazasPage() {
             <div className="min-h-screen bg-gray-50">
                 <div className="p-6 space-y-6">
                     <div className="mb-6">
-                        <div>
-                            <h1 className="text-3xl font-bold">Visualización de Plazas</h1>
-                            <p className="text-gray-600">Visualización completa del estado de todas las plazas</p>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-3xl font-bold">Visualización de Plazas</h1>
+                                <p className="text-gray-600">Visualización completa del estado de todas las plazas</p>
+                            </div>
+                            <Button
+                                onClick={cargarDatos}
+                                variant="outline"
+                                className="flex items-center gap-2"
+                            >
+                                Actualizar Datos
+                            </Button>
                         </div>
-
                     </div>
 
                     {/* Estados de carga y error dentro del dashboard */}
@@ -379,16 +387,6 @@ export default function VisualizacionPlazasPage() {
                                             </p>
                                         </div>
                                     )}
-
-                                    {/* Botón de recarga */}
-                                    <div className="mt-6 text-center">
-                                        <button
-                                            onClick={cargarDatos}
-                                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                        >
-                                            🔄 Actualizar Datos
-                                        </button>
-                                    </div>
                                 </>
                             )}
                         </>

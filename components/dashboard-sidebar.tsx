@@ -39,6 +39,7 @@ import { useTurnos } from "@/lib/hooks/use-turnos";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "next-themes";
 import { Logo } from "@/components/logo";
+import { ParkingDisplay } from "@/components/parking-display";
 
 interface SidebarProps {
     className?: string;
@@ -230,14 +231,11 @@ const ownerNavigationItems = [
 export function DashboardSidebar({ className }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, signOut, userRole, roleLoading, estId, getParkingById } = useAuth();
+    const { user, signOut, userRole, roleLoading } = useAuth();
     const { role, isEmployee, isOwner, isDriver } = useUserRole();
     const { tieneTurnoActivo, turnoActivo } = useTurnos();
     const { theme, setTheme } = useTheme();
     const [expandedItems, setExpandedItems] = useState<string[]>([]);
-
-    // Obtener información del estacionamiento actual
-    const currentParking = estId ? getParkingById(estId) : null;
 
     // Seleccionar elementos de navegación según el rol usando useMemo para estabilidad
     const navigationItems = useMemo(() => {
@@ -340,25 +338,10 @@ export function DashboardSidebar({ className }: SidebarProps) {
             {/* Navigation */}
             <div className="flex-1 overflow-auto">
                 <div className="px-3 pt-2">
-                    {/* Widget compacto con nombre de estacionamiento - solo visible para owners y playeros */}
+                    {/* Selector de estacionamiento - solo visible para owners y playeros */}
                     {!isDriver && (
                         <div className="mb-1">
-                            <div className="bg-gradient-to-r from-blue-50/50 to-transparent border border-blue-100 rounded-xl p-3.5 shadow-sm">
-                                <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-300">
-                                    <MapPin className="h-4 w-4 text-blue-500 mt-0.5" />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <div className="w-2 h-2 bg-green-500 rounded-full shadow-sm shadow-green-500/50 animate-pulse flex-shrink-0"></div>
-                                            <span className="text-sm font-medium truncate">{currentParking?.est_nombre || 'Seleccionar estacionamiento'}</span>
-                                        </div>
-                                        {currentParking?.est_direc && (
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 ml-4 truncate">
-                                                {currentParking.est_direc}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+                            <ParkingDisplay />
                         </div>
                     )}
 
