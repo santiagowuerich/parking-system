@@ -184,3 +184,109 @@ export function createEmptyFranja(estId: number, diaSemana: number, orden: numbe
         orden: orden
     };
 }
+
+/**
+ * Estado de apertura de un estacionamiento
+ */
+export interface EstadoApertura {
+    isOpen: boolean;        // true si está abierto ahora
+    hasSchedule: boolean;   // true si tiene horarios configurados
+    nextChange?: string;    // Próximo cambio (ej: "Cierra a las 18:00", "Abre a las 08:00")
+}
+
+/**
+ * Determinar si un estacionamiento está abierto en un momento específico
+ */
+export function isEstacionamientoAbierto(horarios: HorarioFranja[], fechaHora?: Date): EstadoApertura {
+    // Si no hay horarios configurados
+    if (!horarios || horarios.length === 0) {
+        return {
+            isOpen: false,
+            hasSchedule: false
+        };
+    }
+
+    const ahora = fechaHora || new Date();
+    const diaActual = ahora.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+    const horaActual = ahora.getHours();
+    const minutoActual = ahora.getMinutes();
+    const minutosDesdeMedianoche = horaActual * 60 + minutoActual;
+
+    // Función helper para convertir "HH:MM" a minutos desde medianoche
+    const timeToMinutes = (time: string): number => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
+    };
+
+    // Filtrar franjas del día actual
+    const franjasHoy = horarios.filter(h => h.dia_semana === diaActual).sort((a, b) => a.orden - b.orden);
+
+    // Si no hay franjas para hoy, está cerrado
+    if (franjasHoy.length === 0) {
+        // Buscar el próximo día con horarios
+        for (let i = 1; i <= 7; i++) {
+            const siguienteDia = (diaActual + i) % 7;
+            const franjasSiguiente = horarios.filter(h => h.dia_semana === siguienteDia).sort((a, b) => a.orden - b.orden);
+            if (franjasSiguiente.length > 0) {
+                const nombreDia = DIAS_SEMANA[siguienteDia];
+                const primeraApertura = franjasSiguiente[0].hora_apertura;
+                return {
+                    isOpen: false,
+                    hasSchedule: true,
+                    nextChange: `Abre el ${nombreDia} a las ${primeraApertura}`
+                };
+            }
+        }
+
+        return {
+            isOpen: false,
+            hasSchedule: true,
+            nextChange: 'Cerrado permanentemente'
+        };
+    }
+
+    // Verificar si está abierto en alguna franja actual
+    for (const franja of franjasHoy) {
+        const apertura = timeToMinutes(franja.hora_apertura);
+        const cierre = timeToMinutes(franja.hora_cierre);
+
+        if (minutosDesdeMedianoche >= apertura && minutosDesdeMedianoche < cierre) {
+            // Está abierto ahora
+            return {
+                isOpen: true,
+                hasSchedule: true,
+                nextChange: `Cierra a las ${franja.hora_cierre}`
+            };
+        }
+
+        // Si aún no llegó a esta franja, indicar cuándo abre
+        if (minutosDesdeMedianoche < apertura) {
+            return {
+                isOpen: false,
+                hasSchedule: true,
+                nextChange: `Abre a las ${franja.hora_apertura}`
+            };
+        }
+    }
+
+    // Si ya pasaron todas las franjas de hoy, buscar la próxima apertura
+    for (let i = 1; i <= 7; i++) {
+        const siguienteDia = (diaActual + i) % 7;
+        const franjasSiguiente = horarios.filter(h => h.dia_semana === siguienteDia).sort((a, b) => a.orden - b.orden);
+        if (franjasSiguiente.length > 0) {
+            const nombreDia = i === 1 ? 'mañana' : DIAS_SEMANA[siguienteDia];
+            const primeraApertura = franjasSiguiente[0].hora_apertura;
+            return {
+                isOpen: false,
+                hasSchedule: true,
+                nextChange: `Abre ${nombreDia} a las ${primeraApertura}`
+            };
+        }
+    }
+
+    return {
+        isOpen: false,
+        hasSchedule: true,
+        nextChange: 'Cerrado'
+    };
+}

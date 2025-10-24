@@ -28,6 +28,7 @@ import {
     Layers,
     Loader2
 } from "lucide-react";
+import { HorarioFranja, EstadoApertura } from "@/lib/types/horarios";
 
 interface ParkingData {
     id: number;
@@ -40,11 +41,16 @@ interface ParkingData {
     longitud: number;
     capacidad: number;
     espaciosDisponibles: number;
-    horarioFuncionamiento: number;
     telefono?: string;
     email?: string;
     estado: 'disponible' | 'pocos' | 'lleno';
     distance?: number; // Para estacionamientos cercanos
+    est_publicado?: boolean;
+    est_requiere_llave?: 'no' | 'opcional' | 'requerida';
+    descripcion?: string;
+    tolerancia?: number;
+    horarios?: HorarioFranja[];
+    estadoApertura?: EstadoApertura;
 }
 
 export default function MapaEstacionamientos() {

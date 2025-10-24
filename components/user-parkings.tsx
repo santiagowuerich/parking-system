@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, Calendar } from "lucide-react";
 import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2, CheckCircle, Phone, Mail, Timer, Search, Save } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import ParkingConfig from "./parking-config";
 import AddressAutocomplete from "./address-autocomplete";
 import { useAuth } from "@/lib/auth-context";
@@ -18,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import GoogleMap from "./google-map";
 import { Checkbox } from "@/components/ui/checkbox";
 import HorariosEditor from "./horarios-editor";
-import { HorarioFranja, RequiereLlaveOption, LLAVE_OPTIONS } from "@/lib/types/horarios";
+import { HorarioFranja, RequiereLlaveOption, LLAVE_OPTIONS, EstadoApertura, isEstacionamientoAbierto } from "@/lib/types/horarios";
 
 interface Estacionamiento {
     est_id: number;
@@ -31,10 +33,15 @@ interface Estacionamiento {
     est_tolerancia_min: number;
     est_publicado: boolean;
     est_requiere_llave: RequiereLlaveOption;
+    est_descripcion?: string;
+    est_telefono?: string;
+    est_email?: string;
     // Nuevos campos calculados dinámicamente
     plazas_totales_reales: number;
     plazas_disponibles_reales: number;
     plazas_ocupadas: number;
+    horarios?: HorarioFranja[];
+    estadoApertura?: EstadoApertura;
 }
 
 interface Usuario {
@@ -126,6 +133,9 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     // Evitar bucle de recarga cuando no hay estacionamientos
     // Solo intentamos cargar una vez al montar el componente
     const [requestedOnce, setRequestedOnce] = useState(false);
+    const [estacionamientosEnriquecidos, setEstacionamientosEnriquecidos] = useState<Estacionamiento[]>([]);
+    const [loadingHorarios, setLoadingHorarios] = useState(false);
+
     useEffect(() => {
         // Solo cargar si no hay estacionamientos y no está cargando
         if (requestedOnce || loading || estacionamientos.length > 0) return;
@@ -133,6 +143,49 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         fetchParkings();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Enriquecer estacionamientos con horarios y estado de apertura
+    useEffect(() => {
+        const enriquecerConHorarios = async () => {
+            if (estacionamientos.length === 0) {
+                setEstacionamientosEnriquecidos([]);
+                return;
+            }
+
+            setLoadingHorarios(true);
+
+            const enriquecidos = await Promise.all(
+                estacionamientos.map(async (est) => {
+                    try {
+                        // Consultar horarios del estacionamiento
+                        const response = await fetch(`/api/estacionamiento/horarios?est_id=${est.est_id}`);
+                        const data = await response.json();
+
+                        const horarios = (data.success && data.horarios) ? data.horarios : [];
+                        const estadoApertura = isEstacionamientoAbierto(horarios);
+
+                        return {
+                            ...est,
+                            horarios,
+                            estadoApertura
+                        };
+                    } catch (error) {
+                        console.error(`Error cargando horarios para ${est.est_nombre}:`, error);
+                        return {
+                            ...est,
+                            horarios: [],
+                            estadoApertura: { isOpen: false, hasSchedule: false }
+                        };
+                    }
+                })
+            );
+
+            setEstacionamientosEnriquecidos(enriquecidos);
+            setLoadingHorarios(false);
+        };
+
+        enriquecerConHorarios();
+    }, [estacionamientos]);
     const createNewParking = async () => {
         if (!newParkingName.trim()) {
             // El error se maneja localmente ya que es específico del formulario
@@ -872,74 +925,191 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     </Card>
                                 )}
 
-                                <div className="grid gap-4">
-                                    {estacionamientos.map((estacionamiento) => (
+                                <div className="grid gap-6">
+                                    {(loadingHorarios ? estacionamientos : estacionamientosEnriquecidos).map((estacionamiento) => {
+                                        const porcentajeOcupacion = estacionamiento.plazas_totales_reales > 0
+                                            ? Math.round((estacionamiento.plazas_ocupadas / estacionamiento.plazas_totales_reales) * 100)
+                                            : 0;
+
+                                        return (
                                         <Card
                                             key={estacionamiento.est_id}
-                                            className={`bg-gray-50 border-gray-200 transition-colors ${currentEstId === estacionamiento.est_id
-                                                ? 'ring-2 ring-blue-500 bg-gray-100'
-                                                : ''
+                                            className={`overflow-hidden transition-all duration-300 hover:shadow-xl ${currentEstId === estacionamiento.est_id
+                                                ? 'ring-4 ring-blue-400 shadow-2xl'
+                                                : 'shadow-lg'
                                                 }`}
                                         >
-                                            <CardHeader className="pb-3">
-                                                <div className="flex items-center justify-between">
-                                                    <CardTitle className="text-gray-900 text-lg">
-                                                        {estacionamiento.est_nombre}
-                                                    </CardTitle>
-                                                    <div className="flex gap-2">
-                                                        {!estacionamiento.est_publicado && (
-                                                            <Badge variant="secondary" className="bg-gray-400">
-                                                                📝 Borrador
-                                                            </Badge>
-                                                        )}
-                                                        {currentEstId === estacionamiento.est_id && (
-                                                            <Badge variant="default" className="bg-blue-600">
-                                                                Seleccionado
-                                                            </Badge>
-                                                        )}
+                                            {/* HEADER CON GRADIENTE */}
+                                            <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border-b-2 border-blue-100">
+                                                <div className="space-y-3">
+                                                    {/* Título y badges */}
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1">
+                                                            <CardTitle className="text-2xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+                                                                {estacionamiento.est_nombre}
+                                                                {currentEstId === estacionamiento.est_id && (
+                                                                    <span className="text-2xl">⭐</span>
+                                                                )}
+                                                            </CardTitle>
+                                                            {estacionamiento.est_descripcion && (
+                                                                <p className="text-sm text-gray-600 line-clamp-2">
+                                                                    {estacionamiento.est_descripcion}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col gap-2">
+                                                            {currentEstId === estacionamiento.est_id && (
+                                                                <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
+                                                                    ✓ Activo
+                                                                </Badge>
+                                                            )}
+                                                            {!estacionamiento.est_publicado && (
+                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                                                                    🚫 Borrador
+                                                                </Badge>
+                                                            )}
+                                                            {loadingHorarios ? (
+                                                                <Badge variant="outline" className="animate-pulse">
+                                                                    ⏳ Cargando...
+                                                                </Badge>
+                                                            ) : estacionamiento.estadoApertura && (
+                                                                estacionamiento.estadoApertura.hasSchedule ? (
+                                                                    estacionamiento.estadoApertura.isOpen ? (
+                                                                        <Badge className="bg-green-100 text-green-800 border-green-300">
+                                                                            🟢 ABIERTO
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <Badge className="bg-red-100 text-red-800 border-red-300">
+                                                                            🔴 CERRADO
+                                                                        </Badge>
+                                                                    )
+                                                                ) : (
+                                                                    <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                                                                        ⚠️ Sin horarios
+                                                                    </Badge>
+                                                                )
+                                                            )}
+                                                        </div>
                                                     </div>
+
+                                                    {/* Próximo cambio de horario */}
+                                                    {!loadingHorarios && estacionamiento.estadoApertura?.nextChange && (
+                                                        <div className="text-xs text-gray-600 bg-white/50 px-3 py-1.5 rounded-full inline-block">
+                                                            ⏰ {estacionamiento.estadoApertura.nextChange}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </CardHeader>
-                                            <CardContent className="pt-0 space-y-4">
-                                                {/* Dirección completa */}
-                                                <div className="flex items-center gap-2 text-gray-600">
-                                                    <MapPin className="h-4 w-4 text-gray-400" />
-                                                    <span className="text-sm">{estacionamiento.est_direc}, {estacionamiento.est_locali}, {estacionamiento.est_prov}</span>
+                                            <CardContent className="p-6 space-y-5">
+                                                {/* Dirección */}
+                                                <div className="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg">
+                                                    <MapPin className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                                                    <span className="text-sm font-medium">{estacionamiento.est_direc}, {estacionamiento.est_locali}, {estacionamiento.est_prov}</span>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                                    <div className="flex items-center gap-2 text-gray-600">
-                                                        <Building2 className="h-4 w-4 text-gray-400" />
-                                                        <span className="font-semibold text-green-600">
-                                                            {estacionamiento.plazas_total || 0} plazas totales
+                                                {/* Grid de estadísticas - MEJORADO */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    {/* Card de Plazas Totales */}
+                                                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-green-500 rounded-lg">
+                                                                <Building2 className="h-5 w-5 text-white" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-2xl font-bold text-green-700">
+                                                                    {estacionamiento.plazas_totales_reales || 0}
+                                                                </div>
+                                                                <div className="text-xs text-green-600 font-medium">Plazas totales</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Card de Disponibles */}
+                                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-blue-500 rounded-lg">
+                                                                <Users className="h-5 w-5 text-white" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-2xl font-bold text-blue-700">
+                                                                    {estacionamiento.plazas_disponibles_reales || 0}
+                                                                </div>
+                                                                <div className="text-xs text-blue-600 font-medium">Disponibles</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Barra de ocupación */}
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-gray-600 font-medium">Ocupación</span>
+                                                        <span className={`font-bold ${porcentajeOcupacion > 80 ? 'text-red-600' : porcentajeOcupacion > 50 ? 'text-amber-600' : 'text-green-600'}`}>
+                                                            {porcentajeOcupacion}%
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-gray-600">
-                                                        <Users className="h-4 w-4 text-gray-400" />
-                                                        <span className="font-semibold text-blue-600">
-                                                            {estacionamiento.plazas_libres || 0} disponibles
-                                                        </span>
-                                                        {(estacionamiento.plazas_ocupadas > 0) && (
-                                                            <span className="text-amber-600 text-xs">
-                                                                ({estacionamiento.plazas_ocupadas} ocupadas)
+                                                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                                        <div
+                                                            className={`h-full transition-all duration-500 rounded-full ${
+                                                                porcentajeOcupacion > 80 ? 'bg-gradient-to-r from-red-500 to-red-600' :
+                                                                porcentajeOcupacion > 50 ? 'bg-gradient-to-r from-amber-500 to-orange-500' :
+                                                                'bg-gradient-to-r from-green-500 to-emerald-500'
+                                                            }`}
+                                                            style={{ width: `${porcentajeOcupacion}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 text-center">
+                                                        {estacionamiento.plazas_ocupadas} ocupadas
+                                                    </div>
+                                                </div>
+
+                                                {/* Información adicional */}
+                                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                                    <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 rounded-lg">
+                                                        <Timer className="h-4 w-4 text-gray-500" />
+                                                        <span><strong>{estacionamiento.est_tolerancia_min}</strong> min tolerancia</span>
+                                                    </div>
+                                                    {estacionamiento.est_requiere_llave && estacionamiento.est_requiere_llave !== 'no' && (
+                                                        <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                                                            estacionamiento.est_requiere_llave === 'requerida'
+                                                                ? 'bg-red-50 text-red-700'
+                                                                : 'bg-yellow-50 text-yellow-700'
+                                                        }`}>
+                                                            <span className="text-base">🔑</span>
+                                                            <span className="text-xs font-medium">
+                                                                {estacionamiento.est_requiere_llave === 'requerida' ? 'Llave requerida' : 'Llave opcional'}
                                                             </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Contacto si existe */}
+                                                {(estacionamiento.est_telefono || estacionamiento.est_email) && (
+                                                    <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                                                        <div className="text-xs text-gray-500 font-semibold mb-2">CONTACTO</div>
+                                                        {estacionamiento.est_telefono && (
+                                                            <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                                <Phone className="h-3 w-3" />
+                                                                {estacionamiento.est_telefono}
+                                                            </div>
+                                                        )}
+                                                        {estacionamiento.est_email && (
+                                                            <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                                <Mail className="h-3 w-3" />
+                                                                {estacionamiento.est_email}
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-gray-600">
-                                                        <Clock className="h-4 w-4 text-gray-400" />
-                                                        <span>{estacionamiento.est_horario_funcionamiento || 24}h funcionamiento</span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-gray-500 text-xs">
-                                                    <p>Tolerancia: {estacionamiento.est_tolerancia_min || 0} minutos</p>
-                                                    <div className="flex items-center gap-1 mt-1">
-                                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                                        <span className="text-green-400">Datos calculados en tiempo real</span>
-                                                    </div>
+                                                )}
+
+                                                {/* Indicador de datos en tiempo real */}
+                                                <div className="flex items-center justify-center gap-2 text-xs text-green-600 bg-green-50 py-2 rounded-lg">
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                    <span className="font-medium">Datos actualizados en tiempo real</span>
                                                 </div>
 
-                                                {/* Botones de acción */}
-                                                <div className="flex gap-2 pt-3 border-t border-gray-200">
+                                                {/* Botones de acción - MEJORADOS */}
+                                                <div className="grid grid-cols-3 gap-3 pt-4 border-t-2 border-gray-100">
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
@@ -947,10 +1117,58 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                             e.stopPropagation();
                                                             openEditConfigModal(estacionamiento.est_id);
                                                         }}
-                                                        className="flex-1"
+                                                        className="h-11 hover:bg-blue-50 hover:border-blue-300"
                                                     >
-                                                        <Settings className="h-4 w-4 mr-2" />
-                                                        Editar Configuración
+                                                        <Settings className="h-4 w-4 mr-1" />
+                                                        Editar
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!estacionamiento.horarios || estacionamiento.horarios.length === 0) {
+                                                                toast({
+                                                                    title: "Sin horarios configurados",
+                                                                    description: "Este estacionamiento aún no tiene horarios. Edítalo para configurarlos.",
+                                                                    variant: "default"
+                                                                });
+                                                                return;
+                                                            }
+
+                                                            const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                                                            const horariosPorDia: { [key: number]: HorarioFranja[] } = {};
+
+                                                            estacionamiento.horarios.forEach(h => {
+                                                                if (!horariosPorDia[h.dia_semana]) {
+                                                                    horariosPorDia[h.dia_semana] = [];
+                                                                }
+                                                                horariosPorDia[h.dia_semana].push(h);
+                                                            });
+
+                                                            let mensaje = `📅 Horarios de ${estacionamiento.est_nombre}\n\n`;
+                                                            mensaje += '═'.repeat(45) + '\n\n';
+
+                                                            for (let dia = 0; dia < 7; dia++) {
+                                                                const nombreDia = diasSemana[dia].padEnd(12, ' ');
+                                                                if (horariosPorDia[dia]) {
+                                                                    const franjas = horariosPorDia[dia]
+                                                                        .sort((a, b) => a.orden - b.orden)
+                                                                        .map(h => `${h.hora_apertura}-${h.hora_cierre}`)
+                                                                        .join(', ');
+                                                                    mensaje += `${nombreDia} ${franjas}\n`;
+                                                                } else {
+                                                                    mensaje += `${nombreDia} 🔒 Cerrado\n`;
+                                                                }
+                                                            }
+
+                                                            mensaje += '\n' + '═'.repeat(45);
+                                                            alert(mensaje);
+                                                        }}
+                                                        className="h-11 hover:bg-purple-50 hover:border-purple-300"
+                                                    >
+                                                        <Calendar className="h-4 w-4 mr-1" />
+                                                        Horarios
                                                     </Button>
                                                     <Button
                                                         variant={currentEstId === estacionamiento.est_id ? "secondary" : "default"}
@@ -960,15 +1178,16 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                             onSelectParking?.(estacionamiento.est_id);
                                                         }}
                                                         disabled={currentEstId === estacionamiento.est_id}
-                                                        className="flex-1"
+                                                        className={`h-11 ${currentEstId === estacionamiento.est_id ? '' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'}`}
                                                     >
-                                                        <CheckCircle className="h-4 w-4 mr-2" />
-                                                        {currentEstId === estacionamiento.est_id ? 'Seleccionado' : 'Seleccionar'}
+                                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                                        {currentEstId === estacionamiento.est_id ? 'Activo' : 'Seleccionar'}
                                                     </Button>
                                                 </div>
                                             </CardContent>
                                         </Card>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -981,28 +1200,104 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                 <ParkingConfig />
             )}
 
-            {/* Modal de Edición de Configuración */}
+            {/* Modal de Edición de Configuración - MEJORADO */}
             <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <div className="flex items-center justify-between">
-                            <DialogTitle className="text-2xl flex items-center gap-2">
-                                <Settings className="h-6 w-6" />
-                                Editar Configuración del Estacionamiento
-                            </DialogTitle>
+                <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+                    <DialogHeader className="border-b pb-4">
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                                    <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                                        <Settings className="h-6 w-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <div>Configuración del Estacionamiento</div>
+                                        {editingConfig && (
+                                            <div className="text-sm font-normal text-gray-500 mt-1">
+                                                {editingConfig.est_nombre}
+                                            </div>
+                                        )}
+                                    </div>
+                                </DialogTitle>
+                            </div>
+
+                            {/* Controles de Estado - MEJORADOS */}
                             {editingConfig && (
-                                <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
-                                    <Checkbox
-                                        id="modal-publicado"
-                                        checked={editingConfig.est_publicado}
-                                        onCheckedChange={(checked) => updateEditingConfig('est_publicado', checked as boolean)}
-                                    />
-                                    <Label
-                                        htmlFor="modal-publicado"
-                                        className="text-sm font-medium cursor-pointer text-blue-900"
+                                <div className="flex items-center gap-4 pt-2">
+                                    {/* Toggle de Publicación */}
+                                    <div className="flex items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 rounded-xl border-2 border-blue-200 flex-1">
+                                        <div className="flex items-center gap-3 flex-1">
+                                            {editingConfig.est_publicado ? (
+                                                <Eye className="h-5 w-5 text-blue-600" />
+                                            ) : (
+                                                <EyeOff className="h-5 w-5 text-gray-400" />
+                                            )}
+                                            <div className="flex-1">
+                                                <Label htmlFor="modal-publicado" className="text-sm font-semibold cursor-pointer text-gray-900">
+                                                    Visible en el mapa
+                                                </Label>
+                                                <p className="text-xs text-gray-600">
+                                                    {editingConfig.est_publicado
+                                                        ? "Los conductores pueden ver este estacionamiento"
+                                                        : "Estacionamiento oculto para conductores"}
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                id="modal-publicado"
+                                                checked={editingConfig.est_publicado}
+                                                onCheckedChange={(checked) => updateEditingConfig('est_publicado', checked)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Botón Ver Horarios */}
+                                    <Button
+                                        variant="outline"
+                                        size="lg"
+                                        onClick={() => {
+                                            if (editingHorarios.length === 0) {
+                                                toast({
+                                                    title: "Sin horarios configurados",
+                                                    description: "Aún no has configurado los horarios de atención. Usa la pestaña 'Horarios' para configurarlos.",
+                                                    variant: "default"
+                                                });
+                                                return;
+                                            }
+
+                                            const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                                            const horariosPorDia: { [key: number]: HorarioFranja[] } = {};
+
+                                            editingHorarios.forEach(h => {
+                                                if (!horariosPorDia[h.dia_semana]) {
+                                                    horariosPorDia[h.dia_semana] = [];
+                                                }
+                                                horariosPorDia[h.dia_semana].push(h);
+                                            });
+
+                                            let mensaje = `📅 Horarios de ${editingConfig.est_nombre}\n\n`;
+                                            mensaje += '═'.repeat(45) + '\n\n';
+
+                                            for (let dia = 0; dia < 7; dia++) {
+                                                const nombreDia = diasSemana[dia].padEnd(12, ' ');
+                                                if (horariosPorDia[dia]) {
+                                                    const franjas = horariosPorDia[dia]
+                                                        .sort((a, b) => a.orden - b.orden)
+                                                        .map(h => `${h.hora_apertura}-${h.hora_cierre}`)
+                                                        .join(', ');
+                                                    mensaje += `${nombreDia} ${franjas}\n`;
+                                                } else {
+                                                    mensaje += `${nombreDia} 🔒 Cerrado\n`;
+                                                }
+                                            }
+
+                                            mensaje += '\n' + '═'.repeat(45);
+                                            alert(mensaje);
+                                        }}
+                                        className="gap-2"
                                     >
-                                        📍 Publicar en mapa
-                                    </Label>
+                                        <Calendar className="h-4 w-4" />
+                                        Ver Horarios
+                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -1016,14 +1311,31 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                             </div>
                         </div>
                     ) : editingConfig ? (
-                        <div className="space-y-6 py-4">
-                            {/* Información General */}
-                            <Card>
-                                <CardHeader>
+                        <Tabs defaultValue="general" className="w-full py-4">
+                            <TabsList className="grid w-full grid-cols-3 mb-6">
+                                <TabsTrigger value="general" className="gap-2">
+                                    <Building2 className="h-4 w-4" />
+                                    Información General
+                                </TabsTrigger>
+                                <TabsTrigger value="ubicacion" className="gap-2">
+                                    <MapPin className="h-4 w-4" />
+                                    Ubicación
+                                </TabsTrigger>
+                                <TabsTrigger value="horarios" className="gap-2">
+                                    <Clock className="h-4 w-4" />
+                                    Horarios
+                                </TabsTrigger>
+                            </TabsList>
+
+                            {/* TAB: Información General */}
+                            <TabsContent value="general" className="space-y-4">
+                                <Card className="border-2 shadow-sm">
+                                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
                                     <CardTitle className="text-gray-900 flex items-center gap-2">
-                                        <Building2 className="h-5 w-5" />
-                                        Información General
+                                        <Building2 className="h-5 w-5 text-blue-600" />
+                                        Datos del Estacionamiento
                                     </CardTitle>
+                                    <p className="text-sm text-gray-600 mt-1">Información básica y de contacto</p>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1117,15 +1429,18 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     </div>
                                 </CardContent>
                             </Card>
+                            </TabsContent>
 
-                            {/* Ubicación y Google Maps */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-gray-900 flex items-center gap-2">
-                                        <MapPin className="h-5 w-5" />
-                                        Ubicación y Dirección
-                                    </CardTitle>
-                                </CardHeader>
+                            {/* TAB: Ubicación */}
+                            <TabsContent value="ubicacion" className="space-y-4">
+                                <Card className="border-2 shadow-sm">
+                                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                                        <CardTitle className="text-gray-900 flex items-center gap-2">
+                                            <MapPin className="h-5 w-5 text-blue-600" />
+                                            Ubicación y Dirección
+                                        </CardTitle>
+                                        <p className="text-sm text-gray-600 mt-1">Dirección física y ubicación en el mapa</p>
+                                    </CardHeader>
                                 <CardContent className="space-y-4">
                                     {/* Búsqueda de Dirección con Autocompletado */}
                                     <div className="space-y-2 relative" data-search-container>
@@ -1242,14 +1557,17 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     </div>
                                 </CardContent>
                             </Card>
+                            </TabsContent>
 
-                            {/* Horarios de Atención */}
-                            <HorariosEditor
-                                estId={editingConfig.est_id}
-                                horarios={editingHorarios}
-                                onChange={setEditingHorarios}
-                            />
-                        </div>
+                            {/* TAB: Horarios */}
+                            <TabsContent value="horarios" className="space-y-4">
+                                <HorariosEditor
+                                    estId={editingConfig.est_id}
+                                    horarios={editingHorarios}
+                                    onChange={setEditingHorarios}
+                                />
+                            </TabsContent>
+                        </Tabs>
                     ) : null}
 
                     <DialogFooter>
