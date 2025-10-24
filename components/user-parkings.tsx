@@ -222,8 +222,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         est_locali: "Por configurar",
         est_direc: "",
         est_direccion_completa: "",
-        est_latitud: null,
-        est_longitud: null,
+        est_latitud: undefined,
+        est_longitud: undefined,
         est_codigo_postal: "",
         est_telefono: "",
         est_email: "",
@@ -1206,7 +1206,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                         )}
                     </CardContent>
                 </Card>
-            )}
 
             {/* Tab Configuración */}
 
