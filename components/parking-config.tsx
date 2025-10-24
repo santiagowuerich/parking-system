@@ -12,6 +12,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { MapPin, Search, Save, Loader2, Phone, Mail, Building2, Clock, Timer } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import GoogleMap from "./google-map";
+import { Checkbox } from "@/components/ui/checkbox";
+import HorariosEditor from "./horarios-editor";
+import { HorarioFranja, RequiereLlaveOption, LLAVE_OPTIONS } from "@/lib/types/horarios";
 
 interface EstacionamientoConfig {
     est_id: number;
@@ -27,8 +30,9 @@ interface EstacionamientoConfig {
     est_email?: string;
     est_descripcion?: string;
     est_capacidad: number;
-    est_horario_funcionamiento: number;
     est_tolerancia_min: number;
+    est_publicado: boolean;
+    est_requiere_llave: RequiereLlaveOption;
 }
 
 interface AddressSuggestion {
@@ -52,6 +56,7 @@ export default function ParkingConfig() {
     const { toast } = useToast();
 
     const [config, setConfig] = useState<EstacionamientoConfig | null>(null);
+    const [horarios, setHorarios] = useState<HorarioFranja[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [addressSearch, setAddressSearch] = useState("");
@@ -96,20 +101,34 @@ export default function ParkingConfig() {
 
         setLoading(true);
         try {
-            const response = await fetch(`/api/estacionamiento/config?est_id=${estId}`);
-            const data = await response.json();
+            // Cargar configuración
+            const configResponse = await fetch(`/api/estacionamiento/config?est_id=${estId}`);
+            const configData = await configResponse.json();
 
-            if (response.ok && data.success) {
-                setConfig(data.estacionamiento);
-                if (data.estacionamiento.est_direccion_completa) {
-                    setAddressSearch(data.estacionamiento.est_direccion_completa);
+            if (configResponse.ok && configData.success) {
+                setConfig(configData.estacionamiento);
+                if (configData.estacionamiento.est_direccion_completa) {
+                    setAddressSearch(configData.estacionamiento.est_direccion_completa);
                 }
             } else {
                 toast({
                     variant: "destructive",
                     title: "Error",
-                    description: data.error || "Error cargando configuración"
+                    description: configData.error || "Error cargando configuración"
                 });
+                setLoading(false);
+                return;
+            }
+
+            // Cargar horarios
+            const horariosResponse = await fetch(`/api/estacionamiento/horarios?est_id=${estId}`);
+            const horariosData = await horariosResponse.json();
+
+            if (horariosResponse.ok && horariosData.success) {
+                setHorarios(horariosData.horarios || []);
+            } else {
+                setHorarios([]);
+                console.warn("No se pudieron cargar los horarios:", horariosData.error);
             }
         } catch (error) {
             console.error("Error cargando configuración:", error);
@@ -363,29 +382,54 @@ export default function ParkingConfig() {
 
         setSaving(true);
         try {
-            const response = await fetch('/api/estacionamiento/config', {
+            // Guardar configuración del estacionamiento
+            const configResponse = await fetch('/api/estacionamiento/config', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
 
-            const data = await response.json();
+            const configData = await configResponse.json();
 
-            if (response.ok && data.success) {
-                toast({
-                    title: "¡Configuración guardada!",
-                    description: "Los datos de tu estacionamiento han sido actualizados"
-                });
-
-                // Actualizar configuración con la respuesta
-                setConfig(data.estacionamiento);
-            } else {
+            if (!configResponse.ok || !configData.success) {
                 toast({
                     variant: "destructive",
                     title: "Error",
-                    description: data.error || "Error guardando configuración"
+                    description: configData.error || "Error guardando configuración"
+                });
+                setSaving(false);
+                return;
+            }
+
+            // Guardar horarios
+            const horariosResponse = await fetch('/api/estacionamiento/horarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    est_id: estId,
+                    horarios: horarios
+                })
+            });
+
+            const horariosData = await horariosResponse.json();
+
+            if (!horariosResponse.ok || !horariosData.success) {
+                toast({
+                    variant: "destructive",
+                    title: "Advertencia",
+                    description: "Configuración guardada pero error actualizando horarios"
                 });
             }
+
+            // Éxito completo
+            toast({
+                title: "¡Configuración guardada!",
+                description: "Los datos del estacionamiento y horarios han sido actualizados"
+            });
+
+            // Actualizar configuración con la respuesta
+            setConfig(configData.estacionamiento);
+
         } catch (error) {
             console.error("Error guardando configuración:", error);
             toast({
@@ -484,42 +528,61 @@ export default function ParkingConfig() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="horario" className="text-gray-700 flex items-center gap-1">
-                                    <Clock className="h-4 w-4" />
-                                    Horario (horas)
-                                </Label>
-                                <Select value={String(config.est_horario_funcionamiento)} onValueChange={(value) => updateConfig('est_horario_funcionamiento', Number(value))}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="8">8 horas</SelectItem>
-                                        <SelectItem value="12">12 horas</SelectItem>
-                                        <SelectItem value="16">16 horas</SelectItem>
-                                        <SelectItem value="24">24 horas</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="tolerancia" className="text-gray-700 flex items-center gap-1">
+                                <Timer className="h-4 w-4" />
+                                Tolerancia (min)
+                            </Label>
+                            <Select value={String(config.est_tolerancia_min)} onValueChange={(value) => updateConfig('est_tolerancia_min', Number(value))}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="5">5 minutos</SelectItem>
+                                    <SelectItem value="10">10 minutos</SelectItem>
+                                    <SelectItem value="15">15 minutos</SelectItem>
+                                    <SelectItem value="30">30 minutos</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="tolerancia" className="text-gray-700 flex items-center gap-1">
-                                    <Timer className="h-4 w-4" />
-                                    Tolerancia (min)
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="publicado"
+                                checked={config.est_publicado}
+                                onCheckedChange={(checked) => updateConfig('est_publicado', checked as boolean)}
+                            />
+                            <div className="grid gap-1.5 leading-none">
+                                <Label
+                                    htmlFor="publicado"
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                >
+                                    Publicar estacionamiento
                                 </Label>
-                                <Select value={String(config.est_tolerancia_min)} onValueChange={(value) => updateConfig('est_tolerancia_min', Number(value))}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="5">5 minutos</SelectItem>
-                                        <SelectItem value="10">10 minutos</SelectItem>
-                                        <SelectItem value="15">15 minutos</SelectItem>
-                                        <SelectItem value="30">30 minutos</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <p className="text-sm text-muted-foreground">
+                                    El estacionamiento será visible en el mapa para conductores
+                                </p>
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="llave" className="text-gray-700">Requerimiento de Llave</Label>
+                            <Select
+                                value={config.est_requiere_llave}
+                                onValueChange={(value) => updateConfig('est_requiere_llave', value as RequiereLlaveOption)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no">{LLAVE_OPTIONS.no}</SelectItem>
+                                    <SelectItem value="opcional">{LLAVE_OPTIONS.opcional}</SelectItem>
+                                    <SelectItem value="requerida">{LLAVE_OPTIONS.requerida}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500">
+                                Indica si el estacionamiento requiere que los vehículos tengan llave
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
@@ -732,6 +795,13 @@ export default function ParkingConfig() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Horarios de Atención */}
+            <HorariosEditor
+                estId={estId!}
+                horarios={horarios}
+                onChange={setHorarios}
+            />
 
             {/* Botón Guardar */}
             <div className="flex justify-end">

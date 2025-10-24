@@ -6,10 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
-import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2 } from "lucide-react";
+import { Building2, MapPin, Clock, Users, Settings, Plus, Trash2, CheckCircle, Phone, Mail, Timer, Search, Save } from "lucide-react";
 import ParkingConfig from "./parking-config";
 import AddressAutocomplete from "./address-autocomplete";
 import { useAuth } from "@/lib/auth-context";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
+import GoogleMap from "./google-map";
+import { Checkbox } from "@/components/ui/checkbox";
+import HorariosEditor from "./horarios-editor";
+import { HorarioFranja, RequiereLlaveOption, LLAVE_OPTIONS } from "@/lib/types/horarios";
 
 interface Estacionamiento {
     est_id: number;
@@ -19,8 +28,9 @@ interface Estacionamiento {
     est_direc: string;
     est_capacidad: number;
     est_cantidad_espacios_disponibles: number;
-    est_horario_funcionamiento: number;
     est_tolerancia_min: number;
+    est_publicado: boolean;
+    est_requiere_llave: RequiereLlaveOption;
     // Nuevos campos calculados dinámicamente
     plazas_totales_reales: number;
     plazas_disponibles_reales: number;
@@ -31,6 +41,41 @@ interface Usuario {
     usu_id: number;
     nombre_completo: string;
     email: string;
+}
+
+interface EstacionamientoConfig {
+    est_id: number;
+    est_nombre: string;
+    est_prov: string;
+    est_locali: string;
+    est_direc: string;
+    est_direccion_completa?: string;
+    est_latitud?: number;
+    est_longitud?: number;
+    est_codigo_postal?: string;
+    est_telefono?: string;
+    est_email?: string;
+    est_descripcion?: string;
+    est_capacidad: number;
+    est_tolerancia_min: number;
+    est_publicado: boolean;
+    est_requiere_llave: RequiereLlaveOption;
+}
+
+interface AddressSuggestion {
+    formatted_address: string;
+    place_id: string;
+    latitud: number;
+    longitud: number;
+    components: {
+        street_number: string;
+        street_name: string;
+        locality: string;
+        city: string;
+        state: string;
+        postal_code: string;
+        country: string;
+    };
 }
 
 interface UserParkingsProps {
@@ -63,6 +108,20 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [newParkingLng, setNewParkingLng] = useState<number | null>(null);
     const [newParkingFullAddress, setNewParkingFullAddress] = useState<string>("");
     const MAX_PARKINGS_PER_USER = 5;
+
+    // Estado para modal de edición de configuración
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingConfig, setEditingConfig] = useState<EstacionamientoConfig | null>(null);
+    const [editingHorarios, setEditingHorarios] = useState<HorarioFranja[]>([]);
+    const [savingConfig, setSavingConfig] = useState(false);
+    const [loadingConfig, setLoadingConfig] = useState(false);
+    const [configAddressSearch, setConfigAddressSearch] = useState("");
+    const [configAddressSuggestions, setConfigAddressSuggestions] = useState<AddressSuggestion[]>([]);
+    const [searchingConfigAddress, setSearchingConfigAddress] = useState(false);
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<any[]>([]);
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const [loadingAutocomplete, setLoadingAutocomplete] = useState(false);
 
     // Evitar bucle de recarga cuando no hay estacionamientos
     // Solo intentamos cargar una vez al montar el componente
@@ -225,6 +284,307 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
             alert("Error de conexión - intenta nuevamente");
         } finally {
             setCreating(false);
+        }
+    };
+
+    // Funciones para el modal de edición de configuración
+    const provinciaOptions = [
+        "Buenos Aires", "CABA", "Córdoba", "Santa Fe", "Mendoza",
+        "Tucumán", "Entre Ríos", "Salta", "Misiones", "Corrientes",
+        "Santiago del Estero", "San Juan", "Jujuy", "Río Negro",
+        "Neuquén", "Formosa", "Chubut", "San Luis", "Catamarca",
+        "La Rioja", "La Pampa", "Santa Cruz", "Chaco", "Tierra del Fuego"
+    ];
+
+    const openEditConfigModal = async (estId: number) => {
+        setLoadingConfig(true);
+        setShowEditModal(true);
+
+        try {
+            // Cargar configuración
+            const configResponse = await fetch(`/api/estacionamiento/config?est_id=${estId}`);
+            const configData = await configResponse.json();
+
+            if (configResponse.ok && configData.success) {
+                setEditingConfig(configData.estacionamiento);
+                if (configData.estacionamiento.est_direccion_completa) {
+                    setConfigAddressSearch(configData.estacionamiento.est_direccion_completa);
+                }
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: configData.error || "Error cargando configuración"
+                });
+                setShowEditModal(false);
+                setLoadingConfig(false);
+                return;
+            }
+
+            // Cargar horarios
+            const horariosResponse = await fetch(`/api/estacionamiento/horarios?est_id=${estId}`);
+            const horariosData = await horariosResponse.json();
+
+            if (horariosResponse.ok && horariosData.success) {
+                // Normalizar formato de horas al cargar desde la BD
+                const horariosNormalizados = (horariosData.horarios || []).map((h: HorarioFranja) => {
+                    const normalizeTime = (time: string) => {
+                        if (!time || !time.includes(':')) return time;
+                        const [horas, minutos] = time.split(':');
+                        return `${horas.padStart(2, '0')}:${minutos.padStart(2, '0')}`;
+                    };
+
+                    return {
+                        ...h,
+                        hora_apertura: normalizeTime(h.hora_apertura),
+                        hora_cierre: normalizeTime(h.hora_cierre)
+                    };
+                });
+                setEditingHorarios(horariosNormalizados);
+            } else {
+                // Si falla la carga de horarios, inicializar vacío
+                setEditingHorarios([]);
+                console.warn("No se pudieron cargar los horarios:", horariosData.error);
+            }
+        } catch (error) {
+            console.error("Error cargando configuración:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error al cargar la configuración"
+            });
+            setShowEditModal(false);
+        } finally {
+            setLoadingConfig(false);
+        }
+    };
+
+    const updateEditingConfig = (field: keyof EstacionamientoConfig, value: any) => {
+        if (!editingConfig) return;
+        setEditingConfig({ ...editingConfig, [field]: value });
+    };
+
+    const saveEditingConfig = async () => {
+        if (!editingConfig) return;
+
+        setSavingConfig(true);
+        try {
+            // Guardar configuración del estacionamiento
+            const configResponse = await fetch('/api/estacionamiento/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editingConfig)
+            });
+
+            const configData = await configResponse.json();
+
+            if (!configResponse.ok || !configData.success) {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: configData.error || "Error guardando configuración"
+                });
+                setSavingConfig(false);
+                return;
+            }
+
+            // Guardar horarios
+            const horariosResponse = await fetch('/api/estacionamiento/horarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    est_id: editingConfig.est_id,
+                    horarios: editingHorarios
+                })
+            });
+
+            const horariosData = await horariosResponse.json();
+
+            if (!horariosResponse.ok || !horariosData.success) {
+                toast({
+                    variant: "destructive",
+                    title: "Advertencia",
+                    description: "Configuración guardada pero error actualizando horarios"
+                });
+            }
+
+            // Éxito completo
+            toast({
+                title: "Configuración guardada",
+                description: "Los datos del estacionamiento y horarios han sido actualizados"
+            });
+
+            setEditingConfig(configData.estacionamiento);
+            setShowEditModal(false);
+            // Recargar lista de estacionamientos
+            await fetchParkings();
+
+        } catch (error) {
+            console.error("Error guardando configuración:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error al guardar la configuración"
+            });
+        } finally {
+            setSavingConfig(false);
+        }
+    };
+
+    const getAutocompleteSuggestions = async (input: string) => {
+        if (!input.trim() || input.length < 2) {
+            setAutocompleteSuggestions([]);
+            setShowAutocomplete(false);
+            return;
+        }
+
+        setLoadingAutocomplete(true);
+        try {
+            if (!window.google || !window.google.maps || !window.google.maps.places) {
+                console.warn('Google Places API no disponible');
+                return;
+            }
+
+            const service = new window.google.maps.places.AutocompleteService();
+
+            const request = {
+                input: input,
+                componentRestrictions: { country: 'ar' },
+                fields: ['place_id', 'description', 'structured_formatting']
+            };
+
+            service.getPlacePredictions(request, (predictions: any[], status: any) => {
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+                    setAutocompleteSuggestions(predictions);
+                    setShowAutocomplete(true);
+                    setSelectedSuggestionIndex(-1);
+                } else {
+                    setAutocompleteSuggestions([]);
+                    setShowAutocomplete(false);
+                }
+                setLoadingAutocomplete(false);
+            });
+        } catch (error) {
+            console.error('Error obteniendo sugerencias de autocompletado:', error);
+            setAutocompleteSuggestions([]);
+            setShowAutocomplete(false);
+            setLoadingAutocomplete(false);
+        }
+    };
+
+    const getPlaceDetails = (placeId: string): Promise<AddressSuggestion> => {
+        return new Promise((resolve, reject) => {
+            if (!window.google || !window.google.maps || !window.google.maps.places) {
+                reject(new Error('Google Places API no disponible'));
+                return;
+            }
+
+            const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+
+            service.getDetails({
+                placeId: placeId,
+                fields: ['place_id', 'formatted_address', 'geometry', 'address_components']
+            }, (place: any, status: any) => {
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+                    const components = place.address_components || [];
+                    const getComponent = (types: string[]) => {
+                        const component = components.find((comp: any) =>
+                            types.some((type: string) => comp.types.includes(type))
+                        );
+                        return component?.long_name || '';
+                    };
+
+                    const suggestion: AddressSuggestion = {
+                        formatted_address: place.formatted_address || '',
+                        place_id: place.place_id || '',
+                        latitud: place.geometry?.location?.lat() || 0,
+                        longitud: place.geometry?.location?.lng() || 0,
+                        components: {
+                            street_number: getComponent(['street_number']),
+                            street_name: getComponent(['route']),
+                            locality: getComponent(['locality', 'sublocality']),
+                            city: getComponent(['administrative_area_level_2']),
+                            state: getComponent(['administrative_area_level_1']),
+                            postal_code: getComponent(['postal_code']),
+                            country: getComponent(['country'])
+                        }
+                    };
+
+                    resolve(suggestion);
+                } else {
+                    reject(new Error('Error obteniendo detalles del lugar'));
+                }
+            });
+        });
+    };
+
+    const selectAutocompleteSuggestion = async (suggestion: any) => {
+        if (!editingConfig) return;
+
+        try {
+            setLoadingAutocomplete(true);
+            const placeDetails = await getPlaceDetails(suggestion.place_id);
+
+            setEditingConfig({
+                ...editingConfig,
+                est_direccion_completa: placeDetails.formatted_address,
+                est_direc: `${placeDetails.components.street_name} ${placeDetails.components.street_number}`.trim(),
+                est_locali: placeDetails.components.locality || placeDetails.components.city,
+                est_prov: placeDetails.components.state,
+                est_codigo_postal: placeDetails.components.postal_code,
+                est_latitud: placeDetails.latitud,
+                est_longitud: placeDetails.longitud
+            });
+
+            setConfigAddressSearch(placeDetails.formatted_address);
+            setShowAutocomplete(false);
+            setAutocompleteSuggestions([]);
+
+            toast({
+                title: "Dirección seleccionada",
+                description: "Datos actualizados. No olvides guardar los cambios."
+            });
+        } catch (error) {
+            console.error('Error seleccionando sugerencia:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudieron obtener los detalles de la dirección seleccionada"
+            });
+        } finally {
+            setLoadingAutocomplete(false);
+        }
+    };
+
+    const handleConfigAddressInputChange = (value: string) => {
+        setConfigAddressSearch(value);
+        getAutocompleteSuggestions(value);
+    };
+
+    const handleConfigAddressKeyDown = (e: React.KeyboardEvent) => {
+        if (!showAutocomplete || autocompleteSuggestions.length === 0) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev =>
+                    prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < autocompleteSuggestions.length) {
+                    selectAutocompleteSuggestion(autocompleteSuggestions[selectedSuggestionIndex]);
+                }
+                break;
+            case 'Escape':
+                setShowAutocomplete(false);
+                setSelectedSuggestionIndex(-1);
+                break;
         }
     };
 
@@ -516,20 +876,33 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     {estacionamientos.map((estacionamiento) => (
                                         <Card
                                             key={estacionamiento.est_id}
-                                            className={`bg-gray-50 border-gray-200 cursor-pointer transition-colors ${currentEstId === estacionamiento.est_id
+                                            className={`bg-gray-50 border-gray-200 transition-colors ${currentEstId === estacionamiento.est_id
                                                 ? 'ring-2 ring-blue-500 bg-gray-100'
-                                                : 'hover:bg-gray-100'
+                                                : ''
                                                 }`}
-                                            onClick={() => onSelectParking?.(estacionamiento.est_id)}
                                         >
                                             <CardHeader className="pb-3">
-                                                <CardTitle className="text-gray-900 text-lg">
-                                                    {estacionamiento.est_nombre}
-                                                </CardTitle>
+                                                <div className="flex items-center justify-between">
+                                                    <CardTitle className="text-gray-900 text-lg">
+                                                        {estacionamiento.est_nombre}
+                                                    </CardTitle>
+                                                    <div className="flex gap-2">
+                                                        {!estacionamiento.est_publicado && (
+                                                            <Badge variant="secondary" className="bg-gray-400">
+                                                                📝 Borrador
+                                                            </Badge>
+                                                        )}
+                                                        {currentEstId === estacionamiento.est_id && (
+                                                            <Badge variant="default" className="bg-blue-600">
+                                                                Seleccionado
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </CardHeader>
-                                            <CardContent className="pt-0">
+                                            <CardContent className="pt-0 space-y-4">
                                                 {/* Dirección completa */}
-                                                <div className="flex items-center gap-2 text-gray-600 mb-3">
+                                                <div className="flex items-center gap-2 text-gray-600">
                                                     <MapPin className="h-4 w-4 text-gray-400" />
                                                     <span className="text-sm">{estacionamiento.est_direc}, {estacionamiento.est_locali}, {estacionamiento.est_prov}</span>
                                                 </div>
@@ -557,12 +930,41 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                         <span>{estacionamiento.est_horario_funcionamiento || 24}h funcionamiento</span>
                                                     </div>
                                                 </div>
-                                                <div className="mt-3 text-gray-500 text-xs">
+                                                <div className="text-gray-500 text-xs">
                                                     <p>Tolerancia: {estacionamiento.est_tolerancia_min || 0} minutos</p>
                                                     <div className="flex items-center gap-1 mt-1">
                                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                         <span className="text-green-400">Datos calculados en tiempo real</span>
                                                     </div>
+                                                </div>
+
+                                                {/* Botones de acción */}
+                                                <div className="flex gap-2 pt-3 border-t border-gray-200">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openEditConfigModal(estacionamiento.est_id);
+                                                        }}
+                                                        className="flex-1"
+                                                    >
+                                                        <Settings className="h-4 w-4 mr-2" />
+                                                        Editar Configuración
+                                                    </Button>
+                                                    <Button
+                                                        variant={currentEstId === estacionamiento.est_id ? "secondary" : "default"}
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSelectParking?.(estacionamiento.est_id);
+                                                        }}
+                                                        disabled={currentEstId === estacionamiento.est_id}
+                                                        className="flex-1"
+                                                    >
+                                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                                        {currentEstId === estacionamiento.est_id ? 'Seleccionado' : 'Seleccionar'}
+                                                    </Button>
                                                 </div>
                                             </CardContent>
                                         </Card>
@@ -578,6 +980,305 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
             {activeTab === "config" && (
                 <ParkingConfig />
             )}
+
+            {/* Modal de Edición de Configuración */}
+            <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <div className="flex items-center justify-between">
+                            <DialogTitle className="text-2xl flex items-center gap-2">
+                                <Settings className="h-6 w-6" />
+                                Editar Configuración del Estacionamiento
+                            </DialogTitle>
+                            {editingConfig && (
+                                <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                                    <Checkbox
+                                        id="modal-publicado"
+                                        checked={editingConfig.est_publicado}
+                                        onCheckedChange={(checked) => updateEditingConfig('est_publicado', checked as boolean)}
+                                    />
+                                    <Label
+                                        htmlFor="modal-publicado"
+                                        className="text-sm font-medium cursor-pointer text-blue-900"
+                                    >
+                                        📍 Publicar en mapa
+                                    </Label>
+                                </div>
+                            )}
+                        </div>
+                    </DialogHeader>
+
+                    {loadingConfig ? (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="text-center space-y-4">
+                                <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                                <p className="text-gray-500">Cargando configuración...</p>
+                            </div>
+                        </div>
+                    ) : editingConfig ? (
+                        <div className="space-y-6 py-4">
+                            {/* Información General */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-gray-900 flex items-center gap-2">
+                                        <Building2 className="h-5 w-5" />
+                                        Información General
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-nombre" className="text-gray-700">Nombre del Estacionamiento</Label>
+                                            <Input
+                                                id="edit-nombre"
+                                                value={editingConfig.est_nombre}
+                                                onChange={(e) => updateEditingConfig('est_nombre', e.target.value)}
+                                                placeholder="Ej: Estacionamiento Centro"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-llave" className="text-gray-700">Requerimiento de Llave</Label>
+                                            <Select
+                                                value={editingConfig.est_requiere_llave}
+                                                onValueChange={(value) => updateEditingConfig('est_requiere_llave', value as RequiereLlaveOption)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="no">{LLAVE_OPTIONS.no}</SelectItem>
+                                                    <SelectItem value="opcional">{LLAVE_OPTIONS.opcional}</SelectItem>
+                                                    <SelectItem value="requerida">{LLAVE_OPTIONS.requerida}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="edit-descripcion" className="text-gray-700">Descripción</Label>
+                                        <Textarea
+                                            id="edit-descripcion"
+                                            value={editingConfig.est_descripcion || ''}
+                                            onChange={(e) => updateEditingConfig('est_descripcion', e.target.value)}
+                                            placeholder="Descripción del estacionamiento, características especiales..."
+                                            className="min-h-20"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-tolerancia" className="text-gray-700 flex items-center gap-1">
+                                                <Timer className="h-4 w-4" />
+                                                Tolerancia (min)
+                                            </Label>
+                                            <Select
+                                                value={String(editingConfig.est_tolerancia_min)}
+                                                onValueChange={(value) => updateEditingConfig('est_tolerancia_min', Number(value))}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="5">5 minutos</SelectItem>
+                                                    <SelectItem value="10">10 minutos</SelectItem>
+                                                    <SelectItem value="15">15 minutos</SelectItem>
+                                                    <SelectItem value="30">30 minutos</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-telefono" className="text-gray-700 flex items-center gap-1">
+                                                <Phone className="h-4 w-4" />
+                                                Teléfono
+                                            </Label>
+                                            <Input
+                                                id="edit-telefono"
+                                                value={editingConfig.est_telefono || ''}
+                                                onChange={(e) => updateEditingConfig('est_telefono', e.target.value)}
+                                                placeholder="Ej: +54 11 1234-5678"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-email" className="text-gray-700 flex items-center gap-1">
+                                                <Mail className="h-4 w-4" />
+                                                Email de Contacto
+                                            </Label>
+                                            <Input
+                                                id="edit-email"
+                                                type="email"
+                                                value={editingConfig.est_email || ''}
+                                                onChange={(e) => updateEditingConfig('est_email', e.target.value)}
+                                                placeholder="contacto@miestacionamiento.com"
+                                            />
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Ubicación y Google Maps */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-gray-900 flex items-center gap-2">
+                                        <MapPin className="h-5 w-5" />
+                                        Ubicación y Dirección
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {/* Búsqueda de Dirección con Autocompletado */}
+                                    <div className="space-y-2 relative" data-search-container>
+                                        <Label htmlFor="edit-address-search" className="text-gray-700">
+                                            Buscar Dirección (Argentina)
+                                        </Label>
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <Input
+                                                    id="edit-address-search"
+                                                    value={configAddressSearch}
+                                                    onChange={(e) => handleConfigAddressInputChange(e.target.value)}
+                                                    onKeyDown={handleConfigAddressKeyDown}
+                                                    placeholder="Ej: Av. Corrientes 1234, CABA"
+                                                    className="pr-10"
+                                                    autoComplete="off"
+                                                />
+                                                {loadingAutocomplete && (
+                                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Lista desplegable de sugerencias de autocompletado */}
+                                        {showAutocomplete && autocompleteSuggestions.length > 0 && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                                {autocompleteSuggestions.map((suggestion, index) => (
+                                                    <div
+                                                        key={suggestion.place_id}
+                                                        onClick={() => selectAutocompleteSuggestion(suggestion)}
+                                                        className={`px-4 py-3 cursor-pointer transition-colors ${index === selectedSuggestionIndex
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'hover:bg-gray-100 text-gray-700'
+                                                            }`}
+                                                    >
+                                                        <div className="font-medium">
+                                                            {suggestion.structured_formatting?.main_text || suggestion.description}
+                                                        </div>
+                                                        {suggestion.structured_formatting?.secondary_text && (
+                                                            <div className={`text-sm ${index === selectedSuggestionIndex
+                                                                ? 'text-blue-100'
+                                                                : 'text-gray-500'
+                                                                }`}>
+                                                                {suggestion.structured_formatting.secondary_text}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Campos de Dirección Manual */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-provincia" className="text-gray-700">Provincia</Label>
+                                            <Select value={editingConfig.est_prov} onValueChange={(value) => updateEditingConfig('est_prov', value)}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar provincia" />
+                                                </SelectTrigger>
+                                                <SelectContent className="max-h-60">
+                                                    {provinciaOptions.map((provincia) => (
+                                                        <SelectItem key={provincia} value={provincia}>
+                                                            {provincia}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-localidad" className="text-gray-700">Localidad/Ciudad</Label>
+                                            <Input
+                                                id="edit-localidad"
+                                                value={editingConfig.est_locali}
+                                                onChange={(e) => updateEditingConfig('est_locali', e.target.value)}
+                                                placeholder="Ej: Capital Federal"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-direccion" className="text-gray-700">Dirección</Label>
+                                            <Input
+                                                id="edit-direccion"
+                                                value={editingConfig.est_direc}
+                                                onChange={(e) => updateEditingConfig('est_direc', e.target.value)}
+                                                placeholder="Ej: Av. Corrientes 1234"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="edit-cp" className="text-gray-700">Código Postal</Label>
+                                            <Input
+                                                id="edit-cp"
+                                                value={editingConfig.est_codigo_postal || ''}
+                                                onChange={(e) => updateEditingConfig('est_codigo_postal', e.target.value)}
+                                                placeholder="Ej: 1043"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Mapa de Google */}
+                                    <div className="space-y-2">
+                                        <Label className="text-gray-700">Ubicación en el Mapa</Label>
+                                        <GoogleMap
+                                            latitude={editingConfig.est_latitud}
+                                            longitude={editingConfig.est_longitud}
+                                            address={editingConfig.est_direccion_completa || `${editingConfig.est_direc}, ${editingConfig.est_locali}, ${editingConfig.est_prov}`}
+                                            markerTitle={editingConfig.est_nombre}
+                                            className="h-64 w-full"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Horarios de Atención */}
+                            <HorariosEditor
+                                estId={editingConfig.est_id}
+                                horarios={editingHorarios}
+                                onChange={setEditingHorarios}
+                            />
+                        </div>
+                    ) : null}
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowEditModal(false)}
+                            disabled={savingConfig}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={saveEditingConfig}
+                            disabled={savingConfig || !editingConfig}
+                        >
+                            {savingConfig ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-4 w-4 mr-2" />
+                                    Guardar Configuración
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

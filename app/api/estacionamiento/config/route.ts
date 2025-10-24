@@ -65,8 +65,9 @@ export async function GET(request: NextRequest) {
                 est_email: estacionamientoData.est_email,
                 est_descripcion: estacionamientoData.est_descripcion,
                 est_capacidad: estacionamientoData.est_capacidad,
-                est_horario_funcionamiento: estacionamientoData.est_horario_funcionamiento,
-                est_tolerancia_min: estacionamientoData.est_tolerancia_min
+                est_tolerancia_min: estacionamientoData.est_tolerancia_min,
+                est_publicado: estacionamientoData.est_publicado,
+                est_requiere_llave: estacionamientoData.est_requiere_llave
             }
         });
 
@@ -107,8 +108,9 @@ export async function PUT(request: NextRequest) {
             est_telefono,
             est_email,
             est_descripcion,
-            est_horario_funcionamiento,
-            est_tolerancia_min
+            est_tolerancia_min,
+            est_publicado,
+            est_requiere_llave
         } = body;
 
         if (!est_id) {
@@ -157,8 +159,9 @@ export async function PUT(request: NextRequest) {
                 est_telefono,
                 est_email,
                 est_descripcion,
-                est_horario_funcionamiento,
                 est_tolerancia_min,
+                est_publicado,
+                est_requiere_llave,
                 est_updated_at: new Date().toISOString()
             })
             .eq('est_id', est_id)

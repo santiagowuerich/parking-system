@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
         console.log('🔍 Obteniendo estacionamientos públicos para mapa...', vehicleType ? `Filtro: ${vehicleType}` : '');
 
-        // Obtener estacionamientos que tengan coordenadas válidas
+        // Obtener estacionamientos que tengan coordenadas válidas Y estén publicados
         const { data: estacionamientos, error } = await supabase
             .from('estacionamientos')
             .select(`
@@ -39,10 +39,12 @@ export async function GET(request: NextRequest) {
                 est_longitud,
                 est_capacidad,
                 est_cantidad_espacios_disponibles,
-                est_horario_funcionamiento,
                 est_telefono,
-                est_email
+                est_email,
+                est_publicado,
+                est_requiere_llave
             `)
+            .eq('est_publicado', true) // ✅ Solo estacionamientos públicos
             .not('est_latitud', 'is', null)
             .not('est_longitud', 'is', null)
             .order('est_nombre');
@@ -86,9 +88,9 @@ export async function GET(request: NextRequest) {
                             longitud: parseFloat(parking.est_longitud),
                             capacidad: parking.est_capacidad,
                             espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
-                            horarioFuncionamiento: parking.est_horario_funcionamiento,
                             telefono: parking.est_telefono,
                             email: parking.est_email,
+                            requiereLlave: parking.est_requiere_llave,
                             estado: parking.est_cantidad_espacios_disponibles > parking.est_capacidad * 0.5
                                 ? 'disponible'
                                 : parking.est_cantidad_espacios_disponibles > 0
@@ -125,14 +127,14 @@ export async function GET(request: NextRequest) {
                         longitud: parseFloat(parking.est_longitud),
                         capacidad: parking.est_capacidad,
                         espaciosDisponibles: libres, // ✅ Disponibilidad real calculada
-                        horarioFuncionamiento: parking.est_horario_funcionamiento,
                         telefono: parking.est_telefono,
                         email: parking.est_email,
+                        requiereLlave: parking.est_requiere_llave,
                         // Determinar estado basado en disponibilidad real
                         estado: libres > total * 0.5
                             ? 'disponible'
                             : libres > 0
-                                ? 'pocos' // ✅ Corregido error tipográfico
+                                ? 'pocos'
                                 : 'lleno'
                     };
                 } catch (error) {
@@ -149,9 +151,9 @@ export async function GET(request: NextRequest) {
                         longitud: parseFloat(parking.est_longitud),
                         capacidad: parking.est_capacidad,
                         espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
-                        horarioFuncionamiento: parking.est_horario_funcionamiento,
                         telefono: parking.est_telefono,
                         email: parking.est_email,
+                        requiereLlave: parking.est_requiere_llave,
                         estado: 'disponible' // Estado por defecto
                     };
                 }

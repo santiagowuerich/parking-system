@@ -174,8 +174,9 @@ export async function POST(request: NextRequest) {
                 est_capacidad: 0, // Sin capacidad inicial
                 due_id: usuarioId,
                 est_cantidad_espacios_disponibles: 0, // Sin espacios disponibles
-                est_horario_funcionamiento: 24, // 24 horas por defecto
-                est_tolerancia_min: 15 // 15 minutos por defecto
+                est_tolerancia_min: 15, // 15 minutos por defecto
+                est_publicado: false, // ✅ Por defecto en borrador
+                est_requiere_llave: 'no' // ✅ Por defecto no requiere llave
             })
             .select();
 
