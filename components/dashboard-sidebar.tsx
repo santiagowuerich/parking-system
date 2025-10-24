@@ -171,12 +171,8 @@ const ownerNavigationItems = [
         description: "Gestión de plazas",
         subItems: [
             {
-                title: "Plantillas",
+                title: "Plantillas y Tarifas",
                 href: "/dashboard/plantillas"
-            },
-            {
-                title: "Tarifas",
-                href: "/dashboard/tarifas"
             },
             {
                 title: "Asignar Plantillas",

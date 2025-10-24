@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Edit, Trash2, Plus, DollarSign } from "lucide-react";
+import { Loader2, Edit, Trash2, Plus, DollarSign, CircleDollarSign } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCaracteristicas } from "@/lib/hooks/use-caracteristicas";
 import type { Caracteristica, Plantilla, PlantillaForm } from "@/lib/types";
@@ -28,6 +29,7 @@ export default function GestionPlantillasPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalStep, setModalStep] = useState<'plantilla' | 'tarifas'>('plantilla');
     const [savedPlantillaId, setSavedPlantillaId] = useState<number | null>(null);
+    const [isStandaloneTarifas, setIsStandaloneTarifas] = useState(false);
 
     // Estados para tarifas
     const [loadingTarifas, setLoadingTarifas] = useState(false);
@@ -157,6 +159,7 @@ export default function GestionPlantillasPage() {
         setPrices({ hora: '', dia: '', mes: '', semana: '' });
         setModalStep('plantilla');
         setSavedPlantillaId(null);
+        setIsStandaloneTarifas(false);
     };
 
     const openCreateModal = () => {
@@ -164,7 +167,8 @@ export default function GestionPlantillasPage() {
         setIsModalOpen(true);
     };
 
-    const handleEditTemplate = (template: Plantilla) => {
+    // Prepara el estado del formulario para reusar en los flujos de edición
+    const prepareTemplateForEditing = (template: Plantilla, targetStep: 'plantilla' | 'tarifas') => {
         // Convertir las características agrupadas a una lista de IDs
         const caracteristicaIds: number[] = [];
         Object.values(template.caracteristicas).forEach(caracteristicas => {
@@ -185,11 +189,21 @@ export default function GestionPlantillasPage() {
         setSavedPlantillaId(template.plantilla_id);
 
         // Cargar tarifas existentes si está editando
-        if (template.plantilla_id) {
+        if (template.plantilla_id && targetStep === 'tarifas') {
             loadExistingTarifas(template.plantilla_id);
         }
 
+        setIsStandaloneTarifas(targetStep === 'tarifas');
+        setModalStep(targetStep);
         setIsModalOpen(true);
+    };
+
+    const handleEditTemplate = (template: Plantilla) => {
+        prepareTemplateForEditing(template, 'plantilla');
+    };
+
+    const handleEditTarifas = (template: Plantilla) => {
+        prepareTemplateForEditing(template, 'tarifas');
     };
 
     const handleDeleteTemplate = async (plantillaId: number) => {
@@ -228,7 +242,7 @@ export default function GestionPlantillasPage() {
         }
     };
 
-    const handleSavePlantillaAndGoToTarifas = async () => {
+    const handleSavePlantilla = async () => {
         if (!currentTemplate.nombre_plantilla.trim()) {
             toast({
                 variant: "destructive",
@@ -287,9 +301,10 @@ export default function GestionPlantillasPage() {
 
             // La API retorna { plantilla: {...} } en POST y { success: true, plantilla_id: X } en PUT
             // Necesitamos manejar ambos casos
+            const isEditing = Boolean(currentTemplate.plantilla_id);
             let plantillaId: number;
 
-            if (currentTemplate.plantilla_id) {
+            if (isEditing) {
                 // Caso de UPDATE (PUT)
                 plantillaId = data.plantilla_id || currentTemplate.plantilla_id;
             } else {
@@ -318,10 +333,18 @@ export default function GestionPlantillasPage() {
                     : "Plantilla creada correctamente"
             });
 
-            // Guardar el ID de la plantilla y pasar al paso de tarifas
-            setSavedPlantillaId(plantillaId);
+            if (isEditing) {
+                await loadPlantillas();
+                setIsModalOpen(false);
+                resetForm();
+                return;
+            }
 
-            // Cargar tarifas existentes si están editando
+            // Guardar el ID de la nueva plantilla para el paso de tarifas
+            setSavedPlantillaId(plantillaId);
+            setIsStandaloneTarifas(false);
+
+            // Cargar tarifas existentes para la nueva plantilla
             await loadExistingTarifas(plantillaId);
 
             setModalStep('tarifas');
@@ -526,12 +549,12 @@ export default function GestionPlantillasPage() {
     const isInDashboard = typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard');
 
     return (
-        <>
+        <TooltipProvider>
             <div className={`container mx-auto p-6 max-w-7xl min-h-screen ${isInDashboard ? '' : 'bg-white'}`}>
                 {/* Header */}
                 <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">Plantillas</h1>
-                    <p className="text-gray-600 mt-1">Define y gestiona diferentes tipos de plazas de estacionamiento</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Plantillas y Tarifas</h1>
+                    <p className="text-gray-600 mt-1">Define y gestiona diferentes tipos de plazas de estacionamiento y sus tarifas</p>
                 </div>
 
                 {/* Botón Crear Plantilla - Arriba de la tabla */}
@@ -598,22 +621,51 @@ export default function GestionPlantillasPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleEditTemplate(plantilla)}
-                                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
-                                                        className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleEditTemplate(plantilla)}
+                                                                className="gap-1 bg-blue-600 text-white hover:bg-blue-700"
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                                <span className="text-sm font-medium">Editar</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">
+                                                            Editar plantilla
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleEditTarifas(plantilla)}
+                                                                className="gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                                                            >
+                                                                <CircleDollarSign className="h-4 w-4" />
+                                                                <span className="text-sm font-medium">Tarifas</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">
+                                                            Editar tarifas
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
+                                                                className="gap-1 bg-red-600 text-white hover:bg-red-700"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                                <span className="text-sm font-medium">Eliminar</span>
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">
+                                                            Eliminar plantilla
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -813,23 +865,38 @@ export default function GestionPlantillasPage() {
                                     Cancelar
                                 </Button>
                                 <Button
-                                    onClick={handleSavePlantillaAndGoToTarifas}
+                                    onClick={handleSavePlantilla}
                                     disabled={saving}
                                     className="bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                    Definir tarifas
+                                    {currentTemplate.plantilla_id
+                                        ? (saving ? 'Guardando...' : 'Guardar cambios')
+                                        : (saving ? 'Guardando...' : 'Definir tarifas')}
                                 </Button>
                             </>
                         ) : (
                             <>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setModalStep('plantilla')}
-                                    disabled={saving}
-                                >
-                                    Volver
-                                </Button>
+                                {isStandaloneTarifas ? (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            resetForm();
+                                            setIsModalOpen(false);
+                                        }}
+                                        disabled={saving}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setModalStep('plantilla')}
+                                        disabled={saving}
+                                    >
+                                        Volver
+                                    </Button>
+                                )}
                                 <Button
                                     onClick={handleSaveTarifas}
                                     disabled={saving || loadingTarifas}
@@ -852,6 +919,6 @@ export default function GestionPlantillasPage() {
                 existingTemplate={duplicateDialog.existingTemplate}
                 newTemplateName={duplicateDialog.newTemplateName}
             />
-        </>
+        </TooltipProvider>
     );
 }
