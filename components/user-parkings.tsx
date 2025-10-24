@@ -258,7 +258,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
 
     return (
         <div className="space-y-4">
-            {usuario && (
+            {false && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-gray-900 flex items-center gap-2">
@@ -587,3 +587,5 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         </div>
     );
 }
+
+
