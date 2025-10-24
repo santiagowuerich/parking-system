@@ -133,90 +133,100 @@ const conductorNavigationItems = [
 // Elementos de navegación para dueños
 const ownerNavigationItems = [
     {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-        description: "Panel principal de control"
-    },
-    {
-        title: "Panel de Operador",
-        href: "/dashboard/operador",
-        icon: ParkingCircle,
-        description: "Gestión de estacionamientos",
-        subItems: [
-            {
-                title: "Ingreso/Egreso",
-                href: "/dashboard/operador"
-            },
-            {
-                title: "Visualización de Plazas",
-                href: "/dashboard/operador-simple"
-            },
-            {
-                title: "Movimientos",
-                href: "/dashboard/movimientos"
-            }
-        ]
-    },
-    {
         title: "Mis Estacionamientos",
         href: "/dashboard/parking",
         icon: Car,
         description: "Administrar estacionamientos"
     },
     {
-        title: "Plantillas",
-        href: "/dashboard/plantillas",
-        icon: FileText,
-        description: "Gestionar plantillas de plazas"
+        title: "Operaciones",
+        href: "/dashboard/panel-administrador",
+        icon: Shield,
+        description: "Administración avanzada del sistema",
+        subItems: [
+            {
+                title: "Dashboard",
+                href: "/dashboard"
+            },
+            {
+                title: "Panel del Administrador",
+                href: "/dashboard/panel-administrador"
+            },
+            {
+                title: "Visualización de Plazas",
+                href: "/dashboard/visualizacion-plazas"
+            }
+        ]
     },
     {
-        title: "Tarifas",
-        href: "/dashboard/tarifas",
-        icon: CreditCard,
-        description: "Configurar precios y tarifas"
+        title: "Zonas",
+        href: "/dashboard/configuracion-zona",
+        icon: MapPin,
+        description: "Crear zonas y plazas"
+    },
+    {
+        title: "Plazas",
+        href: "/dashboard/plazas",
+        icon: ParkingCircle,
+        description: "Gestión de plazas",
+        subItems: [
+            {
+                title: "Plantillas",
+                href: "/dashboard/plantillas"
+            },
+            {
+                title: "Tarifas",
+                href: "/dashboard/tarifas"
+            },
+            {
+                title: "Asignar Plantillas",
+                href: "/dashboard/plazas/configuracion-avanzada"
+            }
+        ]
+    },
+    {
+        title: "Servicios",
+        href: "/dashboard/servicios",
+        icon: Calendar,
+        description: "Gestión de servicios",
+        subItems: [
+            {
+                title: "Abonos",
+                href: "/dashboard/servicios/abonos"
+            },
+            {
+                title: "Reservas",
+                href: "/dashboard/servicios/reservas"
+            }
+        ]
     },
     {
         title: "Empleados",
         href: "/dashboard/empleados",
         icon: Users,
-        description: "Gestionar empleados"
+        description: "Gestionar empleados",
+        subItems: [
+            {
+                title: "Playeros",
+                href: "/dashboard/empleados"
+            },
+            {
+                title: "Turnos",
+                href: "/dashboard/turnos"
+            }
+        ]
     },
     {
-        title: "Configuración de Zona",
-        href: "/dashboard/configuracion-zona",
-        icon: Settings,
-        description: "Crear zonas y plazas"
-    },
-    {
-        title: "Visualización de Plazas",
-        href: "/dashboard/visualizacion-plazas",
-        icon: BarChart3,
-        description: "Ver estado de todas las plazas"
-    },
-    {
-        title: "Configuración Tipo de Plazas",
-        href: "/dashboard/plazas/configuracion-avanzada",
-        icon: Settings,
-        description: "Gestionar plantillas de plazas"
-    },
-    {
-        title: "Panel de Administrador",
-        href: "/dashboard/panel-administrador",
-        icon: Shield,
-        description: "Administración avanzada del sistema"
+        title: "Métodos de pago",
+        href: "/dashboard/configuracion-pagos",
+        icon: Wallet,
+        description: "Métodos y configuraciones de pago"
     },
     {
         title: "Perfil",
         href: "/account/security",
         icon: User,
         description: "Configuración de cuenta"
-    },
-    {
-        title: "Configuración de Pagos",
-        href: "/dashboard/configuracion-pagos",
-        icon: Wallet,
-        description: "Métodos y configuraciones de pago"
     }
 ];
 
