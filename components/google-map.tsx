@@ -78,19 +78,12 @@ export default function GoogleMap({
                 mapTypeId: window.google.maps.MapTypeId.ROADMAP,
                 styles: [
                     {
-                        "featureType": "all",
-                        "elementType": "geometry.fill",
-                        "stylers": [{ "color": "#1f2937" }]
+                        "featureType": "poi.business",
+                        "stylers": [{ "visibility": "simplified" }]
                     },
                     {
-                        "featureType": "all",
-                        "elementType": "labels.text.fill",
-                        "stylers": [{ "color": "#ffffff" }]
-                    },
-                    {
-                        "featureType": "road",
-                        "elementType": "geometry",
-                        "stylers": [{ "color": "#374151" }]
+                        "featureType": "poi.park",
+                        "stylers": [{ "visibility": "simplified" }]
                     }
                 ],
                 // Opciones adicionales para mejor estabilidad

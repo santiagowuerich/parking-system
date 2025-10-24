@@ -56,8 +56,9 @@ export async function GET(request: NextRequest) {
                     est_direc,
                     est_capacidad,
                     est_cantidad_espacios_disponibles,
-                    est_horario_funcionamiento,
-                    est_tolerancia_min
+                    est_tolerancia_min,
+                    est_publicado,
+                    est_requiere_llave
                 `)
                 .eq('due_id', usuarioData.usu_id)
                 .order('est_id');
@@ -80,8 +81,9 @@ export async function GET(request: NextRequest) {
                         est_direc,
                         est_capacidad,
                         est_cantidad_espacios_disponibles,
-                        est_horario_funcionamiento,
-                        est_tolerancia_min
+                        est_tolerancia_min,
+                        est_publicado,
+                        est_requiere_llave
                     )
                 `)
                 .eq('play_id', usuarioData.usu_id)

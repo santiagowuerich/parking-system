@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { isEstacionamientoAbierto, HorarioFranja } from "@/lib/types/horarios";
 
 // GET - Obtener todos los estacionamientos públicos para conductores (con coordenadas)
 export async function GET(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 
         console.log('🔍 Obteniendo estacionamientos públicos para mapa...', vehicleType ? `Filtro: ${vehicleType}` : '');
 
-        // Obtener estacionamientos que tengan coordenadas válidas
+        // Obtener estacionamientos que tengan coordenadas válidas Y estén publicados
         const { data: estacionamientos, error } = await supabase
             .from('estacionamientos')
             .select(`
@@ -39,10 +40,14 @@ export async function GET(request: NextRequest) {
                 est_longitud,
                 est_capacidad,
                 est_cantidad_espacios_disponibles,
-                est_horario_funcionamiento,
                 est_telefono,
-                est_email
+                est_email,
+                est_publicado,
+                est_requiere_llave,
+                est_descripcion,
+                est_tolerancia_min
             `)
+            .eq('est_publicado', true) // ✅ Solo estacionamientos públicos
             .not('est_latitud', 'is', null)
             .not('est_longitud', 'is', null)
             .order('est_nombre');
@@ -70,10 +75,25 @@ export async function GET(request: NextRequest) {
                         plazasQuery = plazasQuery.eq('catv_segmento', vehicleType);
                     }
 
-                    const { data: plazasData, error: plazasError } = await plazasQuery;
+                    // Consultar horarios del estacionamiento
+                    const horariosQuery = supabase
+                        .from('horarios_estacionamiento')
+                        .select('*')
+                        .eq('est_id', parking.est_id)
+                        .order('dia_semana')
+                        .order('orden');
+
+                    const [{ data: plazasData, error: plazasError }, { data: horariosData, error: horariosError }] = await Promise.all([
+                        plazasQuery,
+                        horariosQuery
+                    ]);
 
                     if (plazasError) {
                         console.error(`❌ Error obteniendo plazas para ${parking.est_id}:`, plazasError);
+                        // Calcular estado de apertura con horarios
+                        const horarios = (horariosData || []) as HorarioFranja[];
+                        const estadoApertura = isEstacionamientoAbierto(horarios);
+
                         // Fallback al valor de BD si hay error
                         return {
                             id: parking.est_id,
@@ -86,9 +106,15 @@ export async function GET(request: NextRequest) {
                             longitud: parseFloat(parking.est_longitud),
                             capacidad: parking.est_capacidad,
                             espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
-                            horarioFuncionamiento: parking.est_horario_funcionamiento,
                             telefono: parking.est_telefono,
                             email: parking.est_email,
+                            requiereLlave: parking.est_requiere_llave,
+                            est_publicado: parking.est_publicado,
+                            est_requiere_llave: parking.est_requiere_llave,
+                            descripcion: parking.est_descripcion,
+                            tolerancia: parking.est_tolerancia_min,
+                            horarios: horarios,
+                            estadoApertura: estadoApertura,
                             estado: parking.est_cantidad_espacios_disponibles > parking.est_capacidad * 0.5
                                 ? 'disponible'
                                 : parking.est_cantidad_espacios_disponibles > 0
@@ -114,6 +140,10 @@ export async function GET(request: NextRequest) {
                         }
                     }
 
+                    // Calcular estado de apertura con horarios
+                    const horarios = (horariosData || []) as HorarioFranja[];
+                    const estadoApertura = isEstacionamientoAbierto(horarios);
+
                     return {
                         id: parking.est_id,
                         nombre: parking.est_nombre,
@@ -123,21 +153,28 @@ export async function GET(request: NextRequest) {
                         provincia: parking.est_prov,
                         latitud: parseFloat(parking.est_latitud),
                         longitud: parseFloat(parking.est_longitud),
-                        capacidad: parking.est_capacidad,
+                        capacidad: total, // ✅ Capacidad real calculada desde plazas
                         espaciosDisponibles: libres, // ✅ Disponibilidad real calculada
-                        horarioFuncionamiento: parking.est_horario_funcionamiento,
                         telefono: parking.est_telefono,
                         email: parking.est_email,
+                        requiereLlave: parking.est_requiere_llave,
+                        est_publicado: parking.est_publicado,
+                        est_requiere_llave: parking.est_requiere_llave,
+                        descripcion: parking.est_descripcion,
+                        tolerancia: parking.est_tolerancia_min,
+                        horarios: horarios,
+                        estadoApertura: estadoApertura,
                         // Determinar estado basado en disponibilidad real
                         estado: libres > total * 0.5
                             ? 'disponible'
                             : libres > 0
-                                ? 'pocos' // ✅ Corregido error tipográfico
+                                ? 'pocos'
                                 : 'lleno'
                     };
                 } catch (error) {
                     console.error(`❌ Error procesando estacionamiento ${parking.est_id}:`, error);
                     // Fallback en caso de error
+                    const estadoAperturaFallback = { isOpen: false, hasSchedule: false };
                     return {
                         id: parking.est_id,
                         nombre: parking.est_nombre,
@@ -149,9 +186,15 @@ export async function GET(request: NextRequest) {
                         longitud: parseFloat(parking.est_longitud),
                         capacidad: parking.est_capacidad,
                         espaciosDisponibles: parking.est_cantidad_espacios_disponibles,
-                        horarioFuncionamiento: parking.est_horario_funcionamiento,
                         telefono: parking.est_telefono,
                         email: parking.est_email,
+                        requiereLlave: parking.est_requiere_llave,
+                        est_publicado: parking.est_publicado,
+                        est_requiere_llave: parking.est_requiere_llave,
+                        descripcion: parking.est_descripcion,
+                        tolerancia: parking.est_tolerancia_min,
+                        horarios: [],
+                        estadoApertura: estadoAperturaFallback,
                         estado: 'disponible' // Estado por defecto
                     };
                 }

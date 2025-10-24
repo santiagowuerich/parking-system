@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { googleMapsLoader } from "@/lib/google-maps-loader";
+import { HorarioFranja, EstadoApertura } from "@/lib/types/horarios";
 
 interface ParkingData {
     id: number;
@@ -17,10 +18,15 @@ interface ParkingData {
     longitud: number;
     capacidad: number;
     espaciosDisponibles: number;
-    horarioFuncionamiento: number;
     telefono?: string;
     email?: string;
     estado: 'disponible' | 'pocos' | 'lleno';
+    est_publicado?: boolean;
+    est_requiere_llave?: 'no' | 'opcional' | 'requerida';
+    descripcion?: string;
+    tolerancia?: number;
+    horarios?: HorarioFranja[];
+    estadoApertura?: EstadoApertura;
 }
 
 interface ParkingMapProps {
@@ -329,46 +335,139 @@ export default function ParkingMap({
             const contentDiv = document.createElement('div');
             contentDiv.className = 'parking-popup relative w-[340px] max-w-[86vw] rounded-2xl border bg-white p-4 shadow-xl';
 
+            const llaveText = parking.est_requiere_llave === 'requerida' ? '🔑 Llave requerida' :
+                            parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
+
+            // Determinar el estado de apertura
+            const estadoApertura = parking.estadoApertura || { isOpen: false, hasSchedule: false };
+            let horarioHTML = '';
+
+            if (!estadoApertura.hasSchedule) {
+                // Sin horarios configurados - badge amarillo con guion
+                horarioHTML = `
+                    <div style="background: #fef3c7; padding: 10px; border-radius: 8px; border: 1px solid #fde68a;">
+                        <div style="font-size: 11px; color: #b45309; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
+                        <div style="font-size: 24px; font-weight: 700; color: #92400e; text-align: center;">
+                            ⚠️ -
+                        </div>
+                        <div style="font-size: 10px; color: #92400e; text-align: center; margin-top: 2px;">Sin configurar</div>
+                    </div>
+                `;
+            } else if (estadoApertura.isOpen) {
+                // Abierto - badge verde
+                horarioHTML = `
+                    <div style="background: #dcfce7; padding: 10px; border-radius: 8px; border: 1px solid #86efac;">
+                        <div style="font-size: 11px; color: #047857; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 4px;">
+                            🟢 ABIERTO
+                        </div>
+                        ${estadoApertura.nextChange ? `<div style="font-size: 10px; color: #047857; margin-top: 2px;">${estadoApertura.nextChange}</div>` : ''}
+                    </div>
+                `;
+            } else {
+                // Cerrado - badge rojo
+                horarioHTML = `
+                    <div style="background: #fee2e2; padding: 10px; border-radius: 8px; border: 1px solid #fecaca;">
+                        <div style="font-size: 11px; color: #991b1b; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #7f1d1d; display: flex; align-items: center; gap: 4px;">
+                            🔴 CERRADO
+                        </div>
+                        ${estadoApertura.nextChange ? `<div style="font-size: 10px; color: #991b1b; margin-top: 2px;">${estadoApertura.nextChange}</div>` : ''}
+                    </div>
+                `;
+            }
+
             contentDiv.innerHTML = `
                 <button
                     aria-label="Cerrar"
                     id="close-button-${parking.id}"
-                    style="position: absolute; right: 12px; top: 12px; background: none; border: none; font-size: 18px; color: #6b7280; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background-color 0.2s;"
-                    onmouseover="this.style.backgroundColor='#f3f4f6'"
-                    onmouseout="this.style.backgroundColor='transparent'"
+                    style="position: absolute; right: 12px; top: 12px; background: none; border: none; font-size: 20px; color: #9ca3af; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'; this.style.color='#374151';"
+                    onmouseout="this.style.backgroundColor='transparent'; this.style.color='#9ca3af';"
                 >
                     ×
                 </button>
 
-                <!-- Nombre del estacionamiento -->
-                <h3 style="margin: 0 0 8px 0; font-weight: bold; font-size: 18px; color: #1f2937; line-height: 1.2;">
-                    ${parking.nombre}
-                </h3>
-                
-                <!-- Dirección -->
-                <p style="margin: 0 0 12px 0; font-size: 14px; color: #6b7280; display: flex; align-items: center; line-height: 1.4;">
-                    📍 ${parking.direccion}
-                </p>
-                
-                <!-- Estado y horario -->
-                <div style="display: flex; align-items: center; justify-content: space-between; background: #f9fafb; padding: 12px; border-radius: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background: ${parking.estado === 'disponible' ? '#10b981' : parking.estado === 'pocos' ? '#f59e0b' : '#ef4444'};"></div>
-                        <span style="font-weight: 600; color: #374151; font-size: 14px;">
-                            ${parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
+                <!-- Nombre del estacionamiento con badge de capacidad -->
+                <div style="margin-bottom: 12px; padding-right: 24px;">
+                    <h3 style="margin: 0 0 6px 0; font-weight: 700; font-size: 19px; color: #111827; line-height: 1.3;">
+                        ${parking.nombre}
+                    </h3>
+                    <div style="display: inline-flex; align-items: center; gap: 6px; background: ${parking.estado === 'disponible' ? '#dcfce7' : parking.estado === 'pocos' ? '#fef3c7' : '#fee2e2'}; padding: 4px 10px; border-radius: 12px;">
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${parking.estado === 'disponible' ? '#10b981' : parking.estado === 'pocos' ? '#f59e0b' : '#ef4444'};"></div>
+                        <span style="font-weight: 600; color: ${parking.estado === 'disponible' ? '#047857' : parking.estado === 'pocos' ? '#b45309' : '#b91c1c'}; font-size: 13px;">
+                            ${parking.capacidad} plazas totales
                         </span>
                     </div>
-                    <span style="font-weight: 600; color: #6b7280; font-size: 14px;">
-                        ${parking.horarioFuncionamiento === 24 ? '24hs' : `${parking.horarioFuncionamiento}h`}
+                </div>
+
+                <!-- Dirección con icono -->
+                <div style="margin-bottom: 14px; display: flex; align-items: start; gap: 8px;">
+                    <span style="color: #6b7280; font-size: 16px; margin-top: 1px;">📍</span>
+                    <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5; flex: 1;">
+                        ${parking.direccion}, ${parking.localidad}
+                    </p>
+                </div>
+
+                ${parking.descripcion ? `
+                <!-- Descripción -->
+                <div style="margin-bottom: 14px; padding: 10px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                    <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5; font-style: italic;">
+                        ${parking.descripcion}
+                    </p>
+                </div>
+                ` : ''}
+
+                <!-- Grid de información -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+                    <!-- Disponibilidad -->
+                    <div style="background: #f0f9ff; padding: 10px; border-radius: 8px; border: 1px solid #bae6fd;">
+                        <div style="font-size: 11px; color: #0369a1; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Disponibles</div>
+                        <div style="font-size: 20px; font-weight: 700; color: #0c4a6e;">
+                            ${parking.espaciosDisponibles}
+                            <span style="font-size: 12px; color: #0369a1; font-weight: 500;">/ ${parking.capacidad}</span>
+                        </div>
+                    </div>
+
+                    <!-- Horario dinámico -->
+                    ${horarioHTML}
+                </div>
+
+                ${parking.tolerancia ? `
+                <!-- Tolerancia -->
+                <div style="margin-bottom: 12px; padding: 8px 10px; background: #f3f4f6; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 14px;">⏱️</span>
+                    <span style="font-size: 13px; color: #4b5563;">
+                        <strong>${parking.tolerancia} min</strong> de tolerancia
                     </span>
                 </div>
-                
-                <!-- Botón Navegar -->
+                ` : ''}
+
+                ${llaveText ? `
+                <!-- Requerimiento de llave -->
+                <div style="margin-bottom: 12px; padding: 8px 10px; background: ${parking.est_requiere_llave === 'requerida' ? '#fef2f2' : '#fefce8'}; border-radius: 6px; border: 1px solid ${parking.est_requiere_llave === 'requerida' ? '#fecaca' : '#fef08a'}; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 14px;">🔑</span>
+                    <span style="font-size: 13px; color: ${parking.est_requiere_llave === 'requerida' ? '#991b1b' : '#854d0e'}; font-weight: 600;">
+                        ${llaveText.replace('🔑 ', '')}
+                    </span>
+                </div>
+                ` : ''}
+
+                <!-- Información de contacto -->
+                ${parking.telefono || parking.email ? `
+                <div style="margin-bottom: 14px; padding: 10px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div style="font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Contacto</div>
+                    ${parking.telefono ? `<div style="font-size: 13px; color: #374151; margin-bottom: 3px;">📞 ${parking.telefono}</div>` : ''}
+                    ${parking.email ? `<div style="font-size: 13px; color: #374151;">📧 ${parking.email}</div>` : ''}
+                </div>
+                ` : ''}
+
+                <!-- Botón de acción -->
                 <button
                     id="navigate-button-${parking.id}"
-                    style="width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background-color 0.2s;"
-                    onmouseover="this.style.backgroundColor='#1d4ed8'"
-                    onmouseout="this.style.backgroundColor='#2563eb'"
+                    style="width: 100%; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); margin-top: 14px;"
+                    onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(37, 99, 235, 0.3)';"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(37, 99, 235, 0.2)';"
                 >
                     🧭 Navegar
                 </button>
