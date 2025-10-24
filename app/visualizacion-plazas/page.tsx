@@ -159,7 +159,7 @@ export default function VisualizacionPlazasPage() {
                 <div className="p-6 space-y-6">
                     <div className="mb-6">
                         <div>
-                            <h1 className="text-3xl font-bold">📊 Dashboard de Plazas</h1>
+                            <h1 className="text-3xl font-bold">Visualización de Plazas</h1>
                             <p className="text-gray-600">Visualización completa del estado de todas las plazas</p>
                         </div>
 
@@ -211,137 +211,6 @@ export default function VisualizacionPlazasPage() {
                             {/* Estadísticas Generales */}
                             {estadisticas && (
                                 <>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                                        <Card>
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm font-medium text-gray-600">
-                                                    Total Plazas
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="text-2xl font-bold">{estadisticas.total_plazas}</div>
-                                            </CardContent>
-                                        </Card>
-
-                                        <Card>
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm font-medium text-green-600">
-                                                    Plazas Libres
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="text-2xl font-bold text-green-600">
-                                                    {estadisticas.plazas_libres}
-                                                </div>
-                                                <p className="text-xs text-gray-500">
-                                                    {estadisticas.total_plazas > 0
-                                                        ? ((estadisticas.plazas_libres / estadisticas.total_plazas) * 100).toFixed(1)
-                                                        : 0}%
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-
-                                        <Card>
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm font-medium text-red-600">
-                                                    Plazas Ocupadas
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="text-2xl font-bold text-red-600">
-                                                    {estadisticas.plazas_ocupadas}
-                                                </div>
-                                                <p className="text-xs text-gray-500">
-                                                    {estadisticas.total_plazas > 0
-                                                        ? ((estadisticas.plazas_ocupadas / estadisticas.total_plazas) * 100).toFixed(1)
-                                                        : 0}%
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-
-                                        <Card>
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm font-medium text-blue-600">
-                                                    Porcentaje Ocupación
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="text-2xl font-bold text-blue-600">
-                                                    {estadisticas.ocupacion_porcentaje.toFixed(1)}%
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-
-                                    {/* Estadísticas de Plantillas */}
-                                    {estadisticasPlantillas && (
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                                            <Card>
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-sm font-medium text-blue-600">
-                                                        Plazas con Plantilla
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold text-blue-600">
-                                                        {estadisticasPlantillas.plazasConPlantilla}
-                                                    </div>
-                                                    <p className="text-xs text-gray-500">
-                                                        {estadisticasPlantillas.porcentajeConPlantilla}%
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
-
-                                            <Card>
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-sm font-medium text-gray-600">
-                                                        Plazas sin Plantilla
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold text-gray-600">
-                                                        {estadisticasPlantillas.plazasSinPlantilla}
-                                                    </div>
-                                                    <p className="text-xs text-gray-500">
-                                                        {(100 - parseFloat(estadisticasPlantillas.porcentajeConPlantilla)).toFixed(1)}%
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
-
-                                            <Card>
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-sm font-medium text-purple-600">
-                                                        Plantillas Únicas
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold text-purple-600">
-                                                        {estadisticasPlantillas.plantillasUnicas}
-                                                    </div>
-                                                    <p className="text-xs text-gray-500">
-                                                        Tipos diferentes
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
-
-                                            <Card>
-                                                <CardHeader className="pb-2">
-                                                    <CardTitle className="text-sm font-medium text-green-600">
-                                                        Cobertura
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <div className="text-2xl font-bold text-green-600">
-                                                        {estadisticasPlantillas.porcentajeConPlantilla}%
-                                                    </div>
-                                                    <p className="text-xs text-gray-500">
-                                                        Plazas configuradas
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
-                                        </div>
-                                    )}
-
                                     {/* Zonas y Plazas */}
                                     <div className="space-y-6">
                                         {Object.entries(plazasPorZona).map(([zonaNombre, plazasZona]) => {
@@ -369,7 +238,7 @@ export default function VisualizacionPlazasPage() {
                                                 <Card key={zonaNombre}>
                                                     <CardHeader>
                                                         <CardTitle className="flex items-center justify-between">
-                                                            <span>🏗️ {zonaNombre}</span>
+                                                            <span>{zonaNombre}</span>
                                                             <div className="flex items-center gap-2">
                                                                 <Badge variant="outline">
                                                                     {estadisticasZona.libres}/{estadisticasZona.total} libres
