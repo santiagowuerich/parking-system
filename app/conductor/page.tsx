@@ -318,7 +318,7 @@ export default function MapaEstacionamientos() {
                                                 </div>
 
                                                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                                                    <div className="flex items-center justify-between">
+                                                    <div className="flex items-center justify-center">
                                                         <div className="flex items-center gap-3">
                                                             <div className={`w-4 h-4 rounded-full ${selectedParking.estado === 'disponible'
                                                                 ? 'bg-green-500'
@@ -332,9 +332,6 @@ export default function MapaEstacionamientos() {
                                                                     : 'Sin espacios'}
                                                             </span>
                                                         </div>
-                                                        <span className="font-semibold text-gray-600">
-                                                            {selectedParking.horarioFuncionamiento === 24 ? '24hs' : `${selectedParking.horarioFuncionamiento}h`}
-                                                        </span>
                                                     </div>
                                                 </div>
 
