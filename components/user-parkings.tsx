@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
@@ -524,14 +523,9 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                             onClick={() => onSelectParking?.(estacionamiento.est_id)}
                                         >
                                             <CardHeader className="pb-3">
-                                                <div className="flex items-center justify-between">
-                                                    <CardTitle className="text-gray-900 text-lg">
-                                                        {estacionamiento.est_nombre}
-                                                    </CardTitle>
-                                                    <Badge variant={currentEstId === estacionamiento.est_id ? "default" : "secondary"}>
-                                                        ID: {estacionamiento.est_id}
-                                                    </Badge>
-                                                </div>
+                                                <CardTitle className="text-gray-900 text-lg">
+                                                    {estacionamiento.est_nombre}
+                                                </CardTitle>
                                             </CardHeader>
                                             <CardContent className="pt-0">
                                                 {/* Dirección completa */}
