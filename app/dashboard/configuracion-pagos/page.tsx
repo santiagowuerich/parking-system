@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { RouteGuard } from "@/components/route-guard";
@@ -15,23 +14,12 @@ import { useAuth } from "@/lib/auth-context";
 import { useUserRole } from "@/lib/use-user-role";
 import { toast } from "@/components/ui/use-toast";
 import { usePaymentMethods } from "@/lib/hooks/use-payment-methods";
-import { Loader2, CreditCard, Settings, FileText, Wallet, Banknote, QrCode, Link } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { Loader2, CreditCard, Settings, Wallet, Banknote, QrCode, Link } from "lucide-react";
 
 interface PaymentMethod {
     method: string;
     description: string;
     enabled: boolean;
-}
-
-interface TariffHistory {
-    [segment: string]: Array<{
-        fecha_desde: string;
-        precio: number;
-        modalidad: string;
-        plantilla: string;
-    }>;
 }
 
 interface UserSettings {
@@ -47,10 +35,6 @@ export default function ConfiguracionPagosPage() {
     const { paymentMethods, loading: methodsLoading, togglePaymentMethod } = usePaymentMethods(estId);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    // Estados para historial de tarifas
-    const [tariffHistory, setTariffHistory] = useState<TariffHistory>({});
-    const [historyLoading, setHistoryLoading] = useState(false);
 
     // Estados para configuraciones
     const [userSettings, setUserSettings] = useState<UserSettings>({
@@ -74,10 +58,7 @@ export default function ConfiguracionPagosPage() {
 
         try {
             setLoading(true);
-            await Promise.all([
-                loadTariffHistory(),
-                loadUserSettings()
-            ]);
+            await loadUserSettings();
         } catch (error) {
             console.error('Error loading data:', error);
             toast({
@@ -91,43 +72,6 @@ export default function ConfiguracionPagosPage() {
     };
 
     // Los métodos de pago se cargan automáticamente con el hook usePaymentMethods
-
-    const loadTariffHistory = async () => {
-        try {
-            setHistoryLoading(true);
-            const response = await fetch(`/api/tarifas?est_id=${estId}`);
-            if (response.ok) {
-                const data = await response.json();
-                // Agrupar por segmento
-                const grouped: TariffHistory = {};
-                data.tarifas?.forEach((plantilla: any) => {
-                    const segmento = plantilla.catv_segmento;
-                    if (!grouped[segmento]) {
-                        grouped[segmento] = [];
-                    }
-
-                    // Agregar cada tarifa de la plantilla
-                    Object.entries(plantilla.tarifas || {}).forEach(([tipoId, tarifa]: [string, any]) => {
-                        const modalidad = tipoId === '1' ? 'Hora' :
-                            tipoId === '2' ? 'Día' :
-                                tipoId === '3' ? 'Mes' : 'Semana';
-
-                        grouped[segmento].push({
-                            fecha_desde: new Date().toISOString(), // Usar fecha actual por ahora
-                            precio: tarifa.precio,
-                            modalidad,
-                            plantilla: plantilla.nombre_plantilla
-                        });
-                    });
-                });
-                setTariffHistory(grouped);
-            }
-        } catch (error) {
-            console.error('Error loading tariff history:', error);
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
 
     const loadUserSettings = async () => {
         try {
@@ -229,15 +173,6 @@ export default function ConfiguracionPagosPage() {
             });
         } finally {
             setSaving(false);
-        }
-    };
-
-    const getSegmentName = (segment: string) => {
-        switch (segment) {
-            case 'AUT': return 'Auto';
-            case 'MOT': return 'Moto';
-            case 'CAM': return 'Camioneta';
-            default: return segment;
         }
     };
 
@@ -378,59 +313,7 @@ export default function ConfiguracionPagosPage() {
                             </CardContent>
                         </Card>
 
-                        {/* SECCIÓN 2: HISTORIAL DE TARIFAS */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <FileText className="h-5 w-5" />
-                                    Historial de Tarifas
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {Object.keys(tariffHistory).length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                                        <p>Sin tarifas cargadas</p>
-                                    </div>
-                                ) : (
-                                    Object.entries(tariffHistory).map(([segment, tariffs]) => (
-                                        <div key={segment} className="mb-6">
-                                            <h3 className="text-lg font-semibold mb-4 text-gray-900">
-                                                {getSegmentName(segment)}
-                                            </h3>
-                                            <div className="overflow-x-auto">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Fecha desde</TableHead>
-                                                            <TableHead>Precio</TableHead>
-                                                            <TableHead>Modalidad</TableHead>
-                                                            <TableHead>Plaza</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {tariffs.map((tariff, index) => (
-                                                            <TableRow key={index}>
-                                                                <TableCell>
-                                                                    {format(new Date(tariff.fecha_desde), "dd/MM/yyyy", { locale: es })}
-                                                                </TableCell>
-                                                                <TableCell className="font-medium">
-                                                                    ${tariff.precio.toFixed(2)}
-                                                                </TableCell>
-                                                                <TableCell>{tariff.modalidad}</TableCell>
-                                                                <TableCell>{tariff.plantilla}</TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* SECCIÓN 3: CONFIGURACIONES */}
+                        {/* SECCIÓN 2: CONFIGURACIONES */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* CONFIGURACIÓN MERCADOPAGO */}
                             <Card>
