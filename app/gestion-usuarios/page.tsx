@@ -45,7 +45,8 @@ export default function GestionUsuariosPage() {
     // Estados principales
     const [empleados, setEmpleados] = useState<Empleado[]>([]);
     const [turnos, setTurnos] = useState<Turno[]>([]);
-    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Partial<Empleado>>({
+
+    const usuarioInicial: Partial<Empleado> = {
         nombre: '',
         apellido: '',
         dni: '',
@@ -53,6 +54,10 @@ export default function GestionUsuariosPage() {
         estado: 'Activo',
         requiere_cambio_contrasena: false,
         disponibilidad: []
+    };
+
+    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Partial<Empleado>>({
+        ...usuarioInicial
     });
 
     // Estados de UI
@@ -76,6 +81,18 @@ export default function GestionUsuariosPage() {
             estado: string;
         };
     } | null>(null);
+
+    const resetFormularioUsuario = () => {
+        setUsuarioSeleccionado({ ...usuarioInicial });
+        setContrasenaTemporal('');
+    };
+
+    const handleModalOpenChange = (open: boolean) => {
+        setModalOpen(open);
+        if (!open) {
+            resetFormularioUsuario();
+        }
+    };
 
     // Cargar turnos una sola vez
     useEffect(() => {
@@ -190,24 +207,19 @@ export default function GestionUsuariosPage() {
             email: empleado.email,
             estado: empleado.estado,
             requiere_cambio_contrasena: empleado.requiere_cambio_contrasena,
-            disponibilidad: empleado.disponibilidad
+            disponibilidad: empleado.disponibilidad ? [...empleado.disponibilidad] : []
         });
         setContrasenaTemporal('');
         setModalOpen(true);
     };
 
     const handleNewUser = () => {
-        setUsuarioSeleccionado({
-            nombre: '',
-            apellido: '',
-            dni: '',
-            email: '',
-            estado: 'Activo',
-            requiere_cambio_contrasena: false,
-            disponibilidad: []
-        });
-        setContrasenaTemporal('');
+        resetFormularioUsuario();
         setModalOpen(true);
+    };
+
+    const handleCancel = () => {
+        handleModalOpenChange(false);
     };
 
     const handleSaveUser = async () => {
@@ -255,6 +267,8 @@ export default function GestionUsuariosPage() {
 
         setSaving(true);
 
+        const esEdicion = Boolean(usuarioSeleccionado.usu_id);
+
         const baseEmpleadoData = {
             nombre: usuarioSeleccionado.nombre || '',
             apellido: usuarioSeleccionado.apellido || '',
@@ -265,10 +279,10 @@ export default function GestionUsuariosPage() {
             disponibilidad: usuarioSeleccionado.disponibilidad || []
         };
 
-        console.log('🔍 Estado del contexto:', { userRole, estId, contrasenaTemporal, usuarioSeleccionado });
+        console.log('[empleados] Estado del contexto:', { userRole, estId, contrasenaTemporal, usuarioSeleccionado });
 
         let result;
-        if (usuarioSeleccionado.usu_id) {
+        if (esEdicion) {
             const payloadActualizacion = {
                 ...baseEmpleadoData,
                 usu_id: usuarioSeleccionado.usu_id,
@@ -288,32 +302,41 @@ export default function GestionUsuariosPage() {
         }
 
         if (result.success) {
-            console.log('🎉 Empleado guardado exitosamente, recargando lista...');
+            console.log('[empleados] Guardado exitoso, recargando lista...');
 
-            // Mostrar modal de confirmación
-            setConfirmationModalOpen(true);
-            setConfirmationMessage({
-                title: "¡Empleado creado exitosamente!",
-                description: `El empleado ${usuarioSeleccionado.nombre} ${usuarioSeleccionado.apellido} ha sido creado correctamente.`,
-                details: {
-                    nombre: usuarioSeleccionado.nombre || '',
-                    apellido: usuarioSeleccionado.apellido || '',
-                    email: usuarioSeleccionado.email || '',
-                    dni: usuarioSeleccionado.dni || '',
-                    estado: usuarioSeleccionado.estado || 'Activo'
-                }
-            });
+            const detallesEmpleado = {
+                nombre: usuarioSeleccionado.nombre || '',
+                apellido: usuarioSeleccionado.apellido || '',
+                email: usuarioSeleccionado.email || '',
+                dni: usuarioSeleccionado.dni || '',
+                estado: usuarioSeleccionado.estado || 'Activo'
+            };
 
-            // Cerrar modal, limpiar formulario y recargar lista
+            if (esEdicion) {
+                toast({
+                    title: "Empleado actualizado",
+                    description: `Se actualizaron los datos de ${detallesEmpleado.nombre} ${detallesEmpleado.apellido}.`
+                });
+                setConfirmationModalOpen(false);
+                setConfirmationMessage(null);
+            } else {
+                setConfirmationModalOpen(true);
+                setConfirmationMessage({
+                    title: "¡Empleado creado exitosamente!",
+                    description: `El empleado ${detallesEmpleado.nombre} ${detallesEmpleado.apellido} ha sido creado correctamente.`,
+                    details: detallesEmpleado
+                });
+            }
+
             setModalOpen(false);
-            handleNewUser();
-            console.log('🔄 Llamando a loadEmpleados después de crear empleado...');
+            resetFormularioUsuario();
+            console.log('[empleados] Actualizando lista de empleados tras guardar...');
             if (userRole === 'owner') {
                 await loadEmpleadosAsDueno();
             } else if (userRole === 'playero') {
                 await loadEmpleadosAsEmpleado();
             }
-            console.log('✅ Lista recargada después de crear empleado');
+            console.log('[empleados] Lista actualizada tras guardar empleado');
         } else {
             toast({
                 variant: "destructive",
@@ -587,7 +610,7 @@ export default function GestionUsuariosPage() {
             </Card>
 
             {/* Modal del formulario de empleado */}
-            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <Dialog open={modalOpen} onOpenChange={handleModalOpenChange}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-gray-900">
@@ -760,7 +783,7 @@ export default function GestionUsuariosPage() {
                             </Button>
                             <Button
                                 variant="outline"
-                                onClick={handleNewUser}
+                                onClick={handleCancel}
                                 disabled={saving}
                             >
                                 Cancelar
