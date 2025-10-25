@@ -116,6 +116,7 @@ export default function GestionUsuariosPage() {
             console.log('👷 Usuario identificado como EMPLEADO');
             loadEmpleadosAsEmpleado();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, estId, userRole]);
 
     const loadEmpleadosAsDueno = async () => {
@@ -331,11 +332,8 @@ export default function GestionUsuariosPage() {
             setModalOpen(false);
             resetFormularioUsuario();
             console.log('[empleados] Actualizando lista de empleados tras guardar...');
-            if (userRole === 'owner') {
-                await loadEmpleadosAsDueno();
-            } else if (userRole === 'playero') {
-                await loadEmpleadosAsEmpleado();
-            }
+            // Solo los dueños pueden guardar empleados (validación en línea 227-234)
+            await loadEmpleadosAsDueno();
             console.log('[empleados] Lista actualizada tras guardar empleado');
         } else {
             toast({
@@ -370,11 +368,8 @@ export default function GestionUsuariosPage() {
                 title: "Éxito",
                 description: "Empleado eliminado correctamente"
             });
-            if (userRole === 'owner') {
-                await loadEmpleadosAsDueno();
-            } else if (userRole === 'playero') {
-                await loadEmpleadosAsEmpleado();
-            }
+            // Solo los dueños pueden eliminar empleados (validación en línea 354-361)
+            await loadEmpleadosAsDueno();
         } else {
             toast({
                 variant: "destructive",
@@ -425,17 +420,13 @@ export default function GestionUsuariosPage() {
             contrasena += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
         }
         setContrasenaTemporal(contrasena);
-        setUsuarioSeleccionado(prev => ({
-            ...prev,
-            contrasena: contrasena
-        }));
     };
 
     // Filtrar empleados
     const empleadosFiltrados = empleados.filter(empleado => {
         const matchesSearch = searchTerm === '' ||
             `${empleado.nombre} ${empleado.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            empleado.email?.toLowerCase().includes(searchTerm.toLowerCase());
+            (empleado.email || '').toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesEstado = estadoFilter === 'todos' || empleado.estado === estadoFilter;
 
@@ -914,20 +905,14 @@ export default function GestionUsuariosPage() {
                             </div>
                         )}
 
-                        <div className="flex justify-end gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => setConfirmationModalOpen(false)}
-                            >
-                                Cerrar
-                            </Button>
+                        <div className="flex justify-end">
                             <Button
                                 onClick={() => {
                                     setConfirmationModalOpen(false);
-                                    // Opcional: enfocar en el nuevo empleado en la lista
+                                    setConfirmationMessage(null);
                                 }}
                             >
-                                Ver empleados
+                                Aceptar
                             </Button>
                         </div>
                     </div>
