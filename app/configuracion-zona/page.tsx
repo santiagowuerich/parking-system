@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, Car, Bike, Truck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useUserRole } from '@/lib/use-user-role';
 import { useZoneManagement } from '@/lib/hooks/use-zone-management';
@@ -99,11 +100,16 @@ const ConfiguracionZonaPage: React.FC = () => {
 
     // Estado para zonas existentes
     const [zonasExistentes, setZonasExistentes] = useState<string[]>([]);
+    const [zonasDetalladas, setZonasDetalladas] = useState<any[]>([]);
     const [cargandoZonas, setCargandoZonas] = useState<boolean>(false);
     const [zonaDuplicada, setZonaDuplicada] = useState<boolean>(false);
 
     // Obtener el parámetro de zona de la URL
     const [zonaParametro, setZonaParametro] = React.useState<string | null>(null);
+
+    // Estado para controlar si mostrar el formulario de creación/edición
+    const [mostrarFormulario, setMostrarFormulario] = useState<boolean>(false);
+    const [modoEdicion, setModoEdicion] = useState<boolean>(false);
 
     // Sincronización simple: mantener totalEditable actualizado
     React.useEffect(() => {
@@ -115,6 +121,8 @@ const ConfiguracionZonaPage: React.FC = () => {
     // Cargar configuración de zona existente si viene por parámetro
     React.useEffect(() => {
         if (zonaParametro && estId) {
+            setModoEdicion(true);
+            setMostrarFormulario(true);
             cargarInformacionZona(zonaParametro);
         }
     }, [zonaParametro, estId, loadZoneInfo]);
@@ -131,7 +139,7 @@ const ConfiguracionZonaPage: React.FC = () => {
         verificarZonaTiempoReal(zonaNombre);
     }, [zonaNombre, zonasExistentes]);
 
-    // Función para cargar zonas existentes
+    // Función para cargar zonas existentes con detalles
     const cargarZonasExistentes = async () => {
         if (!estId) return;
 
@@ -140,9 +148,51 @@ const ConfiguracionZonaPage: React.FC = () => {
             const response = await fetch(`/api/zonas?est_id=${estId}`);
             if (response.ok) {
                 const data = await response.json();
-                const nombresZonas = data.zonas?.map((zona: any) => zona.zona_nombre) || [];
+                const zonas = data.zonas || [];
+                const nombresZonas = zonas.map((zona: any) => zona.zona_nombre);
                 setZonasExistentes(nombresZonas);
-                console.log('📋 Zonas existentes cargadas:', nombresZonas);
+
+                // Cargar detalles de cada zona
+                const zonasConDetalles = await Promise.all(
+                    zonas.map(async (zona: any) => {
+                        try {
+                            // Consultar directamente a la base de datos para obtener plazas de esta zona
+                            const plazasResponse = await fetch(`/api/plazas?est_id=${estId}&zona_id=${zona.zona_id}`);
+                            if (plazasResponse.ok) {
+                                const plazasData = await plazasResponse.json();
+                                const plazas = plazasData.plazas || [];
+
+                                // Filtrar por tipo usando tipo_vehiculo (que viene del API)
+                                const plazasAuto = plazas.filter((p: any) => p.tipo_vehiculo === 'AUT').length;
+                                const plazasMoto = plazas.filter((p: any) => p.tipo_vehiculo === 'MOT').length;
+                                const plazasCamioneta = plazas.filter((p: any) => p.tipo_vehiculo === 'CAM').length;
+
+                                console.log(`📊 Zona ${zona.zona_nombre}:`, {
+                                    total: plazas.length,
+                                    AUT: plazasAuto,
+                                    MOT: plazasMoto,
+                                    CAM: plazasCamioneta,
+                                    primeraPlaza: plazas[0] // Para debug
+                                });
+
+                                return {
+                                    ...zona,
+                                    total_plazas: plazas.length,
+                                    plazas_auto: plazasAuto,
+                                    plazas_moto: plazasMoto,
+                                    plazas_camioneta: plazasCamioneta,
+                                };
+                            }
+                            return { ...zona, total_plazas: 0, plazas_auto: 0, plazas_moto: 0, plazas_camioneta: 0 };
+                        } catch (error) {
+                            console.error(`Error cargando detalles de zona ${zona.zona_nombre}:`, error);
+                            return { ...zona, total_plazas: 0, plazas_auto: 0, plazas_moto: 0, plazas_camioneta: 0 };
+                        }
+                    })
+                );
+
+                setZonasDetalladas(zonasConDetalles);
+                console.log('📋 Zonas con detalles cargadas:', zonasConDetalles);
             }
         } catch (error) {
             console.error('Error cargando zonas existentes:', error);
@@ -158,6 +208,12 @@ const ConfiguracionZonaPage: React.FC = () => {
 
     // Función para verificar zona en tiempo real
     const verificarZonaTiempoReal = (nombre: string) => {
+        // No validar si estamos en modo edición (se permite el mismo nombre)
+        if (modoEdicion) {
+            setZonaDuplicada(false);
+            return false;
+        }
+
         const nombreTrim = nombre.trim();
         const existe = zonasExistentes.includes(nombreTrim);
         setZonaDuplicada(existe && nombreTrim !== '');
@@ -339,6 +395,15 @@ const ConfiguracionZonaPage: React.FC = () => {
 
             console.log(`✅ Información cargada: ${zona.total_plazas} plazas, ${zona.filas_detectadas}x${zona.columnas_detectadas} layout`);
             console.log('📊 Estadísticas:', zona.estadisticas);
+
+            // Generar previsualización automáticamente
+            const numeroInicio = 1;
+            const numeroFin = numeroInicio + zona.total_plazas - 1;
+            const plazasArray: number[] = [];
+            for (let i = numeroInicio; i <= numeroFin; i++) {
+                plazasArray.push(i);
+            }
+            setPrevisualizacion(plazasArray);
 
             // Mostrar mensaje informativo
             toast.success(`Información cargada: Zona "${zonaNombre}" tiene ${zona.total_plazas} plazas configuradas`);
@@ -524,63 +589,153 @@ const ConfiguracionZonaPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
             <Suspense fallback={null}>
                 <SearchParamsProvider setZonaParametro={setZonaParametro} />
             </Suspense>
             <div className="p-6 space-y-6">
                 <div className="mb-6">
-                    <h1 className="text-3xl font-bold">
-                        Configuración de Zona {zonaParametro ? `- ${zonaParametro}` : ''}
-                    </h1>
-                    <p className="text-muted-foreground">
-                        {zonaParametro
-                            ? `Configura plazas adicionales para la zona "${zonaParametro}"`
-                            : 'Define una nueva zona de estacionamiento y genera automáticamente sus plazas'
-                        }
-                    </p>
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">
+                            Gestión de Zonas
+                        </h1>
+                        <p className="text-gray-600 dark:text-zinc-400 mt-1">
+                            Administra las zonas de estacionamiento y sus plazas
+                        </p>
+                    </div>
+                    {!mostrarFormulario && (
+                        <Button
+                            onClick={() => {
+                                setMostrarFormulario(true);
+                                setModoEdicion(false);
+                                // Limpiar formulario
+                                setZonaNombre('');
+                                setCantidadPlazas(0);
+                                setFilas(0);
+                                setColumnas(0);
+                                setUsarLayout(false);
+                                setPrevisualizacion([]);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 mt-4"
+                        >
+                            Crear Nueva Zona
+                        </Button>
+                    )}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Formulario - Columna Izquierda */}
-                    <div className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Información de la Zona</CardTitle>
-                                <CardDescription>
-                                    Completa los datos para crear la nueva zona
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Nombre de la zona */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="zona-nombre">
-                                        Nombre de la zona
-                                        {cargandoZonas && <span className="text-xs text-gray-500 ml-2">(Cargando zonas...)</span>}
-                                    </Label>
-                                    <Input
-                                        id="zona-nombre"
-                                        placeholder="Ej: Zona Norte, Zona VIP, etc."
-                                        value={zonaNombre}
-                                        onChange={(e) => setZonaNombre(e.target.value)}
-                                        className={zonaDuplicada ? "border-red-500 focus:border-red-500" : ""}
-                                    />
-
-                                    {/* Mensaje de error si la zona está duplicada */}
-                                    {zonaDuplicada && (
-                                        <div className="text-sm text-red-600 flex items-center gap-1">
-                                            <AlertTriangle className="h-4 w-4" />
-                                            Esta zona ya existe. Por favor elige un nombre diferente.
-                                        </div>
-                                    )}
-
-                                    {/* Lista de zonas existentes */}
-                                    {zonasExistentes.length > 0 && (
-                                        <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                                            <strong>Zonas existentes:</strong> {zonasExistentes.join(', ')}
-                                        </div>
-                                    )}
+                {/* Lista de zonas existentes */}
+                {!mostrarFormulario && (
+                    <Card className="dark:bg-zinc-900 dark:border-zinc-800 mb-6">
+                        <CardHeader>
+                            <CardTitle className="dark:text-zinc-100">Zonas Existentes</CardTitle>
+                            <CardDescription className="dark:text-zinc-400">
+                                {cargandoZonas ? 'Cargando zonas...' : 'Administra las zonas configuradas actualmente'}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {cargandoZonas ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="h-6 w-6 animate-spin" />
+                                        <span>Cargando zonas...</span>
+                                    </div>
                                 </div>
+                            ) : zonasDetalladas.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-gray-500 dark:text-zinc-400">No hay zonas configuradas aún.</p>
+                                    <p className="text-sm text-gray-400 dark:text-zinc-500 mt-2">Haz clic en "Crear Nueva Zona" para comenzar.</p>
+                                </div>
+                            ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {zonasDetalladas.map((zona) => (
+                                    <Card key={zona.zona_nombre} className="dark:bg-zinc-800/50 dark:border-zinc-700 hover:shadow-md transition-shadow">
+                                        <CardContent className="p-4">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <h3 className="font-semibold text-lg text-gray-900 dark:text-zinc-100">{zona.zona_nombre}</h3>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setMostrarFormulario(true);
+                                                        setModoEdicion(true);
+                                                        cargarInformacionZona(zona.zona_nombre);
+                                                    }}
+                                                >
+                                                    Modificar
+                                                </Button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-gray-600 dark:text-zinc-400">Total de plazas</span>
+                                                    <span className="font-medium text-gray-900 dark:text-zinc-100">{zona.total_plazas}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                                        <Car className="w-4 h-4" />
+                                                        <span>Autos</span>
+                                                    </div>
+                                                    <span className="font-medium text-gray-900 dark:text-zinc-100">{zona.plazas_auto}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                                                        <Bike className="w-4 h-4" />
+                                                        <span>Motos</span>
+                                                    </div>
+                                                    <span className="font-medium text-gray-900 dark:text-zinc-100">{zona.plazas_moto}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+                                                        <Truck className="w-4 h-4" />
+                                                        <span>Camionetas</span>
+                                                    </div>
+                                                    <span className="font-medium text-gray-900 dark:text-zinc-100">{zona.plazas_camioneta}</span>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Dialog Modal para creación/edición */}
+                <Dialog open={mostrarFormulario} onOpenChange={setMostrarFormulario}>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl">
+                                {modoEdicion ? `Modificar Zona: ${zonaNombre}` : 'Crear Nueva Zona'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {modoEdicion ? 'Modifica la configuración de la zona existente' : 'Define una nueva zona y configura sus plazas'}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                            {/* Nombre de la zona */}
+                            <div className="space-y-2">
+                                <Label htmlFor="zona-nombre">
+                                    Nombre de la zona
+                                    {cargandoZonas && <span className="text-xs text-gray-500 ml-2">(Cargando zonas...)</span>}
+                                </Label>
+                                <Input
+                                    id="zona-nombre"
+                                    placeholder="Ej: Zona Norte, Zona VIP, etc."
+                                    value={zonaNombre}
+                                    onChange={(e) => setZonaNombre(e.target.value)}
+                                    className={zonaDuplicada ? "border-red-500 focus:border-red-500" : ""}
+                                    disabled={modoEdicion}
+                                />
+
+                                {/* Mensaje de error si la zona está duplicada */}
+                                {zonaDuplicada && (
+                                    <div className="text-sm text-red-600 flex items-center gap-1">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Esta zona ya existe. Por favor elige un nombre diferente.
+                                    </div>
+                                )}
+                            </div>
 
                                 {/* Switch para modo de configuración */}
                                 <div className="flex items-center justify-between space-x-2">
@@ -655,32 +810,32 @@ const ConfiguracionZonaPage: React.FC = () => {
                                     />
                                     {usarLayout && filas > 0 && columnas > 0 && cantidadPlazas > 0 && (
                                         <div className="text-xs space-y-1">
-                                            <p className="text-blue-600">
-                                                📐 Layout configurado: {filas} filas × {columnas} columnas = {filas * columnas} plazas
+                                            <p className="text-blue-600 dark:text-blue-400">
+                                                Layout configurado: {filas} filas × {columnas} columnas = {filas * columnas} plazas
                                             </p>
-                                            <p className="text-green-600">
-                                                🎯 Total configurado: {cantidadPlazas} plazas
+                                            <p className="text-green-600 dark:text-green-400">
+                                                Total configurado: {cantidadPlazas} plazas
                                             </p>
                                             {cantidadPlazas !== filas * columnas && (
                                                 <div className={`mt-2 p-2 border rounded ${cantidadPlazas > filas * columnas
-                                                    ? 'bg-red-50 border-red-200'
-                                                    : 'bg-orange-50 border-orange-200'
+                                                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                                    : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
                                                     }`}>
                                                     <p className={`font-medium ${cantidadPlazas > filas * columnas
-                                                        ? 'text-red-700'
-                                                        : 'text-orange-700'
+                                                        ? 'text-red-700 dark:text-red-400'
+                                                        : 'text-orange-700 dark:text-orange-400'
                                                         }`}>
-                                                        {cantidadPlazas > filas * columnas ? '🚨 Error' : '⚠️ Configuración personalizada'}
+                                                        {cantidadPlazas > filas * columnas ? 'Error' : 'Configuración personalizada'}
                                                     </p>
                                                     <p className={`text-xs ${cantidadPlazas > filas * columnas
-                                                        ? 'text-red-600'
-                                                        : 'text-orange-600'
+                                                        ? 'text-red-600 dark:text-red-400'
+                                                        : 'text-orange-600 dark:text-orange-400'
                                                         }`}>
                                                         El total ({cantidadPlazas}) es {cantidadPlazas < filas * columnas ? 'menor' : 'mayor'} que el layout ({filas * columnas})
                                                     </p>
                                                     {cantidadPlazas > filas * columnas && (
-                                                        <p className="text-red-600 text-xs font-medium mt-1">
-                                                            💡 Reduce el total o aumenta las filas/columnas
+                                                        <p className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
+                                                            Reduce el total o aumenta las filas/columnas
                                                         </p>
                                                     )}
                                                 </div>
@@ -691,88 +846,68 @@ const ConfiguracionZonaPage: React.FC = () => {
 
                                 {/* Información adicional solo cuando no hay layout configurado */}
                                 {usarLayout && (filas === 0 || columnas === 0) && (
-                                    <div className="text-sm text-muted-foreground">
-                                        💡 Configura filas y columnas para definir el layout de plazas
+                                    <div className="text-sm text-gray-600 dark:text-zinc-400 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        Configura filas y columnas para definir el layout de plazas
                                     </div>
                                 )}
 
 
                                 {/* Información de numeración */}
+                                <div className="text-sm text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-lg border border-gray-200 dark:border-zinc-700">
+                                    <p className="font-medium text-gray-900 dark:text-zinc-100 mb-1">
+                                        Numeración automática
+                                    </p>
+                                    <p>
+                                        Cada zona comienza desde el número 1. Las plazas de diferentes zonas pueden tener los mismos números.
+                                    </p>
+                                </div>
+
+                            {/* Previsualización */}
+                            {previsualizacion.length > 0 && (
                                 <div className="space-y-2">
-                                    <Label>Información de numeración</Label>
-                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                        <p className="text-sm text-blue-800">
-                                            <span className="font-medium">🔢 Numeración automática:</span> Cada zona comienza desde el número 1
-                                        </p>
-                                        <p className="text-sm text-blue-700 mt-1">
-                                            Las plazas de diferentes zonas pueden tener los mismos números
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Botones */}
-                                <div className="flex gap-3 pt-4">
-                                    <Button
-                                        variant="outline"
-                                        onClick={generarPrevisualizacion}
-                                        disabled={!zonaNombre.trim() || !cantidadPlazas}
-                                    >
-                                        Generar previsualización
-                                    </Button>
-                                    <Button
-                                        onClick={handleContinuar}
-                                        disabled={loading || !zonaNombre.trim() || !cantidadPlazas || zonaDuplicada}
-                                    >
-                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Continuar
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Previsualización - Columna Derecha */}
-                    <div className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Previsualización de la zona</CardTitle>
-                                <CardDescription>
-                                    {previsualizacion.length > 0
-                                        ? `${previsualizacion.length} plazas generadas`
-                                        : 'Genera una previsualización para ver las plazas'
-                                    }
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {previsualizacion.length > 0 ? (
-                                    <div
-                                        className="grid gap-2"
-                                        style={{
-                                            gridTemplateColumns: `repeat(${usarLayout && columnas > 0 ? columnas : 5}, minmax(0, 1fr))`
-                                        }}
-                                    >
-                                        {previsualizacion.map((numero) => (
-                                            <div
-                                                key={numero}
-                                                className="aspect-square bg-green-100 border border-green-300 rounded-md flex items-center justify-center text-sm font-medium text-green-800 hover:bg-green-200 transition-colors"
-                                            >
-                                                {numero}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-64 text-muted-foreground">
-                                        <div className="text-center">
-                                            <div className="text-4xl mb-2">👁️</div>
-                                            <p>Haz clic en "Generar previsualización"</p>
-                                            <p className="text-sm">para ver cómo quedarán las plazas</p>
+                                    <Label>Previsualización ({previsualizacion.length} plazas)</Label>
+                                    <div className="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-lg border border-gray-200 dark:border-zinc-700">
+                                        <div
+                                            className="grid gap-2"
+                                            style={{
+                                                gridTemplateColumns: `repeat(${usarLayout && columnas > 0 ? columnas : Math.min(10, previsualizacion.length)}, minmax(0, 1fr))`
+                                            }}
+                                        >
+                                            {previsualizacion.map((numero) => (
+                                                <div
+                                                    key={numero}
+                                                    className="aspect-square bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-md flex items-center justify-center text-xs font-medium text-green-800 dark:text-green-300"
+                                                >
+                                                    {numero}
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
+                                </div>
+                            )}
+
+                            {/* Botones */}
+                            <div className="flex gap-3 pt-4 border-t dark:border-zinc-700">
+                                <Button
+                                    variant="outline"
+                                    onClick={generarPrevisualizacion}
+                                    disabled={!zonaNombre.trim() || !cantidadPlazas}
+                                    className="flex-1"
+                                >
+                                    Generar previsualización
+                                </Button>
+                                <Button
+                                    onClick={handleContinuar}
+                                    disabled={loading || !zonaNombre.trim() || !cantidadPlazas || zonaDuplicada}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                >
+                                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {modoEdicion ? 'Guardar Cambios' : 'Crear Zona'}
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Dialog de error */}
                 <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
