@@ -110,28 +110,28 @@ export default function GestionTarifasPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-gray-900">Nombre</TableHead>
-                    <TableHead className="text-gray-900">Vehículo</TableHead>
-                    <TableHead className="text-gray-900">Techo</TableHead>
-                    <TableHead className="text-gray-900">Seguridad</TableHead>
-                    <TableHead className="text-gray-900">Conectividad</TableHead>
-                    <TableHead className="text-gray-900 text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+              <table className="w-full bg-white border-collapse">
+                <thead>
+                  <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Nombre</th>
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Vehículo</th>
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Techo</th>
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Seguridad</th>
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Conectividad</th>
+                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {plantillas.map((plantilla) => (
-                    <TableRow key={plantilla.plantilla_id}>
-                      <TableCell className="font-medium text-gray-900">
+                    <tr key={plantilla.plantilla_id} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                      <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium">
                         {plantilla.nombre_plantilla}
-                      </TableCell>
-                      <TableCell className="text-gray-700">
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                         {getVehicleTypeDisplay(plantilla.catv_segmento)}
-                      </TableCell>
-                      <TableCell className="text-gray-700">
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                         {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
                           <span
                             key={idx}
@@ -140,8 +140,8 @@ export default function GestionTarifasPage() {
                             {valor}
                           </span>
                         )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                      </TableCell>
-                      <TableCell className="text-gray-700">
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                         {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
                           <span
                             key={idx}
@@ -150,8 +150,8 @@ export default function GestionTarifasPage() {
                             {valor}
                           </span>
                         )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                      </TableCell>
-                      <TableCell className="text-gray-700">
+                      </td>
+                      <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                         {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
                           <span
                             key={idx}
@@ -160,21 +160,22 @@ export default function GestionTarifasPage() {
                             {valor}
                           </span>
                         )) || <span className="text-gray-400 italic">Sin especificar</span>}
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="py-4 px-4 text-center">
                         <Button
+                          variant="ghost"
                           onClick={handleDefinirPrecios}
                           size="sm"
-                          className="bg-blue-600 hover:bg-blue-700"
+                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded px-2 py-1"
                         >
-                          <Settings className="h-4 w-4 mr-2" />
-                          Definir Precios
+                          <Settings className="h-4 w-4 mr-1" />
+                          <span className="text-xs font-medium">Definir Precios</span>
                         </Button>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
