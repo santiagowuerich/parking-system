@@ -582,6 +582,82 @@ const ConfiguracionZonaPage: React.FC = () => {
             }
         }
 
+        // En modo edición, verificar si se está reduciendo el tamaño de la zona
+        if (modoEdicion) {
+            const zonaActual = zonasDetalladas.find(z => z.zona_nombre === zonaNombre);
+            if (zonaActual && zonaActual.total_plazas > cantidadFinal) {
+                // Estamos reduciendo el tamaño de la zona
+                const plazasAEliminar = zonaActual.total_plazas - cantidadFinal;
+                console.log(`⚠️ Reduciendo zona de ${zonaActual.total_plazas} a ${cantidadFinal} plazas (se eliminarán ${plazasAEliminar} plazas)`);
+
+                // Validar que las plazas a eliminar estén desocupadas
+                try {
+                    setLoading(true);
+
+                    // Obtener el zona_id de la zona actual
+                    const zonasResponse = await fetch(`/api/zonas?est_id=${estId}`);
+                    if (!zonasResponse.ok) {
+                        throw new Error('Error al obtener información de zonas');
+                    }
+                    const zonasData = await zonasResponse.json();
+                    const zonaInfo = zonasData.zonas.find((z: any) => z.zona_nombre === zonaNombre);
+
+                    if (!zonaInfo) {
+                        throw new Error('No se encontró la información de la zona');
+                    }
+
+                    // Obtener todas las plazas de la zona
+                    const plazasResponse = await fetch(`/api/plazas?est_id=${estId}&zona_id=${zonaInfo.zona_id}`);
+                    if (!plazasResponse.ok) {
+                        throw new Error('Error al obtener las plazas de la zona');
+                    }
+                    const plazasData = await plazasResponse.json();
+                    const plazas = plazasData.plazas || [];
+
+                    // Ordenar las plazas por número (asumiendo que tienen un campo pla_num)
+                    plazas.sort((a: any, b: any) => {
+                        const numA = parseInt(a.pla_num) || 0;
+                        const numB = parseInt(b.pla_num) || 0;
+                        return numA - numB;
+                    });
+
+                    // Las plazas a eliminar serían las últimas (desde cantidadFinal+1 hasta el final)
+                    const plazasParaEliminar = plazas.slice(cantidadFinal);
+
+                    console.log('📋 Plazas a eliminar:', plazasParaEliminar.map((p: any) => ({
+                        num: p.pla_num,
+                        estado: p.pla_estado
+                    })));
+
+                    // Verificar si alguna de las plazas a eliminar está ocupada
+                    const plazasOcupadas = plazasParaEliminar.filter((p: any) =>
+                        p.pla_estado !== 'Libre' && p.pla_estado !== 'libre'
+                    );
+
+                    if (plazasOcupadas.length > 0) {
+                        const numerosOcupados = plazasOcupadas.map((p: any) => p.pla_num).join(', ');
+                        setLoading(false);
+                        showErrorDialog(
+                            "No se puede reducir el tamaño de la zona",
+                            `No puedes reducir la zona a ${cantidadFinal} plazas porque las siguientes plazas están ocupadas y serían eliminadas: ${numerosOcupados}. Por favor, libera estas plazas antes de continuar.`
+                        );
+                        return;
+                    }
+
+                    console.log('✅ Todas las plazas a eliminar están desocupadas, se puede proceder');
+                    setLoading(false);
+                } catch (error: any) {
+                    setLoading(false);
+                    console.error('❌ Error validando plazas:', error);
+                    showErrorDialog(
+                        "Error de validación",
+                        `No se pudo validar el estado de las plazas: ${error.message}`
+                    );
+                    return;
+                }
+            }
+        }
+
         // Numeración siempre comienza desde 1, no se requiere zona de origen
 
         // Si todas las validaciones pasan, enviar los datos

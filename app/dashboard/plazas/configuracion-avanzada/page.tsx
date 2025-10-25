@@ -12,8 +12,6 @@ import { useAuth } from '@/lib/auth-context';
 // Importar componentes
 import { ZonePicker } from './components/ZonePicker';
 import { PlazasGrid } from './components/PlazasGrid';
-import { SelectionToolbar } from './components/SelectionToolbar';
-import { ApplyTemplatePanel } from './components/ApplyTemplatePanel';
 
 // Tipos
 interface Plaza {
@@ -76,7 +74,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
     // Estados de UI
     const [plantillaSeleccionada, setPlantillaSeleccionada] = useState<number | null>(null);
-    const [modoSeleccion, setModoSeleccion] = useState<'individual' | 'rango' | 'fila' | 'columna'>('individual');
     const [previewMode, setPreviewMode] = useState(false);
 
     // Cargar datos iniciales cuando estId esté disponible
@@ -492,7 +489,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                 {/* Header */}
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold">
-                        Configuración Avanzada de Plazas
+                        Asignar Plantillas a Plazas
                     </h1>
                     <p className="text-muted-foreground">
                         Gestiona las plantillas de plazas de manera visual e intuitiva
@@ -501,43 +498,28 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 
                 {/* Layout principal */}
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-                    {/* Panel izquierdo: Controles */}
+                    {/* Panel izquierdo: Controles unificados */}
                     <div className="xl:col-span-1 space-y-6">
                         <ZonePicker
                             zonaActual={zonaActual}
                             onZonaChange={cargarPlazasZona}
                             estId={estId}
-                        />
-
-                        <SelectionToolbar
-                            seleccion={seleccion}
-                            setSeleccion={setSeleccion}
-                            modoSeleccion={modoSeleccion}
-                            setModoSeleccion={setModoSeleccion}
-                            zonaActual={zonaActual}
-                            plazas={plazas}
-                        />
-
-                        <ApplyTemplatePanel
                             plantillas={plantillas}
                             plantillaSeleccionada={plantillaSeleccionada}
                             setPlantillaSeleccionada={setPlantillaSeleccionada}
                             onAplicarPlantilla={() => aplicarPlantilla(plantillaSeleccionada!, Array.from(seleccion))}
                             onLimpiarPlantillas={() => limpiarPlantillas(Array.from(seleccion))}
                             seleccion={seleccion}
-                            previewMode={previewMode}
-                            setPreviewMode={setPreviewMode}
                         />
-
                     </div>
 
                     {/* Panel derecho: Grid de plazas */}
                     <div className="xl:col-span-3">
-                        <Card>
-                            <CardHeader>
+                        <Card className="h-full">
+                            <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center justify-between">
                                     <span>
-                                        {zonaActual ? `Zona: ${zonaActual.zona_nombre}` : 'Selecciona una zona'}
+                                        {zonaActual ? `Zona: ${zonaActual.zona_nombre}` : 'Visualización de la Zona'}
                                     </span>
                                     <div className="flex gap-2">
                                         {acciones.length > 0 && (
@@ -566,39 +548,35 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                                     </div>
                                 </CardTitle>
                                 <CardDescription>
-                                    {zonaActual ? (
+                                    {zonaActual && (
                                         <>
                                             Grid: {zonaActual.grid.rows} × {zonaActual.grid.cols} plazas
                                             {seleccion.size > 0 && (
-                                                <span className="ml-2 text-blue-600">
+                                                <span className="ml-2 text-blue-600 dark:text-blue-400">
                                                     • {seleccion.size} plazas seleccionadas
                                                 </span>
                                             )}
                                             {acciones.length > 0 && (
-                                                <span className="ml-2 text-orange-600">
+                                                <span className="ml-2 text-orange-600 dark:text-orange-400">
                                                     • {acciones.length} cambios pendientes
                                                 </span>
                                             )}
                                         </>
-                                    ) : (
-                                        'Selecciona una zona para comenzar'
                                     )}
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="flex justify-center">
+                            <CardContent className="flex justify-center pb-6">
                                 {zonaActual ? (
                                     <PlazasGrid
                                         zona={zonaActual}
                                         plazas={plazas}
                                         seleccion={seleccion}
                                         onSeleccionChange={setSeleccion}
-                                        modoSeleccion={modoSeleccion}
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-96 text-muted-foreground">
                                         <div className="text-center">
-                                            <div className="text-6xl mb-4">🏗️</div>
-                                            <p>Selecciona una zona para ver el grid de plazas</p>
+                                            <p>Seleccione una zona para visualizarla</p>
                                         </div>
                                     </div>
                                 )}
@@ -612,4 +590,3 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
 };
 
 export default ConfiguracionAvanzadaPage;
-

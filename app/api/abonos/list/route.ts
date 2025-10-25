@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         // 2. OBTENER PARÁMETROS
         const url = new URL(request.url);
         const estId = url.searchParams.get('est_id');
+        const incluirVencidos = url.searchParams.get('incluir_vencidos') === 'true';
 
         if (!estId) {
             return NextResponse.json(
@@ -46,8 +47,8 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // 3. OBTENER ABONOS ACTIVOS DEL ESTACIONAMIENTO
-        const { data: abonosData, error: abonosError } = await supabase
+        // 3. OBTENER ABONOS DEL ESTACIONAMIENTO (activos o todos según el parámetro)
+        let query = supabase
             .from('abonos')
             .select(`
                 abo_nro,
@@ -70,9 +71,14 @@ export async function GET(request: NextRequest) {
                     pla_zona
                 )
             `)
-            .eq('est_id', estId)
-            .eq('abo_estado', 'activo')
-            .order('abo_fecha_fin', { ascending: true });
+            .eq('est_id', estId);
+
+        // Solo filtrar por activo si NO se solicitan los vencidos
+        if (!incluirVencidos) {
+            query = query.eq('abo_estado', 'activo');
+        }
+
+        const { data: abonosData, error: abonosError } = await query.order('abo_fecha_fin', { ascending: true });
 
         if (abonosError) {
             console.error('Error obteniendo abonos:', abonosError);
@@ -92,12 +98,13 @@ export async function GET(request: NextRequest) {
 
             // Calcular días restantes
             const diffTime = fechaFin.getTime() - hoy.getTime();
-            const diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            let diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
             // Determinar estado
             let estado: 'Activo' | 'Por vencer' | 'Vencido';
             if (diasRestantes < 0) {
                 estado = 'Vencido';
+                diasRestantes = 0; // Los vencidos muestran 0 días restantes
             } else if (diasRestantes <= 14) {
                 estado = 'Por vencer';
             } else {
