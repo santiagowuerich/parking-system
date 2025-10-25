@@ -519,7 +519,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center justify-between">
                                     <span>
-                                        {zonaActual ? `Zona: ${zonaActual.zona_nombre}` : 'Selecciona una zona'}
+                                        {zonaActual ? `Zona: ${zonaActual.zona_nombre}` : 'Visualización de la Zona'}
                                     </span>
                                     <div className="flex gap-2">
                                         {acciones.length > 0 && (
@@ -548,7 +548,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                                     </div>
                                 </CardTitle>
                                 <CardDescription>
-                                    {zonaActual ? (
+                                    {zonaActual && (
                                         <>
                                             Grid: {zonaActual.grid.rows} × {zonaActual.grid.cols} plazas
                                             {seleccion.size > 0 && (
@@ -562,8 +562,6 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                                                 </span>
                                             )}
                                         </>
-                                    ) : (
-                                        'Selecciona una zona para comenzar'
                                     )}
                                 </CardDescription>
                             </CardHeader>
@@ -578,8 +576,7 @@ const ConfiguracionAvanzadaPage: React.FC = () => {
                                 ) : (
                                     <div className="flex items-center justify-center h-96 text-muted-foreground">
                                         <div className="text-center">
-                                            <div className="text-6xl mb-4">🏗️</div>
-                                            <p>Selecciona una zona para ver el grid de plazas</p>
+                                            <p>Seleccione una zona para visualizarla</p>
                                         </div>
                                     </div>
                                 )}
