@@ -6,6 +6,8 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
     Table,
     TableBody,
@@ -40,23 +42,19 @@ export default function GestionAbonosPage() {
     const [abonos, setAbonos] = useState<Abono[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortByExpiry, setSortByExpiry] = useState(false);
+    const [mostrarVencidos, setMostrarVencidos] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const [abonoDialog, setAbonoDialog] = useState<any | null>(null);
     const [abonoDetailDialog, setAbonoDetailDialog] = useState<any | null>(null);
     const [vehiculosDialog, setVehiculosDialog] = useState<number | null>(null);
 
-    useEffect(() => {
-        if (estId) {
-            cargarAbonos();
-        }
-    }, [estId]);
-
+    // Función para cargar abonos
     const cargarAbonos = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/abonos/list?est_id=${estId}`);
+            const url = `/api/abonos/list?est_id=${estId}&incluir_vencidos=${mostrarVencidos}`;
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
@@ -71,7 +69,14 @@ export default function GestionAbonosPage() {
         }
     };
 
-    // Filtrar abonos por búsqueda
+    // Cargar abonos cuando cambia el estId o mostrarVencidos
+    useEffect(() => {
+        if (estId) {
+            cargarAbonos();
+        }
+    }, [estId, mostrarVencidos]);
+
+    // Filtrar abonos por búsqueda (el filtro de vencidos ya lo hace la API)
     const abonosFiltrados = abonos.filter(abono => {
         const searchLower = searchTerm.toLowerCase();
         return (
@@ -81,10 +86,18 @@ export default function GestionAbonosPage() {
         );
     });
 
-    // Ordenar por proximidad a vencer si está activado
-    const abonosOrdenados = sortByExpiry
-        ? [...abonosFiltrados].sort((a, b) => a.dias_restantes - b.dias_restantes)
-        : abonosFiltrados;
+    // Ordenar: SIEMPRE activos primero (por proximidad a vencer), luego vencidos
+    const abonosOrdenados = [...abonosFiltrados].sort((a, b) => {
+        // Primero: separar activos de vencidos
+        const aVencido = a.estado === 'Vencido';
+        const bVencido = b.estado === 'Vencido';
+
+        if (aVencido && !bVencido) return 1;  // a vencido va después
+        if (!aVencido && bVencido) return -1; // b vencido va después
+
+        // Dentro de cada grupo, ordenar por días restantes (proximidad a vencer)
+        return a.dias_restantes - b.dias_restantes;
+    });
 
     // Paginación
     const totalPages = Math.ceil(abonosOrdenados.length / itemsPerPage);
@@ -143,29 +156,22 @@ export default function GestionAbonosPage() {
 
                         <Card>
                             <CardHeader>
-                                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                                    <div className="flex-1 w-full sm:w-auto">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                            <Input
-                                                placeholder="Buscar por DNI, correo..."
-                                                value={searchTerm}
-                                                onChange={(e) => {
-                                                    setSearchTerm(e.target.value);
-                                                    setCurrentPage(1);
-                                                }}
-                                                className="pl-10"
-                                            />
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                                        <div className="flex-1 w-full sm:w-auto">
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                                <Input
+                                                    placeholder="Buscar por DNI, correo..."
+                                                    value={searchTerm}
+                                                    onChange={(e) => {
+                                                        setSearchTerm(e.target.value);
+                                                        setCurrentPage(1);
+                                                    }}
+                                                    className="pl-10"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex gap-2 w-full sm:w-auto">
-                                        <Button
-                                            variant={sortByExpiry ? "default" : "outline"}
-                                            onClick={() => setSortByExpiry(!sortByExpiry)}
-                                            className="flex-1 sm:flex-none"
-                                        >
-                                            {sortByExpiry ? "✓ " : ""}Ordenar por proximidad a vencer
-                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={cargarAbonos}
@@ -177,6 +183,24 @@ export default function GestionAbonosPage() {
                                                 <RefreshCw className="h-4 w-4" />
                                             )}
                                         </Button>
+                                    </div>
+
+                                    {/* Checkbox para mostrar vencidos */}
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="mostrar-vencidos"
+                                            checked={mostrarVencidos}
+                                            onCheckedChange={(checked) => {
+                                                setMostrarVencidos(checked as boolean);
+                                                setCurrentPage(1);
+                                            }}
+                                        />
+                                        <Label
+                                            htmlFor="mostrar-vencidos"
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                        >
+                                            Mostrar abonos vencidos
+                                        </Label>
                                     </div>
                                 </div>
                             </CardHeader>
