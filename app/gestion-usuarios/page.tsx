@@ -255,27 +255,36 @@ export default function GestionUsuariosPage() {
 
         setSaving(true);
 
-        const empleadoData = {
+        const baseEmpleadoData = {
             nombre: usuarioSeleccionado.nombre || '',
             apellido: usuarioSeleccionado.apellido || '',
             dni: usuarioSeleccionado.dni || '',
             email: usuarioSeleccionado.email || '',
             estado: usuarioSeleccionado.estado || 'Activo',
-            contrasena: contrasenaTemporal,
             est_id: estId!, // Solo disponible para dueños, por lo tanto nunca null
             disponibilidad: usuarioSeleccionado.disponibilidad || []
         };
 
-        console.log('📤 Datos que se van a enviar al backend:', JSON.stringify(empleadoData, null, 2));
         console.log('🔍 Estado del contexto:', { userRole, estId, contrasenaTemporal, usuarioSeleccionado });
 
         let result;
         if (usuarioSeleccionado.usu_id) {
-            // Actualizar
-            result = await actualizarEmpleado(empleadoData);
+            const payloadActualizacion = {
+                ...baseEmpleadoData,
+                usu_id: usuarioSeleccionado.usu_id,
+                ...(contrasenaTemporal ? { contrasena: contrasenaTemporal } : {})
+            };
+
+            console.log('[empleados] Payload actualizacion:', JSON.stringify(payloadActualizacion, null, 2));
+            result = await actualizarEmpleado(payloadActualizacion);
         } else {
-            // Crear
-            result = await crearEmpleado(empleadoData);
+            const payloadCreacion = {
+                ...baseEmpleadoData,
+                contrasena: contrasenaTemporal
+            };
+
+            console.log('[empleados] Payload creacion:', JSON.stringify(payloadCreacion, null, 2));
+            result = await crearEmpleado(payloadCreacion);
         }
 
         if (result.success) {
@@ -617,6 +626,7 @@ export default function GestionUsuariosPage() {
                                     id="dni"
                                     value={usuarioSeleccionado.dni || ''}
                                     onChange={(e) => setUsuarioSeleccionado(prev => ({ ...prev, dni: e.target.value }))}
+                                    disabled={!!usuarioSeleccionado.usu_id}
                                     placeholder="12345678"
                                     className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
                                 />
