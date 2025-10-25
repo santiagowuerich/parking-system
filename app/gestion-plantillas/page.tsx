@@ -571,108 +571,116 @@ export default function GestionPlantillasPage() {
                 {/* Tabla de Plantillas */}
                 <Card className="dark:bg-zinc-900 dark:border-zinc-800">
                     <CardContent className="pt-6">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="dark:border-zinc-800">
-                                    <TableHead className="dark:text-zinc-400">Nombre</TableHead>
-                                    <TableHead className="dark:text-zinc-400">Vehículo</TableHead>
-                                    <TableHead className="dark:text-zinc-400">Techo</TableHead>
-                                    <TableHead className="dark:text-zinc-400">Seguridad</TableHead>
-                                    <TableHead className="dark:text-zinc-400">Conectividad</TableHead>
-                                    <TableHead className="text-right dark:text-zinc-400">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {plantillas.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
-                                            No hay plantillas creadas. Haz clic en "Crear Plantilla" para comenzar.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    plantillas.map((plantilla) => (
-                                        <TableRow key={plantilla.plantilla_id} className="dark:border-zinc-800">
-                                            <TableCell className="dark:text-zinc-100 font-medium">
-                                                {plantilla.nombre_plantilla}
-                                            </TableCell>
-                                            <TableCell className="dark:text-zinc-100">
-                                                {getVehicleDisplayValue(plantilla.catv_segmento)}
-                                            </TableCell>
-                                            <TableCell className="dark:text-zinc-100">
-                                                {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
-                                                    <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                        {valor}
-                                                    </span>
-                                                )) || <span className="text-gray-400 italic">-</span>}
-                                            </TableCell>
-                                            <TableCell className="dark:text-zinc-100">
-                                                {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
-                                                    <span key={idx} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                        {valor}
-                                                    </span>
-                                                )) || <span className="text-gray-400 italic">-</span>}
-                                            </TableCell>
-                                            <TableCell className="dark:text-zinc-100">
-                                                {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
-                                                    <span key={idx} className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                        {valor}
-                                                    </span>
-                                                )) || <span className="text-gray-400 italic">-</span>}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleEditTemplate(plantilla)}
-                                                                className="gap-1 bg-blue-600 text-white hover:bg-blue-700"
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                                <span className="text-sm font-medium">Editar</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="top">
-                                                            Editar plantilla
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleEditTarifas(plantilla)}
-                                                                className="gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                                                            >
-                                                                <CircleDollarSign className="h-4 w-4" />
-                                                                <span className="text-sm font-medium">Tarifas</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="top">
-                                                            Editar tarifas
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
-                                                                className="gap-1 bg-red-600 text-white hover:bg-red-700"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                                <span className="text-sm font-medium">Eliminar</span>
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="top">
-                                                            Eliminar plantilla
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
+                        <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                            <table className="w-full bg-white border-collapse">
+                                <thead>
+                                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Nombre</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Vehículo</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Techo</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Seguridad</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Conectividad</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {plantillas.length === 0 ? (
+                                        <tr className="bg-white">
+                                            <td colSpan={6} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                                No hay plantillas creadas. Haz clic en "Crear Plantilla" para comenzar.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        plantillas.map((plantilla) => (
+                                            <tr key={plantilla.plantilla_id} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium">
+                                                    {plantilla.nombre_plantilla}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    {getVehicleDisplayValue(plantilla.catv_segmento)}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
+                                                        <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                            {valor}
+                                                        </span>
+                                                    )) || <span className="text-gray-400 italic">-</span>}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
+                                                        <span key={idx} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                            {valor}
+                                                        </span>
+                                                    )) || <span className="text-gray-400 italic">-</span>}
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
+                                                    {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
+                                                        <span key={idx} className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs mr-1 mb-1">
+                                                            {valor}
+                                                        </span>
+                                                    )) || <span className="text-gray-400 italic">-</span>}
+                                                </td>
+                                                <td className="py-4 px-4 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleEditTemplate(plantilla)}
+                                                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded px-2 py-1"
+                                                                    title="Editar plantilla"
+                                                                >
+                                                                    <Edit className="h-4 w-4 mr-1" />
+                                                                    <span className="text-xs font-medium">Editar</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top">
+                                                                Editar plantilla
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleEditTarifas(plantilla)}
+                                                                    className="text-green-600 hover:text-green-800 hover:bg-green-50 border border-transparent hover:border-green-200 rounded px-2 py-1"
+                                                                    title="Editar tarifas"
+                                                                >
+                                                                    <CircleDollarSign className="h-4 w-4 mr-1" />
+                                                                    <span className="text-xs font-medium">Tarifas</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top">
+                                                                Editar tarifas
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => plantilla.plantilla_id && handleDeleteTemplate(plantilla.plantilla_id)}
+                                                                    className="text-red-600 hover:text-red-800 hover:bg-red-50 border border-transparent hover:border-red-200 rounded px-2 py-1"
+                                                                    title="Eliminar plantilla"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                                    <span className="text-xs font-medium">Eliminar</span>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top">
+                                                                Eliminar plantilla
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
