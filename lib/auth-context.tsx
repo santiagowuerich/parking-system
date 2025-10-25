@@ -679,18 +679,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         } else {
-          console.log(`✅ Usuario ya tiene estacionamiento: ${checkData.est_id}`);
-          // Actualizar el estId con el estacionamiento existente
-          console.log(`🔄 Asignando estId: ${checkData.est_id}`);
-          setEstId(checkData.est_id);
+          console.log(`✅ Usuario ya tiene estacionamiento(s)`);
 
-          // También verificar desde localStorage como fallback
+          // Primero verificar si hay algo en localStorage
+          let estIdToUse = checkData.est_id; // Default al primero
+
           if (typeof window !== 'undefined') {
             const savedEstId = localStorage.getItem('parking_est_id');
-            if (savedEstId && parseInt(savedEstId) !== checkData.est_id) {
-              console.log(`🔄 Actualizando localStorage de est_id ${savedEstId} a ${checkData.est_id}`);
-              localStorage.setItem('parking_est_id', String(checkData.est_id));
+            if (savedEstId) {
+              const savedEstIdNum = parseInt(savedEstId);
+              // Verificar que el estId guardado sea válido para este usuario
+              const isValid = checkData.estacionamientos?.some((e: any) => e.est_id === savedEstIdNum);
+              if (isValid) {
+                console.log(`✅ Usando estId de localStorage: ${savedEstIdNum}`);
+                estIdToUse = savedEstIdNum;
+              } else {
+                console.log(`⚠️ EstId en localStorage ${savedEstIdNum} no es válido, usando ${checkData.est_id}`);
+              }
             }
+          }
+
+          console.log(`🔄 Asignando estId: ${estIdToUse}`);
+          setEstId(estIdToUse);
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('parking_est_id', String(estIdToUse));
           }
         }
       }
@@ -738,13 +751,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const ownerResponse = await fetch('/api/auth/get-parking-id');
           if (ownerResponse.ok) {
             const ownerData = await ownerResponse.json();
-            if (ownerData && ownerData.has_parking && ownerData.est_id) {
-              console.log(`✅ Usuario es DUEÑO de estacionamiento: ${ownerData.est_id}`);
-              validEstIds.push(ownerData.est_id);
+            if (ownerData && ownerData.has_parking) {
+              console.log(`✅ Usuario es DUEÑO de estacionamiento(s)`);
 
               // Si la respuesta incluye múltiples estacionamientos, agregarlos todos
-              if (ownerData.estacionamiento_ids && Array.isArray(ownerData.estacionamiento_ids)) {
-                validEstIds = [...new Set([...validEstIds, ...ownerData.estacionamiento_ids])];
+              if (ownerData.estacionamientos && Array.isArray(ownerData.estacionamientos)) {
+                validEstIds = ownerData.estacionamientos.map((e: any) => e.est_id);
+                console.log(`📋 Estacionamientos del dueño: [${validEstIds.join(', ')}]`);
+              } else if (ownerData.est_id) {
+                // Fallback por si solo devuelve un ID
+                validEstIds.push(ownerData.est_id);
               }
             }
           }
@@ -828,7 +844,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setParkingHistory(null);
       setParkingCapacity(null);
     }
-  }, [user?.id, userRole, roleLoading, estId]);
+  }, [user?.id, userRole, roleLoading]); // 🔧 REMOVIDO estId de las dependencias para permitir cambios manuales
 
 
   // Función para obtener el rol del usuario
