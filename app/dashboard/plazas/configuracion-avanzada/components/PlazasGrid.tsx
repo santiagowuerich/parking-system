@@ -32,18 +32,17 @@ interface PlazasGridProps {
     plazas: Map<number, Plaza>;
     seleccion: Set<number>;
     onSeleccionChange: (seleccion: Set<number>) => void;
-    modoSeleccion: 'individual' | 'rango' | 'fila' | 'columna';
 }
 
 export const PlazasGrid: React.FC<PlazasGridProps> = ({
     zona,
     plazas,
     seleccion,
-    onSeleccionChange,
-    modoSeleccion
+    onSeleccionChange
 }) => {
     const [seleccionInicial, setSeleccionInicial] = useState<number | null>(null);
     const [arrastrando, setArrastrando] = useState(false);
+    const [mouseMovido, setMouseMovido] = useState(false);
 
     // Función para obtener el color según la plantilla
     const getPlazaColor = useCallback((plaza: Plaza | undefined) => {
@@ -86,53 +85,22 @@ export const PlazasGrid: React.FC<PlazasGridProps> = ({
         return texto;
     }, []);
 
-    // Función para calcular la posición de una plaza en el grid
-    const getPlazaPosition = useCallback((plazaNumero: number) => {
-        const { rows, cols, numbering } = zona.grid;
-
-        if (numbering === 'ROW_MAJOR') {
-            // Numeración por filas: 1,2,3... en fila 1; 4,5,6... en fila 2
-            const row = Math.floor((plazaNumero - 1) / cols);
-            const col = (plazaNumero - 1) % cols;
-            return { row, col };
-        } else {
-            // Numeración por columnas: 1,4,7... en columna 1; 2,5,8... en columna 2
-            const col = Math.floor((plazaNumero - 1) / rows);
-            const row = (plazaNumero - 1) % rows;
-            return { row, col };
-        }
-    }, [zona.grid]);
-
-    // Función para manejar el clic en una plaza
+    // Función para manejar el clic en una plaza (modo toggle siempre activo)
     const handlePlazaClick = useCallback((plazaNumero: number, event: React.MouseEvent) => {
         event.preventDefault();
 
-        if (modoSeleccion === 'individual') {
-            // Selección individual con Ctrl para múltiple
-            if (event.ctrlKey || event.metaKey) {
-                const nuevaSeleccion = new Set(seleccion);
-                if (nuevaSeleccion.has(plazaNumero)) {
-                    nuevaSeleccion.delete(plazaNumero);
-                } else {
-                    nuevaSeleccion.add(plazaNumero);
-                }
-                onSeleccionChange(nuevaSeleccion);
-            } else {
-                // Selección simple (reemplaza selección anterior)
-                onSeleccionChange(new Set([plazaNumero]));
-            }
-        } else if (modoSeleccion === 'rango') {
-            // Selección por rango
-            if (!seleccionInicial) {
-                setSeleccionInicial(plazaNumero);
-                onSeleccionChange(new Set([plazaNumero]));
-            } else {
-                // Calcular rango entre selección inicial y actual
-                const rango = calcularRangoPlazas(seleccionInicial, plazaNumero);
-                onSeleccionChange(new Set(rango));
-            }
+        // Solo hacer toggle si NO hubo movimiento del mouse (no fue arrastre)
+        if (mouseMovido) return;
+
+        // Modo toggle: si está seleccionada, deseleccionar; si no, seleccionar
+        const nuevaSeleccion = new Set(seleccion);
+        if (nuevaSeleccion.has(plazaNumero)) {
+            nuevaSeleccion.delete(plazaNumero);
+        } else {
+            nuevaSeleccion.add(plazaNumero);
         }
-    }, [seleccion, onSeleccionChange, modoSeleccion, seleccionInicial]);
+        onSeleccionChange(nuevaSeleccion);
+    }, [seleccion, onSeleccionChange, mouseMovido]);
 
     // Función para calcular rango de plazas
     const calcularRangoPlazas = useCallback((inicio: number, fin: number) => {
@@ -150,25 +118,32 @@ export const PlazasGrid: React.FC<PlazasGridProps> = ({
     }, [plazas]);
 
     // Función para manejar el inicio del arrastre
-    const handleMouseDown = useCallback((plazaNumero: number) => {
-        if (modoSeleccion === 'rango') {
-            setSeleccionInicial(plazaNumero);
-            setArrastrando(true);
-        }
-    }, [modoSeleccion]);
+    const handleMouseDown = useCallback((plazaNumero: number, event: React.MouseEvent) => {
+        event.preventDefault();
+        setSeleccionInicial(plazaNumero);
+        setMouseMovido(false); // Resetear el flag de movimiento
+        // NO activar arrastrando aquí, esperar al movimiento del mouse
+    }, []);
 
     // Función para manejar el movimiento del mouse durante el arrastre
     const handleMouseEnter = useCallback((plazaNumero: number) => {
-        if (arrastrando && modoSeleccion === 'rango' && seleccionInicial) {
+        if (seleccionInicial !== null && seleccionInicial !== plazaNumero) {
+            // Si hay selección inicial y nos movemos a otra plaza, activar arrastre
+            if (!arrastrando) {
+                setArrastrando(true);
+                setMouseMovido(true);
+            }
             const rango = calcularRangoPlazas(seleccionInicial, plazaNumero);
             onSeleccionChange(new Set(rango));
         }
-    }, [arrastrando, modoSeleccion, seleccionInicial, calcularRangoPlazas, onSeleccionChange]);
+    }, [seleccionInicial, arrastrando, calcularRangoPlazas, onSeleccionChange]);
 
     // Función para manejar el fin del arrastre
     const handleMouseUp = useCallback(() => {
         setArrastrando(false);
         setSeleccionInicial(null);
+        // Resetear mouseMovido después de un pequeño delay para permitir que el click se procese
+        setTimeout(() => setMouseMovido(false), 10);
     }, []);
 
     // Crear el grid de plazas
@@ -196,21 +171,28 @@ export const PlazasGrid: React.FC<PlazasGridProps> = ({
                             <TooltipTrigger asChild>
                                 <div
                                     className={`
-                                        w-6 h-6 border rounded cursor-pointer transition-all duration-150
-                                        flex items-center justify-center text-[10px] font-medium
-                                        hover:scale-110 hover:shadow-sm
+                                        relative w-12 h-12 rounded cursor-pointer transition-all duration-150
+                                        flex items-center justify-center text-sm font-semibold
+                                        hover:scale-105 hover:shadow-md
                                         ${colorClass}
-                                        ${isSelected ? 'ring-1 ring-blue-500 ring-offset-1' : ''}
+                                        ${isSelected
+                                            ? 'border-4 border-blue-600 dark:border-blue-400 shadow-lg scale-105'
+                                            : 'border-2'
+                                        }
                                         ${!plaza ? 'opacity-50' : ''}
                                     `}
                                     onClick={(e) => handlePlazaClick(plazaNumero, e)}
-                                    onMouseDown={() => handleMouseDown(plazaNumero)}
+                                    onMouseDown={(e) => handleMouseDown(plazaNumero, e)}
                                     onMouseEnter={() => handleMouseEnter(plazaNumero)}
                                     onMouseUp={handleMouseUp}
                                 >
                                     {plazaNumero}
                                     {isSelected && (
-                                        <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
+                                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-600 dark:bg-blue-400 rounded-full border-2 border-white shadow-md flex items-center justify-center">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
                                     )}
                                 </div>
                             </TooltipTrigger>
@@ -230,30 +212,30 @@ export const PlazasGrid: React.FC<PlazasGridProps> = ({
 
     // Leyenda de colores
     const renderLeyenda = () => (
-        <div className="flex flex-wrap gap-2 mt-4 p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                <span className="text-xs">Sin plantilla</span>
+        <div className="flex flex-wrap gap-3 mt-4 p-4 bg-gray-50 dark:bg-zinc-900 rounded-lg border dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-gray-100 border-2 border-gray-300 rounded"></div>
+                <span className="text-sm">Sin plantilla</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-blue-200 border border-blue-400 rounded"></div>
-                <span className="text-xs">Auto</span>
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-blue-200 border-2 border-blue-400 rounded"></div>
+                <span className="text-sm">Auto</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-green-200 border border-green-400 rounded"></div>
-                <span className="text-xs">Moto</span>
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-green-200 border-2 border-green-400 rounded"></div>
+                <span className="text-sm">Moto</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-purple-200 border border-purple-400 rounded"></div>
-                <span className="text-xs">Camioneta</span>
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-purple-200 border-2 border-purple-400 rounded"></div>
+                <span className="text-sm">Camioneta</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-red-200 border border-red-400 rounded"></div>
-                <span className="text-xs">Ocupada</span>
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-red-200 border-2 border-red-400 rounded"></div>
+                <span className="text-sm">Ocupada</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-yellow-200 border border-yellow-400 rounded"></div>
-                <span className="text-xs">Reservada</span>
+            <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-yellow-200 border-2 border-yellow-400 rounded"></div>
+                <span className="text-sm">Reservada</span>
             </div>
         </div>
     );
@@ -262,30 +244,17 @@ export const PlazasGrid: React.FC<PlazasGridProps> = ({
         <div className="space-y-4">
             {/* Grid de plazas */}
             <div
-                className="grid gap-0.5 p-3 bg-white border rounded-lg overflow-auto max-h-[400px]"
+                className="grid gap-1 p-6 bg-white dark:bg-zinc-950 border rounded-lg overflow-auto"
                 style={{
-                    gridTemplateColumns: `repeat(${zona.grid.cols}, 24px)`,
-                    gridTemplateRows: `repeat(${zona.grid.rows}, 24px)`,
+                    gridTemplateColumns: `repeat(${zona.grid.cols}, 48px)`,
+                    gridTemplateRows: `repeat(${zona.grid.rows}, 48px)`,
                     width: 'fit-content',
-                    margin: '0 auto'
+                    margin: '0 auto',
+                    maxHeight: 'calc(100vh - 300px)'
                 }}
+                onMouseLeave={handleMouseUp}
             >
                 {renderGrid()}
-            </div>
-
-            {/* Información del modo de selección */}
-            <div className="text-sm text-muted-foreground">
-                <Badge variant="outline" className="mr-2">
-                    Modo: {modoSeleccion === 'individual' ? 'Individual' :
-                        modoSeleccion === 'rango' ? 'Rango' :
-                            modoSeleccion === 'fila' ? 'Por fila' : 'Por columna'}
-                </Badge>
-                {modoSeleccion === 'individual' && (
-                    <span>Mantén Ctrl para selección múltiple</span>
-                )}
-                {modoSeleccion === 'rango' && (
-                    <span>Arrastra para seleccionar rango</span>
-                )}
             </div>
 
             {/* Leyenda */}
