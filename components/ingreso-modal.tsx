@@ -66,6 +66,7 @@ interface IngresoModalProps {
   tarifas?: Tarifa[]
   availablePlazas?: PlazaCompleta[]
   onPlazaChange?: (plantillaId: number | null) => Promise<Tarifa[]>
+  reserva?: any | null // ReservaConDetalles - NUEVO para reservas
 }
 
 const mapearTipoVehiculo = (segmento: string): VehicleType => {
@@ -85,7 +86,8 @@ export default function IngresoModal({
   loading = false,
   tarifas = [],
   availablePlazas = [],
-  onPlazaChange
+  onPlazaChange,
+  reserva = null
 }: IngresoModalProps) {
   const [licensePlate, setLicensePlate] = useState("")
   const [vehicleType, setVehicleType] = useState<VehicleType>("Auto")
@@ -97,6 +99,9 @@ export default function IngresoModal({
 
   const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
 
+  // Estados para manejo de reservas
+  const [selectedReservaVehicle, setSelectedReservaVehicle] = useState<string>("")
+
   // Verificación de turno activo
   const { puedeOperar, isEmployee } = useTurnos()
   const abonoSource = matchedAbonoPlaza?.abono || plaza?.abono || null
@@ -106,6 +111,14 @@ export default function IngresoModal({
     );
   }, [abonoSource])
   const isAbono = abonoVehicles.length > 0
+
+  // Lógica para reservas
+  const reservaVehicles = useMemo(() => {
+    return (reserva?.vehiculos || []).filter(
+      (vehiculo: any) => Boolean(vehiculo?.veh_patente)
+    );
+  }, [reserva])
+  const isReserva = Boolean(reserva && reservaVehicles.length > 0)
 
   const computeDefaultTariff = () => {
     let defaultModality = "Hora"
@@ -180,6 +193,37 @@ export default function IngresoModal({
     }
   }
 
+  // Handler para selección de vehículos de reserva
+  const handleReservaVehicleSelect = (value: string) => {
+    const normalized = value.toUpperCase()
+    setSelectedReservaVehicle(normalized)
+    setLicensePlate(normalized)
+
+    const vehiculoSeleccionado = reservaVehicles.find(
+      (v: any) => v.veh_patente?.toUpperCase() === normalized
+    )
+
+    if (vehiculoSeleccionado?.catv_segmento) {
+      const tipoVehiculo = mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento)
+      const tipoPlaza = mapearTipoVehiculo(plaza?.catv_segmento || 'AUT')
+
+      // Validar que el tipo de vehículo coincida con la plaza
+      if (tipoVehiculo !== tipoPlaza) {
+        toast({
+          variant: "destructive",
+          title: "Tipo de vehículo incompatible",
+          description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}`
+        })
+        // Revertir selección
+        setSelectedReservaVehicle("")
+        setLicensePlate("")
+        return
+      }
+
+      setVehicleType(tipoVehiculo)
+    }
+  }
+
   // Verificar turno activo al abrir modal (solo para empleados)
   useEffect(() => {
     if (isOpen && isEmployee && !puedeOperar()) {
@@ -196,12 +240,29 @@ export default function IngresoModal({
   useEffect(() => {
     if (!isOpen) {
       setSelectedZona(""); // Reset zona cuando se cierra
+      setSelectedReservaVehicle(""); // Reset reserva vehicle
       return;
     }
 
     setMatchedAbonoPlaza(null)
 
-    if (plaza?.abono) {
+    // Inicializar para RESERVAS
+    if (reserva && reservaVehicles.length > 0) {
+      const defaultVehicle = reservaVehicles.find((v: any) => v.veh_patente === reserva.veh_patente)
+        || reservaVehicles[0]
+      const defaultPlate = defaultVehicle?.veh_patente?.toUpperCase() || ""
+      setSelectedReservaVehicle(defaultPlate)
+      setLicensePlate(defaultPlate)
+
+      const segmentoPreferido = defaultVehicle?.catv_segmento || plaza?.catv_segmento || 'AUT'
+      setVehicleType(mapearTipoVehiculo(segmentoPreferido))
+
+      setSelectedPlaza(plaza?.pla_numero ?? null)
+      setSelectedModality("Hora") // Las reservas usan tarifa normal
+      setAgreedPrice(reserva.res_monto || 0)
+    }
+    // Inicializar para ABONOS
+    else if (plaza?.abono) {
       const defaultVehicle = plaza.abono.vehiculos?.[0]
       const defaultPlate = defaultVehicle?.veh_patente?.toUpperCase() || ""
       setSelectedAbonoVehicle(defaultPlate)
@@ -213,8 +274,11 @@ export default function IngresoModal({
       setSelectedPlaza(plaza.pla_numero ?? null)
       setSelectedModality("Abono")
       setAgreedPrice(0)
-    } else {
+    }
+    // Inicializar para INGRESO NORMAL
+    else {
       setSelectedAbonoVehicle("")
+      setSelectedReservaVehicle("")
       setLicensePlate("")
 
       if (plaza) {
@@ -234,22 +298,22 @@ export default function IngresoModal({
         setAgreedPrice(0)
       }
     }
-  }, [isOpen, plaza])
+  }, [isOpen, plaza, reserva])
 
   // Update selected plaza when vehicle type changes
   useEffect(() => {
-    if (isAbono) return
+    if (isAbono || isReserva) return
 
     // Solo resetear la plaza si no hay una plaza preseleccionada
     // o si la plaza preseleccionada no es compatible con el nuevo tipo de vehículo
     if (!plaza || mapearTipoVehiculo(plaza.catv_segmento) !== vehicleType) {
       setSelectedPlaza(null)
     }
-  }, [vehicleType, plaza, isAbono])
+  }, [vehicleType, plaza, isAbono, isReserva])
 
   // Update price when modality changes
   useEffect(() => {
-    if (isAbono) return
+    if (isAbono || isReserva) return
 
     if (tarifas && tarifas.length > 0) {
       // Buscar tarifa por nombre exacto o por coincidencia parcial
@@ -263,7 +327,7 @@ export default function IngresoModal({
 
   // Load tariffs when plaza changes
   useEffect(() => {
-    if (isAbono || !selectedPlaza || !onPlazaChange) return
+    if (isAbono || isReserva || !selectedPlaza || !onPlazaChange) return
 
     const plazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
     if (!plazaData) return
@@ -355,7 +419,9 @@ export default function IngresoModal({
 
   const isFormValid = isAbono
     ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0
-    : licensePlate.trim().length > 0 && selectedPlaza !== null
+    : isReserva
+      ? selectedPlaza !== null && selectedReservaVehicle.trim().length > 0
+      : licensePlate.trim().length > 0 && selectedPlaza !== null
   const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
   const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
   const selectedPlazaInfo = matchedAbonoPlaza || selectedPlazaData || plaza || null
@@ -420,7 +486,29 @@ export default function IngresoModal({
             </div>
           )}
 
-          {/* Patente / Vehículos abonados */}
+          {isReserva && reserva && (
+            <div className="p-3 border rounded-lg bg-yellow-50 text-sm space-y-1">
+              <p className="font-semibold text-yellow-700">Plaza reservada</p>
+              <p>
+                <span className="font-medium">Cliente:</span>{" "}
+                {reserva.conductor?.usu_nom} {reserva.conductor?.usu_ape}
+              </p>
+              {reserva.conductor?.usu_tel && (
+                <p>
+                  <span className="font-medium">Teléfono:</span> {reserva.conductor.usu_tel}
+                </p>
+              )}
+              <p>
+                <span className="font-medium">Vehículos habilitados:</span>{" "}
+                {reservaVehicles.map((v: any) => v.veh_patente).join(', ')}
+              </p>
+              <p>
+                <span className="font-medium">Código:</span> {reserva.res_codigo}
+              </p>
+            </div>
+          )}
+
+          {/* Patente / Vehículos abonados / Vehículos de reserva */}
           <div className="space-y-2">
             <Label htmlFor="patente">Patente</Label>
             {isAbono ? (
@@ -432,7 +520,7 @@ export default function IngresoModal({
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar vehículo del abono" />
                   </SelectTrigger>
-                    <SelectContent>
+                  <SelectContent>
                     {!plaza?.abono && matchedAbonoPlaza && (
                       <SelectItem value="__manual__">Ingresar otra patente</SelectItem>
                     )}
@@ -448,6 +536,30 @@ export default function IngresoModal({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Solo se permiten los vehículos asociados al abono.
+                </p>
+              </>
+            ) : isReserva ? (
+              <>
+                <Select
+                  value={selectedReservaVehicle}
+                  onValueChange={handleReservaVehicleSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar vehículo de la reserva" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reservaVehicles.map((vehiculo: any) => (
+                      <SelectItem
+                        key={vehiculo.veh_patente}
+                        value={vehiculo.veh_patente?.toUpperCase() || ''}
+                      >
+                        {vehiculo.veh_patente?.toUpperCase()} - {vehiculo.veh_marca} {vehiculo.veh_modelo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Solo se permiten los vehículos del conductor que hizo la reserva.
                 </p>
               </>
             ) : (
@@ -466,12 +578,12 @@ export default function IngresoModal({
             <Select
               value={vehicleType}
               onValueChange={(value: VehicleType) => {
-                if (!isAbono) {
+                if (!isAbono && !isReserva) {
                   setVehicleType(value)
                 }
               }}
             >
-              <SelectTrigger disabled={!!plaza || isAbono}>
+              <SelectTrigger disabled={!!plaza || isAbono || isReserva}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -480,16 +592,19 @@ export default function IngresoModal({
                 <SelectItem value="Camioneta">🚛 Camioneta</SelectItem>
               </SelectContent>
             </Select>
-            {(plaza || isAbono) && (
+            {(plaza || isAbono || isReserva) && (
               <p className="text-xs text-muted-foreground">Bloqueado: deriva del tipo de la plaza seleccionada</p>
             )}
             {isAbono && (
               <p className="text-xs text-orange-600">Asignado por el abono.</p>
             )}
+            {isReserva && (
+              <p className="text-xs text-yellow-600">Asignado por la reserva.</p>
+            )}
           </div>
 
           {/* Selector de Zona */}
-          {!plaza && !isAbono && zonasDisponibles.length > 1 && (
+          {!plaza && !isAbono && !isReserva && zonasDisponibles.length > 1 && (
             <div className="space-y-2">
               <Label htmlFor="zona-selector">Zona destino</Label>
               <Select value={selectedZona} onValueChange={setSelectedZona}>

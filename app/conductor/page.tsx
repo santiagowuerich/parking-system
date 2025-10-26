@@ -12,22 +12,14 @@ import { useUserRole } from "@/lib/use-user-role";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { VehicleDisplay } from "@/components/vehicle-display";
 import { useVehicle } from "@/lib/contexts/vehicle-context";
+import { CrearReservaDialog } from "@/components/reservas/crear-reserva-dialog";
 
 declare global {
     interface Window {
         centerMapOnUserLocation: () => void;
     }
 }
-import {
-    MapPin,
-    Search,
-    Navigation2,
-    Settings,
-    Filter,
-    Map,
-    Layers,
-    Loader2
-} from "lucide-react";
+import { Calendar, Loader2, Search, MapPin, Navigation2 } from "lucide-react";
 import { HorarioFranja, EstadoApertura } from "@/lib/types/horarios";
 
 interface ParkingData {
@@ -62,6 +54,8 @@ export default function MapaEstacionamientos() {
     const [allParkings, setAllParkings] = useState<ParkingData[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
     const [searchRadius, setSearchRadius] = useState<number>(2); // Radio en km
+    const [reservaDialogOpen, setReservaDialogOpen] = useState(false);
+    const [plazasDisponibles, setPlazasDisponibles] = useState<any[]>([]); // Plazas disponibles para reserva
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
     const { selectedVehicle } = useVehicle();
 
@@ -71,6 +65,33 @@ export default function MapaEstacionamientos() {
             setVehicleTypeFilter(selectedVehicle.tipo);
         }
     }, [selectedVehicle]);
+
+    // Función para obtener plazas disponibles del estacionamiento seleccionado
+    const obtenerPlazasDisponibles = async (estId: number) => {
+        try {
+            const ahora = new Date();
+            const proximaHora = new Date(ahora.getTime() + 60 * 60 * 1000); // 1 hora adelante
+
+            const response = await fetch(`/api/reservas/disponibilidad?est_id=${estId}&fecha_inicio=${proximaHora.toISOString()}&duracion_horas=1`);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                setPlazasDisponibles(result.data.plazas);
+            } else {
+                setPlazasDisponibles([]);
+            }
+        } catch (error) {
+            console.error('Error obteniendo plazas disponibles:', error);
+            setPlazasDisponibles([]);
+        }
+    };
+
+    // Obtener plazas cuando se selecciona un estacionamiento
+    useEffect(() => {
+        if (selectedParking) {
+            obtenerPlazasDisponibles(selectedParking.id);
+        }
+    }, [selectedParking]);
 
     // Función para calcular la distancia entre dos puntos (Haversine formula)
     const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -335,26 +356,36 @@ export default function MapaEstacionamientos() {
                                                     </div>
                                                 </div>
 
-                                                <Button
-                                                    className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
-                                                    onClick={() => {
-                                                        if (selectedParking) {
-                                                            // Crear la URL para Google Maps
-                                                            const address = encodeURIComponent(
-                                                                selectedParking.direccionCompleta || selectedParking.direccion
-                                                            );
-                                                            const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+                                                <div className="flex gap-3">
+                                                    <Button
+                                                        className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
+                                                        onClick={() => {
+                                                            if (selectedParking) {
+                                                                // Crear la URL para Google Maps
+                                                                const address = encodeURIComponent(
+                                                                    selectedParking.direccionCompleta || selectedParking.direccion
+                                                                );
+                                                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
 
-                                                            // Abrir en nueva pestaña
-                                                            window.open(googleMapsUrl, '_blank');
+                                                                // Abrir en nueva pestaña
+                                                                window.open(googleMapsUrl, '_blank');
 
-                                                            console.log('🧭 Navegando a:', selectedParking.nombre, 'en', selectedParking.direccionCompleta || selectedParking.direccion);
-                                                        }
-                                                    }}
-                                                >
-                                                    <Navigation2 className="w-5 h-5 mr-2" />
-                                                    Navegar
-                                                </Button>
+                                                                console.log('🧭 Navegando a:', selectedParking.nombre, 'en', selectedParking.direccionCompleta || selectedParking.direccion);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Navigation2 className="w-5 h-5 mr-2" />
+                                                        Navegar
+                                                    </Button>
+
+                                                    <Button
+                                                        className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                        onClick={() => setReservaDialogOpen(true)}
+                                                    >
+                                                        <Calendar className="w-5 h-5 mr-2" />
+                                                        Reservar
+                                                    </Button>
+                                                </div>
                                             </CardContent>
                                         </Card>
                                     )}
@@ -490,6 +521,20 @@ export default function MapaEstacionamientos() {
 
                 </div>
             </div>
+
+            {/* Dialog para crear reserva */}
+            {selectedParking && (
+                <CrearReservaDialog
+                    open={reservaDialogOpen}
+                    onOpenChange={setReservaDialogOpen}
+                    estacionamiento={{
+                        est_id: selectedParking.id,
+                        est_nombre: selectedParking.nombre
+                    }}
+                    plazasDisponibles={plazasDisponibles}
+                    vehiculoSeleccionado={selectedVehicle}
+                />
+            )}
         </DashboardLayout>
     );
 }

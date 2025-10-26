@@ -18,27 +18,38 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
-        // Verificar que el usuario sea owner del estacionamiento
-        const { data: empleado, error: empleadoError } = await supabase
-            .from('empleados')
-            .select('emp_rol')
-            .eq('user_id', user.id)
-            .eq('est_id', estId)
+        // Buscar el usuario en la tabla tradicional por email
+        const { data: usuarioData, error: usuarioError } = await supabase
+            .from('usuario')
+            .select('usu_id')
+            .eq('usu_email', user.email)
             .single();
 
-        if (empleadoError || !empleado || empleado.emp_rol !== 'owner') {
+        if (usuarioError || !usuarioData) {
+            return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+        }
+
+        // Verificar que el usuario sea dueño del estacionamiento
+        const { data: estacionamiento, error: estError } = await supabase
+            .from('estacionamientos')
+            .select('est_id, due_id')
+            .eq('est_id', estId)
+            .eq('due_id', usuarioData.usu_id)
+            .single();
+
+        if (estError || !estacionamiento) {
             return NextResponse.json({ error: "No tienes permisos para acceder a esta configuración" }, { status: 403 });
         }
 
-        // Obtener configuraciones del estacionamiento
+        // Obtener configuraciones del usuario (user_settings)
         const { data, error } = await supabase
-            .from("estacionamiento_configuraciones")
-            .select("*")
-            .eq("est_id", estId)
+            .from("user_settings")
+            .select("mercadopago_api_key, bank_account_holder, bank_account_cbu, bank_account_alias")
+            .eq("user_id", user.id)
             .maybeSingle();
 
         if (error) {
-            logger.error("Error fetching estacionamiento configuraciones:", error);
+            logger.error("Error fetching user settings:", error);
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
@@ -79,45 +90,84 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 });
         }
 
-        // Verificar que el usuario sea owner del estacionamiento
-        const { data: empleado, error: empleadoError } = await supabase
-            .from('empleados')
-            .select('emp_rol')
-            .eq('user_id', user.id)
-            .eq('est_id', estId)
+        // Buscar el usuario en la tabla tradicional por email
+        const { data: usuarioData, error: usuarioError } = await supabase
+            .from('usuario')
+            .select('usu_id')
+            .eq('usu_email', user.email)
             .single();
 
-        if (empleadoError || !empleado || empleado.emp_rol !== 'owner') {
+        if (usuarioError || !usuarioData) {
+            return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+        }
+
+        // Verificar que el usuario sea dueño del estacionamiento
+        const { data: estacionamiento, error: estError } = await supabase
+            .from('estacionamientos')
+            .select('est_id, due_id')
+            .eq('est_id', estId)
+            .eq('due_id', usuarioData.usu_id)
+            .single();
+
+        if (estError || !estacionamiento) {
             return NextResponse.json({ error: "No tienes permisos para modificar esta configuración" }, { status: 403 });
         }
 
-        // Construir el objeto de datos a actualizar/insertar
-        const dataToUpsert: any = {
-            est_id: estId,
-            updated_at: new Date().toISOString()
-        };
+        // Verificar si existe un registro
+        const { data: existing } = await supabase
+            .from("user_settings")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
 
-        if (mercadopagoApiKey !== undefined) dataToUpsert.mercadopago_api_key = mercadopagoApiKey;
-        if (bankAccountHolder !== undefined) dataToUpsert.bank_account_holder = bankAccountHolder;
-        if (bankAccountCbu !== undefined) dataToUpsert.bank_account_cbu = bankAccountCbu;
-        if (bankAccountAlias !== undefined) dataToUpsert.bank_account_alias = bankAccountAlias;
+        if (existing) {
+            // Update existing record
+            const dataToUpdate: any = {};
+            if (mercadopagoApiKey !== undefined) dataToUpdate.mercadopago_api_key = mercadopagoApiKey;
+            if (bankAccountHolder !== undefined) dataToUpdate.bank_account_holder = bankAccountHolder;
+            if (bankAccountCbu !== undefined) dataToUpdate.bank_account_cbu = bankAccountCbu;
+            if (bankAccountAlias !== undefined) dataToUpdate.bank_account_alias = bankAccountAlias;
 
-        const { error: upsertError } = await supabase
-            .from("estacionamiento_configuraciones")
-            .upsert(dataToUpsert, { onConflict: 'est_id' });
+            logger.info("Updating user_settings with data:", JSON.stringify(dataToUpdate));
 
-        if (upsertError) {
-            logger.error("Error updating estacionamiento configuraciones:", upsertError);
-            return NextResponse.json({ error: upsertError.message }, { status: 500 });
+            const { error: updateError } = await supabase
+                .from("user_settings")
+                .update(dataToUpdate)
+                .eq("user_id", user.id);
+
+            if (updateError) {
+                logger.error("Error updating user settings:", JSON.stringify(updateError));
+                return NextResponse.json({ error: updateError.message }, { status: 500 });
+            }
+        } else {
+            // Insert new record
+            const dataToInsert: any = {
+                user_id: user.id
+            };
+            if (mercadopagoApiKey !== undefined) dataToInsert.mercadopago_api_key = mercadopagoApiKey;
+            if (bankAccountHolder !== undefined) dataToInsert.bank_account_holder = bankAccountHolder;
+            if (bankAccountCbu !== undefined) dataToInsert.bank_account_cbu = bankAccountCbu;
+            if (bankAccountAlias !== undefined) dataToInsert.bank_account_alias = bankAccountAlias;
+
+            logger.info("Inserting user_settings with data:", JSON.stringify(dataToInsert));
+
+            const { error: insertError } = await supabase
+                .from("user_settings")
+                .insert(dataToInsert);
+
+            if (insertError) {
+                logger.error("Error inserting user settings:", JSON.stringify(insertError));
+                return NextResponse.json({ error: insertError.message }, { status: 500 });
+            }
         }
 
         const jsonResponse = NextResponse.json({
             success: true,
-            message: "Configuración del estacionamiento guardada correctamente"
+            message: "Configuración guardada correctamente"
         });
         return copyResponseCookies(response, jsonResponse);
     } catch (err) {
-        logger.error("Unexpected error updating estacionamiento configuraciones:", err);
+        logger.error("Unexpected error updating user settings:", err);
         return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
     }
 }

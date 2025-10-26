@@ -13,7 +13,10 @@
       "Bash(npm run build:components)",
       "Bash(npm install resend)",
       "Bash(npm install resend --legacy-peer-deps)",
-      "Bash(npm uninstall resend --legacy-peer-deps)"
+      "Bash(npm uninstall resend --legacy-peer-deps)",
+      "Bash(git -C \"c:\\Users\\santi\\OneDrive\\Escritorio\\Proyectos\\parqeo\\parking-system\" status)",
+      "Bash(find:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

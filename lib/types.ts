@@ -322,3 +322,234 @@ export interface CrearConductorConAbonoResponseActualizado extends Omit<CrearCon
   };
 }
 
+// ========================================
+// TIPOS PARA SISTEMA DE RESERVAS
+// ========================================
+
+export type EstadoReserva =
+  | 'pendiente_pago'
+  | 'pendiente_confirmacion_operador'
+  | 'confirmada'
+  | 'activa'
+  | 'completada'
+  | 'cancelada'
+  | 'expirada'
+  | 'no_show';
+
+export interface Reserva {
+  est_id: number;
+  pla_numero: number;
+  veh_patente: string;
+  res_fh_ingreso: string;
+  res_fh_fin: string;
+  con_id: number;
+  pag_nro: number | null;
+  res_estado: EstadoReserva;
+  res_monto: number;
+  res_tiempo_gracia_min: number;
+  res_created_at: string;
+  res_codigo: string;
+  metodo_pago?: 'link_pago' | 'qr';
+  payment_info?: {
+    // Para MercadoPago
+    preference_id?: string;
+    init_point?: string;
+    sandbox_init_point?: string;
+
+    // Para QR
+    qr_code?: string;
+    qr_code_image?: string;
+
+    // Para transferencia
+    transfer_data?: {
+      cbu: string;
+      alias: string;
+      account_holder: string;
+      bank?: string;
+      reference: string;
+    };
+  } | null;
+}
+
+export interface CrearReservaRequest {
+  est_id: number;
+  pla_numero: number;
+  veh_patente: string;
+  fecha_inicio: string; // ISO string
+  duracion_horas: number;
+  metodo_pago: 'link_pago' | 'qr';
+}
+
+export interface ReservaConDetalles extends Reserva {
+  estacionamiento: {
+    est_nombre: string;
+    est_direc: string;
+    est_telefono?: string;
+    est_email?: string;
+  };
+  plaza: {
+    pla_zona: string;
+    catv_segmento: string;
+  };
+  vehiculo: {
+    veh_marca: string;
+    veh_modelo: string;
+    veh_color: string;
+  };
+  conductor: {
+    usu_nom: string;
+    usu_ape: string;
+    usu_tel: string;
+    usu_email: string;
+  };
+  vehiculos?: VehiculoDB[]; // Todos los vehículos del conductor
+}
+
+export interface PlazaDisponible {
+  pla_numero: number;
+  pla_zona: string;
+  catv_segmento: string;
+  precio_por_hora: number;
+  plantilla_id: number;
+}
+
+export interface DisponibilidadResponse {
+  success: boolean;
+  data?: {
+    plazas: PlazaDisponible[];
+    fecha_inicio: string;
+    fecha_fin: string;
+    duracion_horas: number;
+  };
+  error?: string;
+}
+
+export interface CrearReservaResponse {
+  success: boolean;
+  data?: {
+    reserva: Reserva;
+    payment_info?: {
+      // Para MercadoPago
+      preference_id?: string;
+      init_point?: string;
+      sandbox_init_point?: string;
+
+      // Para QR
+      qr_code?: string;
+      qr_code_image?: string;
+
+      // Para transferencia
+      transfer_data?: {
+        cbu: string;
+        alias: string;
+        account_holder: string;
+        bank?: string;
+        reference: string;
+      };
+    };
+  };
+  error?: string;
+}
+
+// Interfaz extendida para respuestas de pago más detalladas
+export interface CrearReservaConPagoResponse extends CrearReservaResponse {
+  data?: {
+    reserva: Reserva;
+    pago: {
+      preference_id?: string;
+      init_point?: string;
+      sandbox_init_point?: string;
+      qr_code?: string;
+      qr_code_image?: string;
+      datos_bancarios?: {
+        cbu: string;
+        alias: string;
+        titular: string;
+        banco: string;
+        referencia: string;
+      };
+    };
+  };
+}
+
+// Interfaz para el webhook de MercadoPago
+export interface MercadoPagoWebhookData {
+  id: string;
+  live_mode: boolean;
+  type: string;
+  date_created: string;
+  application_id: string;
+  user_id: string;
+  version: number;
+  api_version: string;
+  action: string;
+  data: {
+    id: string;
+  };
+}
+
+// Interfaz para respuestas del webhook de procesamiento de pago
+export interface ProcesarPagoResponse {
+  success: boolean;
+  message?: string;
+  reserva_codigo?: string;
+  nuevo_estado?: EstadoReserva;
+  error?: string;
+  details?: string;
+}
+
+// Interfaz para respuestas de expiración automática
+export interface ExpirarReservasResponse {
+  success: boolean;
+  message?: string;
+  reservas_expiradas?: number;
+  total_no_show?: number;
+  timestamp?: string;
+  error?: string;
+  details?: string;
+}
+
+export interface BuscarReservaResponse {
+  success: boolean;
+  data?: ReservaConDetalles;
+  error?: string;
+}
+
+export interface ConfirmarLlegadaRequest {
+  res_codigo: string;
+  est_id: number;
+}
+
+export interface ConfirmarLlegadaResponse {
+  success: boolean;
+  data?: {
+    reserva: Reserva;
+    ocupacion_id: number;
+    mensaje: string;
+  };
+  error?: string;
+}
+
+export interface ReservasOperadorResponse {
+  success: boolean;
+  data?: {
+    reservas: ReservaConDetalles[];
+    total: number;
+    filtros: {
+      fecha: string;
+      estado?: EstadoReserva;
+    };
+  };
+  error?: string;
+}
+
+export interface MisReservasResponse {
+  success: boolean;
+  data?: {
+    activas: ReservaConDetalles[];
+    futuras: ReservaConDetalles[];
+    historial: ReservaConDetalles[];
+  };
+  error?: string;
+}
+

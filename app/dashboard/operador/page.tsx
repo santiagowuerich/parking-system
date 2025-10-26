@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ArrowRight, Plus } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, Plus, Calendar, Search } from "lucide-react";
+import { ListaReservasOperador } from "@/components/reservas/lista-reservas-operador";
+import { BuscarReservaDialog } from "@/components/reservas/buscar-reserva-dialog";
 import IngresoModal from "@/components/ingreso-modal";
 import VehicleSelectorModal from "@/components/vehicle-selector-modal";
 import { toast } from "@/components/ui/use-toast";
@@ -64,6 +66,10 @@ export default function OperadorPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('ingreso');
+
+    // Estados para reservas
+    const [buscarReservaOpen, setBuscarReservaOpen] = useState(false);
+    const [vistaActual, setVistaActual] = useState<'ingresos' | 'reservas'>('ingresos');
 
     // Estados para los modales
     const [showIngresoModal, setShowIngresoModal] = useState(false);
@@ -674,15 +680,92 @@ export default function OperadorPage() {
                 return;
             }
 
-            const feeData = await calculateParkingFee(
-                {
-                    entry_time: ocupacion.entry_time,
-                    plaza_number: ocupacion.plaza_number,
-                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
-                    ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
-                },
-                estId
-            );
+            // NUEVO: Verificar si tiene reserva
+            let feeData;
+            if (ocupacion.res_codigo && ocupacion.ocu_fecha_limite) {
+                console.log('🎫 Egreso con reserva detectado:', ocupacion.res_codigo);
+
+                const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
+                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+
+                if (salidaReal.isAfter(finReserva)) {
+                    // Calcular solo tiempo excedido
+                    feeData = await calculateParkingFee(
+                        {
+                            entry_time: ocupacion.ocu_fecha_limite, // Desde fin de reserva
+                            plaza_number: ocupacion.plaza_number,
+                            ocu_duracion_tipo: 'hora',
+                            ocu_precio_acordado: 0
+                        },
+                        estId
+                    );
+
+                    console.log('💰 Cargo adicional por tiempo excedido:', feeData.fee);
+
+                    // Continuar con el flujo normal de pago
+                    const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+
+                    const paymentInfo: PaymentData = {
+                        vehicleLicensePlate: licensePlate,
+                        amount: feeData.fee,
+                        calculatedFee: feeData.calculatedFee,
+                        agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
+                        entryTime: ocupacion.ocu_fecha_limite, // Desde fin de reserva
+                        exitTime: exitTime.toISOString(),
+                        duration: feeData.durationMs,
+                        method: 'efectivo',
+                        estId: estId,
+                        plazaNumber: ocupacion.plaza_number,
+                        zone: plazaInfo?.pla_zona || 'Zona General',
+                        tariffType: feeData.tariffType,
+                        precioBase: feeData.precioBase,
+                        durationUnits: feeData.durationUnits,
+                        isSubscription: false,
+                        subscriptionNumber: plazaInfo?.abono?.abo_nro
+                    };
+
+                    setPaymentData(paymentInfo);
+                    setShowPaymentSelector(true);
+
+                    console.log('💰 Cargo por exceso de tiempo de reserva:', {
+                        vehicle: licensePlate,
+                        tiempoExcedido: formatDuration(feeData.durationMs),
+                        amount: formatCurrency(feeData.fee)
+                    });
+
+                    return;
+                } else {
+                    // Salió antes: sin cargo adicional
+                    console.log('✅ Salió antes del fin de reserva, sin cargo adicional');
+
+                    // Egreso directo sin pago
+                    await finalizeSubscriptionExit({
+                        licensePlate,
+                        entryTime: ocupacion.entry_time,
+                        plazaNumber: ocupacion.plaza_number
+                    });
+
+                    toast({
+                        title: "Egreso completado",
+                        description: `Reserva prepagada. Sin cargo adicional.`
+                    });
+
+                    await refreshParkedVehicles();
+                    await refreshCapacity();
+                    return;
+                }
+            } else {
+                // Lógica normal sin reserva
+                feeData = await calculateParkingFee(
+                    {
+                        entry_time: ocupacion.entry_time,
+                        plaza_number: ocupacion.plaza_number,
+                        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                        ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
+                    },
+                    estId
+                );
+            }
 
             const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
 
@@ -1096,56 +1179,87 @@ export default function OperadorPage() {
                         {/* Main Content */}
                         <div className="max-w-7xl mx-auto px-6 py-16">
                             <TurnoGuard showAlert={true} redirectButton={true}>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
 
                                     {/* Tarjeta de Ingreso */}
                                     <div
                                         className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 border-2 border-green-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
                                         onClick={handleOpenIngresoModal}
                                     >
-                                    {/* Círculo con flecha */}
-                                    <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mb-8">
-                                        <ArrowLeft className="w-8 h-8 text-white" />
+                                        {/* Círculo con flecha */}
+                                        <div className="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center mb-8">
+                                            <ArrowLeft className="w-8 h-8 text-white" />
+                                        </div>
+
+                                        {/* Título */}
+                                        <h2 className="text-4xl font-bold text-green-800 mb-4">INGRESO</h2>
+
+                                        {/* Descripción */}
+                                        <p className="text-green-700 text-center mb-8 text-lg">
+                                            Registrar entrada de vehículo
+                                        </p>
+
+                                        {/* Badge con información */}
+                                        <div className="bg-green-600 text-white px-6 py-3 rounded-full font-medium">
+                                            {totalAvailable} espacios disponibles
+                                        </div>
                                     </div>
 
-                                    {/* Título */}
-                                    <h2 className="text-4xl font-bold text-green-800 mb-4">INGRESO</h2>
+                                    {/* Tarjeta de Egreso */}
+                                    <div
+                                        className="bg-gradient-to-br from-red-100 to-red-200 rounded-3xl p-8 border-2 border-red-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                        onClick={handleOpenEgresoModal}
+                                    >
+                                        {/* Círculo con flecha */}
+                                        <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
+                                            <ArrowRight className="w-8 h-8 text-white" />
+                                        </div>
 
-                                    {/* Descripción */}
-                                    <p className="text-green-700 text-center mb-8 text-lg">
-                                        Registrar entrada de vehículo
-                                    </p>
+                                        {/* Título */}
+                                        <h2 className="text-4xl font-bold text-red-800 mb-4">EGRESO</h2>
 
-                                    {/* Badge con información */}
-                                    <div className="bg-green-600 text-white px-6 py-3 rounded-full font-medium">
-                                        {totalAvailable} espacios disponibles
+                                        {/* Descripción */}
+                                        <p className="text-red-700 text-center mb-8 text-lg">
+                                            Registrar salida de vehículo
+                                        </p>
+
+                                        {/* Badge con información */}
+                                        <div className="bg-red-600 text-white px-6 py-3 rounded-full font-medium">
+                                            {availableSpaces.total.occupied} vehículos estacionados
+                                        </div>
+                                    </div>
+
+                                    {/* Tarjeta de Reservas */}
+                                    <div
+                                        className="bg-gradient-to-br from-blue-100 to-blue-200 rounded-3xl p-8 border-2 border-blue-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
+                                        onClick={() => setVistaActual('reservas')}
+                                    >
+                                        {/* Círculo con calendario */}
+                                        <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
+                                            <Calendar className="w-8 h-8 text-white" />
+                                        </div>
+
+                                        {/* Título */}
+                                        <h2 className="text-4xl font-bold text-blue-800 mb-4">RESERVAS</h2>
+
+                                        {/* Descripción */}
+                                        <p className="text-blue-700 text-center mb-8 text-lg">
+                                            Gestionar reservas de estacionamiento
+                                        </p>
+
+                                        {/* Botón de búsqueda */}
+                                        <Button
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-medium"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setBuscarReservaOpen(true);
+                                            }}
+                                        >
+                                            <Search className="w-4 h-4 mr-2" />
+                                            Buscar Reserva
+                                        </Button>
                                     </div>
                                 </div>
-
-                                {/* Tarjeta de Egreso */}
-                                <div
-                                    className="bg-gradient-to-br from-red-100 to-red-200 rounded-3xl p-8 border-2 border-red-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
-                                    onClick={handleOpenEgresoModal}
-                                >
-                                    {/* Círculo con flecha */}
-                                    <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
-                                        <ArrowRight className="w-8 h-8 text-white" />
-                                    </div>
-
-                                    {/* Título */}
-                                    <h2 className="text-4xl font-bold text-red-800 mb-4">EGRESO</h2>
-
-                                    {/* Descripción */}
-                                    <p className="text-red-700 text-center mb-8 text-lg">
-                                        Registrar salida de vehículo
-                                    </p>
-
-                                    {/* Badge con información */}
-                                    <div className="bg-red-600 text-white px-6 py-3 rounded-full font-medium">
-                                        {availableSpaces.total.occupied} vehículos estacionados
-                                    </div>
-                                </div>
-                            </div>
                             </TurnoGuard>
                         </div>
                     </div>
@@ -1256,6 +1370,61 @@ export default function OperadorPage() {
                         paymentStatus={qrPaymentStatus}
                         loading={paymentLoading}
                     />
+
+                    {/* Vista de Reservas */}
+                    {vistaActual === 'reservas' && estId && (
+                        <div className="fixed inset-0 bg-white z-50 overflow-auto">
+                            <div className="max-w-7xl mx-auto px-6 py-8">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h1 className="text-3xl font-bold text-gray-900">Gestión de Reservas</h1>
+                                        <p className="text-gray-600 mt-1">Administra las reservas del estacionamiento</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setVistaActual('ingresos')}
+                                        >
+                                            Volver a Ingresos
+                                        </Button>
+                                        <Button
+                                            onClick={() => setBuscarReservaOpen(true)}
+                                            className="bg-blue-600 hover:bg-blue-700"
+                                        >
+                                            <Search className="w-4 h-4 mr-2" />
+                                            Buscar Reserva
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <ListaReservasOperador
+                                    estId={estId}
+                                    onConfirmarLlegada={(reserva) => {
+                                        toast({
+                                            title: "Llegada confirmada",
+                                            description: `La reserva ${reserva.res_codigo} ha sido activada`,
+                                        });
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Dialog de búsqueda de reserva */}
+                    {estId && (
+                        <BuscarReservaDialog
+                            isOpen={buscarReservaOpen}
+                            onClose={() => setBuscarReservaOpen(false)}
+                            estId={estId}
+                            modoAutomatico={true}
+                            onConfirmarLlegada={(reserva) => {
+                                toast({
+                                    title: "Llegada confirmada",
+                                    description: `La reserva ${reserva.res_codigo} ha sido activada`,
+                                });
+                            }}
+                        />
+                    )}
                 </main>
             </div>
         </div>
