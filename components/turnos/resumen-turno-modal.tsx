@@ -30,6 +30,7 @@ interface TurnoData {
     turno: {
         tur_id: number;
         tur_fecha: string;
+        tur_fecha_salida?: string;
         tur_hora_entrada: string;
         tur_hora_salida: string;
         caja_inicio: number;
@@ -94,7 +95,8 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
 
         try {
             const entrada = dayjs(`${data.turno.tur_fecha} ${data.turno.tur_hora_entrada}`);
-            const salida = dayjs(`${data.turno.tur_fecha} ${data.turno.tur_hora_salida}`);
+            const fechaSalida = data.turno.tur_fecha_salida || data.turno.tur_fecha;
+            const salida = dayjs(`${fechaSalida} ${data.turno.tur_hora_salida}`);
             const diff = salida.diff(entrada, 'minute');
 
             const horas = Math.floor(diff / 60);
@@ -141,20 +143,24 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                                     Información General
                                 </h3>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div>
+                                    <div className="col-span-2">
                                         <p className="text-sm text-gray-600">Empleado</p>
                                         <p className="font-semibold">{data.turno.empleado_nombre}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Fecha</p>
+                                        <p className="text-sm text-gray-600">Fecha de Inicio</p>
                                         <p className="font-semibold">{dayjs(data.turno.tur_fecha).format('DD/MM/YYYY')}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Hora Inicio</p>
+                                        <p className="text-sm text-gray-600">Hora de Inicio</p>
                                         <p className="font-semibold">{data.turno.tur_hora_entrada}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Hora Fin</p>
+                                        <p className="text-sm text-gray-600">Fecha de Fin</p>
+                                        <p className="font-semibold">{dayjs(data.turno.tur_fecha_salida || data.turno.tur_fecha).format('DD/MM/YYYY')}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Hora de Fin</p>
                                         <p className="font-semibold">{data.turno.tur_hora_salida}</p>
                                     </div>
                                     <div className="col-span-2">

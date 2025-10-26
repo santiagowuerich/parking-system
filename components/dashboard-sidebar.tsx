@@ -84,8 +84,8 @@ const employeeNavigationItems = [
         ]
     },
     {
-        title: "Gestión de Turnos",
-        href: "/dashboard/turnos",
+        title: "Mis Turnos",
+        href: "/dashboard/mis-turnos",
         icon: Clock,
         description: "Registrar entrada y salida de turno"
     },
@@ -208,8 +208,8 @@ const ownerNavigationItems = [
                 href: "/dashboard/empleados"
             },
             {
-                title: "Turnos",
-                href: "/dashboard/turnos"
+                title: "Gestión de Turnos",
+                href: "/dashboard/gestion-turnos"
             }
         ]
     },

@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 interface HistorialTurno {
     tur_id: number;
     tur_fecha: string;
+    tur_fecha_salida?: string;
     tur_hora_entrada: string;
     tur_hora_salida?: string;
     tur_estado: string;
@@ -106,13 +107,25 @@ export default function HistorialTurnos({ isOpen, onClose, estId }: HistorialTur
         }).format(amount);
     };
 
-    const calcularDuracion = (horaEntrada: string, horaSalida?: string) => {
-        const entrada = dayjs(horaEntrada, 'HH:mm:ss');
-        const salida = horaSalida ? dayjs(horaSalida, 'HH:mm:ss') : dayjs();
+    const calcularDuracion = (horaEntrada: string, horaSalida: string | undefined, fechaTurno: string, fechaSalida?: string) => {
+        if (!horaSalida) {
+            // Si no hay hora de salida, calcular duración hasta ahora
+            const entrada = dayjs(`${fechaTurno} ${horaEntrada}`);
+            const ahora = dayjs();
+            const duracion = ahora.diff(entrada, 'minute');
+            const horas = Math.floor(duracion / 60);
+            const minutos = duracion % 60;
+            return `${horas}h ${minutos}m`;
+        }
+
+        // Usar fecha de salida si existe, sino usar fecha de entrada como fallback
+        const fechaSalidaFinal = fechaSalida || fechaTurno;
+        const entrada = dayjs(`${fechaTurno} ${horaEntrada}`);
+        const salida = dayjs(`${fechaSalidaFinal} ${horaSalida}`);
         const duracion = salida.diff(entrada, 'minute');
 
-        const horas = Math.floor(duracion / 60);
-        const minutos = duracion % 60;
+        const horas = Math.floor(Math.abs(duracion) / 60);
+        const minutos = Math.abs(duracion) % 60;
 
         return `${horas}h ${minutos}m`;
     };
@@ -196,7 +209,7 @@ export default function HistorialTurnos({ isOpen, onClose, estId }: HistorialTur
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {calcularDuracion(turno.tur_hora_entrada, turno.tur_hora_salida)}
+                                                    {calcularDuracion(turno.tur_hora_entrada, turno.tur_hora_salida, turno.tur_fecha, turno.tur_fecha_salida)}
                                                 </TableCell>
                                                 <TableCell>
                                                     {turno.cajas_empleados[0]?.caj_nombre || 'N/A'}
