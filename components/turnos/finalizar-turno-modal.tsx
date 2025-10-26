@@ -145,7 +145,7 @@ export default function FinalizarTurnoModal({ isOpen, onClose, onSuccess, turnoA
                         <h3 className="font-semibold text-gray-900">Información del Turno</h3>
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                                <span className="text-gray-600">Fecha:</span>
+                                <span className="text-gray-600">Fecha de Inicio:</span>
                                 <p className="font-medium">{dayjs(turnoActivo.tur_fecha).format('DD/MM/YYYY')}</p>
                             </div>
                             <div>

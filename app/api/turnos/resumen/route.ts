@@ -213,6 +213,7 @@ export async function GET(request: NextRequest) {
                 turno: {
                     tur_id: turno.tur_id,
                     tur_fecha: turno.tur_fecha,
+                    tur_fecha_salida: turno.tur_fecha_salida,
                     tur_hora_entrada: turno.tur_hora_entrada,
                     tur_hora_salida: turno.tur_hora_salida,
                     caja_inicio: turno.caja_inicio || 0,

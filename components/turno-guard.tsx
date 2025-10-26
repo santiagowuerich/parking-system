@@ -54,17 +54,17 @@ export function TurnoGuard({
           <AlertDescription className="space-y-2">
             <p>
               Debes iniciar tu turno en la sección de{" "}
-              <Link href="/dashboard/turnos" className="font-semibold underline hover:text-red-800">
-                Gestión de Turnos
+              <Link href="/dashboard/mis-turnos" className="font-semibold underline hover:text-red-800">
+                Mis Turnos
               </Link>{" "}
               antes de realizar esta acción.
             </p>
             {redirectButton && (
               <div className="mt-3">
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/dashboard/turnos">
+                  <Link href="/dashboard/mis-turnos">
                     <Clock className="h-4 w-4 mr-2" />
-                    Ir a Gestión de Turnos
+                    Ir a Mis Turnos
                   </Link>
                 </Button>
               </div>

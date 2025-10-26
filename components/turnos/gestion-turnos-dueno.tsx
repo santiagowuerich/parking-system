@@ -28,6 +28,7 @@ interface Turno {
     play_id: number;
     est_id: number;
     tur_fecha: string;
+    tur_fecha_salida?: string;
     tur_hora_entrada: string;
     tur_hora_salida: string | null;
     tur_estado: string;
@@ -154,11 +155,11 @@ export default function GestionTurnosDueno({ estId }: GestionTurnosDuenoProps) {
         setShowResumenModal(true);
     };
 
-    const calcularDuracion = (horaEntrada: string, horaSalida: string | null, fechaTurno: string) => {
+    const calcularDuracion = (horaEntrada: string, horaSalida: string | null, fechaTurno: string, fechaSalida?: string) => {
         try {
             const entrada = dayjs(`${fechaTurno} ${horaEntrada}`);
             const salida = horaSalida
-                ? dayjs(`${fechaTurno} ${horaSalida}`)
+                ? dayjs(`${fechaSalida || fechaTurno} ${horaSalida}`)
                 : dayjs();
 
             const duracion = salida.diff(entrada, 'minute');
@@ -274,8 +275,8 @@ export default function GestionTurnosDueno({ estId }: GestionTurnosDuenoProps) {
                                 <thead>
                                     <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Empleado</th>
-                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha</th>
-                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Horario</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha y Hora Entrada</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha y Hora Salida</th>
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Duración</th>
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Inicial</th>
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Final</th>
@@ -295,19 +296,27 @@ export default function GestionTurnosDueno({ estId }: GestionTurnosDuenoProps) {
                                                 </div>
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-800 text-center border-r border-gray-300">
-                                                {dayjs(turno.tur_fecha).format('DD/MM/YYYY')}
+                                                <div className="font-medium">{dayjs(turno.tur_fecha).format('DD/MM/YYYY')}</div>
+                                                <div className="text-gray-600">{turno.tur_hora_entrada}</div>
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-800 text-center border-r border-gray-300">
-                                                <div>{turno.tur_hora_entrada}</div>
-                                                {turno.tur_hora_salida && (
-                                                    <div className="text-gray-500">{turno.tur_hora_salida}</div>
+                                                {turno.tur_hora_salida ? (
+                                                    <>
+                                                        <div className="font-medium">
+                                                            {dayjs(turno.tur_fecha_salida || turno.tur_fecha).format('DD/MM/YYYY')}
+                                                        </div>
+                                                        <div className="text-gray-600">{turno.tur_hora_salida}</div>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
                                                 )}
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-800 text-center border-r border-gray-300">
                                                 {calcularDuracion(
                                                     turno.tur_hora_entrada,
                                                     turno.tur_hora_salida,
-                                                    turno.tur_fecha
+                                                    turno.tur_fecha,
+                                                    turno.tur_fecha_salida
                                                 )}
                                             </td>
                                             <td className="py-4 px-4 text-sm text-gray-800 text-center border-r border-gray-300">

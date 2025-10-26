@@ -19,6 +19,7 @@ import ResumenTurnoModal from "@/components/turnos/resumen-turno-modal";
 interface TurnoActivo {
     tur_id: number;
     tur_fecha: string;
+    tur_fecha_salida?: string;
     tur_hora_entrada: string;
     tur_estado: string;
     tur_observaciones_entrada?: string;
@@ -29,6 +30,7 @@ interface TurnoActivo {
 interface HistorialTurno {
     tur_id: number;
     tur_fecha: string;
+    tur_fecha_salida?: string;
     tur_hora_entrada: string;
     tur_hora_salida?: string;
     tur_estado: string;
