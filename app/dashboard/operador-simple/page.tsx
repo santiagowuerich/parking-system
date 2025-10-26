@@ -12,7 +12,9 @@ import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar } from "lucide-react";
+import { ListaReservasOperador } from "@/components/reservas/lista-reservas-operador";
+import { BuscarReservaDialog } from "@/components/reservas/buscar-reserva-dialog";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -82,9 +84,11 @@ export default function OperadorSimplePage() {
     const [paymentLoading, setPaymentLoading] = useState(false);
     const [qrPaymentStatus, setQRPaymentStatus] = useState<PaymentStatus>('pendiente');
     const [qrData, setQrData] = useState<{ qrCode: string, qrCodeImage: string, preferenceId: string } | null>(null);
-
-    // Configuración de métodos de pago
     const [paymentSettings, setPaymentSettings] = useState<any>(null);
+
+    // Estados para reservas
+    const [buscarReservaOpen, setBuscarReservaOpen] = useState(false);
+    const [vistaActual, setVistaActual] = useState<'ingresos' | 'reservas'>('ingresos');
 
     // Inicializar datos del parking
     useEffect(() => {
@@ -647,16 +651,80 @@ export default function OperadorSimplePage() {
                 return;
             }
 
-            // ✅ CALCULAR TARIFA USANDO FUNCIÓN CENTRALIZADA
-            const feeData = await calculateParkingFee(
-                {
-                    entry_time: ocupacion.entry_time,
-                    plaza_number: ocupacion.plaza_number,
-                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
-                    ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
-                },
-                estId
-            );
+            // NUEVO: Verificar si tiene reserva
+            let feeData;
+            if (ocupacion.res_codigo && ocupacion.ocu_fecha_limite) {
+                console.log('🎫 Egreso con reserva detectado:', ocupacion.res_codigo);
+
+                const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
+                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+
+                if (salidaReal.isAfter(finReserva)) {
+                    // Calcular solo tiempo excedido
+                    feeData = await calculateParkingFee(
+                        {
+                            entry_time: ocupacion.ocu_fecha_limite, // Desde fin de reserva
+                            plaza_number: ocupacion.plaza_number,
+                            ocu_duracion_tipo: 'hora',
+                            ocu_precio_acordado: 0
+                        },
+                        estId
+                    );
+
+                    console.log('💰 Cargo adicional por tiempo excedido:', feeData.fee);
+                } else {
+                    // Salió antes: sin cargo adicional
+                    console.log('✅ Salió antes del fin de reserva, sin cargo adicional');
+
+                    // Egreso directo sin pago
+                    await finalizeExit({
+                        licensePlate,
+                        entryTime: ocupacion.entry_time,
+                        plazaNumber: ocupacion.plaza_number,
+                        amount: 0,
+                        method: 'reserva_prepagada'
+                    });
+
+                    const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
+                    const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                    const duracionMs = salidaMomento.diff(ingresoMomento);
+
+                    setExitInfo({
+                        vehicle: {
+                            license_plate: licensePlate,
+                            type: 'Auto',
+                            entry_time: ocupacion.entry_time,
+                            plaza_number: ocupacion.plaza_number
+                        },
+                        fee: 0,
+                        exitTime: salidaMomento.toDate(),
+                        duration: formatDuration(duracionMs),
+                        agreedPrice: 0,
+                        calculatedFee: 0
+                    });
+
+                    toast({
+                        title: "Egreso completado",
+                        description: `Reserva prepagada. Sin cargo adicional.`
+                    });
+
+                    await refreshParkedVehicles();
+                    await refreshParkingHistory();
+                    await fetchDashboardData('exit');
+                    return;
+                }
+            } else {
+                // Lógica normal sin reserva
+                feeData = await calculateParkingFee(
+                    {
+                        entry_time: ocupacion.entry_time,
+                        plaza_number: ocupacion.plaza_number,
+                        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                        ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
+                    },
+                    estId
+                );
+            }
 
             const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
 
@@ -673,14 +741,14 @@ export default function OperadorSimplePage() {
                 estId: estId,
                 plazaNumber: ocupacion.plaza_number,
                 zone: ocupacion.plaza_number ?
-                plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
-                undefined,
-            tariffType: feeData.tariffType, // Tipo de tarifa seleccionado al ingreso
-            precioBase: feeData.precioBase, // Precio base de la tarifa
-            durationUnits: feeData.durationUnits, // Unidades de tiempo cobradas
-            isSubscription: false,
-            subscriptionNumber: plazaInfo?.abono?.abo_nro
-        };
+                    plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
+                    undefined,
+                tariffType: feeData.tariffType, // Tipo de tarifa seleccionado al ingreso
+                precioBase: feeData.precioBase, // Precio base de la tarifa
+                durationUnits: feeData.durationUnits, // Unidades de tiempo cobradas
+                isSubscription: false,
+                subscriptionNumber: plazaInfo?.abono?.abo_nro
+            };
 
             setPaymentData(paymentInfo);
             setShowPaymentSelector(true);
@@ -1280,25 +1348,68 @@ export default function OperadorSimplePage() {
                     <div className="min-h-screen bg-white">
                         <div className="p-6 space-y-6">
                             <TurnoGuard showAlert={true} redirectButton={true}>
-                                {/* Panel de Operador Original */}
-                                <OperatorPanel
-                                parking={parking}
-                                availableSpaces={getAvailableSpaces()}
-                                onRegisterEntry={registerEntry}
-                                onRegisterExit={handleExit}
-                                exitInfo={exitInfo}
-                                setExitInfo={setExitInfo}
-                                plazasData={plazasData}
-                                loadingPlazas={loadingPlazas}
-                                fetchPlazasStatus={fetchDashboardData}
-                                onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
-                                // Nuevas props para visualización rica
-                                plazasCompletas={plazasCompletas}
-                                loadingPlazasCompletas={loadingPlazasCompletas}
-                                getEstadoColor={getEstadoColor}
-                                getEstadoIcon={getEstadoIcon}
-                                refreshParkedVehicles={refreshParkedVehicles}
-                            />
+                                {/* Botón para cambiar a vista de reservas */}
+                                <div className="flex justify-end mb-4">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setVistaActual(vistaActual === 'ingresos' ? 'reservas' : 'ingresos')}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Calendar className="w-4 h-4" />
+                                        {vistaActual === 'ingresos' ? 'Ver Reservas' : 'Ver Ingresos'}
+                                    </Button>
+                                </div>
+
+                                {/* Vista de Ingresos */}
+                                {vistaActual === 'ingresos' && (
+                                    <OperatorPanel
+                                        parking={parking}
+                                        availableSpaces={getAvailableSpaces()}
+                                        onRegisterEntry={registerEntry}
+                                        onRegisterExit={handleExit}
+                                        exitInfo={exitInfo}
+                                        setExitInfo={setExitInfo}
+                                        plazasData={plazasData}
+                                        loadingPlazas={loadingPlazas}
+                                        fetchPlazasStatus={fetchDashboardData}
+                                        onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
+                                        // Nuevas props para visualización rica
+                                        plazasCompletas={plazasCompletas}
+                                        loadingPlazasCompletas={loadingPlazasCompletas}
+                                        getEstadoColor={getEstadoColor}
+                                        getEstadoIcon={getEstadoIcon}
+                                        refreshParkedVehicles={refreshParkedVehicles}
+                                    />
+                                )}
+
+                                {/* Vista de Reservas */}
+                                {vistaActual === 'reservas' && estId && (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h1 className="text-2xl font-bold text-gray-900">Gestión de Reservas</h1>
+                                                <p className="text-gray-600 mt-1">Administra las reservas del estacionamiento</p>
+                                            </div>
+                                            <Button
+                                                onClick={() => setBuscarReservaOpen(true)}
+                                                className="bg-blue-600 hover:bg-blue-700"
+                                            >
+                                                <Search className="w-4 h-4 mr-2" />
+                                                Buscar Reserva
+                                            </Button>
+                                        </div>
+
+                                        <ListaReservasOperador
+                                            estId={estId}
+                                            onConfirmarLlegada={(reserva) => {
+                                                toast({
+                                                    title: "Llegada confirmada",
+                                                    description: `La reserva ${reserva.res_codigo} ha sido activada`,
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </TurnoGuard>
                         </div>
                     </div>
@@ -1440,6 +1551,21 @@ export default function OperadorSimplePage() {
                                 </div>
                             </DialogContent>
                         </Dialog>
+                    )}
+
+                    {/* Dialog de búsqueda de reserva */}
+                    {estId && (
+                        <BuscarReservaDialog
+                            isOpen={buscarReservaOpen}
+                            onClose={() => setBuscarReservaOpen(false)}
+                            estId={estId}
+                            onConfirmarLlegada={(reserva) => {
+                                toast({
+                                    title: "Llegada confirmada",
+                                    description: `La reserva ${reserva.res_codigo} ha sido activada`,
+                                });
+                            }}
+                        />
                     )}
                 </main>
             </div>

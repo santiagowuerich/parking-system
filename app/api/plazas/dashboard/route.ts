@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
     // 3. Obtener vehículos estacionados con detalles (básico para operador)
     const { data: vehiculosEstacionados, error: vehiculosError } = await supabase
       .from('vw_ocupacion_actual')
-      .select('license_plate, type, entry_time, plaza_number')
+      .select('license_plate, vehicle_type, entry_time, plaza_number')
       .eq('est_id', estId);
 
     if (vehiculosError) {
@@ -303,7 +303,9 @@ export async function GET(request: NextRequest) {
 
         zonesData[zonaNombre].tiposVehiculo[seg].plazas.push({
           numero: p.pla_numero,
-          ocupado: esOcupado
+          ocupado: esOcupado,
+          estado: p.pla_estado,
+          abono: p.abono || null
         });
       }
 

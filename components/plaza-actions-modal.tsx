@@ -40,6 +40,7 @@ interface PlazaCompleta {
 interface PlazaActionsModalProps {
   plaza: PlazaCompleta | null
   vehicle?: Vehicle | null
+  reserva?: any
   isOpen: boolean
   onClose: () => void
   onIngreso?: () => void
@@ -78,6 +79,7 @@ const mapearTipoVehiculo = (segmento: string): VehicleType => {
 export default function PlazaActionsModal({
   plaza,
   vehicle,
+  reserva,
   isOpen,
   onClose,
   onIngreso,
@@ -229,13 +231,53 @@ export default function PlazaActionsModal({
             </div>
           )}
 
+          {/* Para plazas reservadas con información */}
+          {isReservada && reserva && (
+            <div className="space-y-3">
+              {onIngreso && (
+                <Button
+                  onClick={handleIngresoClick}
+                  className="w-full h-12 text-white font-medium rounded-xl bg-yellow-500 hover:bg-yellow-600 shadow-sm transition-all duration-200"
+                  disabled={loading}
+                >
+                  Ingresar vehículo
+                </Button>
+              )}
+              <div className="text-xs text-gray-600 border border-yellow-200 bg-yellow-50 rounded-xl p-3 space-y-2">
+                <div className="font-medium text-yellow-700">Reserva confirmada</div>
+                <div>
+                  <span className="font-medium">Cliente:</span> {reserva.conductor?.usu_nom} {reserva.conductor?.usu_ape}
+                </div>
+                <div>
+                  <span className="font-medium">Teléfono:</span> {reserva.conductor?.usu_tel || 'No disponible'}
+                </div>
+                <div>
+                  <span className="font-medium">Email:</span> {reserva.conductor?.usu_email || 'No disponible'}
+                </div>
+                <div>
+                  <span className="font-medium">Vehículo:</span> {reserva.veh_patente} ({reserva.vehiculo?.veh_marca} {reserva.vehiculo?.veh_modelo})
+                </div>
+                {reserva.vehiculos && reserva.vehiculos.length > 0 && (
+                  <div>
+                    <span className="font-medium">Vehículos habilitados:</span> {reserva.vehiculos.map(v => v.veh_patente).join(', ')}
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Monto pagado:</span> ${reserva.res_monto?.toFixed(2) || '0.00'}
+                </div>
+                <div>
+                  <span className="font-medium">Código:</span> {reserva.res_codigo}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Para plazas libres o en mantenimiento */}
-          {(isLibre || isMantenimiento || isReservada) && (
+          {(isLibre || isMantenimiento) && (
             <div className="text-center py-4">
               <p className="text-gray-500 text-sm">
                 {isLibre && 'Plaza libre - Use el formulario de ingreso'}
                 {isMantenimiento && 'Plaza en mantenimiento'}
-                {isReservada && 'Plaza reservada'}
               </p>
               {onBloquear && (
                 <Button

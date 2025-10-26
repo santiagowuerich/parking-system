@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatTimeUntilExpiry } from "@/lib/utils/payment-utils"
 import { Smartphone, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw } from "lucide-react"
 import { PaymentStatus } from "@/lib/types/payment"
+import QRCode from "react-qr-code"
+import { toast } from "@/components/ui/use-toast"
 
 interface QRPaymentDialogProps {
   isOpen: boolean
@@ -58,11 +60,13 @@ export default function QRPaymentDialog({
 
       if (remaining === 'Expirado') {
         clearInterval(interval)
+        setPollingActive(false)
       }
     }, 1000)
 
     return () => clearInterval(interval)
   }, [paymentData.expiresAt])
+
 
   // Handle payment completion
   useEffect(() => {
@@ -132,16 +136,16 @@ export default function QRPaymentDialog({
         <div className="px-6 py-4 space-y-4">
 
           {/* Código QR */}
-          {qrData.qrCodeImage && (
+          {qrData.qrCode && (
             <div className="text-center">
               <Card className="border border-gray-200">
                 <CardContent className="p-4">
-                  <div className="flex justify-center">
-                    <img
-                      src={qrData.qrCodeImage}
-                      alt="Código QR para pagar"
-                      className="w-50
-                       h-50 border border-gray-200 rounded-lg"
+                  <div className="flex justify-center bg-white p-4 rounded-lg relative">
+                    <QRCode
+                      value={qrData.qrCode}
+                      size={200}
+                      level="H"
+                      includeMargin={true}
                     />
                   </div>
                 </CardContent>
@@ -200,8 +204,47 @@ export default function QRPaymentDialog({
           >
             Cancelar
           </Button>
+
+
           <Button
-            onClick={onPaymentComplete}
+            onClick={async () => {
+              if (loading) return
+
+              try {
+                // Confirmar el pago QR automáticamente
+                const response = await fetch('/api/reservas/confirmar-pago-qr', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ preference_id: qrData.preferenceId })
+                })
+
+                const data = await response.json()
+
+                if (data.success) {
+                  console.log('✅ Pago confirmado y reserva creada')
+                  // Mostrar alerta de éxito
+                  toast({
+                    title: "¡Reserva generada!",
+                    description: "Tu pago fue confirmado y la reserva ha sido creada exitosamente.",
+                  })
+                  onPaymentComplete()
+                } else {
+                  console.error('❌ Error confirmando pago:', data.error)
+                  toast({
+                    title: "Error",
+                    description: data.error || "No se pudo confirmar el pago",
+                    variant: "destructive",
+                  })
+                }
+              } catch (error) {
+                console.error('❌ Error en confirmación:', error)
+                toast({
+                  title: "Error",
+                  description: "Error al procesar el pago",
+                  variant: "destructive",
+                })
+              }
+            }}
             disabled={loading}
             className="flex-1 h-10 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm"
           >

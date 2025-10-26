@@ -113,6 +113,8 @@ export default function OperatorPanel({
   const [modalLoading, setModalLoading] = useState(false)
   // Tarifas disponibles para el modal de ingreso (según plantilla/plaza)
   const [tarifasIngreso, setTarifasIngreso] = useState<any[]>([])
+  // Información de reserva para la plaza seleccionada
+  const [reservaInfo, setReservaInfo] = useState<any>(null)
 
   // Cargar tarifas de una plantilla específica
   const loadTariffsForPlaza = async (plantillaId: number) => {
@@ -373,7 +375,20 @@ export default function OperatorPanel({
 
       setShowIngresoModal(true);
       toast.success(`Plaza ${plaza.pla_numero} seleccionada para ingreso`);
-    } else if (plaza.pla_estado === 'Mantenimiento' || plaza.pla_estado === 'Reservada') {
+    } else if (plaza.pla_estado === 'Reservada') {
+      // Cargar información de la reserva
+      setReservaInfo(null);
+      try {
+        const response = await fetch(`/api/reservas/por-plaza?est_id=${estId}&pla_numero=${plaza.pla_numero}`);
+        const result = await response.json();
+        if (result.success && result.data) {
+          setReservaInfo(result.data);
+        }
+      } catch (e) {
+        console.error('Error obteniendo información de reserva:', e);
+      }
+      setShowActionsModal(true);
+    } else if (plaza.pla_estado === 'Mantenimiento') {
       setShowActionsModal(true); // Para permitir desbloqueo
     }
   };
@@ -394,8 +409,23 @@ export default function OperatorPanel({
     }
   };
 
-  const handleIngresoFromModal = () => {
+  const handleIngresoFromModal = async () => {
     setShowActionsModal(false);
+
+    // Si hay una reserva, cargar las tarifas de la plaza reservada
+    if (selectedPlazaForActions && reservaInfo) {
+      const plantillaId = selectedPlazaForActions.plantillas?.plantilla_id || selectedPlazaForActions.plantilla_id;
+      if (plantillaId) {
+        try {
+          const tarifas = await loadTariffsForPlaza(plantillaId);
+          setTarifasIngreso(tarifas);
+        } catch (error) {
+          console.error('Error cargando tarifas para reserva:', error);
+          setTarifasIngreso([]);
+        }
+      }
+    }
+
     setShowIngresoModal(true);
   };
 
@@ -517,6 +547,7 @@ export default function OperatorPanel({
     setShowIngresoModal(false);
     setSelectedPlazaForActions(null);
     setSelectedVehicleForMove(null);
+    setReservaInfo(null);
   };
 
   const handleConfirmIngreso = async (data: {
@@ -574,8 +605,10 @@ export default function OperatorPanel({
       const vehicleInPlaza = parking.parkedVehicles.find(v => v.plaza_number === plaza.pla_numero);
 
       // Actualizar el estado basado en la información real de vehículos
+      // IMPORTANTE: Preservar estados especiales como 'Reservada', 'Abonado', 'Mantenimiento'
       const estadoActual = vehicleInPlaza ? 'Ocupada' :
-        (plaza.pla_estado === 'Ocupada' ? 'Libre' : plaza.pla_estado);
+        (plaza.pla_estado === 'Reservada' || plaza.pla_estado === 'Abonado' || plaza.pla_estado === 'Mantenimiento') ? plaza.pla_estado :
+          (plaza.pla_estado === 'Ocupada' ? 'Libre' : plaza.pla_estado);
 
       return {
         ...plaza,
@@ -604,6 +637,9 @@ export default function OperatorPanel({
               </span>
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-yellow-500"></div>Reservado
               </span>
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-orange-500"></div>Abonado
@@ -1013,6 +1049,7 @@ export default function OperatorPanel({
       <PlazaActionsModal
         plaza={selectedPlazaForActions}
         vehicle={selectedVehicleForMove}
+        reserva={reservaInfo}
         isOpen={showActionsModal}
         onClose={handleCloseModals}
         onIngreso={handleIngresoFromModal}
@@ -1042,6 +1079,7 @@ export default function OperatorPanel({
         loading={modalLoading}
         tarifas={tarifasIngreso}
         availablePlazas={plazasCompletas}
+        reserva={reservaInfo}
       />
 
     </div>
