@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { RouteGuard } from "@/components/route-guard";
 import { useAuth } from "@/lib/auth-context";
-import { useUserRole } from "@/lib/use-user-role";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Clock, Calendar, DollarSign, AlertCircle, CheckCircle } from "lucide-react";
 import dayjs from "dayjs";
@@ -39,9 +38,8 @@ interface HistorialTurno {
     caja_final?: number;
 }
 
-export default function TurnosPage() {
+export default function MisTurnosPage() {
     const { estId, user } = useAuth();
-    const { isEmployee, loading: roleLoading } = useUserRole();
     const [loading, setLoading] = useState(true);
     const [turnoActivo, setTurnoActivo] = useState<TurnoActivo | null>(null);
     const [historialHoy, setHistorialHoy] = useState<HistorialTurno[]>([]);
@@ -62,13 +60,10 @@ export default function TurnosPage() {
     }, []);
 
     useEffect(() => {
-        if (estId && user && isEmployee && !roleLoading) {
-            console.log('🔄 Cargando estado de turno para empleado...');
+        if (estId && user) {
             loadTurnoEstado();
-        } else if (user && !isEmployee && !roleLoading) {
-            console.log('🚗 Usuario es conductor, no cargando turnos');
         }
-    }, [estId, user, isEmployee, roleLoading]);
+    }, [estId, user]);
 
     const loadTurnoEstado = async () => {
         try {
@@ -160,35 +155,14 @@ export default function TurnosPage() {
         }
     };
 
-
-    if (loading || roleLoading) {
+    if (loading) {
         return (
-            <RouteGuard allowedRoles={['playero']} redirectTo="/dashboard/operador-simple">
+            <RouteGuard allowedRoles={['playero']} redirectTo="/dashboard">
                 <DashboardLayout>
                     <div className="flex items-center justify-center min-h-screen">
                         <div className="text-center">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                            <p className="text-gray-600">Cargando gestión de turnos...</p>
-                        </div>
-                    </div>
-                </DashboardLayout>
-            </RouteGuard>
-        );
-    }
-
-    if (!isEmployee) {
-        return (
-            <RouteGuard allowedRoles={['owner']} redirectTo="/dashboard/operador-simple">
-                <DashboardLayout>
-                    <div className="p-6 max-w-7xl mx-auto">
-                        <div className="text-center py-12">
-                            <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                                Acceso Restringido
-                            </h2>
-                            <p className="text-gray-600">
-                                Solo los empleados pueden acceder a la gestión de turnos.
-                            </p>
+                            <p className="text-gray-600">Cargando mis turnos...</p>
                         </div>
                     </div>
                 </DashboardLayout>
@@ -197,11 +171,11 @@ export default function TurnosPage() {
     }
 
     return (
-        <RouteGuard allowedRoles={['playero']} redirectTo="/dashboard/operador-simple">
+        <RouteGuard allowedRoles={['playero']} redirectTo="/dashboard">
             <DashboardLayout>
                 <div className="p-6 max-w-7xl mx-auto">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900">Gestión de Turnos</h1>
+                        <h1 className="text-3xl font-bold text-gray-900">Mis Turnos</h1>
                         <p className="text-gray-600 mt-2">
                             Registra tus horarios de entrada y salida de trabajo
                         </p>
