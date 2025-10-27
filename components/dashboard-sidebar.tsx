@@ -160,6 +160,12 @@ const ownerNavigationItems = [
         ]
     },
     {
+        title: "Reportes",
+        href: "/dashboard/reportes",
+        icon: BarChart3,
+        description: "Análisis y reportes del negocio"
+    },
+    {
         title: "Zonas",
         href: "/dashboard/configuracion-zona",
         icon: MapPin,
