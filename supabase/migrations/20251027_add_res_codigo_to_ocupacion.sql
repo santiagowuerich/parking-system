@@ -23,3 +23,6 @@ WHERE res_codigo IS NOT NULL;
 
 -- Comentario
 COMMENT ON COLUMN ocupacion.res_codigo IS 'Código de reserva si el ingreso proviene de reserva';
+
+
+

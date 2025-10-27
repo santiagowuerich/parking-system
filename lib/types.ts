@@ -427,7 +427,19 @@ export interface DisponibilidadResponse {
 export interface CrearReservaResponse {
   success: boolean;
   data?: {
-    reserva: Reserva;
+    reserva?: Reserva; // Opcional: solo si la reserva ya fue creada en BD
+    reserva_temporal?: {
+      est_id: number;
+      pla_numero: number;
+      veh_patente: string;
+      res_codigo: string;
+      res_fh_ingreso: string;
+      res_fh_fin: string;
+      con_id: number;
+      res_monto: number;
+      res_tiempo_gracia_min: number;
+      metodo_pago: string;
+    };
     payment_info?: {
       // Para MercadoPago
       preference_id?: string;

@@ -62,43 +62,46 @@ export async function POST(request: NextRequest) {
 
         console.log(`🔍 [WEBHOOK] Procesando payment_id: ${paymentId}`);
 
+        // ✅ SOLUCIÓN: Obtener res_codigo desde la URL del webhook
+        const url = new URL(request.url);
+        const resCodigo = url.searchParams.get('res_codigo');
+
+        if (!resCodigo) {
+            console.error('❌ [WEBHOOK] No se encontró res_codigo en la URL');
+            return NextResponse.json({ error: 'Código de reserva no encontrado' }, { status: 400 });
+        }
+
+        console.log(`✅ [WEBHOOK] Código de reserva obtenido: ${resCodigo}`);
+
         // Obtener información del pago desde MercadoPago
         const supabase = await createAuthenticatedSupabaseClient();
 
-        // Buscar la reserva asociada a este pago usando external_reference
-        // Primero obtenemos la información del pago de MercadoPago para acceder al external_reference
-        const payment = new Payment(client);
-        const paymentInfo = await payment.get({ id: paymentId });
-
-        if (!paymentInfo.external_reference) {
-            console.error('❌ [WEBHOOK] No se encontró external_reference en el pago de MercadoPago');
-            return NextResponse.json({ error: 'External reference no encontrado en el pago' }, { status: 400 });
-        }
-
-        console.log(`✅ [WEBHOOK] External reference encontrado: ${paymentInfo.external_reference}`);
-
-        // Buscar la reserva usando el external_reference (que es el res_codigo)
-        const { data: reservaData, error: reservaError } = await supabase
+        // Buscar la reserva usando res_codigo directamente
+        const { data: reservaData, error: searchError } = await supabase
             .from('reservas')
             .select(`
         *,
         estacionamientos!inner(est_id, est_nombre, usu_id)
       `)
-            .eq('res_codigo', paymentInfo.external_reference)
+            .eq('res_codigo', resCodigo)
+            .eq('res_estado', 'pendiente_pago')
             .single();
 
-        if (reservaError || !reservaData) {
-            console.error('❌ [WEBHOOK] No se encontró reserva para el payment_id:', paymentId);
+        if (searchError || !reservaData) {
+            console.error('❌ [WEBHOOK] No se encontró reserva para el res_codigo:', resCodigo, searchError);
             return NextResponse.json({ error: 'Reserva no encontrada' }, { status: 404 });
         }
 
         console.log(`✅ [WEBHOOK] Reserva encontrada: ${reservaData.res_codigo}`);
 
-        // Ya tenemos la información del pago obtenida anteriormente
-        // Obtener API key del propietario del estacionamiento
+        // AHORA SÍ obtener API key del propietario del estacionamiento
         const userId = reservaData.estacionamientos.usu_id;
         const accessToken = await getApiKey(userId);
         const client = new MercadoPagoConfig({ accessToken });
+        const payment = new Payment(client);
+
+        // Consultar el estado del pago en MercadoPago
+        const paymentInfo = await payment.get({ id: paymentId });
 
         console.log(`📊 [WEBHOOK] Estado del pago: ${paymentInfo.status}`);
 
