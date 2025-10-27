@@ -18,3 +18,4 @@ SELECT
 FROM ocupacion o
 LEFT JOIN vehiculos v ON o.veh_patente = v.veh_patente
 WHERE o.ocu_fh_salida IS NULL;
+
