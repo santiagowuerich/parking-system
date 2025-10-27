@@ -12,3 +12,6 @@ CHECK (pla_estado::text = ANY (ARRAY['Libre'::character varying, 'Ocupada'::char
 
 -- Comentario
 COMMENT ON COLUMN plazas.pla_estado IS 'Estado de la plaza: Libre, Ocupada, Abonado, Reservada';
+
+
+

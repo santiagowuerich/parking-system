@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Clock, MapPin, CreditCard, AlertCircle, CheckCircle, ExternalLink, QrCode, Copy, Check } from 'lucide-react';
+import { Calendar, Clock, MapPin, CreditCard, AlertCircle, CheckCircle, ExternalLink, QrCode, Copy, Check, Loader2 } from 'lucide-react';
 import { useReservas } from '@/lib/hooks/use-reservas-unified';
 import { CrearReservaRequest, PlazaDisponible } from '@/lib/types';
 import { generarOpcionesFechaHora, generarOpcionesDuracion, validarTiempoReserva, calcularPrecioReserva, formatearFechaReserva } from '@/lib/utils/reservas-utils';
@@ -71,6 +71,7 @@ export function CrearReservaDialog({
     const [mostrarQR, setMostrarQR] = useState(false);
     const [mostrarConfirmacionLinkPago, setMostrarConfirmacionLinkPago] = useState(false);
     const [copiado, setCopiado] = useState(false);
+    const [confirmando, setConfirmando] = useState(false);
 
     const opcionesFechaHora = generarOpcionesFechaHora();
     const opcionesDuracion = generarOpcionesDuracion();
@@ -182,17 +183,25 @@ export function CrearReservaDialog({
 
         const result = await crearReserva(request);
 
-        if (result && result.success) {
-            setReservaCreada(result.data);
+        if (result && result.success && result.data) {
+            // Ahora recibimos reserva_temporal en lugar de reserva
+            setReservaCreada({
+                reserva_temporal: result.data.reserva_temporal,
+                payment_info: result.data.payment_info
+            });
 
             toast({
-                title: "Reserva creada",
-                description: `Reserva creada exitosamente. Código: ${result.data?.reserva.res_codigo}`,
+                title: "Datos preparados",
+                description: `Código de referencia: ${result.data.reserva_temporal?.res_codigo}`,
             });
 
             // Manejar flujo de pago según el método seleccionado
             if (metodoPago === 'link_pago') {
-                // Mostrar pantalla de confirmación con el link
+                // Abrir link de pago automáticamente en nueva pestaña
+                if (result.data?.payment_info?.init_point) {
+                    window.open(result.data.payment_info.init_point, '_blank');
+                }
+                // Mostrar modal de confirmación inmediatamente
                 setMostrarConfirmacionLinkPago(true);
             } else if (metodoPago === 'qr') {
                 setMostrarQR(true);
@@ -210,17 +219,61 @@ export function CrearReservaDialog({
         setMostrarQR(false);
         setMostrarConfirmacionLinkPago(false);
         setCopiado(false);
+        setConfirmando(false);
     };
 
     const copiarCodigo = () => {
-        if (reservaCreada?.reserva?.res_codigo) {
-            navigator.clipboard.writeText(reservaCreada.reserva.res_codigo);
+        if (reservaCreada?.reserva_temporal?.res_codigo) {
+            navigator.clipboard.writeText(reservaCreada.reserva_temporal.res_codigo);
             setCopiado(true);
             setTimeout(() => setCopiado(false), 2000);
             toast({
                 title: "Copiado",
-                description: "Código de reserva copiado al portapapeles.",
+                description: "Código de referencia copiado al portapapeles.",
             });
+        }
+    };
+
+    const confirmarPagoManual = async () => {
+        if (!reservaCreada) return;
+
+        setConfirmando(true);
+        try {
+            console.log('🔄 Confirmando pago manualmente y creando reserva en BD...');
+            const response = await fetch('/api/reservas/confirmar-manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    // Enviar datos temporales para crear la reserva
+                    reserva_data: reservaCreada.reserva_temporal,
+                    preference_id: reservaCreada.payment_info?.preference_id
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                toast({
+                    title: "¡Reserva Confirmada!",
+                    description: "Tu reserva ha sido creada y confirmada exitosamente."
+                });
+                setMostrarConfirmacionLinkPago(false);
+                cerrarDialog();
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: data.error || "No se pudo confirmar la reserva"
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error confirmando pago:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error al confirmar la reserva"
+            });
+        } finally {
+            setConfirmando(false);
         }
     };
 
@@ -450,19 +503,27 @@ export function CrearReservaDialog({
                     <DialogContent className="max-w-md">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <CheckCircle className="w-5 h-5 text-green-600" />
-                                Reserva Creada
+                                <Clock className="w-5 h-5 text-blue-600" />
+                                Confirmar Pago
                             </DialogTitle>
                         </DialogHeader>
 
                         <div className="space-y-4">
+                            {/* Mensaje de instrucción */}
+                            <Alert>
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    Completa el pago en MercadoPago (se abrió en nueva pestaña) y luego confirma aquí.
+                                </AlertDescription>
+                            </Alert>
+
                             {/* Información de la reserva */}
                             <Card>
                                 <CardContent className="pt-6 space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600">Código de Reserva:</span>
+                                        <span className="text-sm text-gray-600">Código de Referencia:</span>
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="outline">{reservaCreada.reserva?.res_codigo}</Badge>
+                                            <Badge variant="outline">{reservaCreada.reserva_temporal?.res_codigo}</Badge>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -493,17 +554,21 @@ export function CrearReservaDialog({
 
                             {/* Botones de acción */}
                             <Button
-                                className="w-full bg-blue-600 hover:bg-blue-700"
-                                onClick={() => {
-                                    if (reservaCreada.payment_info?.init_point) {
-                                        window.open(reservaCreada.payment_info.init_point, '_blank');
-                                    }
-                                    setMostrarConfirmacionLinkPago(false);
-                                    cerrarDialog();
-                                }}
+                                className="w-full bg-green-600 hover:bg-green-700"
+                                onClick={confirmarPagoManual}
+                                disabled={confirmando}
                             >
-                                <ExternalLink className="w-4 h-4 mr-2" />
-                                Ir a Pagar (MercadoPago)
+                                {confirmando ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Confirmando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle className="w-4 h-4 mr-2" />
+                                        Confirmar Pago
+                                    </>
+                                )}
                             </Button>
 
                             <Button
@@ -513,8 +578,9 @@ export function CrearReservaDialog({
                                     setMostrarConfirmacionLinkPago(false);
                                     cerrarDialog();
                                 }}
+                                disabled={confirmando}
                             >
-                                Cerrar
+                                Cancelar
                             </Button>
                         </div>
                     </DialogContent>
@@ -529,13 +595,44 @@ export function CrearReservaDialog({
                         setMostrarQR(false);
                         cerrarDialog();
                     }}
-                    onPaymentComplete={() => {
-                        toast({
-                            title: "Pago procesado",
-                            description: "Tu reserva será confirmada una vez que MercadoPago procese el pago.",
-                        });
-                        setMostrarQR(false);
-                        cerrarDialog();
+                    onPaymentComplete={async () => {
+                        setConfirmando(true);
+                        try {
+                            console.log('🔄 Confirmando pago QR y creando reserva en BD...');
+                            const response = await fetch('/api/reservas/confirmar-manual', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    reserva_data: reservaCreada.reserva_temporal,
+                                    preference_id: reservaCreada.payment_info?.preference_id
+                                })
+                            });
+
+                            const data = await response.json();
+                            if (data.success) {
+                                toast({
+                                    title: "¡Reserva Confirmada!",
+                                    description: "Tu reserva ha sido creada y confirmada exitosamente."
+                                });
+                                setMostrarQR(false);
+                                cerrarDialog();
+                            } else {
+                                toast({
+                                    variant: "destructive",
+                                    title: "Error",
+                                    description: data.error || "No se pudo confirmar la reserva"
+                                });
+                            }
+                        } catch (error) {
+                            console.error('❌ Error confirmando pago QR:', error);
+                            toast({
+                                variant: "destructive",
+                                title: "Error",
+                                description: "Error al confirmar la reserva"
+                            });
+                        } finally {
+                            setConfirmando(false);
+                        }
                     }}
                     paymentData={{
                         amount: precioTotal,
@@ -550,7 +647,7 @@ export function CrearReservaDialog({
                         preferenceId: reservaCreada.payment_info?.preference_id || ''
                     }}
                     paymentStatus="pendiente"
-                    loading={false}
+                    loading={confirmando}
                 />
             )}
         </Dialog>

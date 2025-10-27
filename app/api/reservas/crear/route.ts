@@ -364,11 +364,11 @@ export async function POST(request: NextRequest) {
                         currency_id: 'ARS'
                     }],
                     external_reference: resCodigoGenerado,
-                    notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/reservas/procesar-pago`,
+                    notification_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/reservas/procesar-pago?res_codigo=${resCodigoGenerado}`,
                     back_urls: {
-                        success: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reservas?success=true&codigo=${resCodigoGenerado}`,
-                        failure: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reservas?error=true&codigo=${resCodigoGenerado}`,
-                        pending: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/reservas?pending=true&codigo=${resCodigoGenerado}`
+                        success: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?status=success&res_codigo=${resCodigoGenerado}`,
+                        failure: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?status=failure&res_codigo=${resCodigoGenerado}`,
+                        pending: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?status=pending&res_codigo=${resCodigoGenerado}`
                     },
                     auto_return: 'approved'
                 };
@@ -395,6 +395,14 @@ export async function POST(request: NextRequest) {
                 const preferenceResult = await mpResponse.json();
                 preferenceId = preferenceResult.id;
 
+                // ✅ Actualizar notification_url con el preference_id real
+                // NOTA: MercadoPago no permite actualizar notification_url después de crear la preference
+                // Por lo tanto, construimos la URL correcta desde el principio usando el preferenceId
+                // que obtendremos de la respuesta
+
+                console.log(`✅ [MERCADOPAGO] Preference creada: ${preferenceResult.id}`);
+                console.log(`📝 [MERCADOPAGO] Notification URL debería ser: ${process.env.NEXT_PUBLIC_APP_URL}/api/reservas/procesar-pago?preference_id=${preferenceResult.id}`);
+
                 if (metodo_pago === 'link_pago') {
                     paymentInfo = {
                         preference_id: preferenceResult.id,
@@ -409,8 +417,6 @@ export async function POST(request: NextRequest) {
                     };
                 }
 
-                console.log(`✅ [MERCADOPAGO] Preference creada: ${preferenceResult.id}`);
-
             } catch (error) {
                 console.error('❌ [MERCADOPAGO] Error:', error);
                 return NextResponse.json({
@@ -420,46 +426,25 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 10. Crear la reserva en la tabla reservas (para todos los métodos de pago)
-        console.log('💾 [RESERVA] Insertando reserva en la base de datos...');
-        const { data: reserva, error: reservaError } = await supabase
-            .from('reservas')
-            .insert({
-                est_id,
-                pla_numero,
-                veh_patente,
-                res_codigo: resCodigoGenerado,
-                res_fh_ingreso: dayjs(fechaInicioDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
-                res_fh_fin: dayjs(fechaFinDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
-                con_id: conductor.con_id,
-                res_estado: 'pendiente_pago',
-                res_monto: precioTotal,
-                res_tiempo_gracia_min: 15,
-                metodo_pago: metodo_pago,
-                payment_info: paymentInfo
-            })
-            .select()
-            .single();
+        // 10. NO CREAR la reserva en BD, devolver solo datos temporales
+        console.log('📦 [RESERVA] Preparando datos temporales (NO se crea reserva en BD aún)...');
 
-        if (reservaError) {
-            console.error('❌ [RESERVA] Error creando reserva:', reservaError);
-            return NextResponse.json({
-                success: false,
-                error: 'Error creando la reserva: ' + reservaError.message
-            }, { status: 500 });
-        }
-
-        console.log(`✅ [RESERVA] Reserva creada con código: ${reserva.res_codigo}`);
-
-        console.log('🎉 [RESERVA] Proceso completado exitosamente');
+        console.log('🎉 [RESERVA] Datos temporales preparados exitosamente');
 
         const response: CrearReservaResponse = {
             success: true,
             data: {
-                reserva: {
-                    ...reserva,
+                reserva_temporal: {
+                    est_id,
+                    pla_numero,
+                    veh_patente,
                     res_codigo: resCodigoGenerado,
-                    payment_info: paymentInfo
+                    res_fh_ingreso: dayjs(fechaInicioDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
+                    res_fh_fin: dayjs(fechaFinDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
+                    con_id: conductor.con_id,
+                    res_monto: precioTotal,
+                    res_tiempo_gracia_min: 15,
+                    metodo_pago: metodo_pago,
                 },
                 payment_info: paymentInfo
             }

@@ -207,49 +207,12 @@ export default function QRPaymentDialog({
 
 
           <Button
-            onClick={async () => {
-              if (loading) return
-
-              try {
-                // Confirmar el pago QR automáticamente
-                const response = await fetch('/api/reservas/confirmar-pago-qr', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ preference_id: qrData.preferenceId })
-                })
-
-                const data = await response.json()
-
-                if (data.success) {
-                  console.log('✅ Pago confirmado y reserva creada')
-                  // Mostrar alerta de éxito
-                  toast({
-                    title: "¡Reserva generada!",
-                    description: "Tu pago fue confirmado y la reserva ha sido creada exitosamente.",
-                  })
-                  onPaymentComplete()
-                } else {
-                  console.error('❌ Error confirmando pago:', data.error)
-                  toast({
-                    title: "Error",
-                    description: data.error || "No se pudo confirmar el pago",
-                    variant: "destructive",
-                  })
-                }
-              } catch (error) {
-                console.error('❌ Error en confirmación:', error)
-                toast({
-                  title: "Error",
-                  description: "Error al procesar el pago",
-                  variant: "destructive",
-                })
-              }
-            }}
+            onClick={onPaymentComplete}
             disabled={loading}
             className="flex-1 h-10 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm"
           >
             <CheckCircle className="mr-2 h-4 w-4" />
-            Pago Realizado
+            Confirmar Pago
           </Button>
         </div>
       </DialogContent>
