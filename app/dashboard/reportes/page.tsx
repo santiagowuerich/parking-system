@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReporteCard } from "./components/reporte-card";
 import { MetricasRapidas } from "./components/metricas-rapidas";
 import { ReporteModal } from "./components/reporte-modal";
-import { cn } from "@/lib/utils";
+import { useReportesMetrics } from "./hooks/use-reportes-metrics";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
     BarChart3,
     TrendingUp,
@@ -52,6 +53,7 @@ type ReporteType =
 
 export default function ReportesPage() {
     const [reporteActivo, setReporteActivo] = useState<ReporteType>(null);
+    const { plazasData, movimientosData, ingresosData, strategicMetrics, loading } = useReportesMetrics();
 
     const abrirReporte = (reporte: ReporteType) => {
         setReporteActivo(reporte);
@@ -193,19 +195,25 @@ export default function ReportesPage() {
                             metricas={[
                                 {
                                     label: "Ocupación Actual",
-                                    value: "---",
+                                    value: loading ? "..." : plazasData ?
+                                        `${Math.round((plazasData.total_general.ocupadas / plazasData.total_general.total) * 100)}%` :
+                                        "0%",
                                     subtitle: "En tiempo real",
                                     icon: Percent,
                                 },
                                 {
                                     label: "Plazas Libres",
-                                    value: "---",
-                                    subtitle: "de 100 plazas",
+                                    value: loading ? "..." : plazasData ?
+                                        `${plazasData.total_general.disponibles}` :
+                                        "0",
+                                    subtitle: `de ${plazasData?.total_general.total || 0} plazas`,
                                     icon: Car,
                                 },
                                 {
                                     label: "Movimientos Hoy",
-                                    value: "--- / ---",
+                                    value: loading ? "..." : movimientosData ?
+                                        `${movimientosData.ingresos_hoy} / ${movimientosData.egresos_hoy}` :
+                                        "0 / 0",
                                     subtitle: "Ingreso / Egreso",
                                     icon: Activity,
                                 }
@@ -251,25 +259,27 @@ export default function ReportesPage() {
                             metricas={[
                                 {
                                     label: "Ingresos Hoy",
-                                    value: "$---",
+                                    value: loading ? "..." : ingresosData ?
+                                        formatCurrency(ingresosData.hoy) :
+                                        "$0",
                                     subtitle: "Acumulado del día",
-                                    badge: { text: "+--% ↑", variant: "secondary" },
-                                    trend: "up",
                                     icon: DollarSign,
                                 },
                                 {
                                     label: "Ingresos Semana",
-                                    value: "$---",
+                                    value: loading ? "..." : ingresosData ?
+                                        formatCurrency(ingresosData.semana) :
+                                        "$0",
                                     subtitle: "Últimos 7 días",
-                                    badge: { text: "+--% ↑", variant: "secondary" },
-                                    trend: "up",
                                     icon: TrendingUp,
                                 },
                                 {
-                                    label: "Abonos Activos",
-                                    value: "---",
-                                    subtitle: "-- por vencer",
-                                    icon: Users,
+                                    label: "Ingresos Mes",
+                                    value: loading ? "..." : ingresosData ?
+                                        formatCurrency(ingresosData.mes) :
+                                        "$0",
+                                    subtitle: "Últimos 30 días",
+                                    icon: Calendar,
                                 }
                             ]}
                         />
@@ -312,24 +322,28 @@ export default function ReportesPage() {
                             titulo="Métricas estratégicas"
                             metricas={[
                                 {
-                                    label: "Crecimiento Mes",
-                                    value: "---%",
-                                    subtitle: "vs mes anterior",
-                                    badge: { text: "+--% ↑", variant: "secondary" },
-                                    trend: "up",
-                                    icon: TrendingUp,
+                                    label: "Ticket Promedio",
+                                    value: loading ? "..." : strategicMetrics ?
+                                        formatCurrency(strategicMetrics.ticketPromedio) :
+                                        "$0",
+                                    subtitle: "Por vehículo (30 días)",
+                                    icon: DollarSign,
                                 },
                                 {
-                                    label: "Zona Top",
-                                    value: "---",
-                                    subtitle: "$--- en ingresos",
+                                    label: "Ocupación Promedio",
+                                    value: loading ? "..." : strategicMetrics ?
+                                        `${strategicMetrics.ocupacionPromedio}%` :
+                                        "0%",
+                                    subtitle: "Últimos 30 días",
                                     icon: Building,
                                 },
                                 {
-                                    label: "Proyección Mes",
-                                    value: "$---",
-                                    subtitle: "Esperado",
-                                    icon: LineChart,
+                                    label: "Flujo de Vehículos",
+                                    value: loading ? "..." : strategicMetrics ?
+                                        `${strategicMetrics.flujoVehiculos}` :
+                                        "0",
+                                    subtitle: "Promedio por día (30 días)",
+                                    icon: Activity,
                                 }
                             ]}
                         />
