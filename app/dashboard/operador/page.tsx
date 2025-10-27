@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ArrowRight, Plus, Calendar, Search } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, Plus, Search } from "lucide-react";
 import { ListaReservasOperador } from "@/components/reservas/lista-reservas-operador";
 import { BuscarReservaDialog } from "@/components/reservas/buscar-reserva-dialog";
 import IngresoModal from "@/components/ingreso-modal";
@@ -1179,7 +1179,7 @@ export default function OperadorPage() {
                         {/* Main Content */}
                         <div className="max-w-7xl mx-auto px-6 py-16">
                             <TurnoGuard showAlert={true} redirectButton={true}>
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
 
                                     {/* Tarjeta de Ingreso */}
                                     <div
@@ -1229,36 +1229,6 @@ export default function OperadorPage() {
                                         </div>
                                     </div>
 
-                                    {/* Tarjeta de Reservas */}
-                                    <div
-                                        className="bg-gradient-to-br from-blue-100 to-blue-200 rounded-3xl p-8 border-2 border-blue-300 cursor-pointer hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center min-h-[400px]"
-                                        onClick={() => setVistaActual('reservas')}
-                                    >
-                                        {/* Círculo con calendario */}
-                                        <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
-                                            <Calendar className="w-8 h-8 text-white" />
-                                        </div>
-
-                                        {/* Título */}
-                                        <h2 className="text-4xl font-bold text-blue-800 mb-4">RESERVAS</h2>
-
-                                        {/* Descripción */}
-                                        <p className="text-blue-700 text-center mb-8 text-lg">
-                                            Gestionar reservas de estacionamiento
-                                        </p>
-
-                                        {/* Botón de búsqueda */}
-                                        <Button
-                                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-medium"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setBuscarReservaOpen(true);
-                                            }}
-                                        >
-                                            <Search className="w-4 h-4 mr-2" />
-                                            Buscar Reserva
-                                        </Button>
-                                    </div>
                                 </div>
                             </TurnoGuard>
                         </div>
