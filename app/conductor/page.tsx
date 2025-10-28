@@ -329,24 +329,44 @@ export default function MapaEstacionamientos() {
                                                                 <MapPin className="h-4 w-4 text-gray-500" />
                                                                 <span className="text-gray-600 text-sm">{selectedParking.direccion.split(',')[0]}</span>
                                                             </div>
+                                                            {/* Horario pequeño solo si tiene horario configurado */}
+                                                            {selectedParking.estadoApertura && selectedParking.estadoApertura.hasSchedule && (
+                                                                <div className="flex items-center gap-1 mb-1">
+                                                                    <span className="text-xs">🕒</span>
+                                                                    <span className={`text-xs font-medium ${selectedParking.estadoApertura.isOpen ? 'text-green-600' : 'text-red-600'
+                                                                        }`}>
+                                                                        {selectedParking.estadoApertura.isOpen ? 'Abierto' : 'Cerrado'}
+                                                                    </span>
+                                                                    {selectedParking.estadoApertura.nextChange && (
+                                                                        <span className="text-xs text-gray-500">
+                                                                            • Abre {selectedParking.estadoApertura.nextChange.includes('08:00') ? '8am' : selectedParking.estadoApertura.nextChange.includes('18:00') ? '6pm' : selectedParking.estadoApertura.nextChange.replace('Abre a las ', '').replace('Cierra a las ', '').split(':')[0] + 'h'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                             {selectedParking.distance && (
                                                                 <div className="text-blue-600 text-sm font-bold">
                                                                     {selectedParking.distance.toFixed(1)} km de distancia
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estado === 'disponible'
-                                                            ? 'bg-green-600 text-white hover:bg-green-600'
-                                                            : selectedParking.estado === 'pocos'
-                                                                ? 'bg-orange-600 text-white hover:bg-orange-600'
-                                                                : 'bg-red-600 text-white hover:bg-red-600'
+                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estadoApertura && !selectedParking.estadoApertura.isOpen
+                                                            ? 'bg-gray-600 text-white hover:bg-gray-600'
+                                                            : selectedParking.estado === 'disponible'
+                                                                ? 'bg-green-600 text-white hover:bg-green-600'
+                                                                : selectedParking.estado === 'pocos'
+                                                                    ? 'bg-orange-600 text-white hover:bg-orange-600'
+                                                                    : 'bg-red-600 text-white hover:bg-red-600'
                                                             }`}>
-                                                            {selectedParking.estado === 'disponible' ? 'Disponible' :
-                                                                selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
+                                                            {selectedParking.estadoApertura && !selectedParking.estadoApertura.isOpen
+                                                                ? 'Cerrado'
+                                                                : selectedParking.estado === 'disponible' ? 'Disponible' :
+                                                                    selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
                                                         </Badge>
                                                     </div>
                                                 </div>
 
+                                                {/* Información de plazas disponibles */}
                                                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
                                                     <div className="flex items-center justify-center">
                                                         <div className="flex items-center gap-3">
@@ -363,6 +383,19 @@ export default function MapaEstacionamientos() {
                                                             </span>
                                                         </div>
                                                     </div>
+                                                </div>
+
+                                                {/* Información adicional: contacto */}
+                                                <div className="space-y-4 mb-4">
+                                                    {/* Información de contacto - solo teléfono */}
+                                                    {selectedParking.telefono && (
+                                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                                            <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                                <span>📞</span>
+                                                                <span className="font-medium">{selectedParking.telefono}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="flex gap-3 justify-center">
@@ -432,6 +465,10 @@ export default function MapaEstacionamientos() {
                                                             className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
                                                             onClick={() => {
                                                                 setSelectedParking(parking);
+                                                                // Abrir popup en el mapa
+                                                                if ((window as any).openParkingPopup) {
+                                                                    (window as any).openParkingPopup(parking.id);
+                                                                }
                                                                 const headerElement = document.getElementById('map-header');
                                                                 if (headerElement) {
                                                                     headerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });

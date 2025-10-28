@@ -46,6 +46,7 @@ declare global {
     interface Window {
         google: any;
         initParkingMap: () => void;
+        openParkingPopup?: (parkingId: number) => void;
     }
 }
 
@@ -395,47 +396,6 @@ export default function ParkingMap({
             const contentDiv = document.createElement('div');
             contentDiv.className = 'parking-popup relative w-[280px] max-w-[80vw] rounded-2xl border bg-white p-4 shadow-xl';
 
-            const llaveText = parking.est_requiere_llave === 'requerida' ? '🔑 Llave requerida' :
-                parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
-
-            // Determinar el estado de apertura
-            const estadoApertura = parking.estadoApertura || { isOpen: false, hasSchedule: false };
-            let horarioHTML = '';
-
-            if (!estadoApertura.hasSchedule) {
-                // Sin horarios configurados - badge amarillo con guion
-                horarioHTML = `
-                    <div style="background: #fef3c7; padding: 10px; border-radius: 8px; border: 1px solid #fde68a;">
-                        <div style="font-size: 11px; color: #b45309; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
-                        <div style="font-size: 24px; font-weight: 700; color: #92400e; text-align: center;">
-                            ⚠️ -
-                        </div>
-                        <div style="font-size: 10px; color: #92400e; text-align: center; margin-top: 2px;">Sin configurar</div>
-                    </div>
-                `;
-            } else if (estadoApertura.isOpen) {
-                // Abierto - badge verde
-                horarioHTML = `
-                    <div style="background: #dcfce7; padding: 10px; border-radius: 8px; border: 1px solid #86efac;">
-                        <div style="font-size: 11px; color: #047857; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
-                        <div style="font-size: 18px; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 4px;">
-                            🟢 ABIERTO
-                        </div>
-                        ${estadoApertura.nextChange ? `<div style="font-size: 10px; color: #047857; margin-top: 2px;">${estadoApertura.nextChange}</div>` : ''}
-                    </div>
-                `;
-            } else {
-                // Cerrado - badge rojo
-                horarioHTML = `
-                    <div style="background: #fee2e2; padding: 10px; border-radius: 8px; border: 1px solid #fecaca;">
-                        <div style="font-size: 11px; color: #991b1b; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Horario</div>
-                        <div style="font-size: 18px; font-weight: 700; color: #7f1d1d; display: flex; align-items: center; gap: 4px;">
-                            🔴 CERRADO
-                        </div>
-                        ${estadoApertura.nextChange ? `<div style="font-size: 10px; color: #991b1b; margin-top: 2px;">${estadoApertura.nextChange}</div>` : ''}
-                    </div>
-                `;
-            }
 
             contentDiv.innerHTML = `
                 <button
@@ -465,62 +425,11 @@ export default function ParkingMap({
                 <div style="margin-bottom: 14px; display: flex; align-items: start; gap: 8px;">
                     <span style="color: #6b7280; font-size: 16px; margin-top: 1px;">📍</span>
                     <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5; flex: 1;">
-                        ${parking.direccion}, ${parking.localidad}
+                        ${parking.direccion.split(',')[0]}, ${parking.localidad}
                     </p>
                 </div>
 
-                ${parking.descripcion ? `
-                <!-- Descripción -->
-                <div style="margin-bottom: 14px; padding: 10px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #3b82f6;">
-                    <p style="margin: 0; font-size: 13px; color: #4b5563; line-height: 1.5; font-style: italic;">
-                        ${parking.descripcion}
-                    </p>
-                </div>
-                ` : ''}
 
-                <!-- Grid de información -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
-                    <!-- Disponibilidad -->
-                    <div style="background: #f0f9ff; padding: 10px; border-radius: 8px; border: 1px solid #bae6fd;">
-                        <div style="font-size: 11px; color: #0369a1; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Disponibles</div>
-                        <div style="font-size: 20px; font-weight: 700; color: #0c4a6e;">
-                            ${parking.espaciosDisponibles}
-                            <span style="font-size: 12px; color: #0369a1; font-weight: 500;">/ ${parking.capacidad}</span>
-                        </div>
-                    </div>
-
-                    <!-- Horario dinámico -->
-                    ${horarioHTML}
-                </div>
-
-                ${parking.tolerancia ? `
-                <!-- Tolerancia -->
-                <div style="margin-bottom: 12px; padding: 8px 10px; background: #f3f4f6; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 14px;">⏱️</span>
-                    <span style="font-size: 13px; color: #4b5563;">
-                        <strong>${parking.tolerancia} min</strong> de tolerancia
-                    </span>
-                </div>
-                ` : ''}
-
-                ${llaveText ? `
-                <!-- Requerimiento de llave -->
-                <div style="margin-bottom: 12px; padding: 8px 10px; background: ${parking.est_requiere_llave === 'requerida' ? '#fef2f2' : '#fefce8'}; border-radius: 6px; border: 1px solid ${parking.est_requiere_llave === 'requerida' ? '#fecaca' : '#fef08a'}; display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 14px;">🔑</span>
-                    <span style="font-size: 13px; color: ${parking.est_requiere_llave === 'requerida' ? '#991b1b' : '#854d0e'}; font-weight: 600;">
-                        ${llaveText.replace('🔑 ', '')}
-                    </span>
-                </div>
-                ` : ''}
-
-                <!-- Información de contacto -->
-                ${parking.telefono || parking.email ? `
-                <div style="margin-bottom: 14px; padding: 10px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
-                    <div style="font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Contacto</div>
-                    ${parking.telefono ? `<div style="font-size: 13px; color: #374151; margin-bottom: 3px;">📞 ${parking.telefono}</div>` : ''}
-                    ${parking.email ? `<div style="font-size: 13px; color: #374151;">📧 ${parking.email}</div>` : ''}
-                </div>
-                ` : ''}
 
                 <!-- Botón de acción -->
                 <button
@@ -545,13 +454,20 @@ export default function ParkingMap({
             const navigateButton = contentDiv.querySelector(`#navigate-button-${parking.id}`);
             if (navigateButton) {
                 navigateButton.addEventListener('click', () => {
-                    // Crear la URL para Google Maps
+                    // PRIMERO: Centrar el mapa específicamente en el estacionamiento
+                    if (mapInstanceRef.current) {
+                        const parkingPosition = { lat: parking.latitud, lng: parking.longitud };
+                        mapInstanceRef.current.setCenter(parkingPosition);
+                        mapInstanceRef.current.setZoom(17); // Zoom más cercano para enfocarse en el estacionamiento
+
+                        console.log('📍 Mapa centrado específicamente en estacionamiento:', parking.nombre);
+                    }
+
+                    // SEGUNDO: Crear la URL para Google Maps y abrir en nueva pestaña
                     const address = encodeURIComponent(
                         parking.direccionCompleta || parking.direccion
                     );
                     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
-
-                    // Abrir en nueva pestaña
                     window.open(googleMapsUrl, '_blank');
 
                     console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
@@ -932,14 +848,27 @@ export default function ParkingMap({
         };
     }, [userLocation, searchRadius, parkings, isLoaded, getFilteredParkings]);
 
-    // Exponer función de ubicación cuando el componente esté montado
+    // Función para abrir el popup de un estacionamiento específico
+    const openParkingPopup = (parkingId: number) => {
+        const marker = markersRef.current.find(m => (m as any).parkingData?.id === parkingId);
+        if (marker && window.google?.maps) {
+            // Simular clic en el marcador para abrir el popup
+            window.google.maps.event.trigger(marker, 'click');
+        }
+    };
+
+    // Exponer función de ubicación y apertura de popup cuando el componente esté montado
     useEffect(() => {
         if (onLocationButtonClick) {
             (window as any).centerMapOnUserLocation = centerMapOnUserLocation;
         }
+        // Exponer función global para abrir popup de estacionamiento
+        (window as any).openParkingPopup = openParkingPopup;
+
         return () => {
             // Limpiar en unmount
             delete (window as any).centerMapOnUserLocation;
+            delete (window as any).openParkingPopup;
         };
     }, [onLocationButtonClick]);
 

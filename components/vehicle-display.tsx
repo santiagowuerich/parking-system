@@ -73,9 +73,8 @@ export function VehicleDisplay({ compact = false }: { compact?: boolean }) {
                                     setSelectedVehicle(vehicle);
                                     setOpen(false);
                                 }}
-                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-100 transition-colors ${
-                                    selectedVehicle?.id === vehicle.id ? 'bg-blue-50' : ''
-                                }`}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-100 transition-colors ${selectedVehicle?.id === vehicle.id ? 'bg-blue-50' : ''
+                                    }`}
                             >
                                 <div className={`flex items-center justify-center w-8 h-8 rounded-md ${getVehicleColor(vehicle.tipo)}`}>
                                     {getVehicleIcon(vehicle.tipo)}
@@ -102,17 +101,22 @@ export function VehicleDisplay({ compact = false }: { compact?: boolean }) {
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <button className={`flex items-center gap-3 px-4 py-2 rounded-lg border-2 ${getVehicleColor(selectedVehicle.tipo)} hover:opacity-80 transition-opacity cursor-pointer`}>
-                    {getVehicleIcon(selectedVehicle.tipo)}
-                    <div>
-                        <div className="font-semibold">{selectedVehicle.patente}</div>
+                <button className={`group flex items-center gap-2 px-3 py-2 rounded-xl border border-white/20 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer ${selectedVehicle.tipo === 'AUT' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700' :
+                        selectedVehicle.tipo === 'MOT' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700' :
+                            'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
+                    }`}>
+                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm">
+                        {getVehicleIcon(selectedVehicle.tipo)}
+                    </div>
+                    <div className="text-left">
+                        <div className="font-bold text-sm leading-tight">{selectedVehicle.patente}</div>
                         {(selectedVehicle.marca || selectedVehicle.modelo) && (
-                            <div className="text-xs opacity-75">
+                            <div className="text-xs opacity-90 leading-tight">
                                 {selectedVehicle.marca} {selectedVehicle.modelo}
                             </div>
                         )}
                     </div>
-                    <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
+                    <ChevronDown className="w-4 h-4 ml-1 opacity-80 group-hover:opacity-100 transition-opacity" />
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-2" align="end">
@@ -125,9 +129,8 @@ export function VehicleDisplay({ compact = false }: { compact?: boolean }) {
                                 setSelectedVehicle(vehicle);
                                 setOpen(false);
                             }}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-100 transition-colors ${
-                                selectedVehicle?.id === vehicle.id ? 'bg-blue-50' : ''
-                            }`}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-100 transition-colors ${selectedVehicle?.id === vehicle.id ? 'bg-blue-50' : ''
+                                }`}
                         >
                             <div className={`flex items-center justify-center w-10 h-10 rounded-md ${getVehicleColor(vehicle.tipo)}`}>
                                 {getVehicleIcon(vehicle.tipo)}
