@@ -198,7 +198,7 @@ export default function MapaEstacionamientos() {
         <DashboardLayout>
             <div className="h-screen bg-gray-50 flex flex-col">
                 {/* Header */}
-                <div className="bg-white border-b px-8 py-6 shadow-sm">
+                <div id="map-header" className="bg-white border-b px-8 py-6 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <div className="space-y-2">
                             <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
@@ -325,7 +325,7 @@ export default function MapaEstacionamientos() {
                                                                 <span className="text-gray-600 text-sm">{selectedParking.direccion.split(',')[0]}</span>
                                                             </div>
                                                             {selectedParking.distance && (
-                                                                <div className="text-blue-600 text-sm font-medium">
+                                                                <div className="text-blue-600 text-sm font-bold">
                                                                     {selectedParking.distance.toFixed(1)} km de distancia
                                                                 </div>
                                                             )}
@@ -435,7 +435,13 @@ export default function MapaEstacionamientos() {
                                                         <Card
                                                             key={parking.id}
                                                             className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
-                                                            onClick={() => setSelectedParking(parking)}
+                                                            onClick={() => {
+                                                                setSelectedParking(parking);
+                                                                const headerElement = document.getElementById('map-header');
+                                                                if (headerElement) {
+                                                                    headerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                }
+                                                            }}
                                                         >
                                                             <CardContent className="p-4">
                                                                 <div className="flex items-start justify-between">

@@ -324,7 +324,7 @@ export default function ParkingMap({
 
         // Info window con configuración limpia
         const infoWindow = new window.google.maps.InfoWindow({
-            maxWidth: 360
+            maxWidth: 300
         });
 
         // Función para abrir popup con la nueva implementación
@@ -333,10 +333,10 @@ export default function ParkingMap({
 
             // Crear un div temporal para el contenido
             const contentDiv = document.createElement('div');
-            contentDiv.className = 'parking-popup relative w-[340px] max-w-[86vw] rounded-2xl border bg-white p-4 shadow-xl';
+            contentDiv.className = 'parking-popup relative w-[280px] max-w-[80vw] rounded-2xl border bg-white p-4 shadow-xl';
 
             const llaveText = parking.est_requiere_llave === 'requerida' ? '🔑 Llave requerida' :
-                            parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
+                parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
 
             // Determinar el estado de apertura
             const estadoApertura = parking.estadoApertura || { isOpen: false, hasSchedule: false };
