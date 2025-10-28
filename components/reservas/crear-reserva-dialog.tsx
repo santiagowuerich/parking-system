@@ -286,7 +286,7 @@ export function CrearReservaDialog({
 
     return (
         <Dialog open={open} onOpenChange={cerrarDialog}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-6">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Calendar className="w-5 h-5" />
@@ -294,7 +294,7 @@ export function CrearReservaDialog({
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-6">
+                <div className="space-y-6 pt-4">
                     {/* Información de la plaza */}
                     {/* Selector de Plaza */}
                     <div className="space-y-2">

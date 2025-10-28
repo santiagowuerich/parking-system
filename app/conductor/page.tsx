@@ -317,24 +317,28 @@ export default function MapaEstacionamientos() {
                                         <Card className="border-2 border-blue-500 bg-white shadow-xl">
                                             <CardContent className="p-6">
                                                 <div className="mb-6">
-                                                    <div className="flex flex-col gap-3 mb-3">
-                                                        <h3 className="font-bold text-xl text-gray-900">{selectedParking.nombre}</h3>
-                                                        <div className="flex justify-start">
-                                                            <Badge className={`px-3 py-1 text-sm font-semibold w-fit ${selectedParking.estado === 'disponible'
-                                                                ? 'bg-green-600 text-white'
-                                                                : selectedParking.estado === 'pocos'
-                                                                    ? 'bg-orange-600 text-white'
-                                                                    : 'bg-red-600 text-white'
-                                                                }`}>
-                                                                {selectedParking.estado === 'disponible' ? 'Disponible' :
-                                                                    selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
-                                                            </Badge>
+                                                    <div className="flex items-start justify-between mb-4">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-bold text-xl text-gray-900 mb-2 overflow-hidden text-ellipsis whitespace-nowrap" title={selectedParking.nombre}>{selectedParking.nombre}</h3>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <MapPin className="h-4 w-4 text-gray-500" />
+                                                                <span className="text-gray-600 text-sm">{selectedParking.direccion.split(',')[0]}</span>
+                                                            </div>
+                                                            {selectedParking.distance && (
+                                                                <div className="text-blue-600 text-sm font-medium">
+                                                                    {selectedParking.distance.toFixed(1)} km de distancia
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 mb-4">
-                                                        <MapPin className="h-4 w-4 text-gray-500" />
-                                                        <span className="text-gray-600 text-sm">{selectedParking.direccion}</span>
+                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estado === 'disponible'
+                                                            ? 'bg-green-600 text-white'
+                                                            : selectedParking.estado === 'pocos'
+                                                                ? 'bg-orange-600 text-white'
+                                                                : 'bg-red-600 text-white'
+                                                            }`}>
+                                                            {selectedParking.estado === 'disponible' ? 'Disponible' :
+                                                                selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
+                                                        </Badge>
                                                     </div>
                                                 </div>
 
@@ -356,9 +360,9 @@ export default function MapaEstacionamientos() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-3">
+                                                <div className="flex gap-3 justify-center">
                                                     <Button
-                                                        className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
+                                                        className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
                                                         onClick={() => {
                                                             if (selectedParking) {
                                                                 // Crear la URL para Google Maps
@@ -378,13 +382,15 @@ export default function MapaEstacionamientos() {
                                                         Navegar
                                                     </Button>
 
-                                                    <Button
-                                                        className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
-                                                        onClick={() => setReservaDialogOpen(true)}
-                                                    >
-                                                        <Calendar className="w-5 h-5 mr-2" />
-                                                        Reservar
-                                                    </Button>
+                                                    {plazasDisponibles.length > 0 && (
+                                                        <Button
+                                                            className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                            onClick={() => setReservaDialogOpen(true)}
+                                                        >
+                                                            <Calendar className="w-5 h-5 mr-2" />
+                                                            Reservar
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </CardContent>
                                         </Card>
