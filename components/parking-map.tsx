@@ -853,6 +853,17 @@ export default function ParkingMap({
         }
     }, [parkings, onParkingsLoaded]);
 
+    // useEffect para forzar recarga inicial con filtro cuando se obtiene ubicación
+    useEffect(() => {
+        if (userLocation && vehicleTypeFilter && isLoaded && mapInstanceRef.current) {
+            console.log('🎯 Recarga inicial con filtro aplicado:', vehicleTypeFilter, 'Parkings actuales:', parkings.length);
+            fetchParkings().then(loadedParkings => {
+                console.log('✅ Parkings recargados con filtro:', loadedParkings.length);
+                setParkings(loadedParkings);
+            });
+        }
+    }, [userLocation, vehicleTypeFilter, isLoaded]);
+
     // useEffect para recargar estacionamientos cuando cambie el filtro de tipo de vehículo
     useEffect(() => {
         // Usar didMountRef para evitar ejecutar en el primer render

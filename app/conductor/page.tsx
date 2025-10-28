@@ -50,7 +50,8 @@ export default function MapaEstacionamientos() {
     const [searchText, setSearchText] = useState("");
     const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
-    const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(null);
+    const { selectedVehicle } = useVehicle();
+    const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(selectedVehicle?.tipo || null);
     const [selectedParking, setSelectedParking] = useState<ParkingData | null>(null);
     const [allParkings, setAllParkings] = useState<ParkingData[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
@@ -58,14 +59,54 @@ export default function MapaEstacionamientos() {
     const [reservaDialogOpen, setReservaDialogOpen] = useState(false);
     const [plazasDisponibles, setPlazasDisponibles] = useState<any[]>([]); // Plazas disponibles para reserva
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
-    const { selectedVehicle } = useVehicle();
 
     // Auto-aplicar filtro según vehículo seleccionado
     useEffect(() => {
         if (selectedVehicle) {
             setVehicleTypeFilter(selectedVehicle.tipo);
+            console.log('🚗 Filtro de vehículo activado automáticamente:', selectedVehicle.tipo);
+        } else {
+            // Si no hay vehículo seleccionado, quitar filtro
+            setVehicleTypeFilter(null);
+            console.log('🚫 Filtro de vehículo desactivado (sin vehículo seleccionado)');
         }
     }, [selectedVehicle]);
+
+    // Asegurar que el filtro se active al montar si hay vehículo seleccionado
+    useEffect(() => {
+        if (selectedVehicle && vehicleTypeFilter !== selectedVehicle.tipo) {
+            console.log('🔄 Sincronizando filtro inicial con vehículo seleccionado:', selectedVehicle.tipo);
+            setVehicleTypeFilter(selectedVehicle.tipo);
+        }
+    }, []); // Solo al montar
+
+    // Forzar aplicación del filtro cuando se obtiene ubicación por primera vez
+    useEffect(() => {
+        if (userLocation && selectedVehicle && vehicleTypeFilter !== selectedVehicle.tipo) {
+            console.log('📍 Aplicando filtro de vehículo al obtener ubicación:', selectedVehicle.tipo);
+            setVehicleTypeFilter(selectedVehicle.tipo);
+        }
+    }, [userLocation, selectedVehicle, vehicleTypeFilter]);
+
+    // Aplicar filtro inmediatamente cuando se obtiene ubicación, independientemente del estado anterior
+    const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
+        console.log('📍 Ubicación del usuario actualizada:', location);
+        console.log('🔍 Estableciendo ubicación del usuario para mostrar estacionamientos cercanos...');
+        setUserLocation(location);
+
+        // Forzar aplicación del filtro del vehículo seleccionado cuando se obtiene ubicación
+        if (selectedVehicle) {
+            console.log('🚗 Aplicando filtro de vehículo seleccionado al obtener ubicación:', selectedVehicle.tipo, 'Filtro actual:', vehicleTypeFilter);
+            setVehicleTypeFilter(selectedVehicle.tipo);
+            // Resetear allParkings para forzar recarga con filtro aplicado
+            setAllParkings([]);
+            console.log('✅ Filtro aplicado y allParkings reseteado');
+        } else {
+            console.log('⚠️ No hay vehículo seleccionado, no se aplica filtro automático');
+        }
+
+        console.log('✅ Ubicación del usuario establecida. Los estacionamientos cercanos deberían aparecer ahora.');
+    };
 
     // Función para obtener plazas disponibles del estacionamiento seleccionado
     const obtenerPlazasDisponibles = async (estId: number) => {
@@ -155,20 +196,21 @@ export default function MapaEstacionamientos() {
     const handleParkingsLoaded = (parkings: ParkingData[]) => {
         console.log('📥 Estacionamientos recibidos del mapa:', parkings.length);
         setAllParkings(parkings);
+
+        // Si hay un estacionamiento seleccionado, actualizarlo con los nuevos datos filtrados
+        if (selectedParking) {
+            const updatedParking = parkings.find(p => p.id === selectedParking.id);
+            if (updatedParking) {
+                console.log('🔄 Actualizando estacionamiento seleccionado con nuevos datos filtrados');
+                setSelectedParking(updatedParking);
+            }
+        }
     };
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
         console.log('🏢 Estacionamiento seleccionado:', parking);
         setSelectedParking(parking);
-    };
-
-    // Función para manejar la actualización de ubicación del usuario
-    const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
-        console.log('📍 Ubicación del usuario actualizada:', location);
-        console.log('🔍 Estableciendo ubicación del usuario para mostrar estacionamientos cercanos...');
-        setUserLocation(location);
-        console.log('✅ Ubicación del usuario establecida. Los estacionamientos cercanos deberían aparecer ahora.');
     };
 
     // Mostrar loading mientras se determina el rol del usuario O si no es conductor
@@ -305,12 +347,6 @@ export default function MapaEstacionamientos() {
                     <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
                         <div className="p-8">
 
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-gray-900">
-                                    {userLocation ? "Información y Cercanos" : "Información del Estacionamiento"}
-                                </h3>
-                            </div>
-
                             {(selectedParking || userLocation) ? (
                                 <div>
                                     {/* Mostrar información del estacionamiento seleccionado si existe */}
@@ -400,16 +436,6 @@ export default function MapaEstacionamientos() {
                                     {/* Mostrar estacionamientos cercanos si hay ubicación del usuario */}
                                     {userLocation && (
                                         <div className={selectedParking ? "mt-6" : ""}>
-                                            {!selectedParking && (
-                                                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                                    <div className="flex items-center gap-2 text-blue-700">
-                                                        <MapPin className="h-4 w-4" />
-                                                        <span className="text-sm font-medium">
-                                                            Ubicación detectada. Aquí tienes los estacionamientos cercanos a ti:
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
                                             <div className="flex items-center justify-between mb-4">
                                                 <h4 className="text-lg font-semibold text-gray-900">
                                                     Estacionamientos Cercanos a Ti
@@ -517,7 +543,7 @@ export default function MapaEstacionamientos() {
 
                     {/* Panel Centro - Mapa */}
                     <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-                        <div className="h-full rounded-2xl overflow-hidden shadow-xl border border-gray-200">
+                        <div className="h-155 rounded-2xl overflow-hidden shadow-xl border border-gray-200">
                             <ParkingMap
                                 onParkingSelect={handleParkingSelect}
                                 selectedParkingId={selectedParking?.id}
