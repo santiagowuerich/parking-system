@@ -43,13 +43,15 @@ interface ParkingData {
     tolerancia?: number;
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
+    tipoDisponibilidad?: 'configurada' | 'fisica';
 }
 
 export default function MapaEstacionamientos() {
     const [searchText, setSearchText] = useState("");
     const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
-    const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(null);
+    const { selectedVehicle } = useVehicle();
+    const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(selectedVehicle?.tipo || null);
     const [selectedParking, setSelectedParking] = useState<ParkingData | null>(null);
     const [allParkings, setAllParkings] = useState<ParkingData[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
@@ -57,14 +59,33 @@ export default function MapaEstacionamientos() {
     const [reservaDialogOpen, setReservaDialogOpen] = useState(false);
     const [plazasDisponibles, setPlazasDisponibles] = useState<any[]>([]); // Plazas disponibles para reserva
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
-    const { selectedVehicle } = useVehicle();
 
     // Auto-aplicar filtro según vehículo seleccionado
     useEffect(() => {
         if (selectedVehicle) {
             setVehicleTypeFilter(selectedVehicle.tipo);
+            console.log('🚗 Filtro de vehículo activado automáticamente:', selectedVehicle.tipo);
+        } else {
+            // Si no hay vehículo seleccionado, quitar filtro
+            setVehicleTypeFilter(null);
+            console.log('🚫 Filtro de vehículo desactivado (sin vehículo seleccionado)');
         }
     }, [selectedVehicle]);
+
+    // Aplicar filtro inmediatamente cuando se obtiene ubicación
+    const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
+        setUserLocation(location);
+
+        // Forzar aplicación del filtro del vehículo seleccionado cuando se obtiene ubicación
+        if (selectedVehicle) {
+            console.log('🚗 Aplicando filtro de vehículo seleccionado al obtener ubicación:', selectedVehicle.tipo);
+            setVehicleTypeFilter(selectedVehicle.tipo);
+            // Resetear allParkings para forzar recarga con filtro aplicado
+            setAllParkings([]);
+        } else {
+            console.log('⚠️ No hay vehículo seleccionado, no se aplica filtro automático');
+        }
+    };
 
     // Función para obtener plazas disponibles del estacionamiento seleccionado
     const obtenerPlazasDisponibles = async (estId: number) => {
@@ -108,8 +129,6 @@ export default function MapaEstacionamientos() {
 
     // Función para obtener estacionamientos cercanos basados en la ubicación del conductor
     const getNearbyParkings = (userLocation: { lat: number, lng: number }, allParkings: ParkingData[], radius: number): ParkingData[] => {
-        console.log(`🔍 Buscando estacionamientos en un radio de ${radius}km desde:`, userLocation);
-
         const parkingsWithDistance = allParkings
             .map(parking => ({
                 ...parking,
@@ -120,14 +139,8 @@ export default function MapaEstacionamientos() {
                     parking.longitud
                 )
             }))
-            .filter(parking => {
-                const isWithinRadius = parking.distance <= radius;
-                console.log(`📍 ${parking.nombre}: ${parking.distance.toFixed(2)}km ${isWithinRadius ? '✅' : '❌'}`);
-                return isWithinRadius;
-            })
+            .filter(parking => parking.distance <= radius)
             .sort((a, b) => a.distance - b.distance); // Ordenar por distancia
-
-        console.log(`📊 Encontrados ${parkingsWithDistance.length} estacionamientos dentro de ${radius}km`);
 
         return parkingsWithDistance.slice(0, 10); // Mostrar hasta 10 estacionamientos
     };
@@ -152,22 +165,23 @@ export default function MapaEstacionamientos() {
 
     // Función para manejar cuando se cargan los estacionamientos desde ParkingMap
     const handleParkingsLoaded = (parkings: ParkingData[]) => {
-        console.log('📥 Estacionamientos recibidos del mapa:', parkings.length);
+        console.log('📥 Estacionamientos cargados:', parkings.length);
         setAllParkings(parkings);
+
+        // Si hay un estacionamiento seleccionado, actualizarlo con los nuevos datos filtrados
+        if (selectedParking) {
+            const updatedParking = parkings.find(p => p.id === selectedParking.id);
+            if (updatedParking) {
+                console.log('🔄 Estacionamiento actualizado con filtro');
+                setSelectedParking(updatedParking);
+            }
+        }
     };
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
-        console.log('🏢 Estacionamiento seleccionado:', parking);
+        console.log('🏢 Estacionamiento seleccionado:', parking.nombre);
         setSelectedParking(parking);
-    };
-
-    // Función para manejar la actualización de ubicación del usuario
-    const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
-        console.log('📍 Ubicación del usuario actualizada:', location);
-        console.log('🔍 Estableciendo ubicación del usuario para mostrar estacionamientos cercanos...');
-        setUserLocation(location);
-        console.log('✅ Ubicación del usuario establecida. Los estacionamientos cercanos deberían aparecer ahora.');
     };
 
     // Mostrar loading mientras se determina el rol del usuario O si no es conductor
@@ -198,7 +212,7 @@ export default function MapaEstacionamientos() {
         <DashboardLayout>
             <div className="h-screen bg-gray-50 flex flex-col">
                 {/* Header */}
-                <div className="bg-white border-b px-8 py-6 shadow-sm">
+                <div id="map-header" className="bg-white border-b px-8 py-6 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <div className="space-y-2">
                             <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
@@ -236,10 +250,7 @@ export default function MapaEstacionamientos() {
                                     size="lg"
                                     onClick={() => {
                                         if (window.centerMapOnUserLocation) {
-                                            console.log('🎯 Ejecutando centrar mapa en ubicación...');
                                             window.centerMapOnUserLocation();
-                                        } else {
-                                            console.log('⚠️ Función no disponible aún');
                                         }
                                     }}
                                     className="h-12 px-6 border-gray-300 hover:border-blue-500 hover:text-blue-600"
@@ -299,16 +310,10 @@ export default function MapaEstacionamientos() {
                 </div>
 
                 {/* Contenido Principal */}
-                <div className="flex-1 flex">
+                <div className="flex-1 flex overflow-hidden">
                     {/* Panel Izquierdo - Detalle del Estacionamiento Seleccionado */}
-                    <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
+                    <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg overflow-y-auto">
                         <div className="p-8">
-
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-gray-900">
-                                    {userLocation ? "Información y Cercanos" : "Información del Estacionamiento"}
-                                </h3>
-                            </div>
 
                             {(selectedParking || userLocation) ? (
                                 <div>
@@ -317,24 +322,28 @@ export default function MapaEstacionamientos() {
                                         <Card className="border-2 border-blue-500 bg-white shadow-xl">
                                             <CardContent className="p-6">
                                                 <div className="mb-6">
-                                                    <div className="flex flex-col gap-3 mb-3">
-                                                        <h3 className="font-bold text-xl text-gray-900">{selectedParking.nombre}</h3>
-                                                        <div className="flex justify-start">
-                                                            <Badge className={`px-3 py-1 text-sm font-semibold w-fit ${selectedParking.estado === 'disponible'
-                                                                ? 'bg-green-600 text-white'
-                                                                : selectedParking.estado === 'pocos'
-                                                                    ? 'bg-orange-600 text-white'
-                                                                    : 'bg-red-600 text-white'
-                                                                }`}>
-                                                                {selectedParking.estado === 'disponible' ? 'Disponible' :
-                                                                    selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
-                                                            </Badge>
+                                                    <div className="flex items-start justify-between mb-4">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3 className="font-bold text-xl text-gray-900 mb-2 overflow-hidden text-ellipsis whitespace-nowrap" title={selectedParking.nombre}>{selectedParking.nombre}</h3>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <MapPin className="h-4 w-4 text-gray-500" />
+                                                                <span className="text-gray-600 text-sm">{selectedParking.direccion.split(',')[0]}</span>
+                                                            </div>
+                                                            {selectedParking.distance && (
+                                                                <div className="text-blue-600 text-sm font-bold">
+                                                                    {selectedParking.distance.toFixed(1)} km de distancia
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 mb-4">
-                                                        <MapPin className="h-4 w-4 text-gray-500" />
-                                                        <span className="text-gray-600 text-sm">{selectedParking.direccion}</span>
+                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estado === 'disponible'
+                                                            ? 'bg-green-600 text-white hover:bg-green-600'
+                                                            : selectedParking.estado === 'pocos'
+                                                                ? 'bg-orange-600 text-white hover:bg-orange-600'
+                                                                : 'bg-red-600 text-white hover:bg-red-600'
+                                                            }`}>
+                                                            {selectedParking.estado === 'disponible' ? 'Disponible' :
+                                                                selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
+                                                        </Badge>
                                                     </div>
                                                 </div>
 
@@ -356,9 +365,9 @@ export default function MapaEstacionamientos() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-3">
+                                                <div className="flex gap-3 justify-center">
                                                     <Button
-                                                        className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
+                                                        className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
                                                         onClick={() => {
                                                             if (selectedParking) {
                                                                 // Crear la URL para Google Maps
@@ -378,13 +387,15 @@ export default function MapaEstacionamientos() {
                                                         Navegar
                                                     </Button>
 
-                                                    <Button
-                                                        className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
-                                                        onClick={() => setReservaDialogOpen(true)}
-                                                    >
-                                                        <Calendar className="w-5 h-5 mr-2" />
-                                                        Reservar
-                                                    </Button>
+                                                    {plazasDisponibles.length > 0 && (
+                                                        <Button
+                                                            className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                            onClick={() => setReservaDialogOpen(true)}
+                                                        >
+                                                            <Calendar className="w-5 h-5 mr-2" />
+                                                            Reservar
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </CardContent>
                                         </Card>
@@ -393,16 +404,6 @@ export default function MapaEstacionamientos() {
                                     {/* Mostrar estacionamientos cercanos si hay ubicación del usuario */}
                                     {userLocation && (
                                         <div className={selectedParking ? "mt-6" : ""}>
-                                            {!selectedParking && (
-                                                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                                    <div className="flex items-center gap-2 text-blue-700">
-                                                        <MapPin className="h-4 w-4" />
-                                                        <span className="text-sm font-medium">
-                                                            Ubicación detectada. Aquí tienes los estacionamientos cercanos a ti:
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
                                             <div className="flex items-center justify-between mb-4">
                                                 <h4 className="text-lg font-semibold text-gray-900">
                                                     Estacionamientos Cercanos a Ti
@@ -429,7 +430,13 @@ export default function MapaEstacionamientos() {
                                                         <Card
                                                             key={parking.id}
                                                             className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
-                                                            onClick={() => setSelectedParking(parking)}
+                                                            onClick={() => {
+                                                                setSelectedParking(parking);
+                                                                const headerElement = document.getElementById('map-header');
+                                                                if (headerElement) {
+                                                                    headerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                }
+                                                            }}
                                                         >
                                                             <CardContent className="p-4">
                                                                 <div className="flex items-start justify-between">
@@ -503,8 +510,8 @@ export default function MapaEstacionamientos() {
                     </div>
 
                     {/* Panel Centro - Mapa */}
-                    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-                        <div className="h-full rounded-2xl overflow-hidden shadow-xl border border-gray-200">
+                    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                        <div className="h-full w-full">
                             <ParkingMap
                                 onParkingSelect={handleParkingSelect}
                                 selectedParkingId={selectedParking?.id}

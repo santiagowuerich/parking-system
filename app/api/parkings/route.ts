@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
                     // Calcular disponibilidad real consultando plazas
                     let plazasQuery = supabase
                         .from('plazas')
-                        .select('pla_estado, catv_segmento')
+                        .select('pla_estado, catv_segmento, plantilla_id')
                         .eq('est_id', parking.est_id);
 
                     // Filtrar por tipo de vehículo si se especifica
@@ -123,20 +123,89 @@ export async function GET(request: NextRequest) {
                         };
                     }
 
-                    // Calcular disponibilidad real
-                    const total = plazasData?.length || 0;
-                    const ocupadas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
-                    const libres = total - ocupadas;
+                    // Calcular disponibilidad real diferenciando plazas configuradas vs físicas
+                    const totalFisico = plazasData?.length || 0;
+                    const ocupadasFisicas = plazasData?.filter(p => p.pla_estado === 'Ocupada').length || 0;
+                    const libresFisicos = totalFisico - ocupadasFisicas;
+
+                    // Obtener plantillas y tarifas para plazas configuradas
+                    const plantillaIds = [...new Set(plazasData?.map(p => p.plantilla_id).filter(Boolean) || [])];
+                    let tarifasPorPlantilla: Record<number, number> = {};
+
+                    if (plantillaIds.length > 0) {
+                        const { data: tarifas, error: tarifasError } = await supabase
+                            .from('tarifas')
+                            .select('plantilla_id, tar_precio')
+                            .in('plantilla_id', plantillaIds)
+                            .lte('tar_f_desde', new Date().toISOString())
+                            .order('tar_f_desde', { ascending: false });
+
+                        if (!tarifasError && tarifas) {
+                            // Tomar la tarifa más reciente para cada plantilla
+                            tarifas.forEach(tarifa => {
+                                if (!tarifasPorPlantilla[tarifa.plantilla_id]) {
+                                    tarifasPorPlantilla[tarifa.plantilla_id] = tarifa.tar_precio;
+                                }
+                            });
+                        }
+                    }
+
+                    // Calcular plazas libres configuradas (con plantilla y tarifa)
+                    const plazasConfiguradas = plazasData?.filter(plaza =>
+                        plaza.plantilla_id &&
+                        tarifasPorPlantilla[plaza.plantilla_id] &&
+                        plaza.pla_estado !== 'Ocupada' &&
+                        plaza.pla_estado !== 'Mantenimiento' &&
+                        plaza.pla_estado !== 'Abonado' &&
+                        plaza.pla_estado !== 'Reservada'
+                    ) || [];
+
+                    const libresConfigurados = plazasConfiguradas.length;
+
+                    // Determinar qué disponibilidad mostrar
+                    let espaciosDisponibles: number;
+                    let capacidad: number;
+                    let tipoDisponibilidad: 'configurada' | 'fisica';
+
+                    if (libresConfigurados > 0) {
+                        // Si hay plazas configuradas libres, mostrar solo esas
+                        espaciosDisponibles = libresConfigurados;
+                        capacidad = plazasConfiguradas.length + plazasData?.filter(p => p.pla_estado === 'Ocupada' && p.plantilla_id && tarifasPorPlantilla[p.plantilla_id]).length || 0;
+                        tipoDisponibilidad = 'configurada';
+                    } else {
+                        // Si no hay plazas configuradas libres, mostrar plazas físicas libres
+                        espaciosDisponibles = libresFisicos;
+                        capacidad = totalFisico;
+                        tipoDisponibilidad = 'fisica';
+                    }
 
                     // Si no hay plazas libres de ningún tipo, excluir el estacionamiento
-                    if (libres === 0) {
+                    if (espaciosDisponibles === 0) {
                         return null;
                     }
 
                     // Si se filtra por tipo, verificar que haya plazas disponibles de ese tipo
                     if (vehicleType) {
-                        if (total === 0 || libres === 0) {
+                        const plazasTipo = plazasData?.filter(p => p.catv_segmento === vehicleType) || [];
+                        if (plazasTipo.length === 0) {
                             return null;
+                        }
+
+                        // Verificar disponibilidad del tipo específico
+                        if (tipoDisponibilidad === 'configurada') {
+                            const plazasConfiguradasTipo = plazasTipo.filter(p =>
+                                p.plantilla_id && tarifasPorPlantilla[p.plantilla_id] &&
+                                p.pla_estado !== 'Ocupada' && p.pla_estado !== 'Mantenimiento' &&
+                                p.pla_estado !== 'Abonado' && p.pla_estado !== 'Reservada'
+                            );
+                            if (plazasConfiguradasTipo.length === 0) {
+                                return null;
+                            }
+                        } else {
+                            const libresTipo = plazasTipo.filter(p => p.pla_estado !== 'Ocupada').length;
+                            if (libresTipo === 0) {
+                                return null;
+                            }
                         }
                     }
 
@@ -153,8 +222,8 @@ export async function GET(request: NextRequest) {
                         provincia: parking.est_prov,
                         latitud: parseFloat(parking.est_latitud),
                         longitud: parseFloat(parking.est_longitud),
-                        capacidad: total, // ✅ Capacidad real calculada desde plazas
-                        espaciosDisponibles: libres, // ✅ Disponibilidad real calculada
+                        capacidad: capacidad, // ✅ Capacidad según tipo de disponibilidad
+                        espaciosDisponibles: espaciosDisponibles, // ✅ Disponibilidad diferenciada
                         telefono: parking.est_telefono,
                         email: parking.est_email,
                         requiereLlave: parking.est_requiere_llave,
@@ -164,10 +233,11 @@ export async function GET(request: NextRequest) {
                         tolerancia: parking.est_tolerancia_min,
                         horarios: horarios,
                         estadoApertura: estadoApertura,
+                        tipoDisponibilidad: tipoDisponibilidad, // ✅ Nuevo: indica si es configurada o física
                         // Determinar estado basado en disponibilidad real
-                        estado: libres > total * 0.5
+                        estado: espaciosDisponibles > capacidad * 0.5
                             ? 'disponible'
-                            : libres > 0
+                            : espaciosDisponibles > 0
                                 ? 'pocos'
                                 : 'lleno'
                     };
@@ -195,6 +265,7 @@ export async function GET(request: NextRequest) {
                         tolerancia: parking.est_tolerancia_min,
                         horarios: [],
                         estadoApertura: estadoAperturaFallback,
+                        tipoDisponibilidad: 'fisica' as const, // Fallback usa disponibilidad física
                         estado: 'disponible' // Estado por defecto
                     };
                 }

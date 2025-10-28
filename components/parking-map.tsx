@@ -27,6 +27,7 @@ interface ParkingData {
     tolerancia?: number;
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
+    tipoDisponibilidad?: 'configurada' | 'fisica';
 }
 
 interface ParkingMapProps {
@@ -63,6 +64,8 @@ export default function ParkingMap({
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
     const markersRef = useRef<google.maps.Marker[]>([]);
     const userLocationMarkerRef = useRef<google.maps.Marker | null>(null);
+    const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
+    const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
     const [parkings, setParkings] = useState<ParkingData[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -216,6 +219,63 @@ export default function ParkingMap({
         });
     };
 
+    // Función para mostrar ruta desde ubicación del usuario hasta estacionamiento seleccionado
+    const showRouteToParking = async (parking: ParkingData) => {
+        if (!mapInstanceRef.current || !userLocation || !window.google?.maps) {
+            return;
+        }
+
+        try {
+            // Inicializar DirectionsService y DirectionsRenderer si no existen
+            if (!directionsServiceRef.current) {
+                directionsServiceRef.current = new window.google.maps.DirectionsService();
+            }
+            if (!directionsRendererRef.current) {
+                directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+                    suppressMarkers: true, // No mostrar marcadores adicionales ya que tenemos los nuestros
+                    polylineOptions: {
+                        strokeColor: '#4285f4',
+                        strokeWeight: 5,
+                        strokeOpacity: 0.8
+                    }
+                });
+                if (directionsRendererRef.current) {
+                    directionsRendererRef.current.setMap(mapInstanceRef.current);
+                }
+            }
+
+            // Calcular la ruta
+            const request: google.maps.DirectionsRequest = {
+                origin: userLocation,
+                destination: { lat: parking.latitud, lng: parking.longitud },
+                travelMode: window.google.maps.TravelMode.DRIVING,
+                optimizeWaypoints: false
+            };
+
+            if (directionsServiceRef.current) {
+                directionsServiceRef.current.route(request, (result, status) => {
+                    if (status === window.google.maps.DirectionsStatus.OK && result) {
+                        directionsRendererRef.current?.setDirections(result);
+                        console.log('🛣️ Ruta calculada exitosamente al estacionamiento:', parking.nombre);
+                    } else {
+                        console.error('❌ Error calculando ruta:', status);
+                        // Limpiar ruta si hay error
+                        directionsRendererRef.current?.setDirections(null);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error mostrando ruta:', error);
+        }
+    };
+
+    // Función para limpiar la ruta mostrada
+    const clearRoute = () => {
+        if (directionsRendererRef.current) {
+            directionsRendererRef.current.setDirections(null);
+        }
+    };
+
     // Función para centrar el mapa en la ubicación del usuario
     const centerMapOnUserLocation = async () => {
         try {
@@ -324,7 +384,7 @@ export default function ParkingMap({
 
         // Info window con configuración limpia
         const infoWindow = new window.google.maps.InfoWindow({
-            maxWidth: 360
+            maxWidth: 300
         });
 
         // Función para abrir popup con la nueva implementación
@@ -333,10 +393,10 @@ export default function ParkingMap({
 
             // Crear un div temporal para el contenido
             const contentDiv = document.createElement('div');
-            contentDiv.className = 'parking-popup relative w-[340px] max-w-[86vw] rounded-2xl border bg-white p-4 shadow-xl';
+            contentDiv.className = 'parking-popup relative w-[280px] max-w-[80vw] rounded-2xl border bg-white p-4 shadow-xl';
 
             const llaveText = parking.est_requiere_llave === 'requerida' ? '🔑 Llave requerida' :
-                            parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
+                parking.est_requiere_llave === 'opcional' ? '🔑 Llave opcional' : '';
 
             // Determinar el estado de apertura
             const estadoApertura = parking.estadoApertura || { isOpen: false, hasSchedule: false };
@@ -706,6 +766,11 @@ export default function ParkingMap({
 
         console.log(`🎯 Actualizando marcadores para selección:`, selectedParkingId);
 
+        // Si no hay estacionamiento seleccionado, limpiar ruta
+        if (!selectedParkingId) {
+            clearRoute();
+        }
+
         // Actualizar aspecto de todos los marcadores
         markersRef.current.forEach((marker) => {
             // Obtener el parking asociado al marcador directamente
@@ -756,6 +821,9 @@ export default function ParkingMap({
             if (isSelected) {
                 marker.setAnimation(window.google.maps.Animation.BOUNCE);
 
+                // Mostrar ruta desde ubicación del usuario hasta el estacionamiento
+                showRouteToParking(parking);
+
                 // Centrar el mapa suavemente en el marcador seleccionado
                 const position = marker.getPosition();
                 if (position && mapInstanceRef.current) {
@@ -775,7 +843,7 @@ export default function ParkingMap({
             }
         });
 
-    }, [selectedParkingId]);
+    }, [selectedParkingId, userLocation]);
 
     // useEffect para notificar al componente padre cuando se cargan los estacionamientos
     useEffect(() => {
@@ -784,6 +852,17 @@ export default function ParkingMap({
             onParkingsLoaded(parkings);
         }
     }, [parkings, onParkingsLoaded]);
+
+    // useEffect para forzar recarga inicial con filtro cuando se obtiene ubicación
+    useEffect(() => {
+        if (userLocation && vehicleTypeFilter && isLoaded && mapInstanceRef.current) {
+            console.log('🎯 Recarga inicial con filtro aplicado:', vehicleTypeFilter, 'Parkings actuales:', parkings.length);
+            fetchParkings().then(loadedParkings => {
+                console.log('✅ Parkings recargados con filtro:', loadedParkings.length);
+                setParkings(loadedParkings);
+            });
+        }
+    }, [userLocation, vehicleTypeFilter, isLoaded]);
 
     // useEffect para recargar estacionamientos cuando cambie el filtro de tipo de vehículo
     useEffect(() => {
@@ -947,65 +1026,71 @@ export default function ParkingMap({
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-gray-900 flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Estacionamientos Disponibles ({getFilteredParkings.length})
-                    {parkings.length > 0 && (
-                        <span className="text-xs text-gray-500 ml-2">
-                            (de {parkings.length} totales)
+        <div className="relative h-full w-full flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 rounded-full p-1.5">
+                        <MapPin className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-gray-900">
+                            Estacionamientos Disponibles
+                        </h3>
+                        <span className="text-lg font-bold text-blue-600">
+                            {getFilteredParkings.length}
                         </span>
-                    )}
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="relative">
-                    {/* Popup para solicitar ubicación */}
-                    {!userLocation && isLoaded && (
-                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg" role="dialog" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-description">
-                            <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center">
-                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
-                                    <MapPin className="h-8 w-8 text-blue-600" />
-                                </div>
-                                <h3 id="location-prompt-title" className="text-xl font-bold text-gray-900 mb-3">
-                                    ¡Presiona "Mi Ubicación"!
-                                </h3>
-                                <p id="location-prompt-description" className="text-gray-600 mb-6 leading-relaxed">
-                                    Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
-                                </p>
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <div className="flex items-center gap-3 text-blue-700">
-                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center" aria-hidden="true">
-                                            <span className="text-sm font-bold">1</span>
-                                        </div>
-                                        <span className="text-sm font-medium">
-                                            Haz clic en el botón "Mi Ubicación" en la parte superior
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div
-                        ref={mapRef}
-                        className={className + " rounded-lg border border-gray-200"}
-                        style={{ minHeight: '400px' }}
-                    />
-                    {!isLoaded && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg" role="status" aria-live="polite">
-                            <div className="text-center">
-                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" aria-hidden="true" />
-                                <p className="text-gray-500 text-sm">Cargando estacionamientos...</p>
-                                <span className="sr-only">Cargando mapa de estacionamientos, por favor espere</span>
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
+            </div>
 
-                {/* Leyenda */}
-                <div className="flex items-center gap-4 mt-3 text-xs" role="group" aria-label="Leyenda del mapa de estacionamientos">
+            {/* Contenido del mapa con flex-1 para ocupar altura restante */}
+            <div className="relative flex-1">
+                {/* Popup para solicitar ubicación */}
+                {!userLocation && isLoaded && (
+                    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg" role="dialog" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-description">
+                        <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center min-h-[400px] flex flex-col justify-center">
+                            <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+                                <MapPin className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <h3 id="location-prompt-title" className="text-xl font-bold text-gray-900 mb-3">
+                                ¡Presiona "Mi Ubicación"!
+                            </h3>
+                            <p id="location-prompt-description" className="text-gray-600 mb-6 leading-relaxed">
+                                Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
+                            </p>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center gap-3 text-blue-700">
+                                    <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center" aria-hidden="true">
+                                        <span className="text-sm font-bold">1</span>
+                                    </div>
+                                    <span className="text-sm font-medium">
+                                        Haz clic en el botón "Mi Ubicación" en la parte superior
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    ref={mapRef}
+                    className={className + " rounded-lg border border-gray-200 h-full"}
+                />
+                {!isLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg" role="status" aria-live="polite">
+                        <div className="text-center">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" aria-hidden="true" />
+                            <p className="text-gray-500 text-sm">Cargando estacionamientos...</p>
+                            <span className="sr-only">Cargando mapa de estacionamientos, por favor espere</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Leyenda */}
+            <div className="px-6 py-3 bg-white border-t">
+                <div className="flex items-center gap-4 text-xs" role="group" aria-label="Leyenda del mapa de estacionamientos">
                     <span className="text-gray-600">Leyenda:</span>
                     <div className="flex items-center gap-1">
                         <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
@@ -1024,7 +1109,7 @@ export default function ParkingMap({
                         <span>Seleccionado</span>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }
