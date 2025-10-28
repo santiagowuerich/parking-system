@@ -97,10 +97,18 @@ export function useReportesMetrics() {
                         ).length
                     };
 
+                    // Calcular ocupación promedio localmente para evitar depender del estado aún no seteado
+                    const ocupacionPromedioLocal = total_general.total > 0
+                        ? Math.round((total_general.ocupadas / total_general.total) * 100)
+                        : 0;
+
                     setPlazasData({
                         plazas_por_plantilla: plazasPorPlantilla,
                         total_general
                     });
+
+                    // Guardar en un símbolo en el objeto de resultado para reutilizar más abajo sin recurrir al estado
+                    (plazasResult as any).__ocupacionPromedio = ocupacionPromedioLocal;
                 }
 
                 // 2. Cargar historial para ingresos
@@ -217,9 +225,11 @@ export function useReportesMetrics() {
                 // Ocupación promedio últimos 30 días
                 // Calcular la ocupación actual y asumir que es representativa del promedio
                 // (idealmente deberíamos tener datos históricos de ocupación diaria)
-                const ocupacionPromedio = plazasData ?
-                    Math.round((plazasData.total_general.ocupadas / plazasData.total_general.total) * 100) :
-                    0;
+                const ocupacionPromedio = (plazasResult && (plazasResult as any).__ocupacionPromedio != null)
+                    ? (plazasResult as any).__ocupacionPromedio
+                    : (plazasData && plazasData.total_general.total > 0
+                        ? Math.round((plazasData.total_general.ocupadas / plazasData.total_general.total) * 100)
+                        : 0);
 
                 setStrategicMetrics({
                     ticketPromedio,
