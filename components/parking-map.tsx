@@ -64,6 +64,8 @@ export default function ParkingMap({
     const mapInstanceRef = useRef<google.maps.Map | null>(null);
     const markersRef = useRef<google.maps.Marker[]>([]);
     const userLocationMarkerRef = useRef<google.maps.Marker | null>(null);
+    const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
+    const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
     const [parkings, setParkings] = useState<ParkingData[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -215,6 +217,63 @@ export default function ParkingMap({
                 }
             );
         });
+    };
+
+    // Función para mostrar ruta desde ubicación del usuario hasta estacionamiento seleccionado
+    const showRouteToParking = async (parking: ParkingData) => {
+        if (!mapInstanceRef.current || !userLocation || !window.google?.maps) {
+            return;
+        }
+
+        try {
+            // Inicializar DirectionsService y DirectionsRenderer si no existen
+            if (!directionsServiceRef.current) {
+                directionsServiceRef.current = new window.google.maps.DirectionsService();
+            }
+            if (!directionsRendererRef.current) {
+                directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+                    suppressMarkers: true, // No mostrar marcadores adicionales ya que tenemos los nuestros
+                    polylineOptions: {
+                        strokeColor: '#4285f4',
+                        strokeWeight: 5,
+                        strokeOpacity: 0.8
+                    }
+                });
+                if (directionsRendererRef.current) {
+                    directionsRendererRef.current.setMap(mapInstanceRef.current);
+                }
+            }
+
+            // Calcular la ruta
+            const request: google.maps.DirectionsRequest = {
+                origin: userLocation,
+                destination: { lat: parking.latitud, lng: parking.longitud },
+                travelMode: window.google.maps.TravelMode.DRIVING,
+                optimizeWaypoints: false
+            };
+
+            if (directionsServiceRef.current) {
+                directionsServiceRef.current.route(request, (result, status) => {
+                    if (status === window.google.maps.DirectionsStatus.OK && result) {
+                        directionsRendererRef.current?.setDirections(result);
+                        console.log('🛣️ Ruta calculada exitosamente al estacionamiento:', parking.nombre);
+                    } else {
+                        console.error('❌ Error calculando ruta:', status);
+                        // Limpiar ruta si hay error
+                        directionsRendererRef.current?.setDirections(null);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error mostrando ruta:', error);
+        }
+    };
+
+    // Función para limpiar la ruta mostrada
+    const clearRoute = () => {
+        if (directionsRendererRef.current) {
+            directionsRendererRef.current.setDirections(null);
+        }
     };
 
     // Función para centrar el mapa en la ubicación del usuario
@@ -707,6 +766,11 @@ export default function ParkingMap({
 
         console.log(`🎯 Actualizando marcadores para selección:`, selectedParkingId);
 
+        // Si no hay estacionamiento seleccionado, limpiar ruta
+        if (!selectedParkingId) {
+            clearRoute();
+        }
+
         // Actualizar aspecto de todos los marcadores
         markersRef.current.forEach((marker) => {
             // Obtener el parking asociado al marcador directamente
@@ -757,6 +821,9 @@ export default function ParkingMap({
             if (isSelected) {
                 marker.setAnimation(window.google.maps.Animation.BOUNCE);
 
+                // Mostrar ruta desde ubicación del usuario hasta el estacionamiento
+                showRouteToParking(parking);
+
                 // Centrar el mapa suavemente en el marcador seleccionado
                 const position = marker.getPosition();
                 if (position && mapInstanceRef.current) {
@@ -776,7 +843,7 @@ export default function ParkingMap({
             }
         });
 
-    }, [selectedParkingId]);
+    }, [selectedParkingId, userLocation]);
 
     // useEffect para notificar al componente padre cuando se cargan los estacionamientos
     useEffect(() => {
