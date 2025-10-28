@@ -1026,65 +1026,71 @@ export default function ParkingMap({
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-gray-900 flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Estacionamientos Disponibles ({getFilteredParkings.length})
-                    {parkings.length > 0 && (
-                        <span className="text-xs text-gray-500 ml-2">
-                            (de {parkings.length} totales)
+        <div className="relative h-full w-full flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 rounded-full p-1.5">
+                        <MapPin className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-gray-900">
+                            Estacionamientos Disponibles
+                        </h3>
+                        <span className="text-lg font-bold text-blue-600">
+                            {getFilteredParkings.length}
                         </span>
-                    )}
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="relative">
-                    {/* Popup para solicitar ubicación */}
-                    {!userLocation && isLoaded && (
-                        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg" role="dialog" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-description">
-                            <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center">
-                                <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
-                                    <MapPin className="h-8 w-8 text-blue-600" />
-                                </div>
-                                <h3 id="location-prompt-title" className="text-xl font-bold text-gray-900 mb-3">
-                                    ¡Presiona "Mi Ubicación"!
-                                </h3>
-                                <p id="location-prompt-description" className="text-gray-600 mb-6 leading-relaxed">
-                                    Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
-                                </p>
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <div className="flex items-center gap-3 text-blue-700">
-                                        <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center" aria-hidden="true">
-                                            <span className="text-sm font-bold">1</span>
-                                        </div>
-                                        <span className="text-sm font-medium">
-                                            Haz clic en el botón "Mi Ubicación" en la parte superior
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div
-                        ref={mapRef}
-                        className={className + " rounded-lg border border-gray-200"}
-                        style={{ minHeight: '400px' }}
-                    />
-                    {!isLoaded && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg" role="status" aria-live="polite">
-                            <div className="text-center">
-                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" aria-hidden="true" />
-                                <p className="text-gray-500 text-sm">Cargando estacionamientos...</p>
-                                <span className="sr-only">Cargando mapa de estacionamientos, por favor espere</span>
-                            </div>
-                        </div>
-                    )}
+                    </div>
                 </div>
+            </div>
 
-                {/* Leyenda */}
-                <div className="flex items-center gap-4 mt-3 text-xs" role="group" aria-label="Leyenda del mapa de estacionamientos">
+            {/* Contenido del mapa con flex-1 para ocupar altura restante */}
+            <div className="relative flex-1">
+                {/* Popup para solicitar ubicación */}
+                {!userLocation && isLoaded && (
+                    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg" role="dialog" aria-labelledby="location-prompt-title" aria-describedby="location-prompt-description">
+                        <div className="bg-white border border-blue-200 rounded-2xl p-8 shadow-xl max-w-md mx-4 text-center min-h-[400px] flex flex-col justify-center">
+                            <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+                                <MapPin className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <h3 id="location-prompt-title" className="text-xl font-bold text-gray-900 mb-3">
+                                ¡Presiona "Mi Ubicación"!
+                            </h3>
+                            <p id="location-prompt-description" className="text-gray-600 mb-6 leading-relaxed">
+                                Para ver los estacionamientos cercanos a ti, necesitamos conocer tu ubicación actual.
+                            </p>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center gap-3 text-blue-700">
+                                    <div className="bg-blue-200 rounded-full w-8 h-8 flex items-center justify-center" aria-hidden="true">
+                                        <span className="text-sm font-bold">1</span>
+                                    </div>
+                                    <span className="text-sm font-medium">
+                                        Haz clic en el botón "Mi Ubicación" en la parte superior
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    ref={mapRef}
+                    className={className + " rounded-lg border border-gray-200 h-full"}
+                />
+                {!isLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white rounded-lg" role="status" aria-live="polite">
+                        <div className="text-center">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400 mb-2" aria-hidden="true" />
+                            <p className="text-gray-500 text-sm">Cargando estacionamientos...</p>
+                            <span className="sr-only">Cargando mapa de estacionamientos, por favor espere</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Leyenda */}
+            <div className="px-6 py-3 bg-white border-t">
+                <div className="flex items-center gap-4 text-xs" role="group" aria-label="Leyenda del mapa de estacionamientos">
                     <span className="text-gray-600">Leyenda:</span>
                     <div className="flex items-center gap-1">
                         <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
@@ -1103,7 +1109,7 @@ export default function ParkingMap({
                         <span>Seleccionado</span>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

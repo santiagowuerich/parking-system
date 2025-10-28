@@ -72,40 +72,19 @@ export default function MapaEstacionamientos() {
         }
     }, [selectedVehicle]);
 
-    // Asegurar que el filtro se active al montar si hay vehículo seleccionado
-    useEffect(() => {
-        if (selectedVehicle && vehicleTypeFilter !== selectedVehicle.tipo) {
-            console.log('🔄 Sincronizando filtro inicial con vehículo seleccionado:', selectedVehicle.tipo);
-            setVehicleTypeFilter(selectedVehicle.tipo);
-        }
-    }, []); // Solo al montar
-
-    // Forzar aplicación del filtro cuando se obtiene ubicación por primera vez
-    useEffect(() => {
-        if (userLocation && selectedVehicle && vehicleTypeFilter !== selectedVehicle.tipo) {
-            console.log('📍 Aplicando filtro de vehículo al obtener ubicación:', selectedVehicle.tipo);
-            setVehicleTypeFilter(selectedVehicle.tipo);
-        }
-    }, [userLocation, selectedVehicle, vehicleTypeFilter]);
-
-    // Aplicar filtro inmediatamente cuando se obtiene ubicación, independientemente del estado anterior
+    // Aplicar filtro inmediatamente cuando se obtiene ubicación
     const handleUserLocationUpdate = (location: { lat: number, lng: number }) => {
-        console.log('📍 Ubicación del usuario actualizada:', location);
-        console.log('🔍 Estableciendo ubicación del usuario para mostrar estacionamientos cercanos...');
         setUserLocation(location);
 
         // Forzar aplicación del filtro del vehículo seleccionado cuando se obtiene ubicación
         if (selectedVehicle) {
-            console.log('🚗 Aplicando filtro de vehículo seleccionado al obtener ubicación:', selectedVehicle.tipo, 'Filtro actual:', vehicleTypeFilter);
+            console.log('🚗 Aplicando filtro de vehículo seleccionado al obtener ubicación:', selectedVehicle.tipo);
             setVehicleTypeFilter(selectedVehicle.tipo);
             // Resetear allParkings para forzar recarga con filtro aplicado
             setAllParkings([]);
-            console.log('✅ Filtro aplicado y allParkings reseteado');
         } else {
             console.log('⚠️ No hay vehículo seleccionado, no se aplica filtro automático');
         }
-
-        console.log('✅ Ubicación del usuario establecida. Los estacionamientos cercanos deberían aparecer ahora.');
     };
 
     // Función para obtener plazas disponibles del estacionamiento seleccionado
@@ -150,8 +129,6 @@ export default function MapaEstacionamientos() {
 
     // Función para obtener estacionamientos cercanos basados en la ubicación del conductor
     const getNearbyParkings = (userLocation: { lat: number, lng: number }, allParkings: ParkingData[], radius: number): ParkingData[] => {
-        console.log(`🔍 Buscando estacionamientos en un radio de ${radius}km desde:`, userLocation);
-
         const parkingsWithDistance = allParkings
             .map(parking => ({
                 ...parking,
@@ -162,14 +139,8 @@ export default function MapaEstacionamientos() {
                     parking.longitud
                 )
             }))
-            .filter(parking => {
-                const isWithinRadius = parking.distance <= radius;
-                console.log(`📍 ${parking.nombre}: ${parking.distance.toFixed(2)}km ${isWithinRadius ? '✅' : '❌'}`);
-                return isWithinRadius;
-            })
+            .filter(parking => parking.distance <= radius)
             .sort((a, b) => a.distance - b.distance); // Ordenar por distancia
-
-        console.log(`📊 Encontrados ${parkingsWithDistance.length} estacionamientos dentro de ${radius}km`);
 
         return parkingsWithDistance.slice(0, 10); // Mostrar hasta 10 estacionamientos
     };
@@ -194,14 +165,14 @@ export default function MapaEstacionamientos() {
 
     // Función para manejar cuando se cargan los estacionamientos desde ParkingMap
     const handleParkingsLoaded = (parkings: ParkingData[]) => {
-        console.log('📥 Estacionamientos recibidos del mapa:', parkings.length);
+        console.log('📥 Estacionamientos cargados:', parkings.length);
         setAllParkings(parkings);
 
         // Si hay un estacionamiento seleccionado, actualizarlo con los nuevos datos filtrados
         if (selectedParking) {
             const updatedParking = parkings.find(p => p.id === selectedParking.id);
             if (updatedParking) {
-                console.log('🔄 Actualizando estacionamiento seleccionado con nuevos datos filtrados');
+                console.log('🔄 Estacionamiento actualizado con filtro');
                 setSelectedParking(updatedParking);
             }
         }
@@ -209,7 +180,7 @@ export default function MapaEstacionamientos() {
 
     // Función para manejar la selección de estacionamiento desde el mapa
     const handleParkingSelect = (parking: ParkingData) => {
-        console.log('🏢 Estacionamiento seleccionado:', parking);
+        console.log('🏢 Estacionamiento seleccionado:', parking.nombre);
         setSelectedParking(parking);
     };
 
@@ -279,10 +250,7 @@ export default function MapaEstacionamientos() {
                                     size="lg"
                                     onClick={() => {
                                         if (window.centerMapOnUserLocation) {
-                                            console.log('🎯 Ejecutando centrar mapa en ubicación...');
                                             window.centerMapOnUserLocation();
-                                        } else {
-                                            console.log('⚠️ Función no disponible aún');
                                         }
                                     }}
                                     className="h-12 px-6 border-gray-300 hover:border-blue-500 hover:text-blue-600"
@@ -342,9 +310,9 @@ export default function MapaEstacionamientos() {
                 </div>
 
                 {/* Contenido Principal */}
-                <div className="flex-1 flex">
+                <div className="flex-1 flex overflow-hidden">
                     {/* Panel Izquierdo - Detalle del Estacionamiento Seleccionado */}
-                    <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg">
+                    <div className="w-96 bg-white border-r border-gray-200 flex-shrink-0 shadow-lg overflow-y-auto">
                         <div className="p-8">
 
                             {(selectedParking || userLocation) ? (
@@ -542,8 +510,8 @@ export default function MapaEstacionamientos() {
                     </div>
 
                     {/* Panel Centro - Mapa */}
-                    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-                        <div className="h-155 rounded-2xl overflow-hidden shadow-xl border border-gray-200">
+                    <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                        <div className="h-full w-full">
                             <ParkingMap
                                 onParkingSelect={handleParkingSelect}
                                 selectedParkingId={selectedParking?.id}
