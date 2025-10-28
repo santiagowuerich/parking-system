@@ -43,6 +43,7 @@ interface ParkingData {
     tolerancia?: number;
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
+    tipoDisponibilidad?: 'configurada' | 'fisica';
 }
 
 export default function MapaEstacionamientos() {
@@ -331,10 +332,10 @@ export default function MapaEstacionamientos() {
                                                             )}
                                                         </div>
                                                         <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estado === 'disponible'
-                                                            ? 'bg-green-600 text-white'
+                                                            ? 'bg-green-600 text-white hover:bg-green-600'
                                                             : selectedParking.estado === 'pocos'
-                                                                ? 'bg-orange-600 text-white'
-                                                                : 'bg-red-600 text-white'
+                                                                ? 'bg-orange-600 text-white hover:bg-orange-600'
+                                                                : 'bg-red-600 text-white hover:bg-red-600'
                                                             }`}>
                                                             {selectedParking.estado === 'disponible' ? 'Disponible' :
                                                                 selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}

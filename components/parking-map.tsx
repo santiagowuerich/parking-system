@@ -27,6 +27,7 @@ interface ParkingData {
     tolerancia?: number;
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
+    tipoDisponibilidad?: 'configurada' | 'fisica';
 }
 
 interface ParkingMapProps {
