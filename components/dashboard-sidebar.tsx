@@ -84,6 +84,12 @@ const employeeNavigationItems = [
         ]
     },
     {
+        title: "Reservas",
+        href: "/dashboard/gestion-reservas",
+        icon: Calendar,
+        description: "Gestión de reservas del día"
+    },
+    {
         title: "Mis Turnos",
         href: "/dashboard/mis-turnos",
         icon: Clock,

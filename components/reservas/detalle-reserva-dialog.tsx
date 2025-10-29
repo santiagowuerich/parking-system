@@ -1,306 +1,350 @@
-"use client";
+'use client'
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useEffect, useState } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle as CardTitleComponent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import {
-    Calendar,
-    Clock,
-    MapPin,
-    Car,
-    Copy,
-    Phone,
-    Mail,
-    Navigation,
-    QrCode,
-    Timer,
-    CheckCircle,
-    AlertCircle
-} from 'lucide-react';
-import { ReservaConDetalles } from '@/lib/types';
-import {
-    obtenerEstadoReservaVisual,
-    calcularTiempoRestante,
-    formatearCodigoReserva,
-    formatearFechaReserva,
-    generarInstruccionesReserva
-} from '@/lib/utils/reservas-utils';
-import { useToast } from '@/hooks/use-toast';
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table'
+import { Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { formatCurrency, segmentToName } from '@/lib/utils'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+import { createBrowserClient } from '@supabase/ssr'
 
-interface DetalleReservaDialogProps {
-    reserva: ReservaConDetalles;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
+interface Props {
+    open: boolean
+    onOpenChange: (v: boolean) => void
+    res_codigo: string | null
 }
 
-export function DetalleReservaDialog({ reserva, open, onOpenChange }: DetalleReservaDialogProps) {
-    const { toast } = useToast();
+export function DetalleReservaDialog({ open, onOpenChange, res_codigo }: Props) {
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [data, setData] = useState<any>(null)
 
-    const estadoVisual = obtenerEstadoReservaVisual(reserva.res_estado, reserva.res_fh_ingreso, reserva.res_tiempo_gracia_min);
-    const tiempoRestante = calcularTiempoRestante(reserva.res_fh_ingreso);
+    useEffect(() => {
+        if (!open || !res_codigo) return
 
-    const copiarCodigo = () => {
-        navigator.clipboard.writeText(reserva.res_codigo);
-        toast({
-            title: "Código copiado",
-            description: "El código de reserva se ha copiado al portapapeles",
-        });
-    };
+        const fetchDetail = async () => {
+            setLoading(true)
+            setError(null)
+            try {
+                // Crear cliente Supabase para obtener datos directamente
+                const supabase = createBrowserClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+                )
 
-    const abrirMapa = () => {
-        const direccion = encodeURIComponent(reserva.estacionamiento.est_direc);
-        const url = `https://www.google.com/maps/search/?api=1&query=${direccion}`;
-        window.open(url, '_blank');
-    };
+                // Obtener reserva con detalles completos desde la vista
+                const { data: reserva, error: reservaError } = await supabase
+                    .from('vw_reservas_detalles')
+                    .select('*')
+                    .eq('res_codigo', res_codigo)
+                    .single()
 
-    const llamarTelefono = () => {
-        if (reserva.estacionamiento.est_telefono) {
-            window.location.href = `tel:${reserva.estacionamiento.est_telefono}`;
+                if (reservaError) {
+                    console.error('Error obteniendo reserva:', reservaError)
+                    throw new Error('No se pudo cargar la reserva')
+                }
+
+                if (!reserva) {
+                    throw new Error('Reserva no encontrada')
+                }
+
+                // Obtener vehículos del conductor
+                const { data: vehiculos } = await supabase
+                    .from('vehiculos')
+                    .select('veh_patente, con_id, catv_segmento, veh_marca, veh_modelo, veh_color')
+                    .eq('con_id', reserva.con_id)
+
+                setData({
+                    ...reserva,
+                    vehiculos: vehiculos || []
+                })
+            } catch (e: any) {
+                console.error('Error:', e)
+                setError(e.message || 'Error cargando detalle')
+            } finally {
+                setLoading(false)
+            }
         }
-    };
 
-    const enviarEmail = () => {
-        if (reserva.estacionamiento.est_email) {
-            window.location.href = `mailto:${reserva.estacionamiento.est_email}`;
+        fetchDetail()
+    }, [open, res_codigo])
+
+    if (!open) return null
+
+    const reserva = data
+    const conductor = data ? {
+        usu_nom: data.usu_nom,
+        usu_ape: data.usu_ape,
+        usu_email: data.usu_email,
+        usu_tel: data.usu_tel
+    } : null
+    const vehiculo = data ? {
+        veh_marca: data.veh_marca,
+        veh_modelo: data.veh_modelo,
+        veh_color: data.veh_color
+    } : null
+    const plaza = data ? {
+        pla_zona: data.pla_zona,
+        catv_segmento: data.catv_segmento
+    } : null
+    const vehiculos = data?.vehiculos || []
+
+    const getEstadoReserva = () => {
+        if (!reserva) return 'Desconocido'
+        return reserva.res_estado?.replace('_', ' ').toUpperCase() || 'Desconocido'
+    }
+
+    const getEstadoColor = (estado: string) => {
+        switch (estado) {
+            case 'confirmada':
+                return 'bg-green-100 text-green-800'
+            case 'activa':
+                return 'bg-blue-100 text-blue-800'
+            case 'pendiente_pago':
+                return 'bg-yellow-100 text-yellow-800'
+            case 'no_show':
+                return 'bg-red-100 text-red-800'
+            case 'expirada':
+                return 'bg-gray-100 text-gray-800'
+            case 'completada':
+                return 'bg-purple-100 text-purple-800'
+            case 'cancelada':
+                return 'bg-red-100 text-red-800'
+            default:
+                return 'bg-gray-100 text-gray-800'
         }
-    };
-
-    // Generar código QR simple (en una implementación real usarías una librería como qrcode)
-    const generarQRCode = (texto: string) => {
-        // Por ahora retornamos un placeholder
-        return `data:image/svg+xml;base64,${btoa(`
-      <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-        <rect width="200" height="200" fill="white"/>
-        <text x="100" y="100" text-anchor="middle" font-family="monospace" font-size="12">
-          ${texto}
-        </text>
-      </svg>
-    `)}`;
-    };
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Detalles de la Reserva
-                    </DialogTitle>
+                    <DialogTitle>Detalle de Reserva {res_codigo}</DialogTitle>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Columna izquierda - Información */}
-                    <div className="space-y-6">
-                        {/* Código de reserva */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <QrCode className="w-4 h-4" />
-                                    Código de Reserva
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="text-center">
-                                    <div className="text-2xl font-mono font-bold bg-gray-100 p-4 rounded-lg mb-2">
-                                        {formatearCodigoReserva(reserva.res_codigo)}
-                                    </div>
-                                    <Button variant="outline" size="sm" onClick={copiarCodigo}>
-                                        <Copy className="w-3 h-3 mr-1" />
-                                        Copiar Código
-                                    </Button>
-                                </div>
-
-                                {/* QR Code placeholder */}
-                                <div className="text-center">
-                                    <div className="inline-block p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
-                                        <img
-                                            src={generarQRCode(reserva.res_codigo)}
-                                            alt="Código QR"
-                                            className="w-32 h-32 mx-auto"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-2">Código QR</p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Estado y tiempo */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <Timer className="w-4 h-4" />
-                                    Estado y Tiempo
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-medium">Estado:</span>
-                                    <Badge className={`${estadoVisual.bgColor} ${estadoVisual.textColor} border-0`}>
-                                        {estadoVisual.label}
-                                    </Badge>
-                                </div>
-
-                                {reserva.res_estado === 'confirmada' && tiempoRestante.minutosRestantes > 0 && (
-                                    <Alert className={tiempoRestante.esUrgente ? 'border-orange-200 bg-orange-50' : ''}>
-                                        <Timer className="h-4 w-4" />
-                                        <AlertDescription>
-                                            {tiempoRestante.esUrgente ? '⚠️ ' : ''}
-                                            Tiempo restante: <strong>{tiempoRestante.tiempoRestante}</strong>
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-
-                                <div className="text-sm space-y-1">
-                                    <div className="flex justify-between">
-                                        <span>Inicio:</span>
-                                        <span>{formatearFechaReserva(reserva.res_fh_ingreso)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Fin:</span>
-                                        <span>{formatearFechaReserva(reserva.res_fh_fin)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Tiempo de gracia:</span>
-                                        <span>{reserva.res_tiempo_gracia_min} minutos</span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Información del vehículo */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <Car className="w-4 h-4" />
-                                    Vehículo
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <div className="text-lg font-mono font-bold">{reserva.veh_patente}</div>
-                                <div className="text-sm text-gray-600">
-                                    {reserva.vehiculo.veh_marca} {reserva.vehiculo.veh_modelo}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    Color: {reserva.vehiculo.veh_color}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Información de contacto */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <Phone className="w-4 h-4" />
-                                    Contacto
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                {reserva.estacionamiento.est_telefono && (
-                                    <Button variant="outline" className="w-full justify-start" onClick={llamarTelefono}>
-                                        <Phone className="w-4 h-4 mr-2" />
-                                        {reserva.estacionamiento.est_telefono}
-                                    </Button>
-                                )}
-                                {reserva.estacionamiento.est_email && (
-                                    <Button variant="outline" className="w-full justify-start" onClick={enviarEmail}>
-                                        <Mail className="w-4 h-4 mr-2" />
-                                        {reserva.estacionamiento.est_email}
-                                    </Button>
-                                )}
-                            </CardContent>
-                        </Card>
+                {loading && (
+                    <div className="flex justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
+                )}
 
-                    {/* Columna derecha - Ubicación y detalles */}
-                    <div className="space-y-6">
-                        {/* Ubicación */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <MapPin className="w-4 h-4" />
-                                    Ubicación
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <div className="font-medium text-lg">{reserva.estacionamiento.est_nombre}</div>
-                                    <div className="text-gray-600">{reserva.estacionamiento.est_direc}</div>
-                                </div>
+                {error && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
 
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="outline">Plaza {reserva.pla_numero}</Badge>
-                                    <Badge variant="outline">Zona {reserva.plaza.pla_zona}</Badge>
-                                </div>
+                {!loading && !error && data && (
+                    <Tabs defaultValue="general" className="w-full">
+                        <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="general">General</TabsTrigger>
+                            <TabsTrigger value="conductor">Conductor</TabsTrigger>
+                            <TabsTrigger value="vehiculo">Vehículo</TabsTrigger>
+                            <TabsTrigger value="pago">Pago</TabsTrigger>
+                        </TabsList>
 
-                                <Button className="w-full" onClick={abrirMapa}>
-                                    <Navigation className="w-4 h-4 mr-2" />
-                                    Cómo llegar
-                                </Button>
-                            </CardContent>
-                        </Card>
+                        {/* TAB: General */}
+                        <TabsContent value="general" className="space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitleComponent>Información de la Reserva</CardTitleComponent>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-sm text-gray-600">Código de Reserva</span>
+                                            <p className="text-lg font-semibold">{reserva?.res_codigo}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Estado</span>
+                                            <Badge className={getEstadoColor(reserva?.res_estado)}>
+                                                {getEstadoReserva()}
+                                            </Badge>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Fecha de Reserva</span>
+                                            <p className="text-lg font-semibold">
+                                                {reserva?.res_created_at ? dayjs(reserva.res_created_at).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Hora de Ingreso Prevista</span>
+                                            <p className="text-lg font-semibold">
+                                                {reserva?.res_fh_ingreso ? dayjs(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Hora de Fin Prevista</span>
+                                            <p className="text-lg font-semibold">
+                                                {reserva?.res_fh_fin ? dayjs(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Monto</span>
+                                            <p className="text-lg font-semibold">{formatCurrency(reserva?.res_monto || 0)}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Zona</span>
+                                            <p className="text-lg font-semibold">{plaza?.pla_zona || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Plaza Número</span>
+                                            <p className="text-lg font-semibold">{reserva?.pla_numero || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Método de Pago</span>
+                                            <p className="text-lg font-semibold capitalize">{reserva?.metodo_pago?.replace('_', ' ') || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
 
-                        {/* Instrucciones */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4" />
-                                    Instrucciones
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-sm space-y-2 whitespace-pre-line">
-                                    {generarInstruccionesReserva(reserva)}
-                                </div>
-                            </CardContent>
-                        </Card>
+                        {/* TAB: Conductor */}
+                        <TabsContent value="conductor" className="space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitleComponent>Datos del Conductor</CardTitleComponent>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-sm text-gray-600">Nombre</span>
+                                            <p className="text-lg font-semibold">{conductor?.usu_nom || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Apellido</span>
+                                            <p className="text-lg font-semibold">{conductor?.usu_ape || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Email</span>
+                                            <p className="text-lg font-semibold text-blue-600">{conductor?.usu_email || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Teléfono</span>
+                                            <p className="text-lg font-semibold">{conductor?.usu_tel || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
 
-                        {/* Información de pago */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-lg flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4" />
-                                    Información de Pago
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-medium">Total pagado:</span>
-                                    <span className="text-xl font-bold text-green-600">
-                                        ${reserva.res_monto.toLocaleString()}
-                                    </span>
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    Reserva creada: {formatearFechaReserva(reserva.res_created_at)}
-                                </div>
-                            </CardContent>
-                        </Card>
+                        {/* TAB: Vehículo */}
+                        <TabsContent value="vehiculo" className="space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitleComponent>Información del Vehículo</CardTitleComponent>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-sm text-gray-600">Patente</span>
+                                            <p className="text-lg font-semibold">{reserva?.veh_patente || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Tipo</span>
+                                            <p className="text-lg font-semibold">{segmentToName(plaza?.catv_segmento)}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Marca</span>
+                                            <p className="text-lg font-semibold">{vehiculo?.veh_marca || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Modelo</span>
+                                            <p className="text-lg font-semibold">{vehiculo?.veh_modelo || 'N/A'}</p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <span className="text-sm text-gray-600">Color</span>
+                                            <p className="text-lg font-semibold">{vehiculo?.veh_color || 'N/A'}</p>
+                                        </div>
+                                    </div>
 
-                        {/* Términos importantes */}
-                        <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                <strong>Recordatorios importantes:</strong>
-                                <ul className="mt-2 space-y-1 text-sm">
-                                    <li>• Llega dentro de los {reserva.res_tiempo_gracia_min} minutos después de la hora de inicio</li>
-                                    <li>• Muestra este código QR al operador al llegar</li>
-                                    <li>• Si llegas tarde, tu reserva será cancelada automáticamente</li>
-                                    <li>• No se permiten cancelaciones ni modificaciones</li>
-                                </ul>
-                            </AlertDescription>
-                        </Alert>
-                    </div>
-                </div>
+                                    {vehiculos.length > 1 && (
+                                        <div className="mt-6">
+                                            <h4 className="font-semibold mb-4">Otros vehículos del conductor</h4>
+                                            <div className="rounded-md border overflow-hidden">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Patente</TableHead>
+                                                            <TableHead>Marca</TableHead>
+                                                            <TableHead>Modelo</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {vehiculos.map((v: any) => (
+                                                            <TableRow key={v.veh_patente}>
+                                                                <TableCell className="font-semibold">{v.veh_patente}</TableCell>
+                                                                <TableCell>{v.veh_marca || 'N/A'}</TableCell>
+                                                                <TableCell>{v.veh_modelo || 'N/A'}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
 
-                {/* Botón cerrar */}
-                <div className="flex justify-end pt-4 border-t">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cerrar
-                    </Button>
-                </div>
+                        {/* TAB: Pago */}
+                        <TabsContent value="pago" className="space-y-4">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitleComponent>Información de Pago</CardTitleComponent>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-sm text-gray-600">Monto Total</span>
+                                            <p className="text-lg font-semibold">{formatCurrency(reserva?.res_monto || 0)}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Método de Pago</span>
+                                            <p className="text-lg font-semibold capitalize">{reserva?.metodo_pago?.replace('_', ' ') || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Número de Pago</span>
+                                            <p className="text-lg font-semibold">{reserva?.pag_nro || 'Sin pago registrado'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-sm text-gray-600">Tiempo de Gracia</span>
+                                            <p className="text-lg font-semibold">{reserva?.res_tiempo_gracia_min || 0} minutos</p>
+                                        </div>
+                                    </div>
+
+                                    {reserva?.payment_info && (
+                                        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                                            <h4 className="font-semibold mb-2">Información de Pago Adicional</h4>
+                                            <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words">
+                                                {JSON.stringify(reserva.payment_info, null, 2)}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    </Tabs>
+                )}
             </DialogContent>
         </Dialog>
-    );
+    )
 }
