@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         est_id: estId,
         pla_numero: plazaNumero,
         veh_patente: license_plate.trim(),
-        ocu_fh_entrada: entry_time,
+        ocu_fh_entrada: entry_time.toLocaleTimeString(),
         ocu_fh_salida: null,
         tiptar_nro: null,
         pag_nro: null,
