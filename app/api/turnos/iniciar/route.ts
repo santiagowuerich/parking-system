@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Obtener hora actual
-        const horaActual = new Date().toTimeString().split(' ')[0];
+        const horaActual = new Date().toLocaleDateString().split(' ')[0];
 
         // Crear turno con caja
         const { data: nuevoTurno, error: turnoError } = await supabase

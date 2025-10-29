@@ -34,8 +34,8 @@ export async function PUT(request: NextRequest) {
         }
 
         // Obtener hora y fecha actual
-        const horaActual = new Date().toTimeString().split(' ')[0];
-        const fechaActual = new Date().toISOString().split('T')[0];
+        const horaActual = new Date().toLocaleTimeString().split(' ')[0];
+        const fechaActual = new Date().toLocaleDateString().split(' ')[0];
 
         // Actualizar turno con caja final y fecha de salida
         const { error: updateTurnoError } = await supabase
