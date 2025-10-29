@@ -375,7 +375,6 @@ export default function ReportesPage() {
                                     description="Métricas clave: mes vs mes, trimestre y año vs año."
                                     onClick={() => abrirReporte("comparativo")}
                                     color="blue"
-                                    badge="Popular"
                                 />
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -95,6 +95,48 @@ body {
   }
 }
 
+/* ==== Print helpers (A4) ==== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-hidden { display: none !important; }
+  .print-a4,
+  .print-a4-inner,
+  [data-modal-print-node] {
+    transform: none !important;
+  }
+  .print-a4 {
+    overflow: visible !important;
+  }
+}
+
+.print-a4 {
+  width: 210mm;
+  height: 297mm;
+  max-width: 100%;
+  background: white;
+  overflow: hidden;
+  margin: 0 auto;
+  position: relative;
+}
+
+.print-a4-inner {
+  transform-origin: top left;
+  min-height: 100%;
+  width: 100%;
+}
+
+.avoid-break,
+.avoid-break * {
+  break-inside: avoid;
+}
+
 /* --- InfoWindow: quito caja y paddings de Google --- */
 .gm-style .gm-style-iw-c {
   padding: 0 !important;
@@ -117,7 +159,7 @@ body {
   display: none !important;
 }
 
-/* OCULTAR el botón de cerrar de Google (para que no haya 2 X) */
+/* OCULTAR el boton de cerrar de Google (para que no haya 2 X) */
 .gm-style .gm-ui-hover-effect {
   display: none !important;
 }
