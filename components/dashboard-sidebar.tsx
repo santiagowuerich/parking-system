@@ -84,6 +84,12 @@ const employeeNavigationItems = [
         ]
     },
     {
+        title: "Reservas",
+        href: "/dashboard/gestion-reservas",
+        icon: Calendar,
+        description: "Gestión de reservas del día"
+    },
+    {
         title: "Mis Turnos",
         href: "/dashboard/mis-turnos",
         icon: Clock,
@@ -366,7 +372,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                         tieneTurnoActivo ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                     )} />
                                     <div className="flex-1">
-                                        <Badge variant={tieneTurnoActivo ? "default" : "destructive"} className="text-xs">
+                                        <Badge variant={tieneTurnoActivo ? "default" : "destructive"} className={cn("text-xs", tieneTurnoActivo && "hover:bg-primary")}>
                                             {tieneTurnoActivo
                                                 ? `Turno activo desde ${turnoActivo?.tur_hora_entrada}`
                                                 : "Sin turno activo"

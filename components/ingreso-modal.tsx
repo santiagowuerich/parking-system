@@ -193,6 +193,15 @@ export default function IngresoModal({
     }
   }
 
+  // Función para validar si un vehículo puede ocupar una plaza
+  const puedeVehiculoUsarPlaza = (tipoVehiculo: VehicleType, tipoPlaza: VehicleType): boolean => {
+    // Jerarquía de tamaños: Moto < Auto < Camioneta
+    const jerarquia = { 'Moto': 1, 'Auto': 2, 'Camioneta': 3 }
+
+    // Un vehículo puede usar una plaza si su tamaño es igual o menor al de la plaza
+    return jerarquia[tipoVehiculo] <= jerarquia[tipoPlaza]
+  }
+
   // Handler para selección de vehículos de reserva
   const handleReservaVehicleSelect = (value: string) => {
     const normalized = value.toUpperCase()
@@ -207,12 +216,12 @@ export default function IngresoModal({
       const tipoVehiculo = mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento)
       const tipoPlaza = mapearTipoVehiculo(plaza?.catv_segmento || 'AUT')
 
-      // Validar que el tipo de vehículo coincida con la plaza
-      if (tipoVehiculo !== tipoPlaza) {
+      // Validar que el vehículo pueda usar la plaza según jerarquía de tamaños
+      if (!puedeVehiculoUsarPlaza(tipoVehiculo, tipoPlaza)) {
         toast({
           variant: "destructive",
-          title: "Tipo de vehículo incompatible",
-          description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}`
+          title: "Vehículo incompatible con la plaza",
+          description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}. Los vehículos más grandes no pueden usar plazas más pequeñas.`
         })
         // Revertir selección
         setSelectedReservaVehicle("")
@@ -553,13 +562,13 @@ export default function IngresoModal({
                         key={vehiculo.veh_patente}
                         value={vehiculo.veh_patente?.toUpperCase() || ''}
                       >
-                        {vehiculo.veh_patente?.toUpperCase()} - {vehiculo.veh_marca} {vehiculo.veh_modelo}
+                        {vehiculo.veh_patente?.toUpperCase()} - {vehiculo.veh_marca} {vehiculo.veh_modelo} ({mapearTipoVehiculo(vehiculo.catv_segmento)})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Solo se permiten los vehículos del conductor que hizo la reserva.
+                  Solo se permiten los vehículos del conductor que hizo la reserva, respetando las reglas de compatibilidad de tamaño.
                 </p>
               </>
             ) : (

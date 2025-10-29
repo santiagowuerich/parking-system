@@ -12,9 +12,7 @@ import { calculateFee, formatDuration } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Calendar } from "lucide-react";
-import { ListaReservasOperador } from "@/components/reservas/lista-reservas-operador";
-import { BuscarReservaDialog } from "@/components/reservas/buscar-reserva-dialog";
+import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -86,9 +84,6 @@ export default function OperadorSimplePage() {
     const [qrData, setQrData] = useState<{ qrCode: string, qrCodeImage: string, preferenceId: string } | null>(null);
     const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
-    // Estados para reservas
-    const [buscarReservaOpen, setBuscarReservaOpen] = useState(false);
-    const [vistaActual, setVistaActual] = useState<'ingresos' | 'reservas'>('ingresos');
 
     // Inicializar datos del parking
     useEffect(() => {
@@ -1348,68 +1343,25 @@ export default function OperadorSimplePage() {
                     <div className="min-h-screen bg-white">
                         <div className="p-6 space-y-6">
                             <TurnoGuard showAlert={true} redirectButton={true}>
-                                {/* Botón para cambiar a vista de reservas */}
-                                <div className="flex justify-end mb-4">
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setVistaActual(vistaActual === 'ingresos' ? 'reservas' : 'ingresos')}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Calendar className="w-4 h-4" />
-                                        {vistaActual === 'ingresos' ? 'Ver Reservas' : 'Ver Ingresos'}
-                                    </Button>
-                                </div>
 
-                                {/* Vista de Ingresos */}
-                                {vistaActual === 'ingresos' && (
-                                    <OperatorPanel
-                                        parking={parking}
-                                        availableSpaces={getAvailableSpaces()}
-                                        onRegisterEntry={registerEntry}
-                                        onRegisterExit={handleExit}
-                                        exitInfo={exitInfo}
-                                        setExitInfo={setExitInfo}
-                                        plazasData={plazasData}
-                                        loadingPlazas={loadingPlazas}
-                                        fetchPlazasStatus={fetchDashboardData}
-                                        onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
-                                        // Nuevas props para visualización rica
-                                        plazasCompletas={plazasCompletas}
-                                        loadingPlazasCompletas={loadingPlazasCompletas}
-                                        getEstadoColor={getEstadoColor}
-                                        getEstadoIcon={getEstadoIcon}
-                                        refreshParkedVehicles={refreshParkedVehicles}
-                                    />
-                                )}
-
-                                {/* Vista de Reservas */}
-                                {vistaActual === 'reservas' && estId && (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h1 className="text-2xl font-bold text-gray-900">Gestión de Reservas</h1>
-                                                <p className="text-gray-600 mt-1">Administra las reservas del estacionamiento</p>
-                                            </div>
-                                            <Button
-                                                onClick={() => setBuscarReservaOpen(true)}
-                                                className="bg-blue-600 hover:bg-blue-700"
-                                            >
-                                                <Search className="w-4 h-4 mr-2" />
-                                                Buscar Reserva
-                                            </Button>
-                                        </div>
-
-                                        <ListaReservasOperador
-                                            estId={estId}
-                                            onConfirmarLlegada={(reserva) => {
-                                                toast({
-                                                    title: "Llegada confirmada",
-                                                    description: `La reserva ${reserva.res_codigo} ha sido activada`,
-                                                });
-                                            }}
-                                        />
-                                    </div>
-                                )}
+                                <OperatorPanel
+                                    parking={parking}
+                                    availableSpaces={getAvailableSpaces()}
+                                    onRegisterEntry={registerEntry}
+                                    onRegisterExit={handleExit}
+                                    exitInfo={exitInfo}
+                                    setExitInfo={setExitInfo}
+                                    plazasData={plazasData}
+                                    loadingPlazas={loadingPlazas}
+                                    fetchPlazasStatus={fetchDashboardData}
+                                    onConfigureZones={role === 'owner' ? handleConfigureZones : undefined}
+                                    // Nuevas props para visualización rica
+                                    plazasCompletas={plazasCompletas}
+                                    loadingPlazasCompletas={loadingPlazasCompletas}
+                                    getEstadoColor={getEstadoColor}
+                                    getEstadoIcon={getEstadoIcon}
+                                    refreshParkedVehicles={refreshParkedVehicles}
+                                />
                             </TurnoGuard>
                         </div>
                     </div>
@@ -1553,20 +1505,6 @@ export default function OperadorSimplePage() {
                         </Dialog>
                     )}
 
-                    {/* Dialog de búsqueda de reserva */}
-                    {estId && (
-                        <BuscarReservaDialog
-                            isOpen={buscarReservaOpen}
-                            onClose={() => setBuscarReservaOpen(false)}
-                            estId={estId}
-                            onConfirmarLlegada={(reserva) => {
-                                toast({
-                                    title: "Llegada confirmada",
-                                    description: `La reserva ${reserva.res_codigo} ha sido activada`,
-                                });
-                            }}
-                        />
-                    )}
                 </main>
             </div>
         </div>

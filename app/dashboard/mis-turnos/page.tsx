@@ -9,7 +9,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { RouteGuard } from "@/components/route-guard";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Clock, Calendar, DollarSign, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, Clock, Calendar, DollarSign, AlertCircle } from "lucide-react";
 import dayjs from "dayjs";
 import IniciarTurnoModal from "@/components/turnos/iniciar-turno-modal";
 import FinalizarTurnoModal from "@/components/turnos/finalizar-turno-modal";
@@ -209,24 +209,18 @@ export default function MisTurnosPage() {
                             <CardContent>
                                 {turnoActivo ? (
                                     <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-semibold">Turno Activo</h3>
-                                                <p className="text-sm text-gray-600">
-                                                    Iniciado el {dayjs(turnoActivo.tur_fecha).format('DD/MM/YYYY')} a las {turnoActivo.tur_hora_entrada}
-                                                </p>
-                                            </div>
-                                            <Badge variant="default" className="bg-green-100 text-green-800">
-                                                <CheckCircle className="h-3 w-3 mr-1" />
-                                                Activo
-                                            </Badge>
+                                        <div>
+                                            <h3 className="text-lg font-semibold">Turno Activo</h3>
+                                            <p className="text-sm text-gray-600">
+                                                Iniciado el {dayjs(turnoActivo.tur_fecha).format('DD/MM/YYYY')} a las {turnoActivo.tur_hora_entrada}
+                                            </p>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="bg-gray-50 p-4 rounded-lg">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Clock className="h-4 w-4 text-gray-600" />
-                                                    <span className="text-sm font-medium text-gray-700">Duración Trabajada</span>
+                                                    <span className="text-sm font-medium text-gray-700">Tiempo en turno</span>
                                                 </div>
                                                 <p className="text-xl font-bold text-gray-900">
                                                     {calcularDuracion(turnoActivo.tur_hora_entrada, turnoActivo.tur_fecha)}

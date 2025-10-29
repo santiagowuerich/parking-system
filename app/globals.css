@@ -86,10 +86,6 @@ body {
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
   body {
     @apply bg-background text-foreground;
   }
@@ -101,16 +97,22 @@ body {
     size: A4 portrait;
     margin: 10mm;
   }
+
   body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .print-hidden { display: none !important; }
+
+  .print-hidden {
+    display: none !important;
+  }
+
   .print-a4,
   .print-a4-inner,
   [data-modal-print-node] {
     transform: none !important;
   }
+
   .print-a4 {
     overflow: visible !important;
   }
