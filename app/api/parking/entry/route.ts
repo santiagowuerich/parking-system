@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
     const jsonResponse = NextResponse.json({ success: true, data });
     return copyResponseCookies(response, jsonResponse);
   } catch (err) {
