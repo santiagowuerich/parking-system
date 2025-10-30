@@ -249,8 +249,8 @@ export default function ServiciosAbonosPage() {
                                                     <TableCell>{abono.zona}</TableCell>
                                                     <TableCell>{abono.pla_numero}</TableCell>
                                                     <TableCell>{getTipoAbono(abono.tipo_abono)}</TableCell>
-                                                    <TableCell>{new Date(abono.fecha_inicio).toLocaleDateString('es-AR')}</TableCell>
-                                                    <TableCell>{new Date(abono.fecha_fin).toLocaleDateString('es-AR')}</TableCell>
+                                                    <TableCell>{dayjs.utc(abono.fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
+                                                    <TableCell>{dayjs.utc(abono.fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
                                                     <TableCell>{abono.dias_restantes} días</TableCell>
                                                     <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
                                                     <TableCell className="text-right">
