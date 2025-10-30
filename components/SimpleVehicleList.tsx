@@ -239,10 +239,10 @@ export function SimpleVehicleList({
                                     ? `${abono.abonado.abon_nombre || ''} ${abono.abonado.abon_apellido || ''}`.trim()
                                     : null;
                                 const fechaInicio = abono?.abo_fecha_inicio
-                                    ? new Date(abono.abo_fecha_inicio).toLocaleDateString('es-AR')
+                                    ? dayjs.utc(abono.abo_fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')
                                     : null;
                                 const fechaFin = abono?.abo_fecha_fin
-                                    ? new Date(abono.abo_fecha_fin).toLocaleDateString('es-AR')
+                                    ? dayjs.utc(abono.abo_fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')
                                     : null;
 
                                 return (

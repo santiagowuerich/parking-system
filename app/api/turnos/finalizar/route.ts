@@ -1,6 +1,12 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from '@/lib/logger';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function PUT(request: NextRequest) {
     try {
@@ -33,9 +39,10 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: "Turno no encontrado o ya finalizado" }, { status: 404 });
         }
 
-        // Obtener hora y fecha actual
-        const horaActual = new Date().toTimeString().split(' ')[0];
-        const fechaActual = new Date().toISOString().split('T')[0];
+        // Obtener hora y fecha actual en zona horaria de Argentina
+        const ahoraArgentina = dayjs().tz('America/Argentina/Buenos_Aires');
+        const horaActual = ahoraArgentina.format('HH:mm:ss');
+        const fechaActual = ahoraArgentina.format('YYYY-MM-DD');
 
         // Actualizar turno con caja final y fecha de salida
         const { error: updateTurnoError } = await supabase

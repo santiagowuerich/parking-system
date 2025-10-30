@@ -242,15 +242,10 @@ export function validarDisponibilidadPlaza(
 
 /**
  * Formatea una fecha para mostrar en la UI
+ * Usa timezone de Argentina explícitamente
  */
 export function formatearFechaReserva(fecha: string): string {
-    return new Date(fecha).toLocaleString('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return dayjs.utc(fecha).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm');
 }
 
 /**
@@ -267,12 +262,20 @@ export function formatearDuracion(duracionHoras: number): string {
  * Genera un mensaje de instrucciones para el conductor
  */
 export function generarInstruccionesReserva(reserva: any): string {
+    // Calcular tiempo de gracia en timezone Argentina
+    const fechaIngreso = dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires');
+    const fechaGracia = fechaIngreso.add(reserva.res_tiempo_gracia_min || 15, 'minute');
+    
+    // Calcular duración en timezone Argentina
+    const fechaFin = dayjs.utc(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires');
+    const duracionHoras = fechaFin.diff(fechaIngreso, 'hour', true);
+    
     const instrucciones = [
         `Tu reserva está confirmada para la plaza ${reserva.pla_numero}`,
-        `Debes llegar entre ${formatearFechaReserva(reserva.res_fh_ingreso)} y ${formatearFechaReserva(new Date(new Date(reserva.res_fh_ingreso).getTime() + (reserva.res_tiempo_gracia_min * 60 * 1000)).toISOString())}`,
+        `Debes llegar entre ${formatearFechaReserva(reserva.res_fh_ingreso)} y ${formatearFechaReserva(fechaGracia.utc().toISOString())}`,
         `Si llegas después del tiempo de gracia, tu reserva será cancelada`,
         `Muestra este código al operador: ${formatearCodigoReserva(reserva.res_codigo)}`,
-        `La reserva es válida por ${formatearDuracion(Math.round((new Date(reserva.res_fh_fin).getTime() - new Date(reserva.res_fh_ingreso).getTime()) / (1000 * 60 * 60)))}`
+        `La reserva es válida por ${formatearDuracion(Math.round(duracionHoras))}`
     ];
 
     return instrucciones.join('\n');

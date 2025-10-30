@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import timezone from "dayjs/plugin/timezone"
+import { formatDateTime, formatDateTimeReadable } from "./utils/date-time"
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -19,22 +20,10 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-// Formatear hora
+// Formatear hora (redirige a función centralizada)
+// @deprecated Usar formatTime de lib/utils/date-time.ts directamente
 export function formatTime(date: Date): string {
-  // Asegurarnos de que la fecha sea un objeto Date válido
-  const dateObj = new Date(date);
-
-  // Ajustar a la zona horaria local
-  return dateObj.toLocaleString('es-AR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZone: 'America/Argentina/Buenos_Aires'
-  });
+  return formatDateTime(date);
 }
 
 // Formatear duración
@@ -68,17 +57,8 @@ export function nameToSegment(name?: string): 'AUT' | 'MOT' | 'CAM' {
 }
 
 // Formatear fecha/hora argentina con Day.js
+// @deprecated Usar formatDateTimeReadable de lib/utils/date-time.ts directamente
 export function formatArgentineTimeWithDayjs(dateString: string | Date | null | undefined): string {
-  if (!dateString) return "N/A"; // Manejar nulos/undefined
-  try {
-    const dateUtc = dayjs.utc(dateString);
-    if (!dateUtc.isValid()) {
-      return "Fecha inválida";
-    }
-    return dateUtc.tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY hh:mm:ss A');
-  } catch (error) {
-    console.error("Error formateando fecha con Day.js:", error);
-    return "Error";
-  }
+  return formatDateTimeReadable(dateString);
 }
 

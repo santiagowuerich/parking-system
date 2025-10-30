@@ -309,10 +309,10 @@ export default function VisualizacionPlazasPage() {
                                                                                                 <span className="font-medium">Tipo:</span> {plaza.abono.abo_tipoabono}
                                                                                             </div>
                                                                                             <div className="text-sm">
-                                                                                                <span className="font-medium">Inicio:</span> {new Date(plaza.abono.abo_fecha_inicio).toLocaleDateString('es-AR')}
+                                                                                                <span className="font-medium">Inicio:</span> {dayjs.utc(plaza.abono.abo_fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}
                                                                                             </div>
                                                                                             <div className="text-sm">
-                                                                                                <span className="font-medium">Fin:</span> {new Date(plaza.abono.abo_fecha_fin).toLocaleDateString('es-AR')}
+                                                                                                <span className="font-medium">Fin:</span> {dayjs.utc(plaza.abono.abo_fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}
                                                                                             </div>
                                                                                         </div>
                                                                                     )}

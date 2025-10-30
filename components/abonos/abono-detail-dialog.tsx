@@ -113,11 +113,11 @@ export function AbonoDetailDialog({ open, onOpenChange, abo_nro }: Props) {
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Fecha Inicio</span>
-                                            <p className="text-lg font-semibold">{new Date(abono?.abo_fecha_inicio).toLocaleDateString('es-AR')}</p>
+                                            <p className="text-lg font-semibold">{dayjs.utc(abono?.abo_fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</p>
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Fecha Vencimiento</span>
-                                            <p className="text-lg font-semibold">{new Date(abono?.abo_fecha_fin).toLocaleDateString('es-AR')}</p>
+                                            <p className="text-lg font-semibold">{dayjs.utc(abono?.abo_fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</p>
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Zona</span>
@@ -237,7 +237,7 @@ export function AbonoDetailDialog({ open, onOpenChange, abo_nro }: Props) {
                                                 <TableBody>
                                                     {pagos.map((p: any) => (
                                                         <TableRow key={p.pag_nro}>
-                                                            <TableCell className="text-sm">{new Date(p.pag_h_fh).toLocaleDateString('es-AR')}</TableCell>
+                                                            <TableCell className="text-sm">{dayjs.utc(p.pag_h_fh).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
                                                             <TableCell>
                                                                 <Badge variant={p.pag_tipo === 'extension' ? 'default' : 'secondary'}>
                                                                     {p.pag_tipo === 'extension' ? 'Extensión' : 'Ocupación'}

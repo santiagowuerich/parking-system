@@ -8,6 +8,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { Session } from '@supabase/supabase-js'
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { formatTime } from "@/lib/utils/date-time";
 
 interface Message {
   id: string
@@ -22,7 +23,7 @@ const INITIAL_MESSAGES: Message[] = [
     id: 'initial-1',
     content: 'Hola! Soy tu asistente de estacionamiento. ¿En qué puedo ayudarte hoy? (puedes pedirme actualizar tarifas, ver vehículos, etc.)',
     isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    timestamp: formatTime(new Date())
   }
 ];
 
@@ -163,7 +164,7 @@ export function OperatorChat() {
       id: Date.now().toString(),
       content: inputValue,
       isUser: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: formatTime(new Date())
     };
     
     setMessages(prev => [...prev, userMessage]);
@@ -181,7 +182,7 @@ export function OperatorChat() {
          id: (Date.now() + 1).toString(),
          content: aiResponseContent,
          isUser: false,
-         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+         timestamp: formatTime(new Date())
        };
        setMessages(prev => [...prev, assistantMessage]);
     } else {
@@ -191,7 +192,7 @@ export function OperatorChat() {
            id: (Date.now() + 1).toString(),
            content: errorMessageContent,
            isUser: false,
-           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+           timestamp: formatTime(new Date()),
            isError: true // Añadir una propiedad opcional para estilizar diferente
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -213,7 +214,7 @@ export function OperatorChat() {
         id: Date.now().toString(),
         content: 'Reintentando conexión...',
         isUser: false,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: formatTime(new Date())
       }
     ]);
     
@@ -245,7 +246,7 @@ export function OperatorChat() {
             id: Date.now().toString(),
             content: data.response || 'No se recibió respuesta.',
             isUser: false,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            timestamp: formatTime(new Date())
           }
         ];
       });
@@ -260,7 +261,7 @@ export function OperatorChat() {
             id: Date.now().toString(),
             content: `Error: ${error.message || 'No se pudo conectar al servidor. Por favor, revisa la configuración y variables de entorno del servidor.'}`,
             isUser: false,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            timestamp: formatTime(new Date())
           }
         ];
       });

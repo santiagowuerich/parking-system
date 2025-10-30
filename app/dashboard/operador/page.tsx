@@ -414,20 +414,25 @@ export default function OperadorPage() {
                 if (createVehicleError) throw createVehicleError;
             }
 
+            // Calcular fecha límite basada en duración seleccionada (en timezone Argentina)
             let fechaLimite: Date | null = null;
             if (payload.duracion_tipo && payload.duracion_tipo !== 'hora' && payload.duracion_tipo !== 'abono') {
-                const now = new Date();
+                const nowArgentina = dayjs().tz('America/Argentina/Buenos_Aires');
+                let fechaLimiteArgentina: dayjs.Dayjs;
                 switch (payload.duracion_tipo) {
                     case 'dia':
-                        fechaLimite = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+                        fechaLimiteArgentina = nowArgentina.add(1, 'day'); // +1 día
                         break;
                     case 'semana':
-                        fechaLimite = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+                        fechaLimiteArgentina = nowArgentina.add(7, 'day'); // +7 días
                         break;
                     case 'mes':
-                        fechaLimite = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+                        fechaLimiteArgentina = nowArgentina.add(30, 'day'); // +30 días (aproximado)
                         break;
+                    default:
+                        fechaLimiteArgentina = nowArgentina;
                 }
+                fechaLimite = fechaLimiteArgentina.toDate();
             }
 
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();

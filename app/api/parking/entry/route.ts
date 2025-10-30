@@ -1,5 +1,6 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
+import { formatTimeWithSeconds, nowInArgentinaISO } from "@/lib/utils/date-time";
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,13 +59,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Registrar entrada en `ocupacion`
+    // Convertir entry_time a formato hora argentina si viene como Date/string
+    // Si entry_time ya es una hora formateada, usarla directamente
+    // Si es Date o ISO string, formatearla en hora argentina
+    const horaEntrada = typeof entry_time === 'string' && entry_time.includes('T')
+      ? formatTimeWithSeconds(entry_time)
+      : typeof entry_time === 'object' && entry_time instanceof Date
+      ? formatTimeWithSeconds(entry_time)
+      : entry_time; // Si ya es string formateado, usar directamente
+    
     const { data, error } = await supabase
       .from("ocupacion")
       .insert({
         est_id: estId,
         pla_numero: plazaNumero,
         veh_patente: license_plate.trim(),
-        ocu_fh_entrada: entry_time.toLocaleTimeString(),
+        ocu_fh_entrada: horaEntrada,
         ocu_fh_salida: null,
         tiptar_nro: null,
         pag_nro: null,
