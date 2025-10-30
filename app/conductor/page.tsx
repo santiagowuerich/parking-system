@@ -48,7 +48,6 @@ interface ParkingData {
 
 export default function MapaEstacionamientos() {
     const [searchText, setSearchText] = useState("");
-    const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
     const { selectedVehicle } = useVehicle();
     const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(selectedVehicle?.tipo || null);
@@ -259,49 +258,21 @@ export default function MapaEstacionamientos() {
                                     Mi ubicación
                                 </Button>
 
-                                <Button
-                                    variant={soloDisponibles ? "default" : "outline"}
-                                    size="lg"
-                                    onClick={() => setSoloDisponibles(!soloDisponibles)}
-                                    className={`h-12 px-6 ${soloDisponibles ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-gray-300 hover:border-green-500 hover:text-green-600'}`}
+                                {/* Filtro por tipo de vehículo - Desplegable */}
+                                <Select
+                                    value={vehicleTypeFilter || 'all'}
+                                    onValueChange={(value) => setVehicleTypeFilter(value === 'all' ? null : value as 'AUT' | 'MOT' | 'CAM')}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        {soloDisponibles ? <div className="w-2 h-2 rounded-full bg-white"></div> : <div className="w-2 h-2 rounded-full bg-green-500"></div>}
-                                        Sólo disponibles
-                                    </div>
-                                </Button>
-                            </div>
-
-                            {/* Filtro por tipo de vehículo */}
-                            <div className="flex items-center gap-3 border-l border-gray-300 pl-6">
-                                <span className="text-sm font-medium text-gray-700">Tipo de vehículo:</span>
-                                <Button
-                                    variant={vehicleTypeFilter === 'AUT' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'AUT' ? null : 'AUT')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'AUT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🚗</span>
-                                    Auto
-                                </Button>
-                                <Button
-                                    variant={vehicleTypeFilter === 'MOT' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'MOT' ? null : 'MOT')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'MOT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🏍️</span>
-                                    Moto
-                                </Button>
-                                <Button
-                                    variant={vehicleTypeFilter === 'CAM' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'CAM' ? null : 'CAM')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'CAM' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🚙</span>
-                                    Camioneta
-                                </Button>
+                                    <SelectTrigger className="h-12 px-4 w-[140px] border-gray-300 hover:border-blue-500">
+                                        <SelectValue placeholder="Tipo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos</SelectItem>
+                                        <SelectItem value="AUT">🚗 Auto</SelectItem>
+                                        <SelectItem value="MOT">🏍️ Moto</SelectItem>
+                                        <SelectItem value="CAM">🚙 Camioneta</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                         </div>
