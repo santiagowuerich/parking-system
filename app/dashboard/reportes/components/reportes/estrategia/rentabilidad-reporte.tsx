@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 import { formatCurrency } from "@/lib/utils";
 
 type VehicleType = "ALL" | "AUT" | "MOT" | "CAM";
@@ -65,7 +64,6 @@ export function RentabilidadReporte() {
     const printRef = useRef<HTMLDivElement>(null);
     const scaleRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
-    const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: "Reporte - Rentabilidad por Tipo de Plaza" });
 
     // Ajustar el contenido para caber en A4 (vertical)
     useEffect(() => {
@@ -278,8 +276,6 @@ export function RentabilidadReporte() {
                 title="Rentabilidad por Tipo de Plaza"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             />
             
             <div className="flex items-center gap-2 print:hidden">

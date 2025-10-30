@@ -6,7 +6,6 @@ import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 import { formatCurrency } from "@/lib/utils";
 
 type HistoryEntry = {
@@ -347,11 +346,6 @@ export function MediosPagoReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Medios de Pago",
-        content: () => printRef.current
-    });
-
     useEffect(() => {
         const updateScale = () => {
             const container = printRef.current;
@@ -498,8 +492,6 @@ export function MediosPagoReporte() {
                 title="Medios de Pago"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             />
 
             <div ref={printRef} data-print-root className="print-a4 mx-auto bg-white shadow-sm print:shadow-none">

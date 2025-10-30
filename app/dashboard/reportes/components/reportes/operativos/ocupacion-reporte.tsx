@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 
 type VehicleType = "ALL" | "AUT" | "MOT" | "CAM";
 
@@ -50,10 +49,6 @@ export function OcupacionReporte() {
     const scaleRef = useRef<HTMLDivElement>(null);
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Ocupacion y Disponibilidad",
-        content: () => printRef.current
-    });
 
     // Ajustar el contenido para caber en A4 (vertical)
     useEffect(() => {
@@ -270,8 +265,6 @@ export function OcupacionReporte() {
                 title="Ocupacion y Disponibilidad"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             >
                 <div className="flex items-center gap-2 print:hidden">
                     <span className="text-sm text-slate-600">Tipo:</span>

@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ReporteHeader } from "../../reporte-header";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 import { formatCurrency } from "@/lib/utils";
 
 interface HistoryEntry {
@@ -251,11 +250,6 @@ export function TendenciasReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Tendencias y Proyecciones",
-        content: () => printRef.current
-    });
-
     useEffect(() => {
         const updateScale = () => {
             const container = printRef.current;
@@ -463,8 +457,6 @@ export function TendenciasReporte() {
                 title="Tendencias y Proyecciones"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             />
 
             <div ref={printRef} data-print-root className="print-a4 mx-auto bg-white shadow-sm print:shadow-none">

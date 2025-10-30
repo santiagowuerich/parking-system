@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
-import { useReactToPrint } from "react-to-print";
 import { useAuth } from "@/lib/auth-context";
 
 interface HistoryEntry {
@@ -111,10 +110,6 @@ export function MovimientosReporte() {
     const scaleRef = useRef<HTMLDivElement>(null);
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Movimientos diarios",
-        content: () => printRef.current
-    });
 
     useEffect(() => {
         const updateScale = () => {
@@ -453,8 +448,6 @@ export function MovimientosReporte() {
                 title="Movimientos diarios"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             />
 
             <div

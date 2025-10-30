@@ -6,7 +6,6 @@ import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 import { formatCurrency } from "@/lib/utils";
 
 type HistoryEntry = {
@@ -195,11 +194,6 @@ export function IngresosReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Ingresos por Periodos",
-        content: () => printRef.current
-    });
-
     useEffect(() => {
         const updateScale = () => {
             if (!printRef.current || !scaleRef.current) return;
@@ -284,8 +278,6 @@ export function IngresosReporte() {
                 title="Ingresos por Periodos"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
-                onPrint={handlePrint}
             />
 
             <div
