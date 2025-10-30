@@ -290,9 +290,9 @@ export default function CustomEgresoModal({
     if (!vehicle) return
 
     // Los datos en BD están en UTC (timestamp without time zone)
-    // Interpretar como UTC y luego convertir a zona local para cálculo
-    const entryTime = dayjs.utc(vehicle.entry_time).local()
-    const now = dayjs()
+    // Interpretar como UTC y luego convertir a zona horaria de Argentina para cálculo
+    const entryTime = dayjs.utc(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
+    const now = dayjs().tz('America/Argentina/Buenos_Aires')
 
     console.log('🕐 Debug calculateBasicFee:', {
       entryTimeRaw: vehicle.entry_time,
