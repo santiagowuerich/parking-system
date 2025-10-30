@@ -1,62 +1,69 @@
 /**
  * Configuración de zona horaria para Argentina (ART - UTC-3)
  * Este archivo centraliza la gestión de zona horaria en toda la aplicación
+ * 
+ * NOTA: Este archivo mantiene compatibilidad con código existente.
+ * Para nuevas funciones, usar lib/utils/date-time.ts que usa dayjs correctamente.
  */
+
+import { 
+  nowInArgentina, 
+  toArgentinaTime, 
+  formatDateTime, 
+  formatDate,
+  getTodayStartInArgentina,
+  getTodayEndInArgentina,
+  isSameDayInArgentina as isSameDayArg,
+  ARGENTINA_TIMEZONE
+} from "@/lib/utils/date-time"
+import dayjs from "dayjs"
 
 /**
  * Offset de zona horaria de Argentina (UTC-3)
  * Nota: Argentina no observa horario de verano, por lo que siempre es UTC-3
+ * @deprecated Usar ARGENTINA_TIMEZONE de lib/utils/date-time.ts en su lugar
  */
 export const ARGENTINA_TIMEZONE_OFFSET = -3; // UTC-3
 
 /**
  * Obtiene la hora actual en zona horaria de Argentina
+ * @deprecated Usar nowInArgentina() de lib/utils/date-time.ts en su lugar
  */
 export function getNowInArgentina(): Date {
-    const now = new Date();
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-    const argentinaTime = new Date(utcTime + (ARGENTINA_TIMEZONE_OFFSET * 60 * 60 * 1000));
-    return argentinaTime;
+    return nowInArgentina().toDate();
 }
 
 /**
  * Convierte una fecha ISO string a la zona horaria de Argentina
+ * @deprecated Usar toArgentinaTime() de lib/utils/date-time.ts en su lugar
  */
 export function convertToArgentinaTime(isoString: string): Date {
-    const date = new Date(isoString);
-    const utcTime = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
-    const argentinaTime = new Date(utcTime + (ARGENTINA_TIMEZONE_OFFSET * 60 * 60 * 1000));
-    return argentinaTime;
+    return toArgentinaTime(isoString).toDate();
 }
 
 /**
  * Formatea una fecha a formato de Argentina
+ * Usa Intl.DateTimeFormat con timezone explícito para garantizar consistencia
  */
 export function formatArgentinaDate(date: Date, options?: Intl.DateTimeFormatOptions): string {
     return date.toLocaleString('es-AR', {
-        timeZone: 'America/Argentina/Buenos_Aires',
+        timeZone: ARGENTINA_TIMEZONE,
         ...options
     });
 }
 
 /**
  * Obtiene el día de hoy en Argentina (a las 00:00:00)
+ * @deprecated Usar getTodayStartInArgentina() de lib/utils/date-time.ts en su lugar
  */
 export function getTodayInArgentina(): Date {
-    const today = getNowInArgentina();
-    today.setHours(0, 0, 0, 0);
-    return today;
+    return getTodayStartInArgentina().toDate();
 }
 
 /**
  * Verifica si dos fechas son del mismo día (en zona horaria Argentina)
+ * @deprecated Usar isSameDayInArgentina() de lib/utils/date-time.ts en su lugar
  */
 export function isSameDayInArgentina(date1: Date, date2: Date): boolean {
-    const day1 = new Date(date1);
-    const day2 = new Date(date2);
-
-    day1.setHours(0, 0, 0, 0);
-    day2.setHours(0, 0, 0, 0);
-
-    return day1.getTime() === day2.getTime();
+    return isSameDayArg(date1, date2);
 }

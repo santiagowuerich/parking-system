@@ -9,6 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Clock, DollarSign } from "lucide-react";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface IniciarTurnoModalProps {
     isOpen: boolean;
@@ -113,7 +118,7 @@ export default function IniciarTurnoModal({ isOpen, onClose, onSuccess, estId }:
                         <Label htmlFor="horario">Horario de Inicio</Label>
                         <Input
                             id="horario"
-                            value={dayjs().format('HH:mm')}
+                            value={dayjs().tz('America/Argentina/Buenos_Aires').format('HH:mm')}
                             disabled
                             className="bg-gray-50"
                         />

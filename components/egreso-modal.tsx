@@ -164,7 +164,7 @@ export default function EgresoModal({
             <div className="relative">
               <Input
                 id="egreso"
-                value={dayjs().format('DD/MM/YYYY HH:mm')}
+                value={dayjs().tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
                 readOnly
                 className="bg-muted"
               />
