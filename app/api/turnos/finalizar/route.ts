@@ -1,12 +1,7 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from '@/lib/logger';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+import { nowInArgentina } from "@/lib/utils/date-time";
 
 export async function PUT(request: NextRequest) {
     try {
@@ -40,8 +35,8 @@ export async function PUT(request: NextRequest) {
         }
 
         // Obtener hora y fecha actual en zona horaria de Argentina
-        const ahoraArgentina = dayjs().tz('America/Argentina/Buenos_Aires');
-        const horaActual = ahoraArgentina.format('HH:mm:ss');
+        const ahoraArgentina = nowInArgentina();
+        const horaActual = ahoraArgentina.format('HH:mm');
         const fechaActual = ahoraArgentina.format('YYYY-MM-DD');
 
         // Actualizar turno con caja final y fecha de salida
