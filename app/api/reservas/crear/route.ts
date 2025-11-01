@@ -505,14 +505,14 @@ export async function POST(request: NextRequest) {
         console.log(`✅ [RESERVA] Reserva creada en BD con código: ${reservaCreada.res_codigo}`);
 
         // Marcar plaza como reservada
-        const { error: plazaError } = await supabase
+        const { error: plazaUpdateError } = await supabase
             .from('plazas')
             .update({ pla_estado: 'Reservada' })
             .eq('est_id', est_id)
             .eq('pla_numero', pla_numero);
 
-        if (plazaError) {
-            console.error('⚠️ [RESERVA] Error actualizando estado de plaza:', plazaError);
+        if (plazaUpdateError) {
+            console.error('⚠️ [RESERVA] Error actualizando estado de plaza:', plazaUpdateError);
         } else {
             console.log(`✅ [RESERVA] Plaza ${pla_numero} marcada como Reservada`);
         }
