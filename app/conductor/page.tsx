@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ export default function MapaEstacionamientos() {
     const [reservaDialogOpen, setReservaDialogOpen] = useState(false);
     const [plazasDisponibles, setPlazasDisponibles] = useState<any[]>([]); // Plazas disponibles para reserva
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
+    const parkingCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     // Auto-aplicar filtro según vehículo seleccionado
     useEffect(() => {
@@ -110,6 +111,25 @@ export default function MapaEstacionamientos() {
     useEffect(() => {
         if (selectedParking) {
             obtenerPlazasDisponibles(selectedParking.id);
+        }
+    }, [selectedParking]);
+
+    // Hacer scroll automático al card expandido cuando se selecciona un estacionamiento
+    useEffect(() => {
+        if (selectedParking) {
+            // Usar requestAnimationFrame y setTimeout para asegurar que el DOM se haya actualizado completamente
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    const cardElement = parkingCardRefs.current[selectedParking.id];
+                    if (cardElement) {
+                        cardElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 150);
+            });
         }
     }, [selectedParking]);
 
@@ -314,7 +334,17 @@ export default function MapaEstacionamientos() {
                                             <div className="space-y-2">
                                                 {getNearbyParkings(userLocation, allParkings, searchRadius).length > 0 ? (
                                                     getNearbyParkings(userLocation, allParkings, searchRadius).map((parking) => (
-                                                        <div key={parking.id}>
+                                                        <div 
+                                                            key={parking.id}
+                                                            ref={(el) => {
+                                                                if (el && selectedParking?.id === parking.id) {
+                                                                    parkingCardRefs.current[parking.id] = el;
+                                                                } else if (!selectedParking || selectedParking.id !== parking.id) {
+                                                                    // Limpiar ref cuando el card se cierra
+                                                                    delete parkingCardRefs.current[parking.id];
+                                                                }
+                                                            }}
+                                                        >
                                                             {selectedParking?.id === parking.id ? (
                                                                 // Vista expandida - Detalles completos
                                                                 <Card className="border-2 border-blue-500 bg-white shadow-xl cursor-pointer transition-all duration-300"
