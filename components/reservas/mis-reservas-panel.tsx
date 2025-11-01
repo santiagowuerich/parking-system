@@ -17,7 +17,6 @@ import {
     AlertCircle,
     CheckCircle,
     XCircle,
-    Timer,
     CreditCard,
     Loader2,
     QrCode,
@@ -27,7 +26,6 @@ import { useReservas } from '@/lib/hooks/use-reservas-unified';
 import { ReservaConDetalles } from '@/lib/types';
 import {
     obtenerEstadoReservaVisual,
-    calcularTiempoRestante,
     formatearCodigoReserva,
     formatearFechaReserva
 } from '@/lib/utils/reservas-utils';
@@ -157,7 +155,6 @@ export function MisReservasPanel() {
 
     const ReservaCard = ({ reserva }: { reserva: ReservaConDetalles }) => {
         const estadoVisual = obtenerEstadoReservaVisual(reserva.res_estado, reserva.res_fh_ingreso, reserva.res_tiempo_gracia_min);
-        const tiempoRestante = calcularTiempoRestante(reserva.res_fh_ingreso);
 
         return (
             <Card className="hover:shadow-md transition-shadow">
@@ -230,17 +227,6 @@ export function MisReservasPanel() {
                         </span>
                     </div>
 
-                    {/* Tiempo restante para reservas futuras */}
-                    {reserva.res_estado === 'confirmada' && tiempoRestante.minutosRestantes > 0 && (
-                        <Alert className={tiempoRestante.esUrgente ? 'border-orange-200 bg-orange-50' : ''}>
-                            <Timer className="h-4 w-4" />
-                            <AlertDescription>
-                                {tiempoRestante.esUrgente ? '⚠️ ' : ''}
-                                Tiempo restante: <strong>{tiempoRestante.tiempoRestante}</strong>
-                            </AlertDescription>
-                        </Alert>
-                    )}
-
                     {/* Acciones según estado */}
                     <div className="flex gap-2 pt-2 flex-wrap">
                         {reserva.res_estado === 'pendiente_pago' && (
@@ -273,15 +259,6 @@ export function MisReservasPanel() {
                                     >
                                         <ExternalLink className="w-3 h-3 mr-1" />
                                         Pagar Ahora
-                                    </Button>
-                                ) : reserva.metodo_pago === 'qr' ? (
-                                    <Button
-                                        size="sm"
-                                        className="flex-1 bg-green-600 hover:bg-green-700"
-                                        onClick={() => abrirDetalles(reserva)}
-                                    >
-                                        <QrCode className="w-3 h-3 mr-1" />
-                                        Ver QR
                                     </Button>
                                 ) : null}
                             </>
@@ -365,7 +342,6 @@ export function MisReservasPanel() {
 
     const reservasFuturas = misReservas.filter(r => {
         const ahora = new Date();
-        const fechaInicio = new Date(r.res_fh_ingreso);
         const fechaFin = new Date(r.res_fh_fin);
         
         // Estados que deben aparecer en Próximas
@@ -376,48 +352,29 @@ export function MisReservasPanel() {
         const esNoShow = r.res_estado === 'no_show';
         const esCompletada = r.res_estado === 'completada';
         
-        // Verificar si aún puede pagar (tiene payment_info con preference_id)
-        const tienePaymentInfo = r.payment_info && typeof r.payment_info === 'object' && 
-                                 (r.payment_info as any)?.preference_id;
-        
         // Verificar si la reserva aún es válida (fecha fin no pasó)
         const aunValida = fechaFin > ahora;
         
-        // Excluir estados finales definitivos
-        if (esCancelada || esNoShow || esCompletada) {
+        // Excluir estados finales definitivos (incluyendo expiradas)
+        if (esCancelada || esNoShow || esCompletada || esExpirada) {
             return false;
         }
         
         // Mostrar en Próximas si:
         // 1. Es pendiente_pago (siempre mostrar - necesita pagar)
         // 2. Es confirmada y aún válida (puede usar la reserva)
-        // 3. Es expirada PERO tiene payment_info (aún puede pagar aunque expire)
-        // 4. Es expirada PERO la fecha fin aún no pasó (aún puede usar)
         const debeMostrar = 
             esPendientePago || // Pendiente de pago siempre mostrar
-            (esConfirmada && aunValida) || // Confirmada y aún válida
-            (esExpirada && tienePaymentInfo) || // Expirada pero tiene payment info (aún puede pagar)
-            (esExpirada && aunValida); // Expirada pero fecha fin no pasó (aún puede usar)
+            (esConfirmada && aunValida); // Confirmada y aún válida
         
         return debeMostrar;
     });
 
     const reservasHistorial = misReservas.filter(r => {
-        const ahora = new Date();
-        const fechaFin = new Date(r.res_fh_fin);
-        const tienePaymentInfo = r.payment_info && typeof r.payment_info === 'object' && 
-                                 (r.payment_info as any)?.preference_id;
-        const aunValida = fechaFin > ahora;
-        
         // Estados finales definitivos siempre van al historial
-        const esFinal = ['completada', 'cancelada', 'no_show'].includes(r.res_estado);
+        const esFinal = ['completada', 'cancelada', 'no_show', 'expirada'].includes(r.res_estado);
         
-        // Expiradas van al historial SOLO si:
-        // - NO tienen payment_info (ya no se pueden pagar) O
-        // - La fecha fin ya pasó Y no tienen payment_info
-        const esExpiradaFinal = r.res_estado === 'expirada' && !tienePaymentInfo && !aunValida;
-        
-        return esFinal || esExpiradaFinal;
+        return esFinal;
     });
 
     return (

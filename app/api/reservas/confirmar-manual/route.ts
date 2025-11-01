@@ -41,11 +41,11 @@ export async function POST(request: NextRequest) {
 
         let reserva: any = null;
 
-        // CASO 1: Viene reserva_data (backup - reserva debería existir pero por si acaso)
+        // CASO 1: Viene reserva_data (esto es para QR - crear reserva confirmada)
         if (reserva_data) {
             console.log('🔍 [CONFIRMAR-MANUAL] Buscando reserva existente primero...');
             
-            // Primero intentar buscar la reserva existente
+            // Primero intentar buscar la reserva existente (por si acaso ya existe)
             const { data: reservaExistente, error: searchError } = await supabase
                 .from('reservas')
                 .select('*')
@@ -54,16 +54,43 @@ export async function POST(request: NextRequest) {
 
             if (reservaExistente) {
                 console.log(`✅ [CONFIRMAR-MANUAL] Reserva encontrada: ${reservaExistente.res_codigo}`);
-                reserva = reservaExistente;
+                // Si ya existe, actualizar a confirmada
+                const { error: updateError } = await supabase
+                    .from('reservas')
+                    .update({
+                        res_estado: 'confirmada',
+                        payment_info: { ...reservaExistente.payment_info, preference_id }
+                    })
+                    .eq('res_codigo', reservaExistente.res_codigo);
+
+                if (updateError) {
+                    console.error('❌ [CONFIRMAR-MANUAL] Error actualizando reserva:', updateError);
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Error confirmando la reserva: ' + updateError.message
+                    }, { status: 500 });
+                }
+
+                reserva = { ...reservaExistente, res_estado: 'confirmada' };
+                console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} actualizada a confirmada`);
             } else {
-                // Si no existe, crear (fallback - no debería pasar)
-                console.log('⚠️ [CONFIRMAR-MANUAL] Reserva no encontrada, creando como fallback...');
+                // Para QR, crear la reserva con estado confirmada (el usuario ya confirmó el pago)
+                console.log('📦 [CONFIRMAR-MANUAL] Creando reserva confirmada desde datos temporales...');
+                
+                // Extraer payment_info si viene en reserva_data, sino usar preference_id
+                const paymentInfoFinal = reserva_data.payment_info 
+                    ? { ...reserva_data.payment_info, preference_id: preference_id || reserva_data.payment_info.preference_id }
+                    : (preference_id ? { preference_id } : null);
+                
+                // Remover payment_info de reserva_data antes de insertar (ya que va como campo separado)
+                const { payment_info, ...reservaDataSinPaymentInfo } = reserva_data;
+                
                 const { data: nuevaReserva, error: insertError } = await supabase
                     .from('reservas')
                     .insert({
-                        ...reserva_data,
-                        res_estado: 'confirmada',
-                        payment_info: { preference_id }
+                        ...reservaDataSinPaymentInfo,
+                        res_estado: 'confirmada', // Crear directamente como confirmada
+                        payment_info: paymentInfoFinal
                     })
                     .select()
                     .single();
@@ -78,6 +105,19 @@ export async function POST(request: NextRequest) {
 
                 reserva = nuevaReserva;
                 console.log(`✅ [CONFIRMAR-MANUAL] Reserva creada con código: ${reserva.res_codigo}`);
+
+                // Marcar plaza como reservada
+                const { error: plazaError } = await supabase
+                    .from('plazas')
+                    .update({ pla_estado: 'Reservada' })
+                    .eq('est_id', reserva.est_id)
+                    .eq('pla_numero', reserva.pla_numero);
+
+                if (plazaError) {
+                    console.error('❌ [CONFIRMAR-MANUAL] Error actualizando plaza:', plazaError);
+                } else {
+                    console.log(`✅ [CONFIRMAR-MANUAL] Plaza ${reserva.pla_numero} marcada como Reservada`);
+                }
             }
         } else {
             // CASO 2: Reserva ya existe (re-confirmación o webhook falló)

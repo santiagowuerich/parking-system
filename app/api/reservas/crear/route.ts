@@ -470,7 +470,40 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 10. CREAR la reserva en BD con estado pendiente_pago
+        // 10. CREAR la reserva en BD SOLO si NO es método QR
+        // Para QR, la reserva se creará cuando el usuario confirme el pago
+        if (metodo_pago === 'qr') {
+            // Para QR, NO creamos la reserva todavía, solo generamos el preference
+            // La reserva se creará cuando el usuario confirme el pago desde el modal
+            console.log('📦 [RESERVA] Método QR: NO creando reserva aún, solo generando QR...');
+            
+            // Preparar datos temporales para crear la reserva después
+            const reservaTemporal = {
+                est_id,
+                pla_numero,
+                veh_patente,
+                res_codigo: resCodigoGenerado,
+                res_fh_ingreso: fechaInicioDate.toISOString(),
+                res_fh_fin: fechaFinDate.toISOString(),
+                con_id: conductor.con_id,
+                res_monto: precioTotal,
+                res_tiempo_gracia_min: 15,
+                metodo_pago: metodo_pago
+            };
+
+            const response: CrearReservaResponse = {
+                success: true,
+                data: {
+                    reserva_temporal: reservaTemporal, // Enviar datos temporales para crear después
+                    payment_info: paymentInfo
+                }
+            };
+
+            console.log('🎉 [RESERVA] QR generado exitosamente, reserva pendiente de confirmación');
+            return NextResponse.json(response);
+        }
+
+        // Para link_pago, creamos la reserva con estado pendiente_pago
         console.log('📦 [RESERVA] Creando reserva en BD con estado pendiente_pago...');
 
         const reservaData = {
