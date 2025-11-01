@@ -73,10 +73,13 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
                 setVehicles(vehicleList);
 
                 // Si no hay vehículo seleccionado y hay vehículos disponibles, seleccionar el primero
-                if (!selectedVehicle && vehicleList.length > 0) {
-                    console.log('🚗 Seleccionando automáticamente el primer vehículo:', vehicleList[0].patente);
-                    setSelectedVehicle(vehicleList[0]);
-                }
+                setSelectedVehicleState(currentSelected => {
+                    if (!currentSelected && vehicleList.length > 0) {
+                        console.log('🚗 Seleccionando automáticamente el primer vehículo:', vehicleList[0].patente);
+                        return vehicleList[0];
+                    }
+                    return currentSelected;
+                });
             }
         } catch (error) {
             console.error('Error cargando vehículos:', error);
@@ -84,6 +87,31 @@ export function VehicleProvider({ children }: { children: ReactNode }) {
             setLoadingVehicles(false);
         }
     };
+
+    // Validar que el vehículo seleccionado esté en la lista válida cuando cambien los vehículos
+    useEffect(() => {
+        if (vehicles.length === 0 && selectedVehicle) {
+            // Si no hay vehículos y hay uno seleccionado, limpiarlo
+            console.log('⚠️ No hay vehículos disponibles, limpiando selección');
+            setSelectedVehicleState(null);
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('selected_vehicle');
+            }
+        } else if (selectedVehicle && vehicles.length > 0) {
+            // Validar que el vehículo seleccionado esté en la lista válida
+            const isValidVehicle = vehicles.some(
+                v => v.id === selectedVehicle.id || v.patente === selectedVehicle.patente
+            );
+            
+            if (!isValidVehicle) {
+                console.log('⚠️ Vehículo seleccionado no está en la lista válida, limpiando selección');
+                setSelectedVehicleState(null);
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('selected_vehicle');
+                }
+            }
+        }
+    }, [vehicles, selectedVehicle]);
 
     // Cargar vehículos al montar
     useEffect(() => {

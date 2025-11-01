@@ -41,32 +41,44 @@ export async function POST(request: NextRequest) {
 
         let reserva: any = null;
 
-        // CASO 1: Viene reserva_data (primera confirmación, reserva NO existe en BD)
+        // CASO 1: Viene reserva_data (backup - reserva debería existir pero por si acaso)
         if (reserva_data) {
-            console.log('🆕 [CONFIRMAR-MANUAL] Creando reserva por primera vez en BD');
-
-            // Crear la reserva en BD directamente con estado 'confirmada'
-            const { data: nuevaReserva, error: insertError } = await supabase
+            console.log('🔍 [CONFIRMAR-MANUAL] Buscando reserva existente primero...');
+            
+            // Primero intentar buscar la reserva existente
+            const { data: reservaExistente, error: searchError } = await supabase
                 .from('reservas')
-                .insert({
-                    ...reserva_data,
-                    res_estado: 'confirmada', // Directamente confirmada
-                    payment_info: { preference_id }
-                })
-                .select()
+                .select('*')
+                .eq('res_codigo', reserva_data.res_codigo)
                 .single();
 
-            if (insertError) {
-                console.error('❌ [CONFIRMAR-MANUAL] Error creando la reserva:', insertError);
-                return NextResponse.json({
-                    success: false,
-                    error: 'Error creando la reserva: ' + insertError.message
-                }, { status: 500 });
+            if (reservaExistente) {
+                console.log(`✅ [CONFIRMAR-MANUAL] Reserva encontrada: ${reservaExistente.res_codigo}`);
+                reserva = reservaExistente;
+            } else {
+                // Si no existe, crear (fallback - no debería pasar)
+                console.log('⚠️ [CONFIRMAR-MANUAL] Reserva no encontrada, creando como fallback...');
+                const { data: nuevaReserva, error: insertError } = await supabase
+                    .from('reservas')
+                    .insert({
+                        ...reserva_data,
+                        res_estado: 'confirmada',
+                        payment_info: { preference_id }
+                    })
+                    .select()
+                    .single();
+
+                if (insertError) {
+                    console.error('❌ [CONFIRMAR-MANUAL] Error creando la reserva:', insertError);
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Error creando la reserva: ' + insertError.message
+                    }, { status: 500 });
+                }
+
+                reserva = nuevaReserva;
+                console.log(`✅ [CONFIRMAR-MANUAL] Reserva creada con código: ${reserva.res_codigo}`);
             }
-
-            reserva = nuevaReserva;
-            console.log(`✅ [CONFIRMAR-MANUAL] Reserva creada con código: ${reserva.res_codigo}`);
-
         } else {
             // CASO 2: Reserva ya existe (re-confirmación o webhook falló)
             console.log('🔍 [CONFIRMAR-MANUAL] Buscando reserva existente...');

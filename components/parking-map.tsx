@@ -234,6 +234,7 @@ export default function ParkingMap({
             if (!directionsRendererRef.current) {
                 directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
                     suppressMarkers: true, // No mostrar marcadores adicionales ya que tenemos los nuestros
+                    preserveViewport: true, // No ajustar automáticamente el viewport para mostrar toda la ruta
                     polylineOptions: {
                         strokeColor: '#4285f4',
                         strokeWeight: 5,
@@ -392,6 +393,9 @@ export default function ParkingMap({
         const openPopup = ({ map, marker }: { map: google.maps.Map, marker: google.maps.Marker }) => {
             infoWindow.close();
 
+            // Primero abrir el popup para que se renderice
+            // Luego centrar el mapa considerando la posición del popup
+
             // Crear un div temporal para el contenido
             const contentDiv = document.createElement('div');
             contentDiv.className = 'parking-popup relative w-[280px] max-w-[80vw] rounded-2xl border bg-white p-4 shadow-xl';
@@ -479,7 +483,80 @@ export default function ParkingMap({
                 shouldFocus: false,
                 pixelOffset: new window.google.maps.Size(0, -8)
             });
+            
+            // Función para centrar el mapa considerando el popup
+            const centerMapWithPopup = () => {
+                if (mapInstanceRef.current && marker.getPosition()) {
+                    const position = marker.getPosition();
+                    if (position && mapInstanceRef.current.getDiv()) {
+                        const mapDiv = mapInstanceRef.current.getDiv();
+                        const mapHeight = mapDiv.offsetHeight;
+                        const mapWidth = mapDiv.offsetWidth;
+                        
+                        // El popup tiene aproximadamente 300px de alto y aparece arriba del marcador
+                        // Para centrar el popup en la vista, necesitamos mover el centro del mapa hacia abajo
+                        // El offset debe ser aproximadamente la mitad de la altura del popup más espacio para el marcador
+                        // Usamos un offset más grande para asegurar que quede centrado
+                        const popupHeight = 300;
+                        const offsetPixels = mapHeight * 0.15; // 15% de la altura del mapa hacia abajo
+                        
+                        // Obtener los bounds actuales del mapa
+                        const bounds = mapInstanceRef.current.getBounds();
+                        if (bounds) {
+                            const ne = bounds.getNorthEast();
+                            const sw = bounds.getSouthWest();
+                            const latRange = ne.lat() - sw.lat();
+                            
+                            if (latRange > 0 && mapHeight > 0) {
+                                // Calcular la conversión de píxeles a grados de latitud
+                                const degreesPerPixel = latRange / mapHeight;
+                                const offsetDegrees = offsetPixels * degreesPerPixel;
+                                
+                                // Calcular la nueva posición centrada en el popup
+                                // Restamos latitud para mover el mapa hacia abajo (el popup aparece más arriba visualmente)
+                                const centerLat = position.lat() - offsetDegrees;
+                                const centerLng = position.lng();
+                                
+                                const centeredPosition = new window.google.maps.LatLng(centerLat, centerLng);
+                                
+                                // Centrar el mapa en la nueva posición
+                                mapInstanceRef.current.panTo(centeredPosition);
+                                
+                                // Asegurar un zoom mínimo para visibilidad
+                                const currentZoom = mapInstanceRef.current.getZoom() || 15;
+                                if (currentZoom < 15) {
+                                    mapInstanceRef.current.setZoom(15);
+                                }
+                            } else {
+                                // Fallback: centrar en el marcador
+                                mapInstanceRef.current.panTo(position);
+                            }
+                        } else {
+                            // Fallback: centrar en el marcador
+                            mapInstanceRef.current.panTo(position);
+                        }
+                    }
+                }
+            };
+            
+            // Abrir el popup primero
             infoWindow.open({ map, anchor: marker });
+            
+            // Usar el evento domready del InfoWindow para centrar después de que se renderice
+            window.google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                // Esperar a que el popup se renderice completamente
+                setTimeout(() => {
+                    centerMapWithPopup();
+                    // Intentar de nuevo después de más tiempo para asegurar que funcione
+                    setTimeout(centerMapWithPopup, 300);
+                }, 150);
+            });
+            
+            // También intentar centrar después de que se renderice la ruta (por si el evento no se dispara)
+            // Usar múltiples timeouts para asegurar que funcione después de que todo se renderice
+            setTimeout(centerMapWithPopup, 250);
+            setTimeout(centerMapWithPopup, 600);
+            setTimeout(centerMapWithPopup, 1000);
         };
 
         // Hacer clic en el marcador para mostrar info window Y seleccionar estacionamiento

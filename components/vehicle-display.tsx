@@ -15,6 +15,11 @@ export function VehicleDisplay({ compact = false }: { compact?: boolean }) {
     const { selectedVehicle, vehicles, setSelectedVehicle } = useVehicle();
     const [open, setOpen] = useState(false);
 
+    // Verificar que el vehículo seleccionado realmente pertenece a los vehículos del usuario
+    // Esto previene mostrar información hardcodeada o de otros usuarios
+    // También verificar que haya vehículos disponibles
+    const isValidVehicle = vehicles.length > 0 && selectedVehicle && vehicles.some(v => v.id === selectedVehicle.id || v.patente === selectedVehicle.patente);
+
     const getVehicleIcon = (tipo: string) => {
         switch (tipo) {
             case 'AUT': return <Car className="w-4 h-4" />;
@@ -42,7 +47,8 @@ export function VehicleDisplay({ compact = false }: { compact?: boolean }) {
         }
     };
 
-    if (!selectedVehicle) {
+    // Si no hay vehículo seleccionado o el vehículo seleccionado no es válido (no está en la lista del usuario)
+    if (!selectedVehicle || !isValidVehicle) {
         return (
             <Badge variant="outline" className="text-gray-500">
                 Sin vehículo seleccionado

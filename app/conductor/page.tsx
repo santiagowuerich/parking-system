@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,6 @@ interface ParkingData {
 
 export default function MapaEstacionamientos() {
     const [searchText, setSearchText] = useState("");
-    const [soloDisponibles, setSoloDisponibles] = useState(true);
     const [tipoTechado, setTipoTechado] = useState(false);
     const { selectedVehicle } = useVehicle();
     const [vehicleTypeFilter, setVehicleTypeFilter] = useState<'AUT' | 'MOT' | 'CAM' | null>(selectedVehicle?.tipo || null);
@@ -59,6 +58,7 @@ export default function MapaEstacionamientos() {
     const [reservaDialogOpen, setReservaDialogOpen] = useState(false);
     const [plazasDisponibles, setPlazasDisponibles] = useState<any[]>([]); // Plazas disponibles para reserva
     const { isDriver, isEmployee, isOwner, loading: roleLoading } = useUserRole();
+    const parkingCardRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     // Auto-aplicar filtro según vehículo seleccionado
     useEffect(() => {
@@ -111,6 +111,25 @@ export default function MapaEstacionamientos() {
     useEffect(() => {
         if (selectedParking) {
             obtenerPlazasDisponibles(selectedParking.id);
+        }
+    }, [selectedParking]);
+
+    // Hacer scroll automático al card expandido cuando se selecciona un estacionamiento
+    useEffect(() => {
+        if (selectedParking) {
+            // Usar requestAnimationFrame y setTimeout para asegurar que el DOM se haya actualizado completamente
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    const cardElement = parkingCardRefs.current[selectedParking.id];
+                    if (cardElement) {
+                        cardElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 150);
+            });
         }
     }, [selectedParking]);
 
@@ -259,49 +278,21 @@ export default function MapaEstacionamientos() {
                                     Mi ubicación
                                 </Button>
 
-                                <Button
-                                    variant={soloDisponibles ? "default" : "outline"}
-                                    size="lg"
-                                    onClick={() => setSoloDisponibles(!soloDisponibles)}
-                                    className={`h-12 px-6 ${soloDisponibles ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-gray-300 hover:border-green-500 hover:text-green-600'}`}
+                                {/* Filtro por tipo de vehículo - Desplegable */}
+                                <Select
+                                    value={vehicleTypeFilter || 'all'}
+                                    onValueChange={(value) => setVehicleTypeFilter(value === 'all' ? null : value as 'AUT' | 'MOT' | 'CAM')}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        {soloDisponibles ? <div className="w-2 h-2 rounded-full bg-white"></div> : <div className="w-2 h-2 rounded-full bg-green-500"></div>}
-                                        Sólo disponibles
-                                    </div>
-                                </Button>
-                            </div>
-
-                            {/* Filtro por tipo de vehículo */}
-                            <div className="flex items-center gap-3 border-l border-gray-300 pl-6">
-                                <span className="text-sm font-medium text-gray-700">Tipo de vehículo:</span>
-                                <Button
-                                    variant={vehicleTypeFilter === 'AUT' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'AUT' ? null : 'AUT')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'AUT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🚗</span>
-                                    Auto
-                                </Button>
-                                <Button
-                                    variant={vehicleTypeFilter === 'MOT' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'MOT' ? null : 'MOT')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'MOT' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🏍️</span>
-                                    Moto
-                                </Button>
-                                <Button
-                                    variant={vehicleTypeFilter === 'CAM' ? 'default' : 'outline'}
-                                    size="lg"
-                                    onClick={() => setVehicleTypeFilter(vehicleTypeFilter === 'CAM' ? null : 'CAM')}
-                                    className={`h-12 px-5 ${vehicleTypeFilter === 'CAM' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-gray-300 hover:border-blue-500 hover:text-blue-600'}`}
-                                >
-                                    <span className="text-lg mr-2">🚙</span>
-                                    Camioneta
-                                </Button>
+                                    <SelectTrigger className="h-12 px-4 w-[140px] border-gray-300 hover:border-blue-500">
+                                        <SelectValue placeholder="Tipo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos</SelectItem>
+                                        <SelectItem value="AUT">🚗 Auto</SelectItem>
+                                        <SelectItem value="MOT">🏍️ Moto</SelectItem>
+                                        <SelectItem value="CAM">🚙 Camioneta</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                         </div>
@@ -317,126 +308,9 @@ export default function MapaEstacionamientos() {
 
                             {(selectedParking || userLocation) ? (
                                 <div>
-                                    {/* Mostrar información del estacionamiento seleccionado si existe */}
-                                    {selectedParking && (
-                                        <Card className="border-2 border-blue-500 bg-white shadow-xl">
-                                            <CardContent className="p-6">
-                                                <div className="mb-6">
-                                                    <div className="flex items-start justify-between mb-4">
-                                                        <div className="flex-1 min-w-0">
-                                                            <h3 className="font-bold text-xl text-gray-900 mb-2 overflow-hidden text-ellipsis whitespace-nowrap" title={selectedParking.nombre}>{selectedParking.nombre}</h3>
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <MapPin className="h-4 w-4 text-gray-500" />
-                                                                <span className="text-gray-600 text-sm">{selectedParking.direccion.split(',')[0]}</span>
-                                                            </div>
-                                                            {/* Horario pequeño solo si tiene horario configurado */}
-                                                            {selectedParking.estadoApertura && selectedParking.estadoApertura.hasSchedule && (
-                                                                <div className="flex items-center gap-1 mb-1">
-                                                                    <span className="text-xs">🕒</span>
-                                                                    <span className={`text-xs font-medium ${selectedParking.estadoApertura.isOpen ? 'text-green-600' : 'text-red-600'
-                                                                        }`}>
-                                                                        {selectedParking.estadoApertura.isOpen ? 'Abierto' : 'Cerrado'}
-                                                                    </span>
-                                                                    {selectedParking.estadoApertura.nextChange && (
-                                                                        <span className="text-xs text-gray-500">
-                                                                            • Abre {selectedParking.estadoApertura.nextChange.includes('08:00') ? '8am' : selectedParking.estadoApertura.nextChange.includes('18:00') ? '6pm' : selectedParking.estadoApertura.nextChange.replace('Abre a las ', '').replace('Cierra a las ', '').split(':')[0] + 'h'}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                            {selectedParking.distance && (
-                                                                <div className="text-blue-600 text-sm font-bold">
-                                                                    {selectedParking.distance.toFixed(1)} km de distancia
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${selectedParking.estadoApertura && !selectedParking.estadoApertura.isOpen
-                                                            ? 'bg-gray-600 text-white hover:bg-gray-600'
-                                                            : selectedParking.estado === 'disponible'
-                                                                ? 'bg-green-600 text-white hover:bg-green-600'
-                                                                : selectedParking.estado === 'pocos'
-                                                                    ? 'bg-orange-600 text-white hover:bg-orange-600'
-                                                                    : 'bg-red-600 text-white hover:bg-red-600'
-                                                            }`}>
-                                                            {selectedParking.estadoApertura && !selectedParking.estadoApertura.isOpen
-                                                                ? 'Cerrado'
-                                                                : selectedParking.estado === 'disponible' ? 'Disponible' :
-                                                                    selectedParking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-
-                                                {/* Información de plazas disponibles */}
-                                                <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                                                    <div className="flex items-center justify-center">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-4 h-4 rounded-full ${selectedParking.estado === 'disponible'
-                                                                ? 'bg-green-500'
-                                                                : selectedParking.estado === 'pocos'
-                                                                    ? 'bg-orange-500'
-                                                                    : 'bg-red-500'
-                                                                }`}></div>
-                                                            <span className="font-semibold text-gray-800">
-                                                                {selectedParking.espaciosDisponibles > 0
-                                                                    ? `${selectedParking.espaciosDisponibles} libres`
-                                                                    : 'Sin espacios'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Información adicional: contacto */}
-                                                <div className="space-y-4 mb-4">
-                                                    {/* Información de contacto - solo teléfono */}
-                                                    {selectedParking.telefono && (
-                                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
-                                                            <div className="flex items-center gap-2 text-sm text-gray-700">
-                                                                <span>📞</span>
-                                                                <span className="font-medium">{selectedParking.telefono}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex gap-3 justify-center">
-                                                    <Button
-                                                        className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
-                                                        onClick={() => {
-                                                            if (selectedParking) {
-                                                                // Crear la URL para Google Maps
-                                                                const address = encodeURIComponent(
-                                                                    selectedParking.direccionCompleta || selectedParking.direccion
-                                                                );
-                                                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
-
-                                                                // Abrir en nueva pestaña
-                                                                window.open(googleMapsUrl, '_blank');
-
-                                                                console.log('🧭 Navegando a:', selectedParking.nombre, 'en', selectedParking.direccionCompleta || selectedParking.direccion);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Navigation2 className="w-5 h-5 mr-2" />
-                                                        Navegar
-                                                    </Button>
-
-                                                    {plazasDisponibles.length > 0 && (
-                                                        <Button
-                                                            className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
-                                                            onClick={() => setReservaDialogOpen(true)}
-                                                        >
-                                                            <Calendar className="w-5 h-5 mr-2" />
-                                                            Reservar
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
                                     {/* Mostrar estacionamientos cercanos si hay ubicación del usuario */}
                                     {userLocation && (
-                                        <div className={selectedParking ? "mt-6" : ""}>
+                                        <div>
                                             <div className="flex items-center justify-between mb-4">
                                                 <h4 className="text-lg font-semibold text-gray-900">
                                                     Estacionamientos Cercanos a Ti
@@ -457,50 +331,180 @@ export default function MapaEstacionamientos() {
                                                     </Select>
                                                 </div>
                                             </div>
-                                            <div className="space-y-3">
+                                            <div className="space-y-2">
                                                 {getNearbyParkings(userLocation, allParkings, searchRadius).length > 0 ? (
                                                     getNearbyParkings(userLocation, allParkings, searchRadius).map((parking) => (
-                                                        <Card
+                                                        <div 
                                                             key={parking.id}
-                                                            className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
-                                                            onClick={() => {
-                                                                setSelectedParking(parking);
-                                                                // Abrir popup en el mapa
-                                                                if ((window as any).openParkingPopup) {
-                                                                    (window as any).openParkingPopup(parking.id);
-                                                                }
-                                                                const headerElement = document.getElementById('map-header');
-                                                                if (headerElement) {
-                                                                    headerElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                            ref={(el) => {
+                                                                if (el && selectedParking?.id === parking.id) {
+                                                                    parkingCardRefs.current[parking.id] = el;
+                                                                } else if (!selectedParking || selectedParking.id !== parking.id) {
+                                                                    // Limpiar ref cuando el card se cierra
+                                                                    delete parkingCardRefs.current[parking.id];
                                                                 }
                                                             }}
                                                         >
-                                                            <CardContent className="p-4">
-                                                                <div className="flex items-start justify-between">
-                                                                    <div className="flex-1">
-                                                                        <h5 className="font-semibold text-gray-900 text-sm mb-1">
-                                                                            {parking.nombre}
-                                                                        </h5>
-                                                                        <p className="text-xs text-gray-600 mb-2">
-                                                                            {parking.direccion}
-                                                                        </p>
-                                                                        <div className="flex items-center justify-between">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <div className={`w-2 h-2 rounded-full ${parking.estado === 'disponible' ? 'bg-green-500' :
-                                                                                    parking.estado === 'pocos' ? 'bg-orange-500' : 'bg-red-500'
-                                                                                    }`}></div>
-                                                                                <span className="text-xs font-medium text-gray-700">
-                                                                                    {parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
-                                                                                </span>
+                                                            {selectedParking?.id === parking.id ? (
+                                                                // Vista expandida - Detalles completos
+                                                                <Card className="border-2 border-blue-500 bg-white shadow-xl cursor-pointer transition-all duration-300"
+                                                                    onClick={() => setSelectedParking(null)}>
+                                                                    <CardContent className="p-6">
+                                                                        <div className="mb-6">
+                                                                            <div className="flex items-start justify-between mb-4">
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <h3 className="font-bold text-xl text-gray-900 mb-2 overflow-hidden text-ellipsis whitespace-nowrap" title={parking.nombre}>{parking.nombre}</h3>
+                                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                                        <MapPin className="h-4 w-4 text-gray-500" />
+                                                                                        <span className="text-gray-600 text-sm">{parking.direccion.split(',')[0]}</span>
+                                                                                    </div>
+                                                                                    {/* Horario pequeño solo si tiene horario configurado */}
+                                                                                    {parking.estadoApertura && parking.estadoApertura.hasSchedule && (
+                                                                                        <div className="flex items-center gap-1 mb-1">
+                                                                                            <span className="text-xs">🕒</span>
+                                                                                            <span className={`text-xs font-medium ${parking.estadoApertura.isOpen ? 'text-green-600' : 'text-red-600'
+                                                                                                }`}>
+                                                                                                {parking.estadoApertura.isOpen ? 'Abierto' : 'Cerrado'}
+                                                                                            </span>
+                                                                                            {parking.estadoApertura.nextChange && (
+                                                                                                <span className="text-xs text-gray-500">
+                                                                                                    • Abre {parking.estadoApertura.nextChange.includes('08:00') ? '8am' : parking.estadoApertura.nextChange.includes('18:00') ? '6pm' : parking.estadoApertura.nextChange.replace('Abre a las ', '').replace('Cierra a las ', '').split(':')[0] + 'h'}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {parking.distance && (
+                                                                                        <div className="text-blue-600 text-sm font-bold">
+                                                                                            {parking.distance.toFixed(1)} km de distancia
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${parking.estadoApertura && !parking.estadoApertura.isOpen
+                                                                                    ? 'bg-gray-600 text-white hover:bg-gray-600'
+                                                                                    : parking.estado === 'disponible'
+                                                                                        ? 'bg-green-600 text-white hover:bg-green-600'
+                                                                                        : parking.estado === 'pocos'
+                                                                                            ? 'bg-orange-600 text-white hover:bg-orange-600'
+                                                                                            : 'bg-red-600 text-white hover:bg-red-600'
+                                                                                    }`}>
+                                                                                    {parking.estadoApertura && !parking.estadoApertura.isOpen
+                                                                                        ? 'Cerrado'
+                                                                                        : parking.estado === 'disponible' ? 'Disponible' :
+                                                                                            parking.estado === 'pocos' ? 'Pocos espacios' : 'Sin espacios'}
+                                                                                </Badge>
                                                                             </div>
-                                                                            <span className="text-xs font-semibold text-blue-600">
-                                                                                {parking.distance?.toFixed(1)} km
-                                                                            </span>
                                                                         </div>
-                                                                    </div>
-                                                                </div>
-                                                            </CardContent>
-                                                        </Card>
+
+                                                                        {/* Información de plazas disponibles */}
+                                                                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                                                                            <div className="flex items-center justify-center">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className={`w-4 h-4 rounded-full ${parking.estado === 'disponible'
+                                                                                        ? 'bg-green-500'
+                                                                                        : parking.estado === 'pocos'
+                                                                                            ? 'bg-orange-500'
+                                                                                            : 'bg-red-500'
+                                                                                        }`}></div>
+                                                                                    <span className="font-semibold text-gray-800">
+                                                                                        {parking.espaciosDisponibles > 0
+                                                                                            ? `${parking.espaciosDisponibles} libres`
+                                                                                            : 'Sin espacios'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Información adicional: contacto */}
+                                                                        <div className="space-y-4 mb-4">
+                                                                            {/* Información de contacto - solo teléfono */}
+                                                                            {parking.telefono && (
+                                                                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                                                                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                                                        <span>📞</span>
+                                                                                        <span className="font-medium">{parking.telefono}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-3 justify-center">
+                                                                            <Button
+                                                                                className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (parking) {
+                                                                                        // Crear la URL para Google Maps
+                                                                                        const address = encodeURIComponent(
+                                                                                            parking.direccionCompleta || parking.direccion
+                                                                                        );
+                                                                                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+
+                                                                                        // Abrir en nueva pestaña
+                                                                                        window.open(googleMapsUrl, '_blank');
+
+                                                                                        console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <Navigation2 className="w-5 h-5 mr-2" />
+                                                                                Navegar
+                                                                            </Button>
+
+                                                                            {plazasDisponibles.length > 0 && (
+                                                                                <Button
+                                                                                    className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setReservaDialogOpen(true);
+                                                                                    }}
+                                                                                >
+                                                                                    <Calendar className="w-5 h-5 mr-2" />
+                                                                                    Reservar
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
+                                                                    </CardContent>
+                                                                </Card>
+                                                            ) : (
+                                                                // Vista resumida - comprimida
+                                                                <Card
+                                                                    className="cursor-pointer transition-all duration-200 hover:shadow-md border border-gray-200 hover:border-blue-300"
+                                                                    onClick={() => {
+                                                                        setSelectedParking(parking);
+                                                                        // Abrir popup en el mapa
+                                                                        if ((window as any).openParkingPopup) {
+                                                                            (window as any).openParkingPopup(parking.id);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <CardContent className="p-4">
+                                                                        <div className="flex items-start justify-between">
+                                                                            <div className="flex-1">
+                                                                                <h5 className="font-semibold text-gray-900 text-sm mb-1">
+                                                                                    {parking.nombre}
+                                                                                </h5>
+                                                                                <p className="text-xs text-gray-600 mb-2">
+                                                                                    {parking.direccion}
+                                                                                </p>
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <div className={`w-2 h-2 rounded-full ${parking.estado === 'disponible' ? 'bg-green-500' :
+                                                                                            parking.estado === 'pocos' ? 'bg-orange-500' : 'bg-red-500'
+                                                                                            }`}></div>
+                                                                                        <span className="text-xs font-medium text-gray-700">
+                                                                                            {parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <span className="text-xs font-semibold text-blue-600">
+                                                                                        {parking.distance?.toFixed(1)} km
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </CardContent>
+                                                                </Card>
+                                                            )}
+                                                        </div>
                                                     ))
                                                 ) : (
                                                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
