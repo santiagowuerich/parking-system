@@ -84,6 +84,11 @@ export default function OperadorSimplePage() {
     const [qrData, setQrData] = useState<{ qrCode: string, qrCodeImage: string, preferenceId: string } | null>(null);
     const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
+    // Estados para confirmación de reserva
+    const [showReservationConfirm, setShowReservationConfirm] = useState(false);
+    const [reservationData, setReservationData] = useState<any>(null);
+    const reservationExitDataRef = useRef<any>(null);
+
 
     // Inicializar datos del parking
     useEffect(() => {
@@ -498,21 +503,64 @@ export default function OperadorSimplePage() {
                 fechaLimite = fechaLimiteArgentina.toDate();
             }
 
+            // 🎫 VERIFICAR SI HAY UNA RESERVA ACTIVA PARA ESTA PATENTE Y PLAZA
+            console.log('🔍 Verificando si hay reserva activa para:', {
+                license_plate: payload.license_plate,
+                pla_numero: payload.pla_numero,
+                est_id: estId
+            });
+
+            let reservaActiva = null;
+            if (payload.pla_numero) {
+                const { data: reservas, error: reservasError } = await supabase
+                    .from('reservas')
+                    .select('*')
+                    .eq('est_id', estId)
+                    .eq('pla_numero', payload.pla_numero)
+                    .eq('veh_patente', payload.license_plate.toUpperCase())
+                    .in('res_estado', ['confirmada', 'activa'])
+                    .order('res_fh_ingreso', { ascending: false })
+                    .limit(1);
+
+                if (!reservasError && reservas && reservas.length > 0) {
+                    reservaActiva = reservas[0];
+                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA:', {
+                        res_codigo: reservaActiva.res_codigo,
+                        res_estado: reservaActiva.res_estado,
+                        res_monto: reservaActiva.res_monto,
+                        pag_nro: reservaActiva.pag_nro,
+                        res_fh_ingreso: reservaActiva.res_fh_ingreso,
+                        res_fh_fin: reservaActiva.res_fh_fin
+                    });
+                } else {
+                    console.log('ℹ️ No se encontró reserva activa para esta patente y plaza');
+                }
+            }
+
             // Registrar la ocupación
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
 
             const ocupacionData = {
                 est_id: estId,
                 veh_patente: payload.license_plate,
-                ocu_fh_entrada: entryTime,
+                ocu_fh_entrada: reservaActiva ? reservaActiva.res_fh_ingreso : entryTime,
                 pla_numero: payload.pla_numero || null, // Asegurar null explícito si no hay plaza
-                ocu_duracion_tipo: payload.duracion_tipo || 'hora',
-                ocu_precio_acordado: payload.precio_acordado || 0,
-                ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
+                ocu_duracion_tipo: reservaActiva ? 'reserva' : (payload.duracion_tipo || 'hora'),
+                ocu_precio_acordado: reservaActiva ? reservaActiva.res_monto : (payload.precio_acordado || 0),
+                ocu_fecha_limite: reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
+                res_codigo: reservaActiva ? reservaActiva.res_codigo : null,
+                pag_nro: reservaActiva ? reservaActiva.pag_nro : null
             };
 
             console.log('📝 Registrando ocupación con datos:', ocupacionData);
             console.log('📝 Tipo de pla_numero:', typeof payload.pla_numero, 'Valor:', payload.pla_numero);
+            if (reservaActiva) {
+                console.log('🎫 Ocupación asociada con reserva:', {
+                    res_codigo: reservaActiva.res_codigo,
+                    monto_pagado: reservaActiva.res_monto,
+                    es_reserva: true
+                });
+            }
 
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
@@ -534,6 +582,26 @@ export default function OperadorSimplePage() {
                     JSON.stringify(ocupacionError);
 
                 throw new Error(`Error al registrar ocupación: ${errorMessage}`);
+            }
+
+            // 🎫 Si había una reserva activa, actualizar su estado a 'completada' ya que el vehículo ya ingresó
+            // La reserva cumplió su propósito (garantizar el lugar) y ya no debe seguir existiendo como activa
+            if (reservaActiva && reservaActiva.res_estado === 'confirmada') {
+                console.log('🔄 Actualizando estado de reserva de "confirmada" a "completada":', {
+                    res_codigo: reservaActiva.res_codigo
+                });
+
+                const { error: updateReservaError } = await supabase
+                    .from('reservas')
+                    .update({ res_estado: 'completada' })
+                    .eq('res_codigo', reservaActiva.res_codigo)
+                    .eq('est_id', estId);
+
+                if (updateReservaError) {
+                    console.warn('⚠️ Error al actualizar estado de reserva:', updateReservaError);
+                } else {
+                    console.log('✅ Estado de reserva actualizado a "completada"');
+                }
             }
 
             // Si se asignó una plaza específica, actualizarla
@@ -609,6 +677,14 @@ export default function OperadorSimplePage() {
                 throw new Error("Vehículo no encontrado o ya ha salido");
             }
 
+            console.log('🔍 Datos de ocupación obtenidos:', {
+                res_codigo: ocupacion.res_codigo,
+                ocu_fecha_limite: ocupacion.ocu_fecha_limite,
+                ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+                entry_time: ocupacion.entry_time
+            });
+
             const plazaInfo = plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number);
             const esVehiculoAbonado = plazaInfo?.abono?.vehiculos?.some(
                 v => v.veh_patente?.toUpperCase() === licensePlate.toUpperCase()
@@ -651,78 +727,128 @@ export default function OperadorSimplePage() {
             }
 
             // NUEVO: Verificar si tiene reserva
+            console.log('🔍 VERIFICANDO RESERVA EN EGRESO:', {
+                tiene_res_codigo: !!ocupacion.res_codigo,
+                res_codigo: ocupacion.res_codigo,
+                ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+                ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                ocu_fecha_limite: ocupacion.ocu_fecha_limite,
+                tiene_fecha_limite: !!ocupacion.ocu_fecha_limite,
+                es_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
+                condicion_cumplida: !!(ocupacion.res_codigo && ocupacion.ocu_fecha_limite),
+                condicion_alternativa: !!(ocupacion.res_codigo && ocupacion.ocu_duracion_tipo === 'reserva')
+            });
+
             let feeData;
-            if (ocupacion.res_codigo && ocupacion.ocu_fecha_limite) {
-                console.log('🎫 Egreso con reserva detectado:', ocupacion.res_codigo);
+            let hasReservation = false;
+            let reservationHours = 0;
+            let montoReserva = 0;
+            
+            // Verificar si tiene reserva: debe tener res_codigo Y (ocu_fecha_limite O ocu_duracion_tipo === 'reserva')
+            const tieneReserva = ocupacion.res_codigo && (ocupacion.ocu_fecha_limite || ocupacion.ocu_duracion_tipo === 'reserva');
+            
+            console.log('🎯 Evaluación de condición de reserva:', {
+                tiene_res_codigo: !!ocupacion.res_codigo,
+                tiene_fecha_limite: !!ocupacion.ocu_fecha_limite,
+                es_tipo_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
+                condicion_resultado: tieneReserva
+            });
+            
+            if (tieneReserva) {
+                console.log('✅ 🎫 RESERVA DETECTADA EN EGRESO - MOSTRANDO CONFIRMACIÓN:', {
+                    res_codigo: ocupacion.res_codigo,
+                    ocu_fecha_limite: ocupacion.ocu_fecha_limite,
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo
+                });
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
-                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+                // ocu_fecha_limite viene como ISO string en UTC, hay que convertirlo a Argentina time
+                const finReserva = dayjs.utc(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
 
-                if (salidaReal.isAfter(finReserva)) {
-                    // Calcular solo tiempo excedido
-                    feeData = await calculateParkingFee(
+                // Guardar datos para procesar después de confirmación
+                reservationExitDataRef.current = {
+                    licensePlate,
+                    ocupacion,
+                    salidaReal,
+                    finReserva,
+                    inicioReserva
+                };
+
+                // Mostrar modal de confirmación de reserva
+                console.log('📋 DEBUGGING HORARIOS RESERVA:', {
+                    ocu_fecha_limite_raw: ocupacion.ocu_fecha_limite,
+                    finReserva_parsed: finReserva.format('YYYY-MM-DD HH:mm:ss Z'),
+                    salidaReal: salidaReal.format('YYYY-MM-DD HH:mm:ss Z'),
+                    salioAntes: salidaReal.isBefore(finReserva),
+                    diferencia_minutos: finReserva.diff(salidaReal, 'minutes')
+                });
+
+                setReservationData({
+                    res_codigo: ocupacion.res_codigo,
+                    ocu_fecha_limite: ocupacion.ocu_fecha_limite,
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                    licensePlate: licensePlate,
+                    exitTime: salidaReal.format('HH:mm:ss'),
+                    endTime: finReserva.format('HH:mm:ss'),
+                    salioAntes: salidaReal.isBefore(finReserva)
+                });
+                setShowReservationConfirm(true);
+                return;
+            } else {
+                // Lógica normal sin reserva
+                console.log('ℹ️ NO se detectó reserva, usando lógica normal de egreso');
+                
+                // Aún así, si tiene res_codigo y ocu_precio_acordado, deberíamos descontar el pago previo
+                if (ocupacion.res_codigo && ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0) {
+                    console.log('⚠️ ADVERTENCIA: Tiene res_codigo y ocu_precio_acordado pero no se detectó como reserva');
+                    console.log('🔍 Detalles:', {
+                        res_codigo: ocupacion.res_codigo,
+                        ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+                        ocu_fecha_limite: ocupacion.ocu_fecha_limite
+                    });
+                    
+                    // Intentar calcular con descuento de reserva de todas formas
+                    const totalFeeData = await calculateParkingFee(
                         {
-                            entry_time: ocupacion.ocu_fecha_limite, // Desde fin de reserva
+                            entry_time: ocupacion.entry_time,
                             plaza_number: ocupacion.plaza_number,
-                            ocu_duracion_tipo: 'hora',
+                            ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
                             ocu_precio_acordado: 0
                         },
                         estId
                     );
-
-                    console.log('💰 Cargo adicional por tiempo excedido:', feeData.fee);
+                    
+                    montoReserva = ocupacion.ocu_precio_acordado;
+                    const cargoConDescuento = Math.max(0, totalFeeData.fee - montoReserva);
+                    
+                    console.log('💰 Aplicando descuento de reserva (modo fallback):', {
+                        total_original: totalFeeData.fee,
+                        monto_pagado_reserva: montoReserva,
+                        cargo_con_descuento: cargoConDescuento
+                    });
+                    
+                    hasReservation = true;
+                    reservationHours = 0; // No sabemos las horas exactas
+                    
+                    feeData = {
+                        ...totalFeeData,
+                        fee: cargoConDescuento,
+                        calculatedFee: cargoConDescuento
+                    };
                 } else {
-                    // Salió antes: sin cargo adicional
-                    console.log('✅ Salió antes del fin de reserva, sin cargo adicional');
-
-                    // Egreso directo sin pago
-                    await finalizeExit({
-                        licensePlate,
-                        entryTime: ocupacion.entry_time,
-                        plazaNumber: ocupacion.plaza_number,
-                        amount: 0,
-                        method: 'reserva_prepagada'
-                    });
-
-                    const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                    const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
-                    const duracionMs = salidaMomento.diff(ingresoMomento);
-
-                    setExitInfo({
-                        vehicle: {
-                            license_plate: licensePlate,
-                            type: 'Auto',
+                    feeData = await calculateParkingFee(
+                        {
                             entry_time: ocupacion.entry_time,
-                            plaza_number: ocupacion.plaza_number
+                            plaza_number: ocupacion.plaza_number,
+                            ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                            ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
                         },
-                        fee: 0,
-                        exitTime: salidaMomento.toDate(),
-                        duration: formatDuration(duracionMs),
-                        agreedPrice: 0,
-                        calculatedFee: 0
-                    });
-
-                    toast({
-                        title: "Egreso completado",
-                        description: `Reserva prepagada. Sin cargo adicional.`
-                    });
-
-                    await refreshParkedVehicles();
-                    await refreshParkingHistory();
-                    await fetchDashboardData('exit');
-                    return;
+                        estId
+                    );
                 }
-            } else {
-                // Lógica normal sin reserva
-                feeData = await calculateParkingFee(
-                    {
-                        entry_time: ocupacion.entry_time,
-                        plaza_number: ocupacion.plaza_number,
-                        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
-                        ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
-                    },
-                    estId
-                );
             }
 
             const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
@@ -733,7 +859,7 @@ export default function OperadorSimplePage() {
                 amount: feeData.fee,
                 calculatedFee: feeData.calculatedFee,
                 agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
-                entryTime: ocupacion.entry_time,
+                entryTime: hasReservation ? ocupacion.ocu_fecha_limite : ocupacion.entry_time,
                 exitTime: exitTime.toISOString(),
                 duration: feeData.durationMs,
                 method: 'efectivo',
@@ -746,8 +872,28 @@ export default function OperadorSimplePage() {
                 precioBase: feeData.precioBase, // Precio base de la tarifa
                 durationUnits: feeData.durationUnits, // Unidades de tiempo cobradas
                 isSubscription: false,
-                subscriptionNumber: plazaInfo?.abono?.abo_nro
+                subscriptionNumber: plazaInfo?.abono?.abo_nro,
+                // Información de reserva si aplica
+                hasReservation: hasReservation,
+                reservationCode: hasReservation ? ocupacion.res_codigo : undefined,
+                reservationPaidAmount: hasReservation ? montoReserva : undefined,
+                reservationEndTime: hasReservation ? ocupacion.ocu_fecha_limite : undefined,
+                reservationHours: hasReservation ? reservationHours : undefined,
+                excessDuration: hasReservation ? feeData.durationMs : undefined
             };
+
+            console.log('📋 RESUMEN FINAL ANTES DE MOSTRAR MODAL:', {
+                hasReservation,
+                reservationCode: hasReservation ? ocupacion.res_codigo : undefined,
+                reservationPaidAmount: hasReservation ? montoReserva : undefined,
+                amount: feeData.fee,
+                calculatedFee: feeData.calculatedFee,
+                paymentInfo: {
+                    hasReservation: paymentInfo.hasReservation,
+                    reservationCode: paymentInfo.reservationCode,
+                    reservationPaidAmount: paymentInfo.reservationPaidAmount
+                }
+            });
 
             setPaymentData(paymentInfo);
             setShowPaymentSelector(true);
@@ -759,7 +905,9 @@ export default function OperadorSimplePage() {
                 tipo: feeData.tariffType,
                 unidades: feeData.durationUnits,
                 amount: formatCurrency(feeData.fee),
-                duration: formatDuration(feeData.durationMs)
+                duration: formatDuration(feeData.durationMs),
+                hasReservation,
+                reservationPaidAmount: montoReserva
             });
 
         } catch (error) {
@@ -1095,6 +1243,147 @@ export default function OperadorSimplePage() {
         }
     };
 
+    // Procesar salida después de confirmación de reserva
+    const confirmReservationExit = async () => {
+        if (!reservationExitDataRef.current) return;
+
+        const { licensePlate, ocupacion, salidaReal, finReserva, inicioReserva } = reservationExitDataRef.current;
+
+        try {
+            setShowReservationConfirm(false);
+
+            if (salidaReal.isAfter(finReserva)) {
+                console.log('⏰ El vehículo salió después del fin de reserva, calculando cargo adicional...');
+
+                // Calcular el total por TODO el tiempo estacionado (desde ingreso hasta salida)
+                const totalFeeData = await calculateParkingFee(
+                    {
+                        entry_time: ocupacion.entry_time, // Desde el inicio de la reserva
+                        plaza_number: ocupacion.plaza_number,
+                        ocu_duracion_tipo: 'hora',
+                        ocu_precio_acordado: 0
+                    },
+                    estId
+                );
+
+                console.log('💰 Total calculado por tiempo completo:', {
+                    total: totalFeeData.fee,
+                    calculatedFee: totalFeeData.calculatedFee
+                });
+
+                // Obtener el monto pagado de la reserva
+                const montoReserva = ocupacion.ocu_precio_acordado || 0;
+
+                console.log('🎫 Monto pagado por la reserva:', {
+                    monto_reserva: montoReserva,
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado
+                });
+
+                // Descontar el monto pagado de la reserva del total
+                const cargoAdicional = Math.max(0, totalFeeData.fee - montoReserva);
+
+                console.log('💰 CALCULO DE DESCUENTO DE RESERVA:', {
+                    total_original: totalFeeData.fee,
+                    monto_pagado_reserva: montoReserva,
+                    cargo_adicional: cargoAdicional,
+                    descuento_aplicado: montoReserva,
+                    resultado: cargoAdicional === 0 ? '✅ Sin cargo adicional (ya pagó todo)' : `✅ Restante a cobrar: $${cargoAdicional}`
+                });
+
+                // Preparar datos para el sistema de pagos
+                const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+                const paymentInfo: PaymentData = {
+                    vehicleLicensePlate: licensePlate,
+                    amount: cargoAdicional,
+                    calculatedFee: cargoAdicional,
+                    agreedFee: totalFeeData.agreedPrice > 0 ? totalFeeData.agreedPrice : undefined,
+                    entryTime: ocupacion.ocu_fecha_limite,
+                    exitTime: exitTime.toISOString(),
+                    duration: totalFeeData.durationMs,
+                    method: 'efectivo',
+                    estId: estId,
+                    plazaNumber: ocupacion.plaza_number,
+                    zone: ocupacion.plaza_number ?
+                        plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
+                        undefined,
+                    tariffType: totalFeeData.tariffType,
+                    precioBase: totalFeeData.precioBase,
+                    durationUnits: totalFeeData.durationUnits,
+                    isSubscription: false,
+                    subscriptionNumber: undefined,
+                    hasReservation: true,
+                    reservationCode: ocupacion.res_codigo,
+                    reservationPaidAmount: montoReserva,
+                    reservationEndTime: ocupacion.ocu_fecha_limite,
+                    reservationHours: finReserva.diff(inicioReserva, 'hours', true),
+                    excessDuration: totalFeeData.durationMs
+                };
+
+                setPaymentData(paymentInfo);
+                setShowPaymentSelector(true);
+
+                console.log('💰 Iniciando proceso de pago (reserva con cargo adicional):', {
+                    vehicle: licensePlate,
+                    plaza: ocupacion.plaza_number,
+                    amount: formatCurrency(cargoAdicional),
+                    hasReservation: true
+                });
+            } else {
+                // Salió antes: sin cargo adicional
+                console.log('✅ Salió antes del fin de reserva, sin cargo adicional');
+
+                // Egreso directo sin pago
+                await finalizeVehicleExit({
+                    vehicleLicensePlate: licensePlate,
+                    entryTime: ocupacion.entry_time,
+                    exitTime: dayjs().tz('America/Argentina/Buenos_Aires').toISOString(),
+                    plazaNumber: ocupacion.plaza_number,
+                    amount: 0,
+                    calculatedFee: 0,
+                    duration: 0,
+                    method: 'reserva_prepagada'
+                });
+
+                const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                const duracionMs = salidaMomento.diff(ingresoMomento);
+
+                setExitInfo({
+                    vehicle: {
+                        license_plate: licensePlate,
+                        type: 'Auto',
+                        entry_time: ocupacion.entry_time,
+                        plaza_number: ocupacion.plaza_number
+                    },
+                    fee: 0,
+                    exitTime: salidaMomento.toDate(),
+                    duration: formatDuration(duracionMs),
+                    agreedPrice: 0,
+                    calculatedFee: 0
+                });
+
+                toast({
+                    title: "Egreso completado",
+                    description: `Reserva prepagada. Sin cargo adicional.`
+                });
+
+                await refreshParkedVehicles();
+                await refreshParkingHistory();
+                await fetchDashboardData('exit');
+            }
+        } catch (error) {
+            console.error("Error procesando salida de reserva:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo procesar la salida de la reserva"
+            });
+        }
+
+        // Limpiar ref
+        reservationExitDataRef.current = null;
+    };
+
     // Finalizar salida del vehículo (actualizar DB)
     const finalizeVehicleExit = async (data: PaymentData) => {
         if (!estId || !user?.id) return;
@@ -1224,11 +1513,14 @@ export default function OperadorSimplePage() {
         setShowPaymentSelector(false);
         setShowTransferDialog(false);
         setShowQRDialog(false);
+        setShowReservationConfirm(false);
         setPaymentData(null);
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
         setQRPaymentStatus('pending');
+        setReservationData(null);
+        reservationExitDataRef.current = null;
     };
 
     // Funciones auxiliares para visualización de plazas
@@ -1503,6 +1795,71 @@ export default function OperadorSimplePage() {
                                         }}
                                     >
                                         Confirmar Pago
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+
+                    {/* Diálogo de confirmación de reserva */}
+                    {showReservationConfirm && reservationData && (
+                        <Dialog open={showReservationConfirm} onOpenChange={setShowReservationConfirm}>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Confirmación de Egreso con Reserva</DialogTitle>
+                                    <DialogDescription>
+                                        Este vehículo tiene una reserva activa
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Patente</p>
+                                            <p className="font-semibold">{reservationData.licensePlate}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Código Reserva</p>
+                                            <p className="font-semibold">{reservationData.res_codigo}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Fin de Reserva</p>
+                                            <p className="font-semibold">{reservationData.endTime}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Monto Pagado</p>
+                                            <p className="font-semibold">${formatCurrency(reservationData.ocu_precio_acordado || 0)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        {reservationData.salioAntes ? (
+                                            <p className="text-sm text-blue-800">
+                                                ✅ El vehículo salió <strong>antes del fin de reserva</strong>. No hay cargo adicional.
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-blue-800">
+                                                ⏰ El vehículo salió <strong>después del fin de reserva</strong>. Se cobrará un cargo adicional.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowReservationConfirm(false);
+                                            reservationExitDataRef.current = null;
+                                            toast({
+                                                title: "Egreso cancelado",
+                                                description: "El egreso no fue registrado"
+                                            });
+                                        }}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        onClick={confirmReservationExit}
+                                    >
+                                        Confirmar Egreso
                                     </Button>
                                 </div>
                             </DialogContent>

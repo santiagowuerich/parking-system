@@ -78,8 +78,12 @@ export function formatearCodigoReserva(codigo: string): string {
 
 /**
  * Obtiene el estado visual y color para una reserva
+ * @param estado - Estado de la reserva en BD
+ * @param fechaInicio - Fecha de inicio de la reserva (para verificar expiración de confirmadas)
+ * @param tiempoGracia - Tiempo de gracia en minutos (para verificar expiración de confirmadas)
+ * @param fechaFin - Fecha de fin de la reserva (para verificar expiración de activas)
  */
-export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number) {
+export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number, fechaFin?: string) {
     const estados = {
         pendiente_pago: {
             label: 'Pendiente de Pago',
@@ -137,13 +141,29 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
         const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
         const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
         const limiteGracia = inicio.add(tiempoGracia, 'minutes');
-        
+
         // Solo marcar como expirada si:
         // 1. La reserva ya comenzó (ahora >= inicio)
         // 2. Y pasó el tiempo de gracia (ahora > limiteGracia)
         if (ahora.isAfter(limiteGracia)) {
             // Nota: No se cambia el estado en la BD aquí, solo en la UI
             // El estado real se actualiza mediante el cron job o endpoint de expiración
+            return {
+                label: 'Expirada',
+                color: 'orange',
+                bgColor: 'bg-orange-100',
+                textColor: 'text-orange-800'
+            };
+        }
+    }
+
+    // Si es activa, verificar si la ocupación ha terminado
+    if (estado === 'activa' && fechaFin) {
+        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
+        const fin = dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
+
+        // Si la fecha de fin ya pasó, la reserva expiró
+        if (ahora.isAfter(fin)) {
             return {
                 label: 'Expirada',
                 color: 'orange',

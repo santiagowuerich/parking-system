@@ -55,19 +55,48 @@ export default function CustomEgresoModal({
     baseRate: number
     vehicleType: string
     modality: string
+    reservationPaidAmount?: number
+    reservationCode?: string
+    originalTotal?: number
   } | null>(null)
   const [calculating, setCalculating] = useState(false)
 
   // Calcular datos cuando se abre el modal usando el sistema de plantillas
   useEffect(() => {
+    console.log('🚀 MODAL DE EGRESO - useEffect ejecutado:', {
+      isOpen,
+      tiene_vehicle: !!vehicle,
+      vehicle_license_plate: vehicle?.license_plate,
+      estId,
+      tiene_rates: !!rates,
+      cantidad_rates: rates?.length || 0
+    })
+
     if (isOpen && vehicle && estId) {
+      console.log('✅ Condiciones cumplidas, ejecutando calculateFeeWithTemplate...')
       calculateFeeWithTemplate()
+    } else {
+      console.warn('⚠️ Condiciones NO cumplidas para calcular tarifa:', {
+        isOpen,
+        tiene_vehicle: !!vehicle,
+        tiene_estId: !!estId
+      })
     }
   }, [isOpen, vehicle, rates, estId])
 
   const calculateFeeWithTemplate = async () => {
-    if (!vehicle || !estId) return
+    console.log('🔄 INICIANDO calculateFeeWithTemplate:', {
+      vehicle: vehicle?.license_plate,
+      estId,
+      timestamp: new Date().toISOString()
+    })
 
+    if (!vehicle || !estId) {
+      console.error('❌ calculateFeeWithTemplate: Falta vehicle o estId', { vehicle, estId })
+      return
+    }
+
+    console.log('⏳ Estableciendo calculating = true...')
     setCalculating(true)
     try {
       const supabase = createBrowserClient(
@@ -115,11 +144,21 @@ export default function CustomEgresoModal({
       }
 
       if (ocupacionError || !ocupacion) {
-        console.error('Error obteniendo ocupación:', ocupacionError)
+        console.error('❌ Error obteniendo ocupación:', ocupacionError)
         // Usar cálculo básico como fallback
         calculateBasicFee()
         return
       }
+
+      console.log('✅ Ocupación obtenida:', {
+        ocu_id: ocupacion.ocu_id,
+        res_codigo: ocupacion.res_codigo,
+        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+        ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+        vehicle_type: ocupacion.vehicle_type,
+        entry_time: ocupacion.entry_time,
+        est_id: estId
+      })
 
       // Calcular duración
       const entryTime = dayjs.utc(ocupacion.entry_time).local()
@@ -187,7 +226,7 @@ export default function CustomEgresoModal({
         // Fallback: buscar por tipo de vehículo
         if (!vehicleRate) {
           vehicleRate = rates.find((r: any) => {
-            return r.catv_segmento === ocupacion.type && r.tiptar_nro === tiptar
+            return r.catv_segmento === (ocupacion.vehicle_type || ocupacion.type) && r.tiptar_nro === tiptar
           })
         }
 
@@ -248,6 +287,144 @@ export default function CustomEgresoModal({
         fee = agreedPrice > 0 ? agreedPrice : 200
       }
 
+      // 🎫 VERIFICAR SI HAY PAGO DE RESERVA PREVIO
+      // Esto se hace después de calcular el fee para descontar el pago previo de la reserva
+      console.log('🔍 Iniciando verificación de reserva pagada:', {
+        tiene_res_codigo: !!ocupacion.res_codigo,
+        res_codigo: ocupacion.res_codigo,
+        ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+        ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+        es_reserva: ocupacion.ocu_duracion_tipo === 'reserva'
+      })
+
+      let reservationPaidAmount = 0
+      let reservationCode: string | undefined = undefined
+      const originalFee = fee // Guardar el fee original antes de aplicar descuentos
+      
+      if (ocupacion.res_codigo && ocupacion.ocu_duracion_tipo === 'reserva') {
+        console.log('✅ RESERVA DETECTADA - Condiciones cumplidas:', {
+          tiene_res_codigo: !!ocupacion.res_codigo,
+          es_tipo_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
+          res_codigo: ocupacion.res_codigo
+        })
+        // Si viene de una reserva, obtener el monto pagado
+        // Primero intentar desde ocu_precio_acordado (monto de la reserva pagada)
+        console.log('📊 Verificando monto de reserva desde ocu_precio_acordado:', {
+          ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+          tiene_precio_acordado: !!ocupacion.ocu_precio_acordado,
+          precio_mayor_cero: ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0
+        })
+
+        if (ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0) {
+          reservationPaidAmount = ocupacion.ocu_precio_acordado
+          reservationCode = ocupacion.res_codigo
+          
+          console.log('✅ 🎫 RESERVA CON PAGO DETECTADA - Usando ocu_precio_acordado:', {
+            res_codigo: ocupacion.res_codigo,
+            monto_pagado_reserva: reservationPaidAmount,
+            total_calculado_antes_descuento: fee,
+            metodo: 'ocu_precio_acordado'
+          })
+          
+          // Restar el monto del pago de reserva del total
+          const feeAntesDescuento = fee
+          fee = Math.max(0, fee - reservationPaidAmount)
+          
+          console.log('💰 CALCULO DE DESCUENTO DE RESERVA:', {
+            total_original: feeAntesDescuento,
+            monto_pagado_reserva: reservationPaidAmount,
+            total_despues_descuento: fee,
+            descuento_aplicado: feeAntesDescuento - fee,
+            resultado: fee === 0 ? '✅ Sin cargo adicional (ya pagó todo)' : `✅ Restante a cobrar: $${fee}`
+          })
+        } else {
+          // Si no hay precio acordado pero hay res_codigo, buscar el pago en la tabla de pagos
+          // Esto requiere consultar la tabla ocupacion directamente para obtener pag_nro
+          console.log('⚠️ No hay ocu_precio_acordado, buscando pago en tabla pagos...')
+          
+          try {
+            console.log('🔍 Consultando tabla ocupacion para obtener pag_nro:', {
+              ocu_id: ocupacion.ocu_id
+            })
+            
+            const { data: ocupacionCompleta, error: ocupError } = await supabase
+              .from('ocupacion')
+              .select('pag_nro, res_codigo')
+              .eq('ocu_id', ocupacion.ocu_id || 0)
+              .single()
+            
+            console.log('📋 Resultado consulta ocupacion:', {
+              encontrada: !!ocupacionCompleta,
+              tiene_pag_nro: !!ocupacionCompleta?.pag_nro,
+              pag_nro: ocupacionCompleta?.pag_nro,
+              res_codigo: ocupacionCompleta?.res_codigo,
+              error: ocupError?.message
+            })
+            
+            if (!ocupError && ocupacionCompleta?.pag_nro) {
+              console.log('🔍 Consultando tabla pagos para obtener monto:', {
+                pag_nro: ocupacionCompleta.pag_nro
+              })
+              
+              const { data: pagoReserva, error: pagoError } = await supabase
+                .from('pagos')
+                .select('pag_monto')
+                .eq('pag_nro', ocupacionCompleta.pag_nro)
+                .single()
+              
+              console.log('💰 Resultado consulta pagos:', {
+                encontrado: !!pagoReserva,
+                pag_monto: pagoReserva?.pag_monto,
+                error: pagoError?.message
+              })
+              
+              if (!pagoError && pagoReserva?.pag_monto) {
+                reservationPaidAmount = pagoReserva.pag_monto
+                reservationCode = ocupacionCompleta.res_codigo || undefined
+                
+                console.log('✅ 🎫 RESERVA CON PAGO DETECTADA - Usando tabla pagos:', {
+                  pag_nro: ocupacionCompleta.pag_nro,
+                  monto_pagado_reserva: reservationPaidAmount,
+                  res_codigo: reservationCode,
+                  total_calculado_antes_descuento: fee,
+                  metodo: 'tabla_pagos'
+                })
+                
+                // Restar el monto del pago de reserva del total
+                const feeAntesDescuento = fee
+                fee = Math.max(0, fee - reservationPaidAmount)
+                
+                console.log('💰 CALCULO DE DESCUENTO DE RESERVA:', {
+                  total_original: feeAntesDescuento,
+                  monto_pagado_reserva: reservationPaidAmount,
+                  total_despues_descuento: fee,
+                  descuento_aplicado: feeAntesDescuento - fee,
+                  resultado: fee === 0 ? '✅ Sin cargo adicional (ya pagó todo)' : `✅ Restante a cobrar: $${fee}`
+                })
+              } else {
+                console.warn('⚠️ No se encontró pago en tabla pagos:', {
+                  pag_nro: ocupacionCompleta.pag_nro,
+                  error: pagoError?.message
+                })
+              }
+            } else {
+              console.warn('⚠️ Ocupación no tiene pag_nro asociado:', {
+                ocu_id: ocupacion.ocu_id,
+                error: ocupError?.message
+              })
+            }
+          } catch (error) {
+            console.error('❌ Error obteniendo pago de reserva:', error)
+          }
+        }
+      } else {
+        console.log('ℹ️ No es reserva o no tiene res_codigo:', {
+          tiene_res_codigo: !!ocupacion.res_codigo,
+          ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+          es_reserva: ocupacion.ocu_duracion_tipo === 'reserva'
+        })
+      }
+
       // Mapear tipo de vehículo a nombre legible
       const vehicleTypeMap: Record<string, string> = {
         'AUT': 'auto',
@@ -266,8 +443,22 @@ export default function CustomEgresoModal({
         'mes': 'mes'
       }
 
-      const vehicleTypeName = vehicleTypeMap[ocupacion.type] || ocupacion.type.toLowerCase()
+      const vehicleType = ocupacion.vehicle_type || ocupacion.type || 'AUT'
+      const vehicleTypeName = vehicleTypeMap[vehicleType] || vehicleType.toLowerCase()
       const modalityName = modalityMap[ocupacion.ocu_duracion_tipo] || ocupacion.ocu_duracion_tipo
+
+      console.log('📊 RESUMEN FINAL DE CÁLCULO:', {
+        duracion: duration,
+        tarifa_base: baseRate,
+        total_final: Math.round(fee),
+        tiene_reserva_pagada: reservationPaidAmount > 0,
+        monto_reserva_pagada: reservationPaidAmount > 0 ? reservationPaidAmount : 0,
+        codigo_reserva: reservationCode,
+        total_original: reservationPaidAmount > 0 ? Math.round(originalFee) : Math.round(fee),
+        descuento_aplicado: reservationPaidAmount > 0 ? (originalFee - fee) : 0,
+        tipo_vehiculo: vehicleTypeName,
+        modalidad: modalityName
+      })
 
       setCalculatedData({
         duration,
@@ -275,7 +466,10 @@ export default function CustomEgresoModal({
         total: Math.round(fee),
         baseRate,
         vehicleType: vehicleTypeName,
-        modality: modalityName
+        modality: modalityName,
+        reservationPaidAmount: reservationPaidAmount > 0 ? reservationPaidAmount : undefined,
+        reservationCode: reservationCode,
+        originalTotal: reservationPaidAmount > 0 ? Math.round(originalFee) : undefined
       })
 
     } catch (error) {
@@ -447,6 +641,28 @@ export default function CustomEgresoModal({
                 </div>
               </div>
 
+              {/* Información de reserva pagada (si aplica) */}
+              {calculatedData.reservationPaidAmount && calculatedData.reservationPaidAmount > 0 && (
+                <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-700 font-medium">💰 Reserva pagada:</span>
+                    <span className="text-blue-700 font-semibold">
+                      $ {calculatedData.reservationPaidAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  {calculatedData.reservationCode && (
+                    <div className="text-xs text-blue-600">
+                      Código: {calculatedData.reservationCode}
+                    </div>
+                  )}
+                  {calculatedData.originalTotal && calculatedData.originalTotal > calculatedData.total && (
+                    <div className="text-xs text-green-700 mt-1">
+                      ✅ Descuento aplicado: $ {(calculatedData.originalTotal - calculatedData.total).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Total a cobrar */}
               <div className="space-y-2">
                 <Label htmlFor="total">Total a cobrar</Label>
@@ -459,6 +675,11 @@ export default function CustomEgresoModal({
                   />
                   <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
+                {calculatedData.reservationPaidAmount && calculatedData.reservationPaidAmount > 0 && calculatedData.originalTotal && (
+                  <p className="text-xs text-muted-foreground">
+                    Total original: $ {calculatedData.originalTotal.toLocaleString()} (descontado pago de reserva)
+                  </p>
+                )}
               </div>
 
               {/* Método de pago */}

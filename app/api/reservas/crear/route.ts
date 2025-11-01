@@ -5,15 +5,26 @@ import { validarTiempoReserva, calcularPrecioReserva } from "@/lib/utils/reserva
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { createHash } from 'crypto';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Función auxiliar para generar código de reserva
-async function generarCodigoReserva(supabase: any): Promise<string> {
+// Función auxiliar para generar código de reserva basado en datos únicos
+// Para QR: usa hash de datos + timestamp
+// Para link_pago: usa secuencia diaria
+async function generarCodigoReserva(supabase: any, isQR: boolean = false, uniqueData?: string): Promise<string> {
     const fecha = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD');
 
-    // Obtener el último código del día
+    // Para QR: generar código determinístico basado en los datos de la reserva
+    if (isQR && uniqueData) {
+        // Crear un hash consistente para la reserva
+        // Formato: RES-YYYYMMDD-XXXXXXXX donde XXXXXXXX es hash de los datos
+        const hash = createHash('md5').update(uniqueData).digest('hex').substring(0, 8).toUpperCase();
+        return `RES-${fecha.replace(/-/g, '')}-${hash}`;
+    }
+
+    // Para link_pago: obtener el último código del día para una secuencia
     const { data: ultimasReservas, error } = await supabase
         .from('reservas')
         .select('res_codigo')
@@ -324,16 +335,34 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ [RESERVA] Tarifa encontrada:', tarifaData.tar_precio);
 
-        // HARDCODEADO: Precio fijo de 10 pesos por hora para testing QR
-        const precioPorHora = 10; // Hardcodeado para testing
+        // Usar la tarifa real encontrada en la base de datos
+        const precioPorHora = tarifaData.tar_precio;
         const precioTotal = calcularPrecioReserva(precioPorHora, duracion_horas);
 
-        console.log('💰 [RESERVA] Precio total calculado (HARDCODEADO):', precioTotal, `(10 pesos x ${duracion_horas} horas)`);
+        console.log('💰 [RESERVA] Precio total calculado:', precioTotal, `(${precioPorHora} pesos x ${duracion_horas} horas)`);
 
         // 8. Generar código de reserva único
         console.log('📝 [RESERVA] Generando código de reserva...');
-        const resCodigoGenerado = await generarCodigoReserva(supabase);
+
+        // Para QR: generar código basado en datos únicos (determinístico)
+        // Esto asegura que el mismo usuario con los mismos datos genere siempre el mismo código
+        let uniqueDataForCode = '';
+        if (metodo_pago === 'qr') {
+            // Datos únicos para generar un código consistente
+            // Formato: est_id|pla_numero|veh_patente|fecha_inicio
+            uniqueDataForCode = `${est_id}|${pla_numero}|${veh_patente}|${fechaInicioDate.toISOString()}`;
+            console.log(`📝 [RESERVA] Datos para hash QR: ${uniqueDataForCode}`);
+        }
+
+        const resCodigoGenerado = await generarCodigoReserva(
+            supabase,
+            metodo_pago === 'qr',
+            uniqueDataForCode
+        );
         console.log(`✅ [RESERVA] Código de reserva generado: ${resCodigoGenerado}`);
+        if (metodo_pago === 'qr') {
+            console.log(`   Formato: RES-YYYYMMDD-HASH (determinístico basado en datos de la reserva)`);
+        }
 
         // 9. Para métodos de pago online (QR, link_pago): procesar pago ANTES de crear reserva
         // Para transferencia: crear reserva directamente

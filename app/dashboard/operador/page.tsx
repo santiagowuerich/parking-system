@@ -663,6 +663,14 @@ export default function OperadorPage() {
                 throw new Error("Vehículo no encontrado o ya ha salido");
             }
 
+            console.log('🔍 Datos de ocupación obtenidos:', {
+                res_codigo: ocupacion.res_codigo,
+                ocu_fecha_limite: ocupacion.ocu_fecha_limite,
+                ocu_precio_acordado: ocupacion.ocu_precio_acordado,
+                ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+                entry_time: ocupacion.entry_time
+            });
+
             const plazaInfo = plazasData.find((plaza: any) => plaza.pla_numero === ocupacion.plaza_number);
             const esVehiculoAbonado = plazaInfo?.abono?.vehiculos?.some(
                 (vehiculo: any) => vehiculo.veh_patente?.toUpperCase() === licensePlate.toUpperCase()
@@ -692,6 +700,7 @@ export default function OperadorPage() {
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
                 const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs.utc(ocupacion.entry_time).local();
 
                 if (salidaReal.isAfter(finReserva)) {
                     // Calcular solo tiempo excedido
@@ -709,6 +718,10 @@ export default function OperadorPage() {
 
                     // Continuar con el flujo normal de pago
                     const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+                    
+                    // Calcular duración de la reserva (horas)
+                    const reservationHours = finReserva.diff(inicioReserva, 'hours', true);
+                    const montoReserva = ocupacion.ocu_precio_acordado || 0;
 
                     const paymentInfo: PaymentData = {
                         vehicleLicensePlate: licensePlate,
@@ -726,7 +739,14 @@ export default function OperadorPage() {
                         precioBase: feeData.precioBase,
                         durationUnits: feeData.durationUnits,
                         isSubscription: false,
-                        subscriptionNumber: plazaInfo?.abono?.abo_nro
+                        subscriptionNumber: plazaInfo?.abono?.abo_nro,
+                        // Información de reserva
+                        hasReservation: true,
+                        reservationCode: ocupacion.res_codigo,
+                        reservationPaidAmount: montoReserva,
+                        reservationEndTime: ocupacion.ocu_fecha_limite,
+                        reservationHours: reservationHours,
+                        excessDuration: feeData.durationMs
                     };
 
                     setPaymentData(paymentInfo);

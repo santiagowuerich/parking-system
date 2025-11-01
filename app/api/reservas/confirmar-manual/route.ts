@@ -44,6 +44,12 @@ export async function POST(request: NextRequest) {
         // CASO 1: Viene reserva_data (esto es para QR - crear reserva confirmada)
         if (reserva_data) {
             console.log('🔍 [CONFIRMAR-MANUAL] Buscando reserva existente primero...');
+            console.log('📋 [CONFIRMAR-MANUAL] Datos de reserva_data recibidos:', {
+                res_codigo: reserva_data.res_codigo,
+                pla_numero: reserva_data.pla_numero,
+                est_id: reserva_data.est_id,
+                veh_patente: reserva_data.veh_patente
+            });
             
             // Primero intentar buscar la reserva existente (por si acaso ya existe)
             const { data: reservaExistente, error: searchError } = await supabase
@@ -52,73 +58,179 @@ export async function POST(request: NextRequest) {
                 .eq('res_codigo', reserva_data.res_codigo)
                 .single();
 
+            // Variable para verificar si los datos coinciden (usada más adelante)
+            let datosCoinciden = false;
+
             if (reservaExistente) {
                 console.log(`✅ [CONFIRMAR-MANUAL] Reserva encontrada: ${reservaExistente.res_codigo}`);
-                // Si ya existe, actualizar a confirmada
-                const { error: updateError } = await supabase
-                    .from('reservas')
-                    .update({
-                        res_estado: 'confirmada',
-                        payment_info: { ...reservaExistente.payment_info, preference_id }
-                    })
-                    .eq('res_codigo', reservaExistente.res_codigo);
-
-                if (updateError) {
-                    console.error('❌ [CONFIRMAR-MANUAL] Error actualizando reserva:', updateError);
-                    return NextResponse.json({
-                        success: false,
-                        error: 'Error confirmando la reserva: ' + updateError.message
-                    }, { status: 500 });
-                }
-
-                reserva = { ...reservaExistente, res_estado: 'confirmada' };
-                console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} actualizada a confirmada`);
-            } else {
-                // Para QR, crear la reserva con estado confirmada (el usuario ya confirmó el pago)
-                console.log('📦 [CONFIRMAR-MANUAL] Creando reserva confirmada desde datos temporales...');
+                console.log('📋 [CONFIRMAR-MANUAL] Datos de reserva existente:', {
+                    pla_numero: reservaExistente.pla_numero,
+                    est_id: reservaExistente.est_id,
+                    veh_patente: reservaExistente.veh_patente
+                });
                 
-                // Extraer payment_info si viene en reserva_data, sino usar preference_id
-                const paymentInfoFinal = reserva_data.payment_info 
-                    ? { ...reserva_data.payment_info, preference_id: preference_id || reserva_data.payment_info.preference_id }
-                    : (preference_id ? { preference_id } : null);
+                // VERIFICAR QUE LOS DATOS COINCIDAN CON LOS ENVIADOS
+                // Si no coinciden, es una reserva diferente con código duplicado (no debería pasar)
+                datosCoinciden = 
+                    reservaExistente.pla_numero === reserva_data.pla_numero &&
+                    reservaExistente.est_id === reserva_data.est_id &&
+                    reservaExistente.veh_patente === reserva_data.veh_patente;
                 
-                // Remover payment_info de reserva_data antes de insertar (ya que va como campo separado)
-                const { payment_info, ...reservaDataSinPaymentInfo } = reserva_data;
-                
-                const { data: nuevaReserva, error: insertError } = await supabase
-                    .from('reservas')
-                    .insert({
-                        ...reservaDataSinPaymentInfo,
-                        res_estado: 'confirmada', // Crear directamente como confirmada
-                        payment_info: paymentInfoFinal
-                    })
-                    .select()
-                    .single();
-
-                if (insertError) {
-                    console.error('❌ [CONFIRMAR-MANUAL] Error creando la reserva:', insertError);
-                    return NextResponse.json({
-                        success: false,
-                        error: 'Error creando la reserva: ' + insertError.message
-                    }, { status: 500 });
-                }
-
-                reserva = nuevaReserva;
-                console.log(`✅ [CONFIRMAR-MANUAL] Reserva creada con código: ${reserva.res_codigo}`);
-
-                // Marcar plaza como reservada
-                const { error: plazaError } = await supabase
-                    .from('plazas')
-                    .update({ pla_estado: 'Reservada' })
-                    .eq('est_id', reserva.est_id)
-                    .eq('pla_numero', reserva.pla_numero);
-
-                if (plazaError) {
-                    console.error('❌ [CONFIRMAR-MANUAL] Error actualizando plaza:', plazaError);
+                if (!datosCoinciden) {
+                    console.error('❌ [CONFIRMAR-MANUAL] La reserva existente NO coincide con los datos enviados');
+                    console.error('📋 [CONFIRMAR-MANUAL] Comparación:', {
+                        existente: {
+                            pla_numero: reservaExistente.pla_numero,
+                            est_id: reservaExistente.est_id,
+                            veh_patente: reservaExistente.veh_patente
+                        },
+                        enviado: {
+                            pla_numero: reserva_data.pla_numero,
+                            est_id: reserva_data.est_id,
+                            veh_patente: reserva_data.veh_patente
+                        }
+                    });
+                    console.log('⚠️ [CONFIRMAR-MANUAL] Código duplicado detectado. Continuando con creación de nueva reserva con nuevos datos...');
+                    // No retornar error, simplemente continuar y crear una nueva reserva
+                    // Esto significa que el código fue reutilizado incorrectamente, pero queremos crear la reserva correcta
                 } else {
-                    console.log(`✅ [CONFIRMAR-MANUAL] Plaza ${reserva.pla_numero} marcada como Reservada`);
+                    
+                    // Si los datos coinciden, actualizar a confirmada
+                    const { error: updateError } = await supabase
+                        .from('reservas')
+                        .update({
+                            res_estado: 'confirmada',
+                            payment_info: { ...reservaExistente.payment_info, preference_id }
+                        })
+                        .eq('res_codigo', reservaExistente.res_codigo);
+
+                    if (updateError) {
+                        console.error('❌ [CONFIRMAR-MANUAL] Error actualizando reserva:', updateError);
+                        return NextResponse.json({
+                            success: false,
+                            error: 'Error confirmando la reserva: ' + updateError.message
+                        }, { status: 500 });
+                    }
+
+                    reserva = { ...reservaExistente, res_estado: 'confirmada' };
+                    console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} actualizada a confirmada`);
+                    
+                    // Salir aquí si se actualizó correctamente
+                    // Marcar plaza como reservada usando los datos de la reserva actualizada
+                    const { error: plazaError } = await supabase
+                        .from('plazas')
+                        .update({ pla_estado: 'Reservada' })
+                        .eq('est_id', reserva.est_id)
+                        .eq('pla_numero', reserva.pla_numero);
+
+                    if (plazaError) {
+                        console.error('❌ [CONFIRMAR-MANUAL] Error actualizando plaza:', plazaError);
+                    } else {
+                        console.log(`✅ [CONFIRMAR-MANUAL] Plaza ${reserva.pla_numero} marcada como Reservada`);
+                    }
+
+                    console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} confirmada exitosamente`);
+
+                    return NextResponse.json({
+                        success: true,
+                        message: 'Reserva confirmada exitosamente',
+                        reserva: {
+                            res_codigo: reserva.res_codigo,
+                            res_estado: 'confirmada'
+                        }
+                    });
                 }
             }
+            
+            // Si llegamos aquí, significa que no se encontró reserva existente
+            // O se encontró pero con datos diferentes (lo cual significa error de datos, no debería pasar con códigos determinísticos)
+            // Continuar con la creación de nueva reserva
+            // Para QR, crear la reserva con estado confirmada (el usuario ya confirmó el pago)
+            console.log('📦 [CONFIRMAR-MANUAL] Creando reserva confirmada desde datos temporales...');
+
+            // Reutilizar el código de reserva enviado (es determinístico para QR)
+            let codigoReservaFinal = reserva_data.res_codigo;
+
+            if (reservaExistente && !datosCoinciden) {
+                console.error('❌ [CONFIRMAR-MANUAL] ERROR: Código de reserva duplicado detectado pero con datos diferentes');
+                console.error('📋 [CONFIRMAR-MANUAL] Esto indica que el código no fue generado correctamente o hay un error');
+                console.error('   Código:', codigoReservaFinal);
+                console.error('   Datos esperados:', { pla: reserva_data.pla_numero, est: reserva_data.est_id, patente: reserva_data.veh_patente });
+                console.error('   Datos en DB:', { pla: reservaExistente.pla_numero, est: reservaExistente.est_id, patente: reservaExistente.veh_patente });
+
+                // Retornar error en lugar de crear una nueva reserva con código diferente
+                return NextResponse.json({
+                    success: false,
+                    error: 'Código de reserva duplicado detectado con datos diferentes. Por favor, intenta de nuevo.'
+                }, { status: 409 });
+            }
+            
+            console.log('📋 [CONFIRMAR-MANUAL] Datos que se insertarán:', {
+                est_id: reserva_data.est_id,
+                pla_numero: reserva_data.pla_numero,
+                veh_patente: reserva_data.veh_patente,
+                res_codigo: codigoReservaFinal,
+                res_monto: reserva_data.res_monto
+            });
+            
+            // Extraer payment_info si viene en reserva_data, sino usar preference_id
+            const paymentInfoFinal = reserva_data.payment_info 
+                ? { ...reserva_data.payment_info, preference_id: preference_id || reserva_data.payment_info.preference_id }
+                : (preference_id ? { preference_id } : null);
+            
+            // Remover payment_info de reserva_data antes de insertar (ya que va como campo separado)
+            const { payment_info, ...reservaDataSinPaymentInfo } = reserva_data;
+            
+            const { data: nuevaReserva, error: insertError } = await supabase
+                .from('reservas')
+                .insert({
+                    ...reservaDataSinPaymentInfo,
+                    res_codigo: codigoReservaFinal, // Usar código final (puede ser nuevo si hubo conflicto)
+                    res_estado: 'confirmada', // Crear directamente como confirmada
+                    payment_info: paymentInfoFinal
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('❌ [CONFIRMAR-MANUAL] Error creando la reserva:', insertError);
+                return NextResponse.json({
+                    success: false,
+                    error: 'Error creando la reserva: ' + insertError.message
+                }, { status: 500 });
+            }
+
+            reserva = nuevaReserva;
+            console.log(`✅ [CONFIRMAR-MANUAL] Reserva creada con código: ${reserva.res_codigo}`);
+            console.log('📋 [CONFIRMAR-MANUAL] Datos de reserva creada:', {
+                pla_numero: reserva.pla_numero,
+                est_id: reserva.est_id,
+                veh_patente: reserva.veh_patente
+            });
+
+            // Marcar plaza como reservada usando los datos de la reserva creada
+            const { error: plazaError } = await supabase
+                .from('plazas')
+                .update({ pla_estado: 'Reservada' })
+                .eq('est_id', reserva.est_id)
+                .eq('pla_numero', reserva.pla_numero);
+
+            if (plazaError) {
+                console.error('❌ [CONFIRMAR-MANUAL] Error actualizando plaza:', plazaError);
+            } else {
+                console.log(`✅ [CONFIRMAR-MANUAL] Plaza ${reserva.pla_numero} marcada como Reservada`);
+            }
+            
+            console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} confirmada exitosamente`);
+
+            return NextResponse.json({
+                success: true,
+                message: 'Reserva confirmada exitosamente',
+                reserva: {
+                    res_codigo: reserva.res_codigo,
+                    res_estado: 'confirmada'
+                }
+            });
         } else {
             // CASO 2: Reserva ya existe (re-confirmación o webhook falló)
             console.log('🔍 [CONFIRMAR-MANUAL] Buscando reserva existente...');

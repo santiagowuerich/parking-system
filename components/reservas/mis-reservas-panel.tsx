@@ -335,7 +335,13 @@ export function MisReservasPanel() {
 
     // Filtrar reservas por estado
     const reservasActivas = misReservas.filter(r => {
-        const estadoVisual = obtenerEstadoReservaVisual(r.res_estado, r.res_fh_ingreso, r.res_tiempo_gracia_min);
+        // Para reservas activas, pasar res_fh_fin para verificar si ya expiró la ocupación
+        const estadoVisual = obtenerEstadoReservaVisual(
+            r.res_estado,
+            r.res_fh_ingreso,
+            r.res_tiempo_gracia_min,
+            r.res_fh_fin
+        );
         // Considerar expirada si el estado visual muestra "Expirada"
         return r.res_estado === 'activa' && estadoVisual.label !== 'Expirada';
     });

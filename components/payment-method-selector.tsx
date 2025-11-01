@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,36 @@ export default function PaymentMethodSelector({
   paymentSettings
 }: PaymentMethodSelectorProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
+
+  // Logs cuando se abre el modal
+  useEffect(() => {
+    if (isOpen && paymentData) {
+      console.log('🚀 PAYMENT METHOD SELECTOR - Modal abierto:', {
+        isOpen,
+        tiene_paymentData: !!paymentData,
+        vehicle: paymentData.vehicleLicensePlate,
+        amount: paymentData.amount,
+        hasReservation: paymentData.hasReservation,
+        reservationCode: paymentData.reservationCode,
+        reservationPaidAmount: paymentData.reservationPaidAmount,
+        timestamp: new Date().toISOString()
+      })
+
+      if (paymentData.hasReservation) {
+        console.log('🎫 INFORMACIÓN DE RESERVA EN MODAL:', {
+          tiene_reserva: true,
+          res_codigo: paymentData.reservationCode,
+          monto_pagado: paymentData.reservationPaidAmount,
+          tiempo_excedido: paymentData.excessDuration,
+          horas_reservadas: paymentData.reservationHours,
+          amount_final: paymentData.amount,
+          calculatedFee: paymentData.calculatedFee
+        })
+      } else {
+        console.log('ℹ️ No hay reserva en este egreso')
+      }
+    }
+  }, [isOpen, paymentData])
 
   if (!paymentData) return null
 
@@ -149,6 +179,27 @@ export default function PaymentMethodSelector({
                 {formatDuration(paymentData.duration)}
               </div>
             </div>
+
+            {/* Información de reserva si aplica */}
+            {paymentData.hasReservation && paymentData.reservationPaidAmount && (
+              <div className="space-y-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-green-700">🎫 Reserva confirmada</label>
+                </div>
+                <div className="text-xs text-green-600 space-y-1">
+                  <div><strong>Monto pagado:</strong> {formatCurrency(paymentData.reservationPaidAmount)}</div>
+                  {paymentData.reservationHours && (
+                    <div><strong>Horas reservadas:</strong> {paymentData.reservationHours.toFixed(1)}h</div>
+                  )}
+                  {paymentData.reservationCode && (
+                    <div><strong>Código:</strong> {paymentData.reservationCode}</div>
+                  )}
+                </div>
+                <div className="text-xs text-orange-700 font-medium pt-1 border-t border-green-200">
+                  <span className="text-xs">⏱️ Tiempo excedido:</span> {formatDuration(paymentData.excessDuration || 0)}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Tarifa vigente</label>

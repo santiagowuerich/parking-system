@@ -106,10 +106,11 @@ export async function POST(request: NextRequest) {
             }, { status: 500 });
         }
 
-        // 5. Actualizar estado de la reserva
+        // 5. Actualizar estado de la reserva a 'completada' ya que el vehículo ya ingresó
+        // La reserva cumplió su propósito (garantizar el lugar) y ya no debe seguir existiendo como activa
         const { error: updateReservaError } = await supabase
             .from('reservas')
-            .update({ res_estado: 'activa' })
+            .update({ res_estado: 'completada' })
             .eq('res_codigo', res_codigo)
             .eq('est_id', est_id);
 
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
                     res_fh_fin: reserva.res_fh_fin,
                     con_id: reserva.con_id,
                     pag_nro: reserva.pag_nro,
-                    res_estado: 'activa',
+                    res_estado: 'completada',
                     res_monto: reserva.res_monto,
                     res_tiempo_gracia_min: reserva.res_tiempo_gracia_min,
                     res_created_at: reserva.res_created_at,
