@@ -643,7 +643,9 @@ export function CrearReservaDialog({
                     }}
                     qrData={{
                         qrCode: reservaCreada.payment_info?.qr_code || reservaCreada.payment_info?.init_point || '',
-                        qrCodeImage: reservaCreada.payment_info?.qr_code_image || '',
+                        qrCodeImage: reservaCreada.payment_info?.qr_code_base64 
+                            ? `data:image/png;base64,${reservaCreada.payment_info.qr_code_base64}`
+                            : reservaCreada.payment_info?.qr_code_image || '',
                         preferenceId: reservaCreada.payment_info?.preference_id || ''
                     }}
                     paymentStatus="pendiente"

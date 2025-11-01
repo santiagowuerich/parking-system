@@ -141,12 +141,22 @@ export default function QRPaymentDialog({
               <Card className="border border-gray-200">
                 <CardContent className="p-4">
                   <div className="flex justify-center bg-white p-4 rounded-lg relative">
-                    <QRCode
-                      value={qrData.qrCode}
-                      size={200}
-                      level="H"
-                      includeMargin={true}
-                    />
+                    {qrData.qrCodeImage && qrData.qrCodeImage.startsWith('data:image') ? (
+                      // Usar imagen base64 de MercadoPago si está disponible
+                      <img
+                        src={qrData.qrCodeImage}
+                        alt="Código QR de MercadoPago"
+                        className="w-[200px] h-[200px]"
+                      />
+                    ) : (
+                      // Generar QR desde el código si no hay imagen base64
+                      <QRCode
+                        value={qrData.qrCode}
+                        size={200}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    )}
                   </div>
                 </CardContent>
               </Card>

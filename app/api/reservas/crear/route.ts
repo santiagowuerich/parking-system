@@ -355,8 +355,9 @@ export async function POST(request: NextRequest) {
 
                 const estacionamientoNombre = estacionamientoData?.est_nombre || 'Estacionamiento';
 
-                const preferenceData = {
+                const preferenceData: any = {
                     items: [{
+                        id: resCodigoGenerado,
                         title: `Reserva ${estacionamientoNombre} - Plaza ${pla_numero}`,
                         description: `Reserva de ${duracion_horas} hora(s) para vehículo ${veh_patente}`,
                         quantity: 1,
@@ -370,8 +371,29 @@ export async function POST(request: NextRequest) {
                         failure: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?status=failure&res_codigo=${resCodigoGenerado}`,
                         pending: `${process.env.NEXT_PUBLIC_APP_URL}/payment/success?status=pending&res_codigo=${resCodigoGenerado}`
                     },
-                    auto_return: 'approved'
+                    auto_return: 'approved',
+                    statement_descriptor: 'RESERVA ESTACIONAMIENTO'
                 };
+
+                // Configurar métodos de pago para QR si es método QR
+                if (metodo_pago === 'qr') {
+                    // Para QR, configuramos payment_methods pero NO point_of_interaction
+                    // porque MercadoPago no genera QR en preferences regulares
+                    preferenceData.payment_methods = {
+                        default_payment_method_id: 'account_money',
+                        excluded_payment_methods: [
+                            { id: 'credit_card' },
+                            { id: 'debit_card' },
+                            { id: 'bank_transfer' }
+                        ],
+                        excluded_payment_types: [
+                            { id: 'ticket' },
+                            { id: 'atm' }
+                        ],
+                        installments: 1
+                    };
+                    preferenceData.binary_mode = true;
+                }
 
                 console.log(`🔄 [MERCADOPAGO] Enviando preference a MercadoPago...`);
 
@@ -410,11 +432,33 @@ export async function POST(request: NextRequest) {
                         sandbox_init_point: preferenceResult.sandbox_init_point
                     };
                 } else if (metodo_pago === 'qr') {
+                    // Para QR, MercadoPago no devuelve point_of_interaction en preferences regulares
+                    // Necesitamos usar el init_point y generar un QR desde esa URL
+                    // O usar el endpoint de QR Dinámico (que requiere configuración adicional)
+                    
+                    // Por ahora, usamos init_point como código QR
+                    // El usuario escaneará y será redirigido a MercadoPago para pagar
+                    const qrUrl = preferenceResult.init_point || preferenceResult.sandbox_init_point || '';
+                    
+                    if (!qrUrl) {
+                        console.error('❌ [MERCADOPAGO] No se encontró init_point en la respuesta');
+                        return NextResponse.json({
+                            success: false,
+                            error: 'No se pudo generar el código QR. MercadoPago no devolvió URL de pago.'
+                        }, { status: 400 });
+                    }
+                    
+                    console.log(`✅ [MERCADOPAGO] Usando init_point como QR: ${qrUrl.substring(0, 50)}...`);
+                    
                     paymentInfo = {
                         preference_id: preferenceResult.id,
-                        qr_code: preferenceResult.init_point || '',
-                        init_point: preferenceResult.init_point
+                        qr_code: qrUrl, // Usamos la URL de checkout como código QR
+                        qr_code_base64: null, // No disponible en preferences regulares
+                        init_point: preferenceResult.init_point,
+                        sandbox_init_point: preferenceResult.sandbox_init_point
                     };
+                    
+                    console.log(`✅ [MERCADOPAGO] QR Code configurado (generado desde init_point)`);
                 }
 
             } catch (error) {
