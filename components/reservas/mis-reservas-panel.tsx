@@ -58,6 +58,18 @@ export function MisReservasPanel() {
         };
 
         expirarReservasAutomaticamente();
+
+        // Escuchar evento de reserva creada para recargar
+        const handleReservaCreada = () => {
+            console.log('🔄 Recargando reservas después de crear nueva reserva...');
+            obtenerMisReservas();
+        };
+
+        window.addEventListener('reserva-creada', handleReservaCreada);
+
+        return () => {
+            window.removeEventListener('reserva-creada', handleReservaCreada);
+        };
     }, [obtenerMisReservas]);
 
     const copiarCodigo = (codigo: string) => {
@@ -352,16 +364,60 @@ export function MisReservasPanel() {
     });
 
     const reservasFuturas = misReservas.filter(r => {
-        const estadoVisual = obtenerEstadoReservaVisual(r.res_estado, r.res_fh_ingreso, r.res_tiempo_gracia_min);
-        return (r.res_estado === 'confirmada' || r.res_estado === 'pendiente_pago') &&
-            estadoVisual.label !== 'Expirada';
+        const ahora = new Date();
+        const fechaInicio = new Date(r.res_fh_ingreso);
+        const fechaFin = new Date(r.res_fh_fin);
+        
+        // Estados que deben aparecer en Próximas
+        const esPendientePago = r.res_estado === 'pendiente_pago' || r.res_estado === 'pendiente_confirmacion_operador';
+        const esConfirmada = r.res_estado === 'confirmada';
+        const esExpirada = r.res_estado === 'expirada';
+        const esCancelada = r.res_estado === 'cancelada';
+        const esNoShow = r.res_estado === 'no_show';
+        const esCompletada = r.res_estado === 'completada';
+        
+        // Verificar si aún puede pagar (tiene payment_info con preference_id)
+        const tienePaymentInfo = r.payment_info && typeof r.payment_info === 'object' && 
+                                 (r.payment_info as any)?.preference_id;
+        
+        // Verificar si la reserva aún es válida (fecha fin no pasó)
+        const aunValida = fechaFin > ahora;
+        
+        // Excluir estados finales definitivos
+        if (esCancelada || esNoShow || esCompletada) {
+            return false;
+        }
+        
+        // Mostrar en Próximas si:
+        // 1. Es pendiente_pago (siempre mostrar - necesita pagar)
+        // 2. Es confirmada y aún válida (puede usar la reserva)
+        // 3. Es expirada PERO tiene payment_info (aún puede pagar aunque expire)
+        // 4. Es expirada PERO la fecha fin aún no pasó (aún puede usar)
+        const debeMostrar = 
+            esPendientePago || // Pendiente de pago siempre mostrar
+            (esConfirmada && aunValida) || // Confirmada y aún válida
+            (esExpirada && tienePaymentInfo) || // Expirada pero tiene payment info (aún puede pagar)
+            (esExpirada && aunValida); // Expirada pero fecha fin no pasó (aún puede usar)
+        
+        return debeMostrar;
     });
 
     const reservasHistorial = misReservas.filter(r => {
-        const estadoVisual = obtenerEstadoReservaVisual(r.res_estado, r.res_fh_ingreso, r.res_tiempo_gracia_min);
-        // Incluir expiradas visualmente en el historial
-        return ['completada', 'cancelada', 'expirada', 'no_show'].includes(r.res_estado) ||
-            estadoVisual.label === 'Expirada';
+        const ahora = new Date();
+        const fechaFin = new Date(r.res_fh_fin);
+        const tienePaymentInfo = r.payment_info && typeof r.payment_info === 'object' && 
+                                 (r.payment_info as any)?.preference_id;
+        const aunValida = fechaFin > ahora;
+        
+        // Estados finales definitivos siempre van al historial
+        const esFinal = ['completada', 'cancelada', 'no_show'].includes(r.res_estado);
+        
+        // Expiradas van al historial SOLO si:
+        // - NO tienen payment_info (ya no se pueden pagar) O
+        // - La fecha fin ya pasó Y no tienen payment_info
+        const esExpiradaFinal = r.res_estado === 'expirada' && !tienePaymentInfo && !aunValida;
+        
+        return esFinal || esExpiradaFinal;
     });
 
     return (

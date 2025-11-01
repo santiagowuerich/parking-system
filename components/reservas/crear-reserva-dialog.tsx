@@ -184,16 +184,22 @@ export function CrearReservaDialog({
         const result = await crearReserva(request);
 
         if (result && result.success && result.data) {
-            // Ahora recibimos reserva_temporal en lugar de reserva
+            // Ahora recibimos reserva creada en BD
             setReservaCreada({
-                reserva_temporal: result.data.reserva_temporal,
+                reserva_temporal: result.data.reserva || result.data.reserva_temporal, // Compatibilidad con ambos formatos
                 payment_info: result.data.payment_info
             });
 
             toast({
-                title: "Datos preparados",
-                description: `Código de referencia: ${result.data.reserva_temporal?.res_codigo}`,
+                title: "Reserva creada",
+                description: `Código de reserva: ${result.data.reserva?.res_codigo || result.data.reserva_temporal?.res_codigo}`,
             });
+
+            // Recargar reservas para que aparezca en "Próximas"
+            if (typeof window !== 'undefined') {
+                // Disparar evento personalizado para recargar reservas
+                window.dispatchEvent(new CustomEvent('reserva-creada'));
+            }
 
             // Manejar flujo de pago según el método seleccionado
             if (metodoPago === 'link_pago') {

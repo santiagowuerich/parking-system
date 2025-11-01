@@ -470,30 +470,66 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 10. NO CREAR la reserva en BD, devolver solo datos temporales
-        console.log('📦 [RESERVA] Preparando datos temporales (NO se crea reserva en BD aún)...');
+        // 10. CREAR la reserva en BD con estado pendiente_pago
+        console.log('📦 [RESERVA] Creando reserva en BD con estado pendiente_pago...');
 
-        console.log('🎉 [RESERVA] Datos temporales preparados exitosamente');
+        const reservaData = {
+            est_id,
+            pla_numero,
+            veh_patente,
+            res_codigo: resCodigoGenerado,
+            res_fh_ingreso: fechaInicioDate.toISOString(),
+            res_fh_fin: fechaFinDate.toISOString(),
+            con_id: conductor.con_id,
+            res_monto: precioTotal,
+            res_tiempo_gracia_min: 15,
+            res_estado: 'pendiente_pago',
+            metodo_pago: metodo_pago,
+            payment_info: paymentInfo
+        };
+
+        const { data: reservaCreada, error: insertError } = await supabase
+            .from('reservas')
+            .insert(reservaData)
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error('❌ [RESERVA] Error creando reserva en BD:', insertError);
+            return NextResponse.json({
+                success: false,
+                error: 'Error creando la reserva: ' + insertError.message
+            }, { status: 500 });
+        }
+
+        console.log(`✅ [RESERVA] Reserva creada en BD con código: ${reservaCreada.res_codigo}`);
+
+        // Marcar plaza como reservada
+        const { error: plazaError } = await supabase
+            .from('plazas')
+            .update({ pla_estado: 'Reservada' })
+            .eq('est_id', est_id)
+            .eq('pla_numero', pla_numero);
+
+        if (plazaError) {
+            console.error('⚠️ [RESERVA] Error actualizando estado de plaza:', plazaError);
+        } else {
+            console.log(`✅ [RESERVA] Plaza ${pla_numero} marcada como Reservada`);
+        }
 
         const response: CrearReservaResponse = {
             success: true,
             data: {
-                reserva_temporal: {
-                    est_id,
-                    pla_numero,
-                    veh_patente,
-                    res_codigo: resCodigoGenerado,
+                reserva: {
+                    ...reservaCreada,
                     res_fh_ingreso: dayjs(fechaInicioDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
                     res_fh_fin: dayjs(fechaFinDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
-                    con_id: conductor.con_id,
-                    res_monto: precioTotal,
-                    res_tiempo_gracia_min: 15,
-                    metodo_pago: metodo_pago,
                 },
                 payment_info: paymentInfo
             }
         };
 
+        console.log('🎉 [RESERVA] Reserva creada exitosamente');
         return NextResponse.json(response);
 
     } catch (error) {
