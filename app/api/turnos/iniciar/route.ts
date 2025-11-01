@@ -1,6 +1,7 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from '@/lib/logger';
+import { nowInArgentina } from "@/lib/utils/date-time";
 
 export async function POST(request: NextRequest) {
     try {
@@ -48,8 +49,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Ya tienes un turno activo" }, { status: 400 });
         }
 
-        // Obtener hora actual
-        const horaActual = new Date().toTimeString().split(' ')[0];
+        // Obtener fecha y hora actual en zona horaria de Argentina
+        const ahoraArgentina = nowInArgentina();
+        const fechaActual = ahoraArgentina.format('YYYY-MM-DD');
+        const horaActual = ahoraArgentina.format('HH:mm');
 
         // Crear turno con caja
         const { data: nuevoTurno, error: turnoError } = await supabase
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
             .insert({
                 play_id: play_id,
                 est_id: est_id,
-                tur_fecha: new Date().toISOString().split('T')[0],
+                tur_fecha: fechaActual,
                 tur_hora_entrada: horaActual,
                 tur_estado: 'activo',
                 tur_observaciones_entrada: observaciones || null,
