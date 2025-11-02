@@ -601,23 +601,26 @@ export default function GestionPlantillasPage() {
                                                 </td>
                                                 <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                                                     {plantilla.caracteristicas['Techo']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                            {valor}
-                                                        </span>
+                                                        <div key={idx} className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                                            <span className="text-sm text-gray-800">{valor}</span>
+                                                        </div>
                                                     )) || <span className="text-gray-400 italic">-</span>}
                                                 </td>
                                                 <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                                                     {plantilla.caracteristicas['Seguridad']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                            {valor}
-                                                        </span>
+                                                        <div key={idx} className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></div>
+                                                            <span className="text-sm text-gray-800">{valor}</span>
+                                                        </div>
                                                     )) || <span className="text-gray-400 italic">-</span>}
                                                 </td>
                                                 <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300">
                                                     {plantilla.caracteristicas['Conectividad']?.map((valor, idx) => (
-                                                        <span key={idx} className="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs mr-1 mb-1">
-                                                            {valor}
-                                                        </span>
+                                                        <div key={idx} className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-purple-500 flex-shrink-0"></div>
+                                                            <span className="text-sm text-gray-800">{valor}</span>
+                                                        </div>
                                                     )) || <span className="text-gray-400 italic">-</span>}
                                                 </td>
                                                 <td className="py-4 px-4 text-center">

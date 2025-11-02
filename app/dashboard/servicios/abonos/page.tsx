@@ -1,6 +1,12 @@
 "use client";
 
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { useState, useEffect } from "react";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { useAuth } from "@/lib/auth-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -8,14 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
@@ -223,38 +221,38 @@ export default function ServiciosAbonosPage() {
                             </Alert>
                         ) : (
                             <>
-                                <div className="rounded-md border dark:border-zinc-700">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Conductor</TableHead>
-                                                <TableHead>DNI</TableHead>
-                                                <TableHead>Zona</TableHead>
-                                                <TableHead>Plaza</TableHead>
-                                                <TableHead>Tipo</TableHead>
-                                                <TableHead>Inicio</TableHead>
-                                                <TableHead>Vence</TableHead>
-                                                <TableHead>Restan</TableHead>
-                                                <TableHead>Aviso</TableHead>
-                                                <TableHead className="text-right">Acciones</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
+                                <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                    <table className="w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Conductor</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">DNI</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Zona</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Plaza</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Tipo</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Inicio</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Vence</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Restan</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Aviso</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                             {abonosPaginados.map((abono) => (
-                                                <TableRow key={abono.abo_nro}>
-                                                    <TableCell className="font-medium">
+                                                <tr key={abono.abo_nro} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium text-center">
                                                         {abono.conductor_nombre} {abono.conductor_apellido}
-                                                    </TableCell>
-                                                    <TableCell>{abono.conductor_dni}</TableCell>
-                                                    <TableCell>{abono.zona}</TableCell>
-                                                    <TableCell>{abono.pla_numero}</TableCell>
-                                                    <TableCell>{getTipoAbono(abono.tipo_abono)}</TableCell>
-                                                    <TableCell>{dayjs.utc(abono.fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
-                                                    <TableCell>{dayjs.utc(abono.fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
-                                                    <TableCell>{abono.dias_restantes} días</TableCell>
-                                                    <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex gap-2 justify-end">
+                                                    </td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{abono.conductor_dni}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{abono.zona}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{abono.pla_numero}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{getTipoAbono(abono.tipo_abono)}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{dayjs.utc(abono.fecha_inicio).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{dayjs.utc(abono.fecha_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{abono.dias_restantes} días</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{getEstadoBadge(abono.estado)}</td>
+                                                    <td className="py-4 px-4 text-center">
+                                                        <div className="flex gap-2 justify-center">
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
@@ -287,11 +285,11 @@ export default function ServiciosAbonosPage() {
                                                                 Vehículos
                                                             </Button>
                                                         </div>
-                                                    </TableCell>
-                                                </TableRow>
+                                                    </td>
+                                                </tr>
                                             ))}
-                                        </TableBody>
-                                    </Table>
+                                        </tbody>
+                                    </table>
                                 </div>
 
                                 {/* Paginación */}
