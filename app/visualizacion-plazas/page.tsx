@@ -1,7 +1,12 @@
 'use client';
 
-
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import React, { useState, useEffect } from 'react';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
