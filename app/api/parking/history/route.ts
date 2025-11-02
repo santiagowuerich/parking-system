@@ -46,26 +46,58 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const estId = Number(url.searchParams.get('est_id')) || Number(request.headers.get('x-est-id')) || undefined
 
+    // Query ocupacion table with joins to get payment info AND plaza vehicle type
     let query = supabase
-      .from("vw_historial_estacionamiento")
-      .select("*")
-      .order("exit_time", { ascending: false })
+      .from("ocupacion")
+      .select(`
+        ocu_fh_entrada,
+        ocu_fh_salida,
+        pla_numero,
+        veh_patente,
+        pagos!inner (
+          pag_nro,
+          pag_monto,
+          pag_h_fh,
+          pag_tipo,
+          abo_nro,
+          mepa_metodo,
+          est_id
+        ),
+        plazas!inner (
+          catv_segmento,
+          plantilla_id
+        )
+      `)
+      .order("ocu_fh_salida", { ascending: false });
+
     if (estId) {
-      // si la vista expone est_id, aplicar filtro
-      // @ts-ignore
-      query = query.eq('est_id', estId)
+      // Filter by est_id in pagos table (where it's actually stored)
+      query = query.eq('pagos.est_id', estId);
     }
-    logger.debug(`Ejecutando query del historial para est_id: ${estId}`);
-    const { data, error } = await query
+
+    logger.debug(`Ejecutando query del historial con plaza info para est_id: ${estId}`);
+    const { data, error } = await query;
 
     if (error) {
-      logger.error("Error fetching history:", error);
+      logger.error("Error fetching parking history with plaza info:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Asegurarse de que data sea un arreglo
-    const historyData = Array.isArray(data) ? data : [];
-    logger.debug(`Historial cargado: ${historyData.length} registros para est_id: ${estId}`);
+    // Transform data to match expected format, now including plaza information
+    const historyData = Array.isArray(data)
+      ? data.map((ocu: any) => ({
+          entry_time: ocu.ocu_fh_entrada,
+          exit_time: ocu.ocu_fh_salida,
+          fee: ocu.pagos?.pag_monto || 0,
+          pag_tipo: ocu.pagos?.pag_tipo,
+          abo_nro: ocu.pagos?.abo_nro,
+          mepa_metodo: ocu.pagos?.mepa_metodo,
+          veh_patente: ocu.veh_patente,
+          pla_numero: ocu.pla_numero,
+          catv_segmento: ocu.plazas?.catv_segmento
+        }))
+      : [];
+    logger.debug(`Historial con plaza info cargado: ${historyData.length} registros para est_id: ${estId}`);
     
     const jsonResponse = NextResponse.json({ history: historyData });
 

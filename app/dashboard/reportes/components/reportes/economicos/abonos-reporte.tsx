@@ -1,13 +1,16 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReporteHeader } from "../../reporte-header";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
 
 type AbonoApiRow = {
@@ -149,7 +152,7 @@ function normalizeAbonos(rows: AbonoApiRow[]): AbonoRecord[] {
         })
         .filter((item): item is AbonoRecord => !!item);
 }
-const ABONO_PAYMENT_MATCHERS = ["abono", "extension", "renov"];
+const ABONO_PAYMENT_MATCHERS = ["abono", "extension"];
 
 function isAbonoPayment(kind?: string | null) {
     if (!kind) return false;
@@ -298,10 +301,52 @@ export function AbonosReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Abonos y Subscripciones",
-        content: () => printRef.current
-    });
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `abonos-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
 
     useEffect(() => {
         const updateScale = () => {
@@ -421,11 +466,11 @@ export function AbonosReporte() {
     const revenuePrevious = useMemo(() => sumAmounts(paymentsPrevious), [paymentsPrevious]);
 
     const renewalsCurrent = useMemo(
-        () => paymentsCurrent.filter((payment) => payment.kind.toLowerCase().includes("extension") || payment.kind.toLowerCase().includes("renov")).length,
+        () => paymentsCurrent.filter((payment) => payment.kind.toLowerCase().includes("extension")).length,
         [paymentsCurrent]
     );
     const renewalsPrevious = useMemo(
-        () => paymentsPrevious.filter((payment) => payment.kind.toLowerCase().includes("extension") || payment.kind.toLowerCase().includes("renov")).length,
+        () => paymentsPrevious.filter((payment) => payment.kind.toLowerCase().includes("extension")).length,
         [paymentsPrevious]
     );
 
@@ -487,7 +532,6 @@ export function AbonosReporte() {
                 title="Abonos y Subscripciones"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
                 onPrint={handlePrint}
             />
 
@@ -504,7 +548,7 @@ export function AbonosReporte() {
                             <>
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Abonos activos</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Abonos en el periodo</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
                                         {(() => {
@@ -616,102 +660,130 @@ export function AbonosReporte() {
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">Evolucion de abonos activos</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Cantidad de abonos activos por día durante el período seleccionado.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {isLoading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : activeSeries.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">Sin registros en el periodo.</div>
                             ) : (
-                                <div className="flex h-48 items-end gap-[3px] rounded bg-slate-100 px-3 py-3 print:h-32 print:px-2 print:py-2">
-                                    {activeSeries.map((point, idx) => (
-                                        <div
-                                            key={`${point.label}-${idx}`}
-                                            className="flex-1 rounded-t bg-indigo-500 print:bg-indigo-500"
-                                            style={{
-                                                height: `${maxActiveValue > 0 ? Math.max(4, (point.value / maxActiveValue) * 100) : 4}%`
-                                            }}
-                                            title={`${point.label}: ${point.value} activos`}
-                                        />
-                                    ))}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        value: {
+                                            label: "Abonos activos",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart
+                                            data={activeSeries}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 10 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Cantidad", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => [
+                                                            `${value} activos`,
+                                                            "Abonos",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="value"
+                                                stroke="#3b82f6"
+                                                dot={{ fill: "#3b82f6", r: 3 }}
+                                                activeDot={{ r: 5 }}
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
-                    <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2 print:gap-2">
-                        <Card className="print:shadow-none">
-                            <CardHeader className="pb-3 print:py-2 print:pb-1">
-                                <CardTitle className="text-base print:text-sm">Estado actual</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                {isLoading ? (
-                                    <Skeleton className="h-40 print:h-28" />
-                                ) : (
-                                    <div className="space-y-3 print:space-y-2">
-                                        {statusBreakdown.map((item) => (
-                                            <div key={item.key} className="space-y-1 print:space-y-[3px]">
-                                                <div className="flex items-center justify-between text-sm font-medium text-slate-700 print:text-xs">
-                                                    <span>{item.label}</span>
-                                                    <span>{item.count.toLocaleString()}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-2 flex-1 rounded bg-slate-200 print:h-[6px]">
-                                                        <div
-                                                            className={`h-2 rounded ${
-                                                                item.key === "activo"
-                                                                    ? "bg-emerald-500"
-                                                                    : item.key === "por_vencer"
-                                                                    ? "bg-amber-500"
-                                                                    : "bg-red-500"
-                                                            } print:h-[6px]`}
-                                                            style={{
-                                                                width: `${currentAbonos.length > 0 ? Math.max(4, (item.count / currentAbonos.length) * 100) : 4}%`
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <span className="w-12 text-right text-xs text-slate-500 print:w-10">
-                                                        {currentAbonos.length > 0 ? Math.round((item.count / currentAbonos.length) * 100) : 0}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
 
-                        <Card className="print:shadow-none">
+                    <Card className="print:shadow-none">
                             <CardHeader className="pb-3 print:py-2 print:pb-1">
                                 <CardTitle className="text-base print:text-sm">Tipos de abono</CardTitle>
+                                <p className="text-sm text-slate-500 print:text-xs">
+                                    Distribución de abonos activos por tipo.
+                                </p>
                             </CardHeader>
-                            <CardContent className="pt-0 print:pt-1 print:pb-0">
+                            <CardContent className="pt-0 print:pt-1 print:pb-2">
                                 {isLoading ? (
-                                    <Skeleton className="h-40 print:h-28" />
+                                    <Skeleton className="h-64 print:h-48" />
                                 ) : typeBreakdown.length === 0 ? (
                                     <div className="text-sm text-slate-500 print:text-xs">Sin abonos activos en el periodo.</div>
                                 ) : (
-                                    <div className="space-y-3 print:space-y-2">
-                                        {typeBreakdown.map((item) => (
-                                            <div key={item.label} className="flex items-center gap-3">
-                                                <div className="w-32 text-sm font-medium text-slate-700 print:w-24 print:text-xs">{item.label}</div>
-                                                <div className="h-2 flex-1 rounded bg-slate-200 print:h-[6px]">
-                                                    <div
-                                                        className="h-2 rounded bg-indigo-500 print:h-[6px]"
-                                                        style={{
-                                                            width: `${currentAbonos.length > 0 ? Math.max(4, (item.count / currentAbonos.length) * 100) : 4}%`
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div className="w-12 text-right text-xs text-slate-500 print:w-10">
-                                                    {currentAbonos.length > 0 ? Math.round((item.count / currentAbonos.length) * 100) : 0}%
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <ChartContainer
+                                        config={{
+                                            count: {
+                                                label: "Cantidad",
+                                                color: "#6366f1",
+                                            },
+                                        }}
+                                        className="h-[280px] w-full"
+                                    >
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={typeBreakdown.map((item) => ({
+                                                    label: item.label,
+                                                    count: item.count,
+                                                }))}
+                                                layout="vertical"
+                                                margin={{ top: 5, right: 5, left: 120, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                                <XAxis
+                                                    type="number"
+                                                    tick={{ fontSize: 11 }}
+                                                    className="text-slate-600"
+                                                />
+                                                <YAxis
+                                                    type="category"
+                                                    dataKey="label"
+                                                    tick={{ fontSize: 11 }}
+                                                    className="text-slate-600"
+                                                    width={110}
+                                                />
+                                                <ChartTooltip
+                                                    content={
+                                                        <ChartTooltipContent
+                                                            formatter={(value) => [
+                                                                `${value} abonos`,
+                                                                "Total",
+                                                            ]}
+                                                        />
+                                                    }
+                                                />
+                                                <Bar
+                                                    dataKey="count"
+                                                    radius={[0, 6, 6, 0]}
+                                                    fill="#6366f1"
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </ChartContainer>
                                 )}
                             </CardContent>
                         </Card>
-                    </div>
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">

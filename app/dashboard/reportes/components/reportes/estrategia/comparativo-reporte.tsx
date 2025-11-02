@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
 import { formatCurrency } from "@/lib/utils";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 type ComparisonPeriod = "mes-anterior" | "trimestre-anterior" | "año-anterior";
 
@@ -32,32 +34,54 @@ export function ComparativoReporte() {
     const [loading, setLoading] = useState(true);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const printRef = useRef<HTMLDivElement>(null);
-    const scaleRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(1);
-    const handlePrint = useReactToPrint({ contentRef: printRef, documentTitle: "Reporte - Comparativo de Períodos" });
 
-    // Ajustar el contenido para caber en A4 (vertical)
-    useEffect(() => {
-        const resize = () => {
-            if (!printRef.current || !scaleRef.current) return;
-            const A4_WIDTH_PX = 794;  // ~210mm @96dpi
-            const A4_HEIGHT_PX = 1123; // ~297mm @96dpi
-            const paddingPx = 32; // total padding interno
-            const availW = A4_WIDTH_PX - paddingPx;
-            const availH = A4_HEIGHT_PX - paddingPx;
-            const inner = scaleRef.current;
-            // Reset scale to measure natural size
-            inner.style.transform = "scale(1)";
-            const rect = inner.getBoundingClientRect();
-            const nextScale = Math.min(1, Math.min(availW / Math.max(1, rect.width), availH / Math.max(1, rect.height)));
-            setScale(nextScale);
-            inner.style.transform = `scale(${nextScale})`;
-            inner.style.transformOrigin = "top left";
-        };
-        resize();
-        window.addEventListener("resize", resize);
-        return () => window.removeEventListener("resize", resize);
-    }, [history, comparisonPeriod, dateRange]);
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `comparativo-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
+
 
     // Carga inicial y al cambiar filtros base
     useEffect(() => {
@@ -92,7 +116,8 @@ export function ComparativoReporte() {
         periodoAnterior,
         comparativas,
         tendencias,
-        insights
+        insights,
+        periodoDates
     } = useMemo(() => {
         const result = {
             periodoActual: {
@@ -117,7 +142,14 @@ export function ComparativoReporte() {
                 duracionPromedio: { valor: 0, porcentaje: 0 }
             },
             tendencias: [] as Array<{ fecha: string; ingresos: number; movimientos: number }>,
-            insights: [] as string[]
+            insights: [] as string[],
+            periodoDates: {
+                actualFrom: "",
+                actualTo: "",
+                anteriorFrom: "",
+                anteriorTo: "",
+                label: ""
+            }
         };
 
         if (!history.length) {
@@ -128,20 +160,34 @@ export function ComparativoReporte() {
         const now = new Date();
         const from = dateRange?.from ? new Date(dateRange.from) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const to = dateRange?.to ? new Date(dateRange.to) : now;
-        
+
         let anteriorFrom: Date, anteriorTo: Date;
+        let periodoLabel = "";
         const duracionActual = to.getTime() - from.getTime();
-        
+
         if (comparisonPeriod === "mes-anterior") {
             anteriorTo = new Date(from.getTime() - 1);
             anteriorFrom = new Date(anteriorTo.getTime() - duracionActual);
+            periodoLabel = "Mes anterior";
         } else if (comparisonPeriod === "trimestre-anterior") {
             anteriorTo = new Date(from.getTime() - 90 * 24 * 60 * 60 * 1000);
             anteriorFrom = new Date(anteriorTo.getTime() - duracionActual);
+            periodoLabel = "Trimestre anterior";
         } else { // año-anterior
             anteriorTo = new Date(from.getTime() - 365 * 24 * 60 * 60 * 1000);
             anteriorFrom = new Date(anteriorTo.getTime() - duracionActual);
+            periodoLabel = "Año anterior";
         }
+
+        // Formatear fechas para mostrar
+        const formatDate = (d: Date) => d.toLocaleDateString('es-AR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        result.periodoDates = {
+            actualFrom: formatDate(from),
+            actualTo: formatDate(to),
+            anteriorFrom: formatDate(anteriorFrom),
+            anteriorTo: formatDate(anteriorTo),
+            label: periodoLabel
+        };
 
         // Filtrar datos por período
         const datosActuales = history.filter(entry => {
@@ -247,22 +293,12 @@ export function ComparativoReporte() {
         return result;
     }, [history, comparisonPeriod, dateRange]);
 
-    const getPeriodLabel = () => {
-        switch (comparisonPeriod) {
-            case "mes-anterior": return "Mes anterior";
-            case "trimestre-anterior": return "Trimestre anterior";
-            case "año-anterior": return "Año anterior";
-            default: return "Período anterior";
-        }
-    };
-
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <ReporteHeader
                 title="Comparativo de Períodos"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
                 onPrint={handlePrint}
             />
             
@@ -283,10 +319,21 @@ export function ComparativoReporte() {
             {/* Contenido imprimible en A4 */}
             <div
                 ref={printRef}
-                className="bg-white shadow-sm mx-auto print:shadow-none"
-                style={{ width: "210mm", height: "297mm", padding: 16, overflow: "hidden" }}
+                data-print-root
+                className="print-a4 mx-auto bg-white shadow-sm print:shadow-none"
             >
-            <div ref={scaleRef} className="space-y-6 print:space-y-4">
+            <div className="flex h-full flex-col gap-6 px-6 py-6 print:gap-3 print:px-4 print:py-3">
+            {/* Aclaración de comparación */}
+            <Card className="print:shadow-none bg-blue-50 border-blue-200">
+                <CardContent className="pt-4">
+                    <p className="text-sm text-slate-700">
+                        <span className="font-semibold">Comparación: </span>
+                        {periodoDates.label} ({periodoDates.anteriorFrom} al {periodoDates.anteriorTo})
+                        <br />vs Período actual ({periodoDates.actualFrom} al {periodoDates.actualTo})
+                    </p>
+                </CardContent>
+            </Card>
+
             {/* KPIs Comparativos */}
             <div className="grid gap-4 sm:grid-cols-3 print:grid-cols-3 print:gap-2">
                 {loading ? (
@@ -304,7 +351,7 @@ export function ComparativoReporte() {
                             <CardContent className="pt-0 print:py-1">
                                 <div className="text-2xl font-semibold print:text-xl">{formatCurrency(periodoActual.ingresos)}</div>
                                 <div className="text-xs text-slate-500">
-                                    {comparativas.ingresos.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.ingresos.porcentaje)}% vs {getPeriodLabel()}
+                                    {comparativas.ingresos.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.ingresos.porcentaje)}% vs {periodoDates.label}
                                 </div>
                             </CardContent>
                         </Card>
@@ -315,7 +362,7 @@ export function ComparativoReporte() {
                             <CardContent className="pt-0 print:py-1">
                                 <div className="text-2xl font-semibold print:text-xl">{periodoActual.movimientos}</div>
                                 <div className="text-xs text-slate-500">
-                                    {comparativas.movimientos.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.movimientos.porcentaje)}% vs {getPeriodLabel()}
+                                    {comparativas.movimientos.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.movimientos.porcentaje)}% vs {periodoDates.label}
                                 </div>
                             </CardContent>
                         </Card>
@@ -326,7 +373,7 @@ export function ComparativoReporte() {
                             <CardContent className="pt-0 print:py-1">
                                 <div className="text-2xl font-semibold print:text-xl">{formatCurrency(periodoActual.ticketPromedio)}</div>
                                 <div className="text-xs text-slate-500">
-                                    {comparativas.ticketPromedio.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.ticketPromedio.porcentaje)}% vs {getPeriodLabel()}
+                                    {comparativas.ticketPromedio.porcentaje > 0 ? "+" : ""}{Math.round(comparativas.ticketPromedio.porcentaje)}% vs {periodoDates.label}
                                 </div>
                             </CardContent>
                         </Card>
@@ -362,7 +409,7 @@ export function ComparativoReporte() {
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-xs">
-                                            <span>{getPeriodLabel()}:</span>
+                                            <span>{periodoDates.label}:</span>
                                             <span>
                                                 {item.formato === "currency" ? formatCurrency(item.anterior) :
                                                  item.formato === "hours" ? `${Math.round(item.anterior)}h` :
@@ -386,29 +433,60 @@ export function ComparativoReporte() {
             {/* Tendencia temporal */}
             <Card className="print:shadow-none">
                 <CardHeader>
-                    <CardTitle className="text-base print:text-sm">Tendencia Temporal</CardTitle>
+                    <CardTitle className="text-base print:text-sm">Tendencia de Ingresos Diarios</CardTitle>
+                    <p className="text-sm text-slate-500 print:text-xs">
+                        Comparativa de ingresos diarios entre ambos períodos
+                    </p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0 print:pt-1 print:pb-2">
                     {loading ? (
-                        <Skeleton className="h-40 print:h-28" />
+                        <Skeleton className="h-64 print:h-48" />
+                    ) : tendencias.length === 0 ? (
+                        <div className="text-sm text-slate-500 print:text-xs">Sin datos de tendencia.</div>
                     ) : (
-                        <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-2">Ingresos diarios</div>
-                            <div className="flex items-end gap-1 h-32 print:h-24">
-                                {tendencias.map((t, idx) => {
-                                    const maxIngresos = Math.max(...tendencias.map(t => t.ingresos));
-                                    const height = maxIngresos > 0 ? (t.ingresos / maxIngresos) * 100 : 0;
-                                    return (
-                                        <div 
-                                            key={idx} 
-                                            className="w-2 print:w-1.5 bg-blue-500" 
-                                            style={{ height: `${height}%` }} 
-                                            title={`${t.fecha}: ${formatCurrency(t.ingresos)}`} 
-                                        />
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <ChartContainer
+                            config={{
+                                ingresos: {
+                                    label: "Ingresos",
+                                    color: "#3b82f6",
+                                },
+                            }}
+                            className="h-[280px] w-full"
+                        >
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={tendencias}
+                                    margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                    <XAxis
+                                        dataKey="fecha"
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                    />
+                                    <YAxis
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                    />
+                                    <ChartTooltip
+                                        content={
+                                            <ChartTooltipContent
+                                                formatter={(value) => formatCurrency(value as number)}
+                                            />
+                                        }
+                                    />
+                                    <Legend />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="ingresos"
+                                        stroke="#3b82f6"
+                                        dot={false}
+                                        isAnimationActive={false}
+                                        strokeWidth={2}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </ChartContainer>
                     )}
                 </CardContent>
             </Card>

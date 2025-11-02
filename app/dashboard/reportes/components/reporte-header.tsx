@@ -10,8 +10,9 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, Printer, Download } from "lucide-react";
+import { Calendar as CalendarIcon, Download } from "lucide-react";
 import { DateRange } from "react-day-picker";
+import { ReactNode } from "react";
 
 interface ReporteHeaderProps {
     title: string;
@@ -19,10 +20,9 @@ interface ReporteHeaderProps {
     dateRange?: DateRange;
     onDateRangeChange?: (range: DateRange | undefined) => void;
     onPrint?: () => void;
-    onExport?: () => void;
     showDateFilter?: boolean;
     showPrintButton?: boolean;
-    showExportButton?: boolean;
+    children?: ReactNode;
 }
 
 export function ReporteHeader({
@@ -31,10 +31,9 @@ export function ReporteHeader({
     dateRange,
     onDateRangeChange,
     onPrint,
-    onExport,
     showDateFilter = true,
     showPrintButton = true,
-    showExportButton = false
+    children
 }: ReporteHeaderProps) {
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-start">
@@ -78,27 +77,18 @@ export function ReporteHeader({
                     </Popover>
                 )}
 
-                {showExportButton && onExport && (
+                {showPrintButton && onPrint && (
                     <Button
                         variant="outline"
-                        onClick={onExport}
+                        onClick={onPrint}
                         className="gap-2"
                     >
                         <Download className="h-4 w-4" />
-                        Exportar
+                        Exportar PDF
                     </Button>
                 )}
 
-                {showPrintButton && (
-                    <Button
-                        variant="outline"
-                        onClick={onPrint || (() => window.print())}
-                        className="gap-2"
-                    >
-                        <Printer className="h-4 w-4" />
-                        Imprimir
-                    </Button>
-                )}
+                {children}
             </div>
         </div>
     );

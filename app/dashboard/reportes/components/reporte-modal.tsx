@@ -3,8 +3,7 @@
 import { ReactNode, useRef, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X, Printer, ZoomIn, ZoomOut, Maximize2, Maximize } from "lucide-react";
-import { useReactToPrint } from "react-to-print";
+import { X, ZoomIn, ZoomOut, Maximize2, Maximize } from "lucide-react";
 
 interface ReporteModalProps {
     isOpen: boolean;
@@ -45,14 +44,6 @@ export function ReporteModal({ isOpen, onClose, titulo, children }: ReporteModal
     node.style.transformOrigin = "top center";
     return node;
   };
-
-  const handlePrint = useReactToPrint({
-    contentRef: pageRef,
-    documentTitle: titulo,
-    onBeforeGetContent: () => {
-      ensurePrintableRef();
-    },
-  });
 
     useEffect(() => {
     if (!isOpen) return;
@@ -155,10 +146,6 @@ export function ReporteModal({ isOpen, onClose, titulo, children }: ReporteModal
                 <Maximize className="h-4 w-4" />
               </Button>
             </div>
-                        <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
-                            <Printer className="h-4 w-4" />
-                            Exportar PDF
-                        </Button>
                         <Button variant="ghost" size="sm" onClick={onClose} className="h-9 w-9 p-0">
                             <X className="h-4 w-4" />
                         </Button>

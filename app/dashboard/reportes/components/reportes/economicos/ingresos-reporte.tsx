@@ -1,12 +1,15 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
 
 type HistoryEntry = {
@@ -15,6 +18,7 @@ type HistoryEntry = {
     fee?: number | null;
     pag_tipo?: string | null;
     mepa_metodo?: string | null;
+    abo_nro?: number | null;
 };
 
 interface PagoExtendido {
@@ -73,7 +77,13 @@ function normalizeHistory(history: HistoryEntry[]) {
             if (!rawDate) return null;
             const parsed = new Date(rawDate);
             if (Number.isNaN(parsed.getTime())) return null;
-            const category = (item.pag_tipo || item.mepa_metodo || "Tickets").toString().toLowerCase();
+
+            // Categorize by income type
+            let category = "Ocupaciones";
+            if (item.pag_tipo === 'abono_inicial' || item.pag_tipo === 'extension' || item.abo_nro != null) {
+                category = "Abonos";
+            }
+
             const amount = item.fee ? Number(item.fee) : 0;
             return {
                 amount,
@@ -195,10 +205,52 @@ export function IngresosReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Ingresos por Periodos",
-        content: () => printRef.current
-    });
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `ingresos-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
 
     useEffect(() => {
         const updateScale = () => {
@@ -284,7 +336,6 @@ export function IngresosReporte() {
                 title="Ingresos por Periodos"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
                 onPrint={handlePrint}
             />
 
@@ -383,51 +434,79 @@ export function IngresosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Evolucion de ingresos</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Evolucion de ingresos diarios</CardTitle>
                             <p className="text-sm text-slate-500 print:text-xs">
-                                Muestra la variacion diaria del periodo actual y la referencia previa.
+                                Comparación entre el período actual y la referencia previa.
                             </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : trendCurrent.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No hay registros en el periodo seleccionado.
                                 </div>
                             ) : (
-                                <div className="flex gap-4">
-                                    <div className="flex-1">
-                                        <h4 className="mb-2 text-xs font-medium text-slate-500">Periodo actual</h4>
-                                        <div className="flex h-48 items-end gap-1 print:h-32">
-                                            {trendCurrent.map((point) => (
-                                                <div key={point.label} className="flex flex-col items-center gap-1">
-                                                    <div
-                                                        className="w-6 rounded bg-indigo-500"
-                                                        style={{ height: `${Math.min(100, Math.max(4, (point.value / maxTrendCurrent) * 100))}%` }}
-                                                        title={`${point.label}: ${formatCurrency(point.value)}`}
+                                <ChartContainer
+                                    config={{
+                                        current: {
+                                            label: "Período actual",
+                                            color: "#3b82f6",
+                                        },
+                                        previous: {
+                                            label: "Período anterior",
+                                            color: "#cbd5e1",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={trendCurrent.map((current, idx) => {
+                                                const prev = trendPrevious[idx] || { label: current.label, value: 0 };
+                                                return {
+                                                    date: current.label.slice(5),
+                                                    current: current.value,
+                                                    previous: prev.value,
+                                                };
+                                            })}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="date"
+                                                tick={{ fontSize: 10 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Ingresos ($)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            formatCurrency(value as number),
+                                                            name === "current" ? "Período actual" : "Período anterior",
+                                                        ]}
                                                     />
-                                                    <span className="text-[10px] text-slate-500">{point.label.slice(5)}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="mb-2 text-xs font-medium text-slate-500">Periodo anterior</h4>
-                                        <div className="flex h-48 items-end gap-1 print:h-32">
-                                            {trendPrevious.map((point) => (
-                                                <div key={point.label} className="flex flex-col items-center gap-1">
-                                                    <div
-                                                        className="w-6 rounded bg-slate-300"
-                                                        style={{ height: `${Math.min(100, Math.max(4, (point.value / maxTrendPrevious) * 100))}%` }}
-                                                        title={`${point.label}: ${formatCurrency(point.value)}`}
-                                                    />
-                                                    <span className="text-[10px] text-slate-500">{point.label.slice(5)}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                                }
+                                            />
+                                            <Legend />
+                                            <Bar
+                                                dataKey="current"
+                                                radius={[4, 4, 0, 0]}
+                                                fill="#3b82f6"
+                                            />
+                                            <Bar
+                                                dataKey="previous"
+                                                radius={[4, 4, 0, 0]}
+                                                fill="#cbd5e1"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
@@ -435,26 +514,69 @@ export function IngresosReporte() {
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">Distribucion por tipo de ingreso</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Desglose de ingresos por categoría de pago.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : breakdown.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No hay informacion de pagos en el periodo.
                                 </div>
                             ) : (
-                                <div className="space-y-3">
-                                    {breakdown.map((item) => (
-                                        <div key={item.label} className="flex items-center gap-3">
-                                            <div className="w-32 text-sm text-slate-600 print:w-28">{capitalize(item.label)}</div>
-                                            <div className="flex-1 h-3 rounded bg-slate-200">
-                                                <div className="h-3 rounded bg-emerald-500" style={{ width: `${clamp01(item.amount / Math.max(currentSummary.totalIncome, 1)) * 100}%` }} />
-                                            </div>
-                                            <div className="w-24 text-right text-sm print:w-20">{formatCurrency(item.amount)}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        amount: {
+                                            label: "Ingresos",
+                                            color: "#10b981",
+                                        },
+                                    }}
+                                    className="h-auto w-full"
+                                    style={{ height: `${Math.max(240, breakdown.length * 50)}px` }}
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={breakdown.map((item) => ({
+                                                name: capitalize(item.label),
+                                                amount: Math.round(item.amount * 100) / 100,
+                                                count: item.count,
+                                            }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 5, left: 100, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                type="number"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                width={90}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            name === "amount" ? formatCurrency(value as number) : `${value} ops.`,
+                                                            name === "amount" ? "Ingresos" : "Operaciones",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="amount"
+                                                radius={[0, 4, 4, 0]}
+                                                fill="#10b981"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>

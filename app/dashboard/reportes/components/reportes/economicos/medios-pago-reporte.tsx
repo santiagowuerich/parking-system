@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
 
 type HistoryEntry = {
@@ -74,7 +77,7 @@ const COMMISSION_RATES: Record<string, number> = {
     Otros: 0.03
 };
 
-const PHYSICAL_METHODS = new Set(["Efectivo", "Transferencia"]);
+const PHYSICAL_METHODS = new Set(["Efectivo"]);
 
 function methodColorClass(method: string) {
     return METHOD_COLOR_CLASSES[method] ?? METHOD_COLOR_CLASSES.Otros;
@@ -297,10 +300,10 @@ function deriveInsights(
 
     const digitalDescriptor = percentPointsDescriptor(digitalPercentCurrent, digitalPercentPrevious);
     if (digitalDescriptor.label === "estable") {
-        insights.push(`Los medios digitales representan ${Math.round(digitalPercentCurrent)}% del total, sin variaciones relevantes.`);
+        insights.push(`Los medios digitales (Transferencia, MercadoPago, QR, Link de Pago, Tarjeta) representan ${Math.round(digitalPercentCurrent)}% del total, sin variaciones relevantes.`);
     } else {
         insights.push(
-            `Los medios digitales representan ${Math.round(digitalPercentCurrent)}% del total (${digitalDescriptor.label} vs periodo anterior).`
+            `Los medios digitales (Transferencia, MercadoPago, QR, Link de Pago, Tarjeta) representan ${Math.round(digitalPercentCurrent)}% del total (${digitalDescriptor.label} vs periodo anterior).`
         );
     }
 
@@ -347,10 +350,52 @@ export function MediosPagoReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Medios de Pago",
-        content: () => printRef.current
-    });
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `medios-pago-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
 
     useEffect(() => {
         const updateScale = () => {
@@ -498,7 +543,6 @@ export function MediosPagoReporte() {
                 title="Medios de Pago"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
                 onPrint={handlePrint}
             />
 
@@ -660,38 +704,67 @@ export function MediosPagoReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Distribucion de cobros</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Distribucion de cobros por medio</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Desglose de ingresos por método de pago.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : currentBreakdown.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">No hay cobros en el periodo.</div>
                             ) : (
-                                <div className="space-y-3 print:space-y-2">
-                                    {currentBreakdown.map((item) => {
-                                        const share = totalCurrent > 0 ? clamp01(item.amount / totalCurrent) * 100 : 0;
-                                        return (
-                                            <div key={item.label} className="space-y-1 print:space-y-[3px]">
-                                                <div className="flex items-center justify-between text-sm text-slate-700 print:text-xs">
-                                                    <span className="font-medium">{item.label}</span>
-                                                    <span className="text-slate-500">{formatCurrency(item.amount)}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-2 flex-1 rounded bg-slate-200 print:h-[6px]">
-                                                        <div
-                                                            className={`h-2 rounded ${methodColorClass(item.label)} print:h-[6px]`}
-                                                            style={{ width: `${Math.max(4, share)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="w-12 text-right text-xs text-slate-500 print:w-10">
-                                                        {Math.round(share)}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        amount: {
+                                            label: "Ingresos",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={currentBreakdown.map((item) => ({
+                                                method: item.label,
+                                                amount: Math.round(item.amount * 100) / 100,
+                                                count: item.count,
+                                            }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 5, left: 120, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                type="number"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="method"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                width={110}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            name === "amount" ? formatCurrency(value as number) : `${value} ops.`,
+                                                            name === "amount" ? "Ingresos" : "Operaciones",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="amount"
+                                                radius={[0, 4, 4, 0]}
+                                                fill="#3b82f6"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>

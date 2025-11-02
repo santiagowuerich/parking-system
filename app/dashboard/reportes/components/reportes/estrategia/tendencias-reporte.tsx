@@ -1,13 +1,16 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ReporteHeader } from "../../reporte-header";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { useReactToPrint } from "react-to-print";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
 
 interface HistoryEntry {
@@ -251,10 +254,52 @@ export function TendenciasReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
-    const handlePrint = useReactToPrint({
-        documentTitle: "Reporte - Tendencias y Proyecciones",
-        content: () => printRef.current
-    });
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `tendencias-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
 
     useEffect(() => {
         const updateScale = () => {
@@ -463,7 +508,6 @@ export function TendenciasReporte() {
                 title="Tendencias y Proyecciones"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
-                showPrintButton
                 onPrint={handlePrint}
             />
 
@@ -564,28 +608,64 @@ export function TendenciasReporte() {
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">Ingresos historicos vs proyeccion</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Comparación de ingresos reales con proyección estimada por regresión lineal.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : isEmpty ? (
                                 <div className="text-sm text-slate-500 print:text-xs">Sin datos suficientes para calcular tendencias.</div>
                             ) : (
-                                <div className="flex h-48 items-end gap-[6px] rounded bg-slate-100 px-4 py-3 print:h-32 print:px-2 print:py-2">
-                                    {revenueChart.map((point, idx) => (
-                                        <div key={`${point.label}-${idx}`} className="flex flex-col items-center gap-1">
-                                            <div
-                                                className={`${point.type === "forecast" ? "bg-indigo-300" : "bg-indigo-500"} w-3 rounded-t print:w-2`}
-                                                style={{
-                                                    height: `${Math.max(6, (point.value / maxRevenueValue) * 160)}px`,
-                                                    opacity: point.type === "forecast" ? 0.6 : 1
-                                                }}
-                                                title={`${point.label}: ${formatCurrency(point.value)}`}
+                                <ChartContainer
+                                    config={{
+                                        actual: {
+                                            label: "Histórico",
+                                            color: "#3b82f6",
+                                        },
+                                        forecast: {
+                                            label: "Proyección",
+                                            color: "#93c5fd",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={revenueChart} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
                                             />
-                                            <span className="text-[10px] text-slate-500">{point.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Ingresos ($)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            formatCurrency(value as number),
+                                                            name === "actual" ? "Histórico" : "Proyección",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Legend />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="value"
+                                                stroke="#3b82f6"
+                                                dot={{ fill: "#3b82f6", r: 3 }}
+                                                activeDot={{ r: 5 }}
+                                                name="Ingresos"
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
@@ -593,28 +673,64 @@ export function TendenciasReporte() {
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">Movimientos historicos vs proyeccion</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Comparación de operaciones reales con proyección estimada por regresión lineal.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : isEmpty ? (
                                 <div className="text-sm text-slate-500 print:text-xs">Sin informacion suficiente para proyectar movimientos.</div>
                             ) : (
-                                <div className="flex h-48 items-end gap-[6px] rounded bg-slate-100 px-4 py-3 print:h-32 print:px-2 print:py-2">
-                                    {vehicleChart.map((point, idx) => (
-                                        <div key={`${point.label}-${idx}`} className="flex flex-col items-center gap-1">
-                                            <div
-                                                className={`${point.type === "forecast" ? "bg-emerald-300" : "bg-emerald-500"} w-3 rounded-t print:w-2`}
-                                                style={{
-                                                    height: `${Math.max(6, (point.value / maxVehicleValue) * 160)}px`,
-                                                    opacity: point.type === "forecast" ? 0.65 : 1
-                                                }}
-                                                title={`${point.label}: ${Math.round(point.value)} movimientos`}
+                                <ChartContainer
+                                    config={{
+                                        actual: {
+                                            label: "Histórico",
+                                            color: "#10b981",
+                                        },
+                                        forecast: {
+                                            label: "Proyección",
+                                            color: "#86efac",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={vehicleChart} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
                                             />
-                                            <span className="text-[10px] text-slate-500">{point.label}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Movimientos", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            `${Math.round(value as number)}`,
+                                                            name === "actual" ? "Histórico" : "Proyección",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Legend />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="value"
+                                                stroke="#10b981"
+                                                dot={{ fill: "#10b981", r: 3 }}
+                                                activeDot={{ r: 5 }}
+                                                name="Movimientos"
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
