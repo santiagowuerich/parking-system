@@ -4,25 +4,25 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
-
-type VehicleType = "ALL" | "AUT" | "MOT" | "CAM";
 
 interface HistoryEntry {
     entry_time: string | null;
     exit_time: string | null;
     fee?: number | null;
-    catv_segmento?: "AUT" | "MOT" | "CAM" | null;
-    plantilla_id?: number | null;
+    pag_tipo?: string | null;
+    abo_nro?: number | null;
+    mepa_metodo?: string | null;
+    veh_patente?: string | null;
     pla_numero?: number | null;
-    plantillas?: {
-        catv_segmento?: "AUT" | "MOT" | "CAM" | null;
-        nombre_plantilla?: string | null;
-    } | null;
+    catv_segmento?: "AUT" | "MOT" | "CAM" | null;
 }
 
 interface TarifaData {
@@ -56,37 +56,59 @@ function hoursBetween(start: Date, end: Date) {
 export function RentabilidadReporte() {
     const { estId } = useAuth();
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
-    const [vehicleType, setVehicleType] = useState<VehicleType>("ALL");
     const [loading, setLoading] = useState(true);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [tarifas, setTarifas] = useState<TarifaData[]>([]);
     const [plazasData, setPlazasData] = useState<PlazasApi | null>(null);
     const printRef = useRef<HTMLDivElement>(null);
-    const scaleRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(1);
 
-    // Ajustar el contenido para caber en A4 (vertical)
-    useEffect(() => {
-        const resize = () => {
-            if (!printRef.current || !scaleRef.current) return;
-            const A4_WIDTH_PX = 794;  // ~210mm @96dpi
-            const A4_HEIGHT_PX = 1123; // ~297mm @96dpi
-            const paddingPx = 32; // total padding interno
-            const availW = A4_WIDTH_PX - paddingPx;
-            const availH = A4_HEIGHT_PX - paddingPx;
-            const inner = scaleRef.current;
-            // Reset scale to measure natural size
-            inner.style.transform = "scale(1)";
-            const rect = inner.getBoundingClientRect();
-            const nextScale = Math.min(1, Math.min(availW / Math.max(1, rect.width), availH / Math.max(1, rect.height)));
-            setScale(nextScale);
-            inner.style.transform = `scale(${nextScale})`;
-            inner.style.transformOrigin = "top left";
-        };
-        resize();
-        window.addEventListener("resize", resize);
-        return () => window.removeEventListener("resize", resize);
-    }, [history, tarifas, plazasData, vehicleType, dateRange]);
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `rentabilidad-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
+
 
     // Carga inicial y al cambiar filtros base
     useEffect(() => {
@@ -178,24 +200,10 @@ export function RentabilidadReporte() {
         const horasPorTipo: Record<string, number> = {};
 
         history.forEach((entry) => {
-            // Obtener segmento desde la plaza asociada
-            let segmento = 'AUT'; // Default
-            
-            // Buscar la plaza correspondiente para obtener su tipo
-            if (entry.pla_numero && plazasData?.plazas) {
-                const plaza = plazasData.plazas.find(p => p.pla_numero === entry.pla_numero);
-                if (plaza?.plantillas?.catv_segmento) {
-                    segmento = plaza.plantillas.catv_segmento;
-                }
-            }
-            
+            // El API ahora retorna catv_segmento directamente desde la plaza
+            let segmento: "AUT" | "MOT" | "CAM" = entry.catv_segmento || 'AUT';
+
             const tipo = tipoMap[segmento] || 'Autos';
-            
-            // Si no es "ALL", filtrar por tipo específico
-            if (vehicleType !== "ALL" && segmento !== vehicleType) {
-                return;
-            }
-            
             const fee = entry.fee || 0;
             const entryTime = entry.entry_time ? new Date(entry.entry_time) : null;
             const exitTime = entry.exit_time ? new Date(entry.exit_time) : null;
@@ -226,7 +234,7 @@ export function RentabilidadReporte() {
             const movimientos = movimientosPorTipo[tipo] || 0;
             const plazas = plazasPorTipo[tipo] || 0;
             const horas = horasPorTipo[tipo] || 0;
-            
+
             const ocupacion = plazas > 0 ? (movimientos / plazas) * 100 : 0;
             const ticketPromedio = movimientos > 0 ? ingresos / movimientos : 0;
             const rentabilidad = plazas > 0 ? ingresos / plazas : 0;
@@ -268,7 +276,7 @@ export function RentabilidadReporte() {
         }
 
         return result;
-    }, [history, tarifas, plazasData, vehicleType, dateRange]);
+    }, [history, tarifas, plazasData, dateRange]);
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -276,30 +284,17 @@ export function RentabilidadReporte() {
                 title="Rentabilidad por Tipo de Plaza"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
+                onPrint={handlePrint}
             />
             
-            <div className="flex items-center gap-2 print:hidden">
-                <span className="text-sm text-slate-600">Tipo:</span>
-                <Select value={vehicleType} onValueChange={(v: VehicleType) => setVehicleType(v)}>
-                    <SelectTrigger className="w-44">
-                        <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="ALL">Todos</SelectItem>
-                        <SelectItem value="AUT">Autos</SelectItem>
-                        <SelectItem value="MOT">Motos</SelectItem>
-                        <SelectItem value="CAM">Camionetas</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
 
             {/* Contenido imprimible en A4 */}
             <div
                 ref={printRef}
-                className="bg-white shadow-sm mx-auto print:shadow-none"
-                style={{ width: "210mm", height: "297mm", padding: 16, overflow: "hidden" }}
+                data-print-root
+                className="print-a4 mx-auto bg-white shadow-sm print:shadow-none"
             >
-            <div ref={scaleRef} className="space-y-6 print:space-y-4">
+            <div className="flex h-full flex-col gap-6 px-6 py-6 print:gap-3 print:px-4 print:py-3">
             {/* KPIs */}
             <div className="grid gap-4 sm:grid-cols-3 print:grid-cols-3 print:gap-2">
                 {loading ? (
@@ -395,22 +390,66 @@ export function RentabilidadReporte() {
             <Card className="print:shadow-none">
                 <CardHeader>
                     <CardTitle className="text-base print:text-sm">Ocupación por Tipo</CardTitle>
+                    <p className="text-sm text-slate-500 print:text-xs">
+                        Porcentaje de ocupación por tipo de vehículo.
+                    </p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0 print:pt-1 print:pb-2">
                     {loading ? (
-                        <Skeleton className="h-32 print:h-24" />
+                        <Skeleton className="h-64 print:h-48" />
+                    ) : Object.keys(ocupacionPorTipo).length === 0 ? (
+                        <div className="text-sm text-slate-500 print:text-xs">Sin datos de ocupación.</div>
                     ) : (
-                        <div className="space-y-2">
-                            {Object.entries(ocupacionPorTipo).map(([tipo, ocupacion]) => (
-                                <div key={tipo} className="flex items-center gap-3">
-                                    <div className="w-28 print:w-24 text-sm text-slate-600">{tipo}</div>
-                                    <div className="flex-1 h-3 print:h-2 bg-slate-200 rounded">
-                                        <div className="h-3 print:h-2 bg-green-600 rounded" style={{ width: `${Math.min(100, ocupacion)}%` }} />
-                                    </div>
-                                    <div className="w-12 text-right text-sm">{Math.round(ocupacion)}%</div>
-                                </div>
-                            ))}
-                        </div>
+                        <ChartContainer
+                            config={{
+                                ocupacion: {
+                                    label: "Ocupación (%)",
+                                    color: "#10b981",
+                                },
+                            }}
+                            className="h-[280px] w-full"
+                        >
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={Object.entries(ocupacionPorTipo).map(([tipo, ocupacion]) => ({
+                                        tipo,
+                                        ocupacion: Math.round(ocupacion),
+                                    }))}
+                                    layout="vertical"
+                                    margin={{ top: 5, right: 5, left: 100, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                    <XAxis
+                                        type="number"
+                                        domain={[0, 100]}
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="tipo"
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                        width={90}
+                                    />
+                                    <ChartTooltip
+                                        content={
+                                            <ChartTooltipContent
+                                                formatter={(value) => [
+                                                    `${value}%`,
+                                                    "Ocupación",
+                                                ]}
+                                            />
+                                        }
+                                    />
+                                    <Bar
+                                        dataKey="ocupacion"
+                                        radius={[0, 4, 4, 0]}
+                                        fill="#10b981"
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </ChartContainer>
                     )}
                 </CardContent>
             </Card>
@@ -419,22 +458,65 @@ export function RentabilidadReporte() {
             <Card className="print:shadow-none">
                 <CardHeader>
                     <CardTitle className="text-base print:text-sm">Ticket Promedio por Tipo</CardTitle>
+                    <p className="text-sm text-slate-500 print:text-xs">
+                        Monto promedio por transacción por tipo de vehículo.
+                    </p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0 print:pt-1 print:pb-2">
                     {loading ? (
-                        <Skeleton className="h-32 print:h-24" />
+                        <Skeleton className="h-64 print:h-48" />
+                    ) : Object.keys(ticketPromedioPorTipo).length === 0 ? (
+                        <div className="text-sm text-slate-500 print:text-xs">Sin datos de tickets.</div>
                     ) : (
-                        <div className="space-y-2">
-                            {Object.entries(ticketPromedioPorTipo).map(([tipo, ticket]) => (
-                                <div key={tipo} className="flex items-center gap-3">
-                                    <div className="w-28 print:w-24 text-sm text-slate-600">{tipo}</div>
-                                    <div className="flex-1 h-3 print:h-2 bg-slate-200 rounded">
-                                        <div className="h-3 print:h-2 bg-blue-600 rounded" style={{ width: `${Math.min(100, (ticket / Math.max(...Object.values(ticketPromedioPorTipo))) * 100)}%` }} />
-                                    </div>
-                                    <div className="w-20 text-right text-sm">{formatCurrency(ticket)}</div>
-                                </div>
-                            ))}
-                        </div>
+                        <ChartContainer
+                            config={{
+                                ticket: {
+                                    label: "Ticket Promedio",
+                                    color: "#3b82f6",
+                                },
+                            }}
+                            className="h-[280px] w-full"
+                        >
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={Object.entries(ticketPromedioPorTipo).map(([tipo, ticket]) => ({
+                                        tipo,
+                                        ticket: Math.round(ticket * 100) / 100,
+                                    }))}
+                                    layout="vertical"
+                                    margin={{ top: 5, right: 5, left: 100, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                    <XAxis
+                                        type="number"
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="tipo"
+                                        tick={{ fontSize: 11 }}
+                                        className="text-slate-600"
+                                        width={90}
+                                    />
+                                    <ChartTooltip
+                                        content={
+                                            <ChartTooltipContent
+                                                formatter={(value) => [
+                                                    formatCurrency(value as number),
+                                                    "Ticket Promedio",
+                                                ]}
+                                            />
+                                        }
+                                    />
+                                    <Bar
+                                        dataKey="ticket"
+                                        radius={[0, 4, 4, 0]}
+                                        fill="#3b82f6"
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </ChartContainer>
                     )}
                 </CardContent>
             </Card>

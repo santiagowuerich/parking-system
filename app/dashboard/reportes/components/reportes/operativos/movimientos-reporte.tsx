@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 interface HistoryEntry {
     entry_time: string | null;
@@ -39,11 +43,6 @@ interface NormalizedHistory {
 function hoursBetween(start: Date, end: Date) {
     const diffMs = Math.max(0, end.getTime() - start.getTime());
     return diffMs / (1000 * 60 * 60);
-}
-
-function clamp01(n: number) {
-    if (Number.isNaN(n) || !Number.isFinite(n)) return 0;
-    return Math.min(1, Math.max(0, n));
 }
 
 function formatHourLabel(hour: number) {
@@ -107,42 +106,60 @@ export function MovimientosReporte() {
     const [totalPlazas, setTotalPlazas] = useState<number>(0);
 
     const printRef = useRef<HTMLDivElement>(null);
-    const scaleRef = useRef<HTMLDivElement>(null);
-    const [contentScale, setContentScale] = useState(1);
-    const lastScaleRef = useRef(1);
 
-    useEffect(() => {
-        const updateScale = () => {
-            const container = printRef.current;
-            const inner = scaleRef.current;
-            if (!container || !inner) return;
+    // Función para generar PDF con html2canvas - TODO en una página A4
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
 
-            const availWidth = container.clientWidth;
-            const availHeight = container.clientHeight;
-            const naturalWidth = inner.scrollWidth;
-            const naturalHeight = inner.scrollHeight;
+        try {
+            // Capturar elemento como canvas a resolución optimizada
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
 
-            if (!availWidth || !availHeight || !naturalWidth || !naturalHeight) {
-                if (lastScaleRef.current !== 1) {
-                    lastScaleRef.current = 1;
-                    setContentScale(1);
-                }
-                return;
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10; // 5mm margins top y bottom
+
+            // Calcular dimensiones de imagen con margins
+            const imgWidth = pdfWidth - 10; // 5mm margins left y right
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            // Si la imagen no cabe en una página, escalarla
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                // Calcular factor de escala para que quepa en una página
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
             }
 
-            const next = Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight);
-            const normalized = Number.isFinite(next) ? next : 1;
+            // Centrar horizontalmente si es necesario
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
 
-            if (Math.abs(normalized - lastScaleRef.current) > 0.005) {
-                lastScaleRef.current = normalized;
-                setContentScale(normalized);
-            }
-        };
+            // Agregar imagen en una sola página A4
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
 
-        updateScale();
-        window.addEventListener("resize", updateScale);
-        return () => window.removeEventListener("resize", updateScale);
-    }, [history, totalPlazas, dateRange, loading]);
+            // Descargar PDF
+            const fileName = `movimientos-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
 
     useEffect(() => {
         if (!estId) return;
@@ -448,6 +465,7 @@ export function MovimientosReporte() {
                 title="Movimientos diarios"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
+                onPrint={handlePrint}
             />
 
             <div
@@ -456,14 +474,12 @@ export function MovimientosReporte() {
                 className="print-a4 mx-auto bg-white shadow-sm print:shadow-none"
             >
                 <div
-                    ref={scaleRef}
-                    className="print-a4-inner flex h-full flex-col gap-6 px-6 py-6 print:gap-3 print:px-4 print:py-3"
-                    style={{ transform: `scale(${contentScale})`, transformOrigin: "top center" }}
+                    className="flex h-full flex-col gap-6 px-6 py-6"
                 >
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
                         {loading ? (
                             Array.from({ length: 4 }).map((_, index) => (
-                                <Skeleton key={index} className="h-24 print:h-20" />
+                                <Skeleton key={index} className="h-24" />
                             ))
                         ) : (
                             <>
@@ -558,48 +574,67 @@ export function MovimientosReporte() {
                                 Entradas en verde, salidas en rojo. Permite detectar picos y valles de actividad.
                             </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : (
-                                <>
-                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-3 print:mb-2">
-                                        <div className="flex items-center gap-1">
-                                            <span className="h-3 w-3 rounded bg-emerald-500" />
-                                            Entradas
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <span className="h-3 w-3 rounded bg-rose-500" />
-                                            Salidas
-                                        </div>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <div className="flex h-48 print:h-32 items-end gap-1">
-                                            {flowSeries.entriesByHour.map((entries, hour) => {
-                                                const exits = flowSeries.exitsByHour[hour];
-                                                const entryHeight = Math.round((entries / flowSeries.maxFlow) * 100);
-                                                const exitHeight = Math.round((exits / flowSeries.maxFlow) * 100);
-                                                return (
-                                                    <div key={hour} className="flex w-6 min-w-[24px] flex-col items-center gap-1 print:w-5">
-                                                        <div className="flex h-full w-full flex-col justify-end gap-[2px]">
-                                                            <div
-                                                                className="w-full rounded-sm bg-emerald-500"
-                                                                style={{ height: `${clamp01(entryHeight / 100) * 100}%` }}
-                                                                title={`Entradas ${entries}`}
-                                                            />
-                                                            <div
-                                                                className="w-full rounded-sm bg-rose-500"
-                                                                style={{ height: `${clamp01(exitHeight / 100) * 100}%` }}
-                                                                title={`Salidas ${exits}`}
-                                                            />
-                                                        </div>
-                                                        <span className="text-[10px] text-slate-500">{hour}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </>
+                                <ChartContainer
+                                    config={{
+                                        entries: {
+                                            label: "Entradas",
+                                            color: "#10b981",
+                                        },
+                                        exits: {
+                                            label: "Salidas",
+                                            color: "#ef4444",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={flowSeries.entriesByHour.map((entries, hour) => ({
+                                                hour: `${String(hour).padStart(2, "0")}h`,
+                                                entries,
+                                                exits: flowSeries.exitsByHour[hour],
+                                            }))}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="hour"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Movimientos", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            `${value} vehículos`,
+                                                            name === "entries" ? "Entradas" : "Salidas",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Legend />
+                                            <Bar
+                                                dataKey="entries"
+                                                radius={[4, 4, 0, 0]}
+                                                fill="#10b981"
+                                            />
+                                            <Bar
+                                                dataKey="exits"
+                                                radius={[4, 4, 0, 0]}
+                                                fill="#ef4444"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
@@ -611,33 +646,63 @@ export function MovimientosReporte() {
                                 Porcentaje de estadias segun el tiempo que cada vehiculo permanecio en el predio.
                             </p>
                         </CardHeader>
-                        <CardContent className="pt-0 space-y-3 print:space-y-2">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-32 print:h-24" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : baseStats.current.stayDurations.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No se registraron estadias completas en el periodo seleccionado.
                                 </div>
                             ) : (
-                                [
-                                    { label: "Menos de 1 hora", value: stayDistribution.a },
-                                    { label: "Entre 1 y 3 horas", value: stayDistribution.b },
-                                    { label: "Entre 3 y 6 horas", value: stayDistribution.c },
-                                    { label: "Mas de 6 horas", value: stayDistribution.d }
-                                ].map((item) => (
-                                    <div key={item.label}>
-                                        <div className="flex items-center justify-between text-sm text-slate-600 print:text-xs">
-                                            <span>{item.label}</span>
-                                            <span>{item.value}%</span>
-                                        </div>
-                                        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                                            <div
-                                                className="h-2 rounded-full bg-indigo-500"
-                                                style={{ width: `${item.value}%` }}
+                                <ChartContainer
+                                    config={{
+                                        percentage: {
+                                            label: "% de Estadías",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={[
+                                                { label: "Menos de 1h", percentage: stayDistribution.a },
+                                                { label: "1-3 horas", percentage: stayDistribution.b },
+                                                { label: "3-6 horas", percentage: stayDistribution.c },
+                                                { label: "Más de 6h", percentage: stayDistribution.d }
+                                            ]}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
                                             />
-                                        </div>
-                                    </div>
-                                ))
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Porcentaje (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                                domain={[0, 100]}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => [
+                                                            `${value}%`,
+                                                            "Porcentaje de vehículos",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="percentage"
+                                                radius={[6, 6, 0, 0]}
+                                                fill="#3b82f6"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
@@ -648,7 +713,7 @@ export function MovimientosReporte() {
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
                             {loading ? (
-                                <Skeleton className="h-32 print:h-24" />
+                                <Skeleton className="h-32" />
                             ) : (
                                 <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2 print:gap-2">
                                     <div className="rounded-md border border-slate-200 p-3 print:p-2">
@@ -690,7 +755,7 @@ export function MovimientosReporte() {
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
                             {loading ? (
-                                <Skeleton className="h-24 print:h-16" />
+                                <Skeleton className="h-24" />
                             ) : insights.length ? (
                                 <ul className="list-disc space-y-1 pl-5 text-sm print:space-y-1 print:text-xs">
                                     {insights.map((item, index) => (

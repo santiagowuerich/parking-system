@@ -1,11 +1,15 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { formatCurrency } from "@/lib/utils";
 
 type HistoryEntry = {
@@ -233,6 +237,53 @@ export function TurnosReporte() {
     const [contentScale, setContentScale] = useState(1);
     const lastScaleRef = useRef(1);
 
+    // Función para generar PDF con html2canvas
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `turnos-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF. Por favor intenta nuevamente.');
+        }
+    };
+
     useEffect(() => {
         const updateScale = () => {
             if (!printRef.current || !scaleRef.current) return;
@@ -364,38 +415,39 @@ export function TurnosReporte() {
         [previousTurnos, historyNormalized]
     );
 
-    const efficiencyByEmployee = useMemo(() => {
-        const map = new Map<string, { efficiency: number; count: number; operations: number }>();
+    const movementsByEmployee = useMemo(() => {
+        const map = new Map<string, { operations: number; income: number; count: number }>();
         currentComputed.forEach((item) => {
             const key = item.employeeName || `Empleado ${item.turno.play_id}`;
-            const entry = map.get(key) || { efficiency: 0, count: 0, operations: 0 };
-            entry.efficiency += item.efficiency;
+            const entry = map.get(key) || { operations: 0, income: 0, count: 0 };
             entry.operations += item.operations;
+            entry.income += item.ingresos;
             entry.count += 1;
             map.set(key, entry);
         });
         return Array.from(map.entries())
             .map(([name, data]) => ({
                 name,
-                efficiency: data.count ? Math.round(data.efficiency / data.count) : 0,
-                operations: data.operations
+                operations: data.operations,
+                income: Math.round(data.income * 100) / 100
             }))
-            .sort((a, b) => b.efficiency - a.efficiency)
+            .sort((a, b) => b.operations - a.operations)
             .slice(0, 8);
     }, [currentComputed]);
 
-    const trendSeries = useMemo(() => {
-        const weekly = new Map<string, { sum: number; count: number }>();
+    const incomeByWeek = useMemo(() => {
+        const weekly = new Map<string, number>();
         currentComputed.forEach((item) => {
             const key = getWeekKey(item.start);
-            const entry = weekly.get(key) || { sum: 0, count: 0 };
-            entry.sum += item.efficiency;
-            entry.count += 1;
-            weekly.set(key, entry);
+            const current = weekly.get(key) || 0;
+            weekly.set(key, current + item.ingresos);
         });
         return Array.from(weekly.entries())
             .sort((a, b) => (a[0] > b[0] ? 1 : -1))
-            .map(([week, data]) => ({ week, value: data.count ? Math.round(data.sum / data.count) : 0 }));
+            .map(([week, income]) => ({
+                week,
+                income: Math.round(income * 100) / 100
+            }));
     }, [currentComputed]);
 
     const shiftHighlights = useMemo(() => {
@@ -421,9 +473,9 @@ export function TurnosReporte() {
         const list: string[] = [];
         if (currentComputed.length === 0) return list;
 
-        const bestEmployee = efficiencyByEmployee[0];
-        if (bestEmployee) {
-            list.push(`${bestEmployee.name} lidera la eficiencia con ${bestEmployee.efficiency} puntos y procesa ${bestEmployee.operations} movimientos por turno.`);
+        const mostActiveEmployee = movementsByEmployee[0];
+        if (mostActiveEmployee) {
+            list.push(`${mostActiveEmployee.name} procesó la mayor cantidad de operaciones con ${mostActiveEmployee.operations} movimientos en el período.`);
         }
 
         const shiftByIncome = [...shiftHighlights].sort((a, b) => b.avgIncome - a.avgIncome)[0];
@@ -433,12 +485,12 @@ export function TurnosReporte() {
 
         if (currentSummary.avgIncidence > 3) {
             list.push(`La tasa de incidencias promedio es ${currentSummary.avgIncidence.toFixed(1)}%, superior al objetivo del 3%.`);
-        } else if (currentSummary.avgEfficiency > 0) {
-            list.push(`La eficiencia global promedia ${currentSummary.avgEfficiency.toFixed(1)} puntos en el periodo analizado.`);
+        } else if (currentSummary.avgIncome > 0) {
+            list.push(`Los ingresos promedio por turno alcanzan ${formatCurrency(currentSummary.avgIncome || 0)} en el período analizado.`);
         }
 
         return list;
-    }, [currentComputed, efficiencyByEmployee, shiftHighlights, currentSummary.avgIncidence, currentSummary.avgEfficiency]);
+    }, [currentComputed, movementsByEmployee, shiftHighlights, currentSummary.avgIncidence, currentSummary.avgIncome]);
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -446,6 +498,7 @@ export function TurnosReporte() {
                 title="Desempeno de Turnos"
                 dateRange={dateRange}
                 onDateRangeChange={setDateRange}
+                onPrint={handlePrint}
             />
 
             <div
@@ -523,54 +576,136 @@ export function TurnosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Ranking de eficiencia por empleado</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Movimientos por empleado</CardTitle>
                             <p className="text-sm text-slate-500 print:text-xs">
-                                Comparativo de eficiencia ponderada (0-100) para los principales responsables de turno.
+                                Total de operaciones (entradas + salidas) procesadas por cada responsable de turno.
                             </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-48 print:h-32" />
-                            ) : efficiencyByEmployee.length === 0 ? (
+                                <Skeleton className="h-64 print:h-48" />
+                            ) : movementsByEmployee.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No se registraron turnos en el periodo seleccionado.
                                 </div>
                             ) : (
-                                <div className="space-y-3">
-                                    {efficiencyByEmployee.map((item) => (
-                                        <div key={item.name} className="flex items-center gap-3">
-                                            <div className="w-36 print:w-32 text-sm text-slate-600">{item.name}</div>
-                                            <div className="flex-1 h-3 rounded bg-slate-200">
-                                                <div className="h-3 rounded bg-indigo-500" style={{ width: `${item.efficiency}%` }} />
-                                            </div>
-                                            <div className="w-12 text-sm text-right">{item.efficiency}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        operations: {
+                                            label: "Movimientos",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-auto w-full"
+                                    style={{ height: `${Math.max(240, movementsByEmployee.length * 50)}px` }}
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={movementsByEmployee.map((item) => ({
+                                                name: item.name,
+                                                operations: item.operations,
+                                                income: item.income,
+                                            }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 5, left: 120, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                type="number"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                width={110}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name) => [
+                                                            name === "operations" ? `${value} mov.` : formatCurrency(value as number),
+                                                            name === "operations" ? "Movimientos" : "Ingresos",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="operations"
+                                                radius={[0, 4, 4, 0]}
+                                                fill="#3b82f6"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Tendencia semanal de eficiencia</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Evolución semanal de ingresos</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Tendencia de ingresos totales por semana - indica la facturación del periodo.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-32 print:h-24" />
-                            ) : trendSeries.length === 0 ? (
+                                <Skeleton className="h-64 print:h-48" />
+                            ) : incomeByWeek.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No hay datos suficientes para construir la serie temporal.
                                 </div>
                             ) : (
-                                <div className="flex items-end gap-2 h-40 print:h-28">
-                                    {trendSeries.map((point) => (
-                                        <div key={point.week} className="flex flex-col items-center gap-1">
-                                            <div className="w-8 bg-emerald-500 rounded" style={{ height: `${Math.max(2, point.value)}%` }} title={`${point.week}: ${point.value}`} />
-                                            <div className="text-[10px] text-slate-500">{point.week.slice(5)}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        income: {
+                                            label: "Ingresos",
+                                            color: "#10b981",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={incomeByWeek.map((point) => ({
+                                                week: point.week.slice(5),
+                                                income: point.income,
+                                                fullWeek: point.week,
+                                            }))}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="week"
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Ingresos ($)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => [
+                                                            formatCurrency(value as number),
+                                                            "Ingresos",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="income"
+                                                radius={[6, 6, 0, 0]}
+                                                fill="#10b981"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
