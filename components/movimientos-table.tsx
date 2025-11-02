@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -217,83 +216,85 @@ export function MovimientosTable({ estId, showTitle = true, showFilters = false 
                     )}
 
                     {/* Tabla */}
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="dark:border-zinc-800">
-                                <TableHead className="dark:text-zinc-400">Patente</TableHead>
-                                <TableHead className="dark:text-zinc-400">Estado</TableHead>
-                                <TableHead className="dark:text-zinc-400">Fecha Ingreso</TableHead>
-                                <TableHead className="dark:text-zinc-400">Fecha Egreso</TableHead>
-                                <TableHead className="dark:text-zinc-400">Zona</TableHead>
-                                <TableHead className="dark:text-zinc-400">Plaza</TableHead>
-                                <TableHead className="dark:text-zinc-400">Método</TableHead>
-                                <TableHead className="dark:text-zinc-400">Tarifa</TableHead>
-                                <TableHead className="text-right dark:text-zinc-400">Total</TableHead>
-                                <TableHead className="dark:text-zinc-400">Movimientos</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loadingMovements ? (
-                                <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8">
-                                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-zinc-400" />
-                                    </TableCell>
-                                </TableRow>
-                            ) : (showFilters ? filteredMovements : movements).length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8 text-zinc-500">
-                                        {movements.length === 0
-                                            ? "No hay movimientos registrados"
-                                            : "No se encontraron movimientos con los filtros aplicados"}
-                                    </TableCell>
-                                </TableRow>
-                            ) : paginatedMovements.map((movement, idx) => (
-                                <TableRow key={pageOffset + idx} className="dark:border-zinc-800">
-                                        <TableCell className="dark:text-zinc-100 font-medium">
-                                            {movement.license_plate}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${movement.action === 'Ingreso' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                                <span className={`text-sm font-medium ${movement.action === 'Ingreso' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                                                    {movement.action}
-                                                </span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="dark:text-zinc-100">
-                                            {formatArgentineTimeWithDayjs(movement.fecha_ingreso)}
-                                        </TableCell>
-                                        <TableCell className="dark:text-zinc-100">
-                                            {movement.fecha_egreso ? formatArgentineTimeWithDayjs(movement.fecha_egreso) : '-'}
-                                        </TableCell>
-                                        <TableCell className="dark:text-zinc-100">{movement.zona}</TableCell>
-                                        <TableCell className="dark:text-zinc-100">{movement.plaza}</TableCell>
-                                        <TableCell className="dark:text-zinc-100">{movement.method}</TableCell>
-                                        <TableCell className="dark:text-zinc-100">{movement.tarifa || '$1200/h'}</TableCell>
-                                        <TableCell className="text-right dark:text-zinc-100">{movement.total}</TableCell>
-                                        <TableCell className="dark:text-zinc-100">
-                                            {movement.movement_count > 0 ? (
-                                                <button
-                                                    onClick={() =>
-                                                        setSelectedMovement({
-                                                            ocupacionId: movement.ocu_id,
-                                                            licensePlate: movement.license_plate,
-                                                        })
-                                                    }
-                                                    className="px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                                                >
-                                                    Movimientos ({movement.movement_count})
-                                                </button>
-                                            ) : (
-                                                <span className="text-gray-400 dark:text-gray-600 text-sm italic">
-                                                    Sin movimientos
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                        </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                    <table className="w-full bg-white border-collapse">
+                        <thead>
+                            <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Patente</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Ingreso</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Egreso</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Zona</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Plaza</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Método</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Tarifa</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Total</th>
+                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Movimientos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {loadingMovements ? (
+                            <tr className="bg-white">
+                                <td colSpan={10} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                                </td>
+                            </tr>
+                        ) : (showFilters ? filteredMovements : movements).length === 0 ? (
+                            <tr className="bg-white">
+                                <td colSpan={10} className="py-12 px-4 text-center text-gray-500 border-t border-gray-300">
+                                    {movements.length === 0
+                                        ? "No hay movimientos registrados"
+                                        : "No se encontraron movimientos con los filtros aplicados"}
+                                </td>
+                            </tr>
+                        ) : paginatedMovements.map((movement, idx) => (
+                            <tr key={pageOffset + idx} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium text-center">
+                                    {movement.license_plate}
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${movement.action === 'Ingreso' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        <span className={`text-sm font-medium ${movement.action === 'Ingreso' ? 'text-green-700' : 'text-red-700'}`}>
+                                            {movement.action}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                    {formatArgentineTimeWithDayjs(movement.fecha_ingreso)}
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                    {movement.fecha_egreso ? formatArgentineTimeWithDayjs(movement.fecha_egreso) : '-'}
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{movement.zona}</td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{movement.plaza}</td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{movement.method}</td>
+                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">{movement.tarifa || '$1200/h'}</td>
+                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium text-center">{movement.total}</td>
+                                <td className="py-4 px-4 text-center">
+                                    {movement.movement_count > 0 ? (
+                                        <button
+                                            onClick={() =>
+                                                setSelectedMovement({
+                                                    ocupacionId: movement.ocu_id,
+                                                    licensePlate: movement.license_plate,
+                                                })
+                                            }
+                                            className="px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                                        >
+                                            Movimientos ({movement.movement_count})
+                                        </button>
+                                    ) : (
+                                        <span className="text-gray-400 text-sm italic">
+                                            Sin movimientos
+                                        </span>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                    </div>
 
                     {dataToDisplay.length > 0 && (
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-4">
