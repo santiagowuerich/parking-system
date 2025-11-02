@@ -18,7 +18,11 @@
       "Bash(find:*)",
       "Bash(npm install:*)",
       "Bash(tree:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "Bash(netstat:*)"
     ],
     "deny": [],
     "ask": []
