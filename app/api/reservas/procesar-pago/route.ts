@@ -115,6 +115,55 @@ export async function POST(request: NextRequest) {
                 mensaje = 'Pago aprobado exitosamente';
                 console.log(`✅ [WEBHOOK] Pago aprobado para reserva ${reservaData.res_codigo}`);
 
+                // Registrar pago en tabla pagos
+                try {
+                    console.log(`💰 [WEBHOOK] Registrando pago para reserva ${reservaData.res_codigo}`);
+
+                    // Determinar método de pago
+                    // Nota: En BD se usa 'MercadoPago' para ambos (QR y link_pago)
+                    // El frontend muestra 'QR' como transformación visual
+                    const metodoPago = 'MercadoPago';
+
+                    const { data: pagoInsertado, error: pagoError } = await supabase
+                        .from('pagos')
+                        .insert({
+                            pag_monto: reservaData.res_monto,
+                            pag_h_fh: new Date().toISOString(),
+                            est_id: reservaData.est_id,
+                            mepa_metodo: metodoPago,
+                            veh_patente: reservaData.veh_patente,
+                            pag_tipo: 'reserva',
+                            pag_descripcion: `Pago de reserva ${reservaData.res_codigo}`,
+                            pag_estado: 'completado',
+                            pag_datos_tarjeta: {
+                                mercado_pago_id: paymentId,
+                                reserva_codigo: reservaData.res_codigo,
+                                tipo_pago: 'reserva'
+                            }
+                        })
+                        .select('pag_nro')
+                        .single();
+
+                    if (pagoError) {
+                        console.error('❌ [WEBHOOK] Error registrando pago:', pagoError);
+                        // No fallamos el proceso completo por esto, solo loggeamos el error
+                    } else {
+                        console.log(`✅ [WEBHOOK] Pago registrado exitosamente: pag_nro=${pagoInsertado.pag_nro}`);
+
+                        // Actualizar la reserva con el número de pago
+                        const { error: updatePagNroError } = await supabase
+                            .from('reservas')
+                            .update({ pag_nro: pagoInsertado.pag_nro })
+                            .eq('res_codigo', reservaData.res_codigo);
+
+                        if (updatePagNroError) {
+                            console.error('⚠️ [WEBHOOK] Error actualizando pag_nro en reserva:', updatePagNroError);
+                        }
+                    }
+                } catch (pagoError) {
+                    console.error('❌ [WEBHOOK] Error registrando pago:', pagoError);
+                }
+
                 // Actualizar plaza a Reservada
                 const { error: plazaError } = await supabase
                     .from('plazas')
@@ -163,8 +212,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
             .from('reservas')
             .update({
-                res_estado: nuevoEstado,
-                pag_nro: paymentId // Guardar el ID del pago
+                res_estado: nuevoEstado
             })
             .eq('res_codigo', reservaData.res_codigo);
 

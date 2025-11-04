@@ -93,6 +93,50 @@ export async function POST(request: NextRequest) {
 
         console.log(`✅ [CONFIRMAR-QR] Reserva confirmada exitosamente: ${reservaActualizada.res_codigo}`);
 
+        // Registrar pago en tabla pagos
+        try {
+            console.log(`💰 [CONFIRMAR-QR] Registrando pago para reserva ${reserva.res_codigo}`);
+
+            const { data: pagoInsertado, error: pagoError } = await supabase
+                .from('pagos')
+                .insert({
+                    pag_monto: reserva.res_monto,
+                    pag_h_fh: new Date().toISOString(),
+                    est_id: reserva.est_id,
+                    mepa_metodo: 'MercadoPago', // Valor en BD (el frontend muestra 'QR' como transformación visual)
+                    veh_patente: reserva.veh_patente,
+                    pag_tipo: 'reserva',
+                    pag_descripcion: `Pago de reserva ${reserva.res_codigo}`,
+                    pag_estado: 'completado',
+                    pag_datos_tarjeta: {
+                        mercado_pago_id: preference_id || null,
+                        reserva_codigo: reserva.res_codigo,
+                        tipo_pago: 'reserva'
+                    }
+                })
+                .select('pag_nro')
+                .single();
+
+            if (pagoError) {
+                console.error('❌ [CONFIRMAR-QR] Error registrando pago:', pagoError);
+                // No fallamos el proceso completo por esto, solo loggeamos el error
+            } else {
+                console.log(`✅ [CONFIRMAR-QR] Pago registrado exitosamente: pag_nro=${pagoInsertado.pag_nro}`);
+
+                // Actualizar la reserva con el número de pago
+                const { error: updatePagNroError } = await supabase
+                    .from('reservas')
+                    .update({ pag_nro: pagoInsertado.pag_nro })
+                    .eq('res_codigo', reserva.res_codigo);
+
+                if (updatePagNroError) {
+                    console.error('⚠️ [CONFIRMAR-QR] Error actualizando pag_nro en reserva:', updatePagNroError);
+                }
+            }
+        } catch (pagoError) {
+            console.error('❌ [CONFIRMAR-QR] Error registrando pago:', pagoError);
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Pago confirmado exitosamente',
