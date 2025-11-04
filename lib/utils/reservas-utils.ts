@@ -78,8 +78,12 @@ export function formatearCodigoReserva(codigo: string): string {
 
 /**
  * Obtiene el estado visual y color para una reserva
+ * @param estado - Estado de la reserva en BD
+ * @param fechaInicio - Fecha de inicio de la reserva (para verificar expiración de confirmadas)
+ * @param tiempoGracia - Tiempo de gracia en minutos (para verificar expiración de confirmadas)
+ * @param fechaFin - Fecha de fin de la reserva (para verificar expiración de activas)
  */
-export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number) {
+export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number, fechaFin?: string) {
     const estados = {
         pendiente_pago: {
             label: 'Pendiente de Pago',
@@ -132,10 +136,34 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
     };
 
     // Si es confirmada, verificar si está expirada
+    // Solo marcar como expirada si la reserva YA COMENZÓ y pasó el tiempo de gracia
     if (estado === 'confirmada' && fechaInicio && tiempoGracia) {
-        if (!estaEnTiempoGracia(fechaInicio, tiempoGracia)) {
+        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
+        const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
+        const limiteGracia = inicio.add(tiempoGracia, 'minutes');
+
+        // Solo marcar como expirada si:
+        // 1. La reserva ya comenzó (ahora >= inicio)
+        // 2. Y pasó el tiempo de gracia (ahora > limiteGracia)
+        if (ahora.isAfter(limiteGracia)) {
             // Nota: No se cambia el estado en la BD aquí, solo en la UI
             // El estado real se actualiza mediante el cron job o endpoint de expiración
+            return {
+                label: 'Expirada',
+                color: 'orange',
+                bgColor: 'bg-orange-100',
+                textColor: 'text-orange-800'
+            };
+        }
+    }
+
+    // Si es activa, verificar si la ocupación ha terminado
+    if (estado === 'activa' && fechaFin) {
+        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
+        const fin = dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
+
+        // Si la fecha de fin ya pasó, la reserva expiró
+        if (ahora.isAfter(fin)) {
             return {
                 label: 'Expirada',
                 color: 'orange',
@@ -150,16 +178,53 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
 
 /**
  * Calcula el tiempo restante hasta el inicio de una reserva
+ * Si la reserva ya comenzó, calcula el tiempo hasta el fin
  */
-export function calcularTiempoRestante(fechaInicio: string): {
+export function calcularTiempoRestante(fechaInicio: string, fechaFin?: string): {
     tiempoRestante: string;
     esUrgente: boolean;
     minutosRestantes: number;
 } {
     const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
     const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
+    
+    // Si la reserva ya comenzó y tenemos fechaFin, calcular tiempo hasta el fin
+    if (ahora.isAfter(inicio) && fechaFin) {
+        const fin = dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
+        const diffMs = fin.diff(ahora);
+        
+        if (diffMs <= 0) {
+            return {
+                tiempoRestante: 'Finalizada',
+                esUrgente: true,
+                minutosRestantes: 0
+            };
+        }
+        
+        const minutosRestantes = Math.floor(diffMs / (1000 * 60));
+        const horasRestantes = Math.floor(minutosRestantes / 60);
+        const minutosSobrantes = minutosRestantes % 60;
+        
+        let tiempoRestante = '';
+        if (horasRestantes > 0) {
+            tiempoRestante = `${horasRestantes}h ${minutosSobrantes}m`;
+        } else {
+            tiempoRestante = `${minutosRestantes}m`;
+        }
+        
+        // Es urgente si quedan menos de 30 minutos
+        const esUrgente = minutosRestantes <= 30;
+        
+        return {
+            tiempoRestante,
+            esUrgente,
+            minutosRestantes
+        };
+    }
+    
+    // Si la reserva aún no ha comenzado, calcular tiempo hasta el inicio
     const diffMs = inicio.diff(ahora);
-
+    
     if (diffMs <= 0) {
         return {
             tiempoRestante: 'Ya comenzó',
@@ -167,21 +232,21 @@ export function calcularTiempoRestante(fechaInicio: string): {
             minutosRestantes: 0
         };
     }
-
+    
     const minutosRestantes = Math.floor(diffMs / (1000 * 60));
     const horasRestantes = Math.floor(minutosRestantes / 60);
     const minutosSobrantes = minutosRestantes % 60;
-
+    
     let tiempoRestante = '';
     if (horasRestantes > 0) {
         tiempoRestante = `${horasRestantes}h ${minutosSobrantes}m`;
     } else {
         tiempoRestante = `${minutosRestantes}m`;
     }
-
+    
     // Es urgente si quedan menos de 30 minutos
     const esUrgente = minutosRestantes <= 30;
-
+    
     return {
         tiempoRestante,
         esUrgente,

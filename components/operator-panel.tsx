@@ -376,18 +376,24 @@ export default function OperatorPanel({
       setShowIngresoModal(true);
       toast.success(`Plaza ${plaza.pla_numero} seleccionada para ingreso`);
     } else if (plaza.pla_estado === 'Reservada') {
-      // Cargar información de la reserva
+      // Cargar información de la reserva y abrir el modal
       setReservaInfo(null);
+      setShowActionsModal(true); // Abrir el modal inmediatamente
+      setModalLoading(true);
       try {
         const response = await fetch(`/api/reservas/por-plaza?est_id=${estId}&pla_numero=${plaza.pla_numero}`);
         const result = await response.json();
         if (result.success && result.data) {
           setReservaInfo(result.data);
         }
+        // Si no hay reserva encontrada, el modal se abrirá pero sin información de reserva
+        // Esto permite registrar el ingreso manualmente
       } catch (e) {
         console.error('Error obteniendo información de reserva:', e);
+        // El modal ya está abierto, solo no habrá información de reserva
+      } finally {
+        setModalLoading(false);
       }
-      setShowActionsModal(true);
     } else if (plaza.pla_estado === 'Mantenimiento') {
       setShowActionsModal(true); // Para permitir desbloqueo
     }

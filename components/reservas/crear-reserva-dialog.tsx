@@ -184,25 +184,26 @@ export function CrearReservaDialog({
         const result = await crearReserva(request);
 
         if (result && result.success && result.data) {
-            // Ahora recibimos reserva creada en BD
+            // Para QR: recibimos reserva_temporal (aún no creada en BD)
+            // Para link_pago: recibimos reserva (ya creada en BD con estado pendiente_pago)
             setReservaCreada({
                 reserva_temporal: result.data.reserva || result.data.reserva_temporal, // Compatibilidad con ambos formatos
                 payment_info: result.data.payment_info
             });
 
-            toast({
-                title: "Reserva creada",
-                description: `Código de reserva: ${result.data.reserva?.res_codigo || result.data.reserva_temporal?.res_codigo}`,
-            });
-
-            // Recargar reservas para que aparezca en "Próximas"
-            if (typeof window !== 'undefined') {
-                // Disparar evento personalizado para recargar reservas
-                window.dispatchEvent(new CustomEvent('reserva-creada'));
-            }
-
             // Manejar flujo de pago según el método seleccionado
             if (metodoPago === 'link_pago') {
+                // Para link_pago, la reserva ya está creada
+                toast({
+                    title: "Reserva creada",
+                    description: `Código de reserva: ${result.data.reserva?.res_codigo}`,
+                });
+
+                // Recargar reservas para que aparezca en "Próximas"
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('reserva-creada'));
+                }
+
                 // Abrir link de pago automáticamente en nueva pestaña
                 if (result.data?.payment_info?.init_point) {
                     window.open(result.data.payment_info.init_point, '_blank');
@@ -210,6 +211,11 @@ export function CrearReservaDialog({
                 // Mostrar modal de confirmación inmediatamente
                 setMostrarConfirmacionLinkPago(true);
             } else if (metodoPago === 'qr') {
+                // Para QR, solo generamos el QR, la reserva aún no está creada
+                toast({
+                    title: "QR generado",
+                    description: "Escanea el código QR para pagar. La reserva se creará al confirmar el pago.",
+                });
                 setMostrarQR(true);
             }
         }
@@ -609,7 +615,10 @@ export function CrearReservaDialog({
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    reserva_data: reservaCreada.reserva_temporal,
+                                    reserva_data: {
+                                        ...reservaCreada.reserva_temporal,
+                                        payment_info: reservaCreada.payment_info // Incluir payment_info completo
+                                    },
                                     preference_id: reservaCreada.payment_info?.preference_id
                                 })
                             });
@@ -618,8 +627,14 @@ export function CrearReservaDialog({
                             if (data.success) {
                                 toast({
                                     title: "¡Reserva Confirmada!",
-                                    description: "Tu reserva ha sido creada y confirmada exitosamente."
+                                    description: `Tu reserva ha sido creada y confirmada exitosamente. Código: ${reservaCreada.reserva_temporal?.res_codigo}`
                                 });
+
+                                // Recargar reservas para que aparezca en "Próximas"
+                                if (typeof window !== 'undefined') {
+                                    window.dispatchEvent(new CustomEvent('reserva-creada'));
+                                }
+
                                 setMostrarQR(false);
                                 cerrarDialog();
                             } else {

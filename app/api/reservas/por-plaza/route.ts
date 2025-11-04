@@ -19,13 +19,14 @@ export async function GET(request: NextRequest) {
 
         console.log(`🔍 Obteniendo reserva para plaza ${plaNumero} del estacionamiento ${estId}`);
 
-        // Buscar reserva confirmada o activa para esta plaza
+        // Buscar reserva para esta plaza (incluyendo pendiente_pago, confirmada, activa)
+        // También buscamos pendiente_confirmacion_operador ya que la plaza puede estar reservada
         const { data: reservas, error: reservasError } = await supabase
             .from('vw_reservas_detalles')
             .select('*')
             .eq('est_id', estId)
             .eq('pla_numero', plaNumero)
-            .in('res_estado', ['confirmada', 'activa'])
+            .in('res_estado', ['pendiente_pago', 'pendiente_confirmacion_operador', 'confirmada', 'activa'])
             .order('res_fh_ingreso', { ascending: false })
             .limit(1);
 
@@ -35,6 +36,13 @@ export async function GET(request: NextRequest) {
                 success: false,
                 error: 'Error obteniendo reserva'
             }, { status: 500 });
+        }
+
+        console.log(`📊 Resultado de la consulta: ${reservas?.length || 0} reservas encontradas`);
+        if (reservas && reservas.length > 0) {
+            console.log(`✅ Reserva encontrada: ${reservas[0].res_codigo} - Estado: ${reservas[0].res_estado}`);
+        } else {
+            console.log(`⚠️ No se encontraron reservas para plaza ${plaNumero} del estacionamiento ${estId}`);
         }
 
         if (!reservas || reservas.length === 0) {

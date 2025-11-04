@@ -57,6 +57,13 @@ export interface PaymentData {
   durationUnits?: number;
   isSubscription?: boolean;
   subscriptionNumber?: number;
+  // Datos de reserva si aplica
+  hasReservation?: boolean;
+  reservationCode?: string;
+  reservationPaidAmount?: number;
+  reservationEndTime?: string;
+  reservationHours?: number;
+  excessDuration?: number;
 }
 
 export interface PaymentMethodDetails {
