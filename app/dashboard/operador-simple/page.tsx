@@ -96,7 +96,7 @@ export default function OperadorSimplePage() {
             setParking({
                 capacity: parkingCapacity,
                 parkedVehicles: parkedVehicles,
-                rates: {},
+                rates: { Auto: 0, Moto: 0, Camioneta: 0 },
                 history: [] // Se puede cargar después si es necesario
             });
         }
@@ -212,7 +212,7 @@ export default function OperadorSimplePage() {
             setLoadingPlazasCompletas(true);
 
             console.log(`🚀 [${source}] Cargando datos consolidados del dashboard...`);
-            const response = await fetch(`/api/plazas/dashboard?est_id=${estId}`, {
+            const response = await fetch(`/api/plazas/dashboard?est_id=${Number(estId)}`, {
                 signal: abortControllerRef.current.signal
             });
 
@@ -402,8 +402,8 @@ export default function OperadorSimplePage() {
 
             const abonoInfo = plazaSeleccionada?.abono || null;
             const patentesAbono = (abonoInfo?.vehiculos || [])
-                .map(v => v.veh_patente?.toUpperCase())
-                .filter((patente): patente is string => Boolean(patente));
+                .map((v: { veh_patente?: string }) => v.veh_patente?.toUpperCase())
+                .filter((patente: string | undefined): patente is string => Boolean(patente));
 
             const esAbono = Boolean(payload.isAbono || abonoInfo);
 
@@ -445,8 +445,8 @@ export default function OperadorSimplePage() {
             let dbVehicleType = vehicleTypeMapping[payload.type as keyof typeof vehicleTypeMapping] || 'AUT';
 
             if (payload.isAbono && abonoInfo?.vehiculos) {
-                const vehiculoAsociado = abonoInfo.vehiculos.find(
-                    v => v.veh_patente?.toUpperCase() === payload.license_plate
+                const vehiculoAsociado = (abonoInfo.vehiculos as Array<{ veh_patente?: string; catv_segmento?: 'AUT' | 'MOT' | 'CAM' }> | undefined)?.find(
+                    (v) => v?.veh_patente?.toUpperCase() === payload.license_plate
                 );
 
                 if (vehiculoAsociado?.catv_segmento) {
@@ -515,7 +515,7 @@ export default function OperadorSimplePage() {
                 const { data: reservas, error: reservasError } = await supabase
                     .from('reservas')
                     .select('*')
-                    .eq('est_id', estId)
+                    .eq('est_id', Number(estId))
                     .eq('pla_numero', payload.pla_numero)
                     .eq('veh_patente', payload.license_plate.toUpperCase())
                     .in('res_estado', ['confirmada', 'activa'])
@@ -541,7 +541,7 @@ export default function OperadorSimplePage() {
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
 
             const ocupacionData = {
-                est_id: estId,
+                est_id: Number(estId),
                 veh_patente: payload.license_plate,
                 ocu_fh_entrada: reservaActiva ? reservaActiva.res_fh_ingreso : entryTime,
                 pla_numero: payload.pla_numero || null, // Asegurar null explícito si no hay plaza
@@ -687,7 +687,7 @@ export default function OperadorSimplePage() {
 
             const plazaInfo = plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number);
             const esVehiculoAbonado = plazaInfo?.abono?.vehiculos?.some(
-                v => v.veh_patente?.toUpperCase() === licensePlate.toUpperCase()
+                (v: { veh_patente?: string }) => v.veh_patente?.toUpperCase() === licensePlate.toUpperCase()
             ) ?? false;
 
             if (esVehiculoAbonado) {
@@ -743,17 +743,17 @@ export default function OperadorSimplePage() {
             let hasReservation = false;
             let reservationHours = 0;
             let montoReserva = 0;
-            
+
             // Verificar si tiene reserva: debe tener res_codigo Y (ocu_fecha_limite O ocu_duracion_tipo === 'reserva')
             const tieneReserva = ocupacion.res_codigo && (ocupacion.ocu_fecha_limite || ocupacion.ocu_duracion_tipo === 'reserva');
-            
+
             console.log('🎯 Evaluación de condición de reserva:', {
                 tiene_res_codigo: !!ocupacion.res_codigo,
                 tiene_fecha_limite: !!ocupacion.ocu_fecha_limite,
                 es_tipo_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
                 condicion_resultado: tieneReserva
             });
-            
+
             if (tieneReserva) {
                 console.log('✅ 🎫 RESERVA DETECTADA EN EGRESO - MOSTRANDO CONFIRMACIÓN:', {
                     res_codigo: ocupacion.res_codigo,
@@ -799,7 +799,7 @@ export default function OperadorSimplePage() {
             } else {
                 // Lógica normal sin reserva
                 console.log('ℹ️ NO se detectó reserva, usando lógica normal de egreso');
-                
+
                 // Aún así, si tiene res_codigo y ocu_precio_acordado, deberíamos descontar el pago previo
                 if (ocupacion.res_codigo && ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0) {
                     console.log('⚠️ ADVERTENCIA: Tiene res_codigo y ocu_precio_acordado pero no se detectó como reserva');
@@ -809,7 +809,7 @@ export default function OperadorSimplePage() {
                         ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
                         ocu_fecha_limite: ocupacion.ocu_fecha_limite
                     });
-                    
+
                     // Intentar calcular con descuento de reserva de todas formas
                     const totalFeeData = await calculateParkingFee(
                         {
@@ -820,19 +820,19 @@ export default function OperadorSimplePage() {
                         },
                         estId
                     );
-                    
+
                     montoReserva = ocupacion.ocu_precio_acordado;
                     const cargoConDescuento = Math.max(0, totalFeeData.fee - montoReserva);
-                    
+
                     console.log('💰 Aplicando descuento de reserva (modo fallback):', {
                         total_original: totalFeeData.fee,
                         monto_pagado_reserva: montoReserva,
                         cargo_con_descuento: cargoConDescuento
                     });
-                    
+
                     hasReservation = true;
                     reservationHours = 0; // No sabemos las horas exactas
-                    
+
                     feeData = {
                         ...totalFeeData,
                         fee: cargoConDescuento,
@@ -846,7 +846,7 @@ export default function OperadorSimplePage() {
                             ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
                             ocu_precio_acordado: ocupacion.ocu_precio_acordado || 0
                         },
-                        estId
+                        Number(estId)
                     );
                 }
             }
@@ -863,7 +863,7 @@ export default function OperadorSimplePage() {
                 exitTime: exitTime.toISOString(),
                 duration: feeData.durationMs,
                 method: 'efectivo',
-                estId: estId,
+                estId: Number(estId),
                 plazaNumber: ocupacion.plaza_number,
                 zone: ocupacion.plaza_number ?
                     plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
@@ -1168,7 +1168,7 @@ export default function OperadorSimplePage() {
                     setShowQRDialog(false);
                     await finalizeVehicleExit({
                         ...paymentData,
-                        method: 'app' // MercadoPago QR se registra como 'app'
+                        method: 'qr'
                     });
 
                     return; // Salir para no seguir verificando el estado
@@ -1221,7 +1221,7 @@ export default function OperadorSimplePage() {
             .update({
                 ocu_fh_salida: exitTimestamp
             })
-            .eq('est_id', estId)
+            .eq('est_id', Number(estId))
             .eq('veh_patente', licensePlate)
             .eq('ocu_fh_entrada', entryTime)
             .is('ocu_fh_salida', null);
@@ -1235,7 +1235,7 @@ export default function OperadorSimplePage() {
                 .from('plazas')
                 .update({ pla_estado: 'Abonado' })
                 .eq('pla_numero', plazaNumber)
-                .eq('est_id', estId);
+                .eq('est_id', Number(estId));
 
             if (plazaUpdateError) {
                 console.warn('Error restaurando estado de plaza abonada:', plazaUpdateError);
@@ -1263,7 +1263,7 @@ export default function OperadorSimplePage() {
                         ocu_duracion_tipo: 'hora',
                         ocu_precio_acordado: 0
                     },
-                    estId
+                    Number(estId)
                 );
 
                 console.log('💰 Total calculado por tiempo completo:', {
@@ -1301,7 +1301,7 @@ export default function OperadorSimplePage() {
                     exitTime: exitTime.toISOString(),
                     duration: totalFeeData.durationMs,
                     method: 'efectivo',
-                    estId: estId,
+                    estId: Number(estId),
                     plazaNumber: ocupacion.plaza_number,
                     zone: ocupacion.plaza_number ?
                         plazasCompletas.find(p => p.pla_numero === ocupacion.plaza_number)?.pla_zona :
@@ -1341,7 +1341,8 @@ export default function OperadorSimplePage() {
                     amount: 0,
                     calculatedFee: 0,
                     duration: 0,
-                    method: 'reserva_prepagada'
+                    method: 'efectivo',
+                    estId: Number(estId)
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
@@ -1392,7 +1393,7 @@ export default function OperadorSimplePage() {
             vehicleLicensePlate: data.vehicleLicensePlate,
             method: data.method,
             amount: data.amount,
-            estId: estId,
+            estId: Number(estId),
             userId: user?.id
         });
 
@@ -1413,10 +1414,11 @@ export default function OperadorSimplePage() {
             );
 
             // 1. Registrar el pago en la tabla pagos
-            const normalizedMethod = data.method === 'efectivo' ? 'Efectivo' :
-                data.method === 'tarjeta' ? 'Tarjeta' :
-                    data.method === 'app' ? 'MercadoPago' :
-                        data.method === 'transferencia' ? 'Transferencia' : 'Efectivo';
+            const normalizedMethod =
+                data.method === 'efectivo' ? 'Efectivo' :
+                    data.method === 'transferencia' ? 'Transferencia' :
+                        (data.method === 'qr' || data.method === 'link_pago') ? 'MercadoPago' :
+                            'Efectivo';
 
             console.log('💰 Registrando pago:', {
                 metodoOriginal: data.method,
@@ -1430,7 +1432,7 @@ export default function OperadorSimplePage() {
                 .insert([{
                     pag_monto: data.amount,
                     pag_h_fh: dayjs().tz('America/Argentina/Buenos_Aires').toISOString(),
-                    est_id: estId,
+                    est_id: Number(estId),
                     mepa_metodo: normalizedMethod,
                     veh_patente: data.vehicleLicensePlate,
                 }])
@@ -1451,7 +1453,7 @@ export default function OperadorSimplePage() {
                     ocu_fh_salida: data.exitTime,
                     pag_nro: payment.pag_nro
                 })
-                .eq('est_id', estId)
+                .eq('est_id', Number(estId))
                 .eq('veh_patente', data.vehicleLicensePlate)
                 .eq('ocu_fh_entrada', data.entryTime)
                 .is('ocu_fh_salida', null);
@@ -1469,7 +1471,7 @@ export default function OperadorSimplePage() {
                     .from('plazas')
                     .update({ pla_estado: 'Libre' })
                     .eq('pla_numero', data.plazaNumber)
-                    .eq('est_id', estId);
+                    .eq('est_id', Number(estId));
 
                 if (plazaUpdateError) {
                     console.warn('Error liberando plaza:', plazaUpdateError);
@@ -1518,7 +1520,7 @@ export default function OperadorSimplePage() {
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
-        setQRPaymentStatus('pending');
+        setQRPaymentStatus('pendiente');
         setReservationData(null);
         reservationExitDataRef.current = null;
     };
@@ -1786,7 +1788,7 @@ export default function OperadorSimplePage() {
                                             setShowLinkPagoConfirm(false);
                                             await finalizeVehicleExit({
                                                 ...paymentData,
-                                                method: 'app' // Link de pago se registra como 'app' (MercadoPago)
+                                                method: 'link_pago'
                                             });
                                             toast({
                                                 title: "Pago confirmado",

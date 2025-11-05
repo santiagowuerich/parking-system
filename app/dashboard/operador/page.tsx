@@ -335,8 +335,8 @@ export default function OperadorPage() {
 
             const abonoInfo = plazaSeleccionada?.abono || null;
             const patentesAbono = (abonoInfo?.vehiculos || [])
-                .map(v => v.veh_patente?.toUpperCase())
-                .filter((patente): patente is string => Boolean(patente));
+                .map((v: { veh_patente?: string }) => v.veh_patente?.toUpperCase())
+                .filter((patente: string | undefined): patente is string => Boolean(patente));
 
             const esAbono = Boolean(payload.isAbono || abonoInfo);
 
@@ -378,8 +378,8 @@ export default function OperadorPage() {
             let dbVehicleType = vehicleTypeMapping[payload.type as keyof typeof vehicleTypeMapping] || 'AUT';
 
             if (payload.isAbono && abonoInfo?.vehiculos) {
-                const vehiculoAsociado = abonoInfo.vehiculos.find(
-                    v => v.veh_patente?.toUpperCase() === payload.license_plate
+                const vehiculoAsociado = (abonoInfo.vehiculos as Array<{ veh_patente?: string; catv_segmento?: 'AUT' | 'MOT' | 'CAM' }> | undefined)?.find(
+                    (v) => v?.veh_patente?.toUpperCase() === payload.license_plate
                 );
 
                 if (vehiculoAsociado?.catv_segmento) {
@@ -718,7 +718,7 @@ export default function OperadorPage() {
 
                     // Continuar con el flujo normal de pago
                     const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
-                    
+
                     // Calcular duración de la reserva (horas)
                     const reservationHours = finReserva.diff(inicioReserva, 'hours', true);
                     const montoReserva = ocupacion.ocu_precio_acordado || 0;
@@ -1063,10 +1063,11 @@ export default function OperadorPage() {
             );
 
             // 1. Registrar el pago en la tabla pagos
-            const normalizedMethod = data.method === 'efectivo' ? 'Efectivo' :
-                data.method === 'tarjeta' ? 'Tarjeta' :
-                    data.method === 'app' ? 'MercadoPago' :
-                        data.method === 'transferencia' ? 'Transferencia' : 'Efectivo';
+            const normalizedMethod =
+                data.method === 'efectivo' ? 'Efectivo' :
+                    data.method === 'transferencia' ? 'Transferencia' :
+                        (data.method === 'qr' || data.method === 'link_pago') ? 'MercadoPago' :
+                            'Efectivo';
 
             const { data: payment, error: paymentError } = await supabase
                 .from('pagos')
@@ -1139,7 +1140,7 @@ export default function OperadorPage() {
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
-        setQRPaymentStatus('pending');
+        setQRPaymentStatus('pendiente');
     };
 
 

@@ -22,6 +22,12 @@ import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
 import { ManageAbonoVehiclesDialog } from "@/components/abonos/manage-abono-vehicles-dialog";
 import { TurnoGuard } from "@/components/turno-guard";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface Abono {
     abo_nro: number;
