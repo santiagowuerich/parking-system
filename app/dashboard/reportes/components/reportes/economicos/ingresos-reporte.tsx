@@ -449,11 +449,11 @@ export function IngresosReporte() {
                             ) : (
                                 <ChartContainer
                                     config={{
-                                        current: {
+                                        actual: {
                                             label: "Período actual",
                                             color: "#3b82f6",
                                         },
-                                        previous: {
+                                        anterior: {
                                             label: "Período anterior",
                                             color: "#cbd5e1",
                                         },
@@ -466,8 +466,8 @@ export function IngresosReporte() {
                                                 const prev = trendPrevious[idx] || { label: current.label, value: 0 };
                                                 return {
                                                     date: current.label.slice(5),
-                                                    current: current.value,
-                                                    previous: prev.value,
+                                                    actual: current.value,
+                                                    anterior: prev.value,
                                                 };
                                             })}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
@@ -488,19 +488,19 @@ export function IngresosReporte() {
                                                     <ChartTooltipContent
                                                         formatter={(value, name) => [
                                                             formatCurrency(value as number),
-                                                            name === "current" ? "Período actual" : "Período anterior",
+                                                            name === "actual" ? "Período actual" : "Período anterior",
                                                         ]}
                                                     />
                                                 }
                                             />
                                             <Legend />
                                             <Bar
-                                                dataKey="current"
+                                                dataKey="actual"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#3b82f6"
                                             />
                                             <Bar
-                                                dataKey="previous"
+                                                dataKey="anterior"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#cbd5e1"
                                             />
