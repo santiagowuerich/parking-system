@@ -7,8 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Settings } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/auth-context';
 
@@ -67,7 +66,6 @@ interface EstadisticasPlantillas {
 
 
 export default function VisualizacionPlazasPage() {
-    const router = useRouter();
     const { estId } = useAuth();
     const [plazas, setPlazas] = useState<Plaza[]>([]);
     const [zonas, setZonas] = useState<Zona[]>([]);
@@ -121,10 +119,6 @@ export default function VisualizacionPlazasPage() {
         }
     };
 
-
-    const configurarZona = (zonaNombre: string) => {
-        router.push(`/dashboard/configuracion-zona?zona=${encodeURIComponent(zonaNombre)}`);
-    };
 
     const getEstadoColor = (estado: string) => {
         switch (estado) {
@@ -259,15 +253,6 @@ export default function VisualizacionPlazasPage() {
                                                                 <Badge variant="outline">
                                                                     {((estadisticasZona.ocupadas / estadisticasZona.total) * 100).toFixed(0)}% ocupadas
                                                                 </Badge>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => configurarZona(zonaNombre)}
-                                                                    className="flex items-center gap-1"
-                                                                >
-                                                                    <Settings className="h-3 w-3" />
-                                                                    Configurar
-                                                                </Button>
                                                             </div>
                                                         </CardTitle>
                                                     </CardHeader>

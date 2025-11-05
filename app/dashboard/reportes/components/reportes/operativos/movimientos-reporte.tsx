@@ -580,11 +580,11 @@ export function MovimientosReporte() {
                             ) : (
                                 <ChartContainer
                                     config={{
-                                        entries: {
+                                        ingresos: {
                                             label: "Entradas",
                                             color: "#10b981",
                                         },
-                                        exits: {
+                                        egresos: {
                                             label: "Salidas",
                                             color: "#ef4444",
                                         },
@@ -595,8 +595,8 @@ export function MovimientosReporte() {
                                         <BarChart
                                             data={flowSeries.entriesByHour.map((entries, hour) => ({
                                                 hour: `${String(hour).padStart(2, "0")}h`,
-                                                entries,
-                                                exits: flowSeries.exitsByHour[hour],
+                                                ingresos: entries,
+                                                egresos: flowSeries.exitsByHour[hour],
                                             }))}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
@@ -616,19 +616,19 @@ export function MovimientosReporte() {
                                                     <ChartTooltipContent
                                                         formatter={(value, name) => [
                                                             `${value} vehículos`,
-                                                            name === "entries" ? "Entradas" : "Salidas",
+                                                            name === "ingresos" ? "Entradas" : "Salidas",
                                                         ]}
                                                     />
                                                 }
                                             />
                                             <Legend />
                                             <Bar
-                                                dataKey="entries"
+                                                dataKey="ingresos"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#10b981"
                                             />
                                             <Bar
-                                                dataKey="exits"
+                                                dataKey="egresos"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#ef4444"
                                             />
