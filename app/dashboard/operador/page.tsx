@@ -693,9 +693,22 @@ export default function OperadorPage() {
                 return;
             }
 
-            // NUEVO: Verificar si tiene reserva
+            // NUEVO: Verificar si tiene reserva (con fallback logic)
             let feeData;
-            if (ocupacion.res_codigo && ocupacion.ocu_fecha_limite) {
+            const tieneReserva = !!(
+                ocupacion.res_codigo ||
+                ocupacion.ocu_duracion_tipo === 'reserva' ||
+                (ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0)
+            );
+
+            console.log('🎯 Evaluación de condición de reserva (mejorada):', {
+                tiene_res_codigo: !!ocupacion.res_codigo,
+                es_tipo_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
+                tiene_precio_acordado: !!ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0,
+                condicion_resultado: tieneReserva
+            });
+
+            if (tieneReserva && ocupacion.ocu_fecha_limite) {
                 console.log('🎫 Egreso con reserva detectado:', ocupacion.res_codigo);
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
@@ -703,16 +716,42 @@ export default function OperadorPage() {
                 const inicioReserva = dayjs.utc(ocupacion.entry_time).local();
 
                 if (salidaReal.isAfter(finReserva)) {
-                    // Calcular solo tiempo excedido
-                    feeData = await calculateParkingFee(
-                        {
-                            entry_time: ocupacion.ocu_fecha_limite, // Desde fin de reserva
-                            plaza_number: ocupacion.plaza_number,
-                            ocu_duracion_tipo: 'hora',
-                            ocu_precio_acordado: 0
-                        },
-                        estId
-                    );
+                    // FIX BUG #2: Agregar try-catch para manejar error cuando plaza sin plantilla
+                    try {
+                        // Calcular solo tiempo excedido
+                        feeData = await calculateParkingFee(
+                            {
+                                entry_time: ocupacion.ocu_fecha_limite, // Desde fin de reserva
+                                plaza_number: ocupacion.plaza_number,
+                                ocu_duracion_tipo: 'hora',
+                                ocu_precio_acordado: 0
+                            },
+                            estId
+                        );
+                    } catch (calcError) {
+                        console.warn('⚠️ Error calculando con plantilla, usando tarifa base:', calcError);
+
+                        // FALLBACK: Calcular manualmente con tarifa base
+                        const entryTime = dayjs(ocupacion.ocu_fecha_limite);
+                        const exitTime = dayjs();
+                        const durationMs = exitTime.diff(entryTime);
+                        const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
+
+                        const TARIFA_BASE = 200; // TODO: Cargar desde configuración
+                        const totalCalculado = TARIFA_BASE * durationHours;
+
+                        feeData = {
+                            fee: totalCalculado,
+                            calculatedFee: totalCalculado,
+                            agreedPrice: 0,
+                            durationMs,
+                            durationUnits: durationHours,
+                            plantillaId: null,
+                            plantillaNombre: 'Tarifa Base (Fallback)',
+                            tariffType: 'hora',
+                            precioBase: TARIFA_BASE
+                        };
+                    }
 
                     console.log('💰 Cargo adicional por tiempo excedido:', feeData.fee);
 
@@ -793,6 +832,27 @@ export default function OperadorPage() {
             }
 
             const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
+
+            // FIX: Si es una reserva prepagada sin cargo, no mostrar modal
+            if (ocupacion.res_codigo && feeData.fee === 0) {
+                console.log('✅ RESERVA PREPAGADA - SIN CARGO ADICIONAL - Egreso directo sin pago');
+
+                // Procesar egreso sin pago
+                await finalizeSubscriptionExit({
+                    licensePlate,
+                    entryTime: ocupacion.entry_time,
+                    plazaNumber: ocupacion.plaza_number
+                });
+
+                toast({
+                    title: "✅ Egreso completado",
+                    description: `Reserva prepagada (${ocupacion.res_codigo}). Sin cargo adicional.`
+                });
+
+                await refreshParkedVehicles();
+                await refreshCapacity();
+                return;
+            }
 
             const paymentInfo: PaymentData = {
                 vehicleLicensePlate: licensePlate,
@@ -1031,12 +1091,12 @@ export default function OperadorPage() {
         if (plazaNumber) {
             const { error: plazaUpdateError } = await supabase
                 .from('plazas')
-                .update({ pla_estado: 'Abonado' })
+                .update({ pla_estado: 'Libre' })
                 .eq('pla_numero', plazaNumber)
                 .eq('est_id', estId);
 
             if (plazaUpdateError) {
-                console.warn('Error restaurando estado de plaza abonada:', plazaUpdateError);
+                console.warn('Error liberando plaza:', plazaUpdateError);
             }
         }
 

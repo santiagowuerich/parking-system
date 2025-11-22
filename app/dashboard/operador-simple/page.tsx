@@ -743,15 +743,26 @@ export default function OperadorSimplePage() {
             let hasReservation = false;
             let reservationHours = 0;
             let montoReserva = 0;
-            
-            // Verificar si tiene reserva: debe tener res_codigo Y (ocu_fecha_limite O ocu_duracion_tipo === 'reserva')
-            const tieneReserva = ocupacion.res_codigo && (ocupacion.ocu_fecha_limite || ocupacion.ocu_duracion_tipo === 'reserva');
-            
-            console.log('🎯 Evaluación de condición de reserva:', {
+
+            // FIX: Mejorada - múltiples condiciones para detectar reservas
+            // Fallback logic: si no tiene res_codigo, verificar si es reserva por tipo o precio
+            const tieneReserva = !!(
+                ocupacion.res_codigo ||
+                ocupacion.ocu_duracion_tipo === 'reserva' ||
+                (ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0)
+            );
+
+            console.log('🎯 Evaluación de condición de reserva (mejorada):', {
                 tiene_res_codigo: !!ocupacion.res_codigo,
                 tiene_fecha_limite: !!ocupacion.ocu_fecha_limite,
                 es_tipo_reserva: ocupacion.ocu_duracion_tipo === 'reserva',
-                condicion_resultado: tieneReserva
+                tiene_precio_acordado: !!ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0,
+                condicion_resultado: tieneReserva,
+                datos_ocupacion: {
+                    res_codigo: ocupacion.res_codigo,
+                    ocu_duracion_tipo: ocupacion.ocu_duracion_tipo,
+                    ocu_precio_acordado: ocupacion.ocu_precio_acordado
+                }
             });
             
             if (tieneReserva) {
@@ -811,33 +822,63 @@ export default function OperadorSimplePage() {
                     });
                     
                     // Intentar calcular con descuento de reserva de todas formas
-                    const totalFeeData = await calculateParkingFee(
-                        {
-                            entry_time: ocupacion.entry_time,
-                            plaza_number: ocupacion.plaza_number,
-                            ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
-                            ocu_precio_acordado: 0
-                        },
-                        estId
-                    );
-                    
-                    montoReserva = ocupacion.ocu_precio_acordado;
-                    const cargoConDescuento = Math.max(0, totalFeeData.fee - montoReserva);
-                    
-                    console.log('💰 Aplicando descuento de reserva (modo fallback):', {
-                        total_original: totalFeeData.fee,
-                        monto_pagado_reserva: montoReserva,
-                        cargo_con_descuento: cargoConDescuento
-                    });
-                    
-                    hasReservation = true;
-                    reservationHours = 0; // No sabemos las horas exactas
-                    
-                    feeData = {
-                        ...totalFeeData,
-                        fee: cargoConDescuento,
-                        calculatedFee: cargoConDescuento
-                    };
+                    try {
+                        const totalFeeData = await calculateParkingFee(
+                            {
+                                entry_time: ocupacion.entry_time,
+                                plaza_number: ocupacion.plaza_number,
+                                ocu_duracion_tipo: ocupacion.ocu_duracion_tipo || 'hora',
+                                ocu_precio_acordado: 0
+                            },
+                            estId
+                        );
+
+                        montoReserva = ocupacion.ocu_precio_acordado;
+                        const cargoConDescuento = Math.max(0, totalFeeData.fee - montoReserva);
+
+                        console.log('💰 Aplicando descuento de reserva (modo fallback):', {
+                            total_original: totalFeeData.fee,
+                            monto_pagado_reserva: montoReserva,
+                            cargo_con_descuento: cargoConDescuento
+                        });
+
+                        hasReservation = true;
+                        reservationHours = 0; // No sabemos las horas exactas
+
+                        feeData = {
+                            ...totalFeeData,
+                            fee: cargoConDescuento,
+                            calculatedFee: cargoConDescuento
+                        };
+                    } catch (calcError) {
+                        console.warn('⚠️ Error en fallback de reserva, usando tarifa base:', calcError);
+
+                        // FALLBACK del fallback: calcular manualmente
+                        const entryTime = dayjs.utc(ocupacion.entry_time);
+                        const exitTime = dayjs();
+                        const durationMs = exitTime.diff(entryTime);
+                        const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
+
+                        const TARIFA_BASE = 200;
+                        montoReserva = ocupacion.ocu_precio_acordado || 0;
+                        const totalCalculado = TARIFA_BASE * durationHours;
+                        const cargoConDescuento = Math.max(0, totalCalculado - montoReserva);
+
+                        hasReservation = true;
+                        reservationHours = durationHours;
+
+                        feeData = {
+                            fee: cargoConDescuento,
+                            calculatedFee: cargoConDescuento,
+                            agreedPrice: 0,
+                            durationMs,
+                            durationUnits: durationHours,
+                            plantillaId: null,
+                            plantillaNombre: 'Tarifa Base (Fallback)',
+                            tariffType: 'hora',
+                            precioBase: TARIFA_BASE
+                        };
+                    }
                 } else {
                     feeData = await calculateParkingFee(
                         {
@@ -894,6 +935,32 @@ export default function OperadorSimplePage() {
                     reservationPaidAmount: paymentInfo.reservationPaidAmount
                 }
             });
+
+            // FIX: Si es una reserva prepagada sin cargo adicional, no mostrar modal de pago
+            if (hasReservation && feeData.fee === 0) {
+                console.log('✅ RESERVA PREPAGADA - SIN CARGO ADICIONAL - Egreso directo sin pago');
+
+                // Procesar egreso sin pago
+                await finalizeSubscriptionExit({
+                    licensePlate,
+                    entryTime: ocupacion.entry_time,
+                    plazaNumber: ocupacion.plaza_number
+                });
+
+                const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                const duracionMs = salidaMomento.diff(ingresoMomento);
+
+                toast({
+                    title: "✅ Egreso completado",
+                    description: `Reserva prepagada (${ocupacion.res_codigo}). Sin cargo adicional.`
+                });
+
+                await refreshParkedVehicles();
+                await refreshParkingHistory();
+                await fetchDashboardData('exit');
+                return;
+            }
 
             setPaymentData(paymentInfo);
             setShowPaymentSelector(true);
@@ -1233,12 +1300,12 @@ export default function OperadorSimplePage() {
         if (plazaNumber) {
             const { error: plazaUpdateError } = await supabase
                 .from('plazas')
-                .update({ pla_estado: 'Abonado' })
+                .update({ pla_estado: 'Libre' })
                 .eq('pla_numero', plazaNumber)
                 .eq('est_id', estId);
 
             if (plazaUpdateError) {
-                console.warn('Error restaurando estado de plaza abonada:', plazaUpdateError);
+                console.warn('Error liberando plaza:', plazaUpdateError);
             }
         }
     };
@@ -1255,16 +1322,43 @@ export default function OperadorSimplePage() {
             if (salidaReal.isAfter(finReserva)) {
                 console.log('⏰ El vehículo salió después del fin de reserva, calculando cargo adicional...');
 
-                // Calcular el total por TODO el tiempo estacionado (desde ingreso hasta salida)
-                const totalFeeData = await calculateParkingFee(
-                    {
-                        entry_time: ocupacion.entry_time, // Desde el inicio de la reserva
-                        plaza_number: ocupacion.plaza_number,
-                        ocu_duracion_tipo: 'hora',
-                        ocu_precio_acordado: 0
-                    },
-                    estId
-                );
+                // FIX BUG #2: Agregar try-catch para manejar error cuando plaza sin plantilla
+                let totalFeeData;
+                try {
+                    // Calcular el total por TODO el tiempo estacionado (desde ingreso hasta salida)
+                    totalFeeData = await calculateParkingFee(
+                        {
+                            entry_time: ocupacion.entry_time, // Desde el inicio de la reserva
+                            plaza_number: ocupacion.plaza_number,
+                            ocu_duracion_tipo: 'hora',
+                            ocu_precio_acordado: 0
+                        },
+                        estId
+                    );
+                } catch (calcError) {
+                    console.warn('⚠️ Error calculando con plantilla, usando tarifa base:', calcError);
+
+                    // FALLBACK: Calcular manualmente con tarifa base
+                    const entryTime = dayjs.utc(ocupacion.entry_time);
+                    const exitTime = dayjs();
+                    const durationMs = exitTime.diff(entryTime);
+                    const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
+
+                    const TARIFA_BASE = 200; // TODO: Cargar desde configuración
+                    const totalCalculado = TARIFA_BASE * durationHours;
+
+                    totalFeeData = {
+                        fee: totalCalculado,
+                        calculatedFee: totalCalculado,
+                        agreedPrice: 0,
+                        durationMs,
+                        durationUnits: durationHours,
+                        plantillaId: null,
+                        plantillaNombre: 'Tarifa Base (Fallback)',
+                        tariffType: 'hora',
+                        precioBase: TARIFA_BASE
+                    };
+                }
 
                 console.log('💰 Total calculado por tiempo completo:', {
                     total: totalFeeData.fee,
@@ -1332,16 +1426,12 @@ export default function OperadorSimplePage() {
                 // Salió antes: sin cargo adicional
                 console.log('✅ Salió antes del fin de reserva, sin cargo adicional');
 
-                // Egreso directo sin pago
-                await finalizeVehicleExit({
-                    vehicleLicensePlate: licensePlate,
+                // FIX BUG #1: Usar finalizeSubscriptionExit en vez de finalizeVehicleExit
+                // No registrar pago para reservas prepagadas
+                await finalizeSubscriptionExit({
+                    licensePlate,
                     entryTime: ocupacion.entry_time,
-                    exitTime: dayjs().tz('America/Argentina/Buenos_Aires').toISOString(),
-                    plazaNumber: ocupacion.plaza_number,
-                    amount: 0,
-                    calculatedFee: 0,
-                    duration: 0,
-                    method: 'reserva_prepagada'
+                    plazaNumber: ocupacion.plaza_number
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
