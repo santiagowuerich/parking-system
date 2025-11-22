@@ -610,6 +610,17 @@ export default function OperatorPanel({
       // Buscar si hay un vehículo en esta plaza
       const vehicleInPlaza = parking.parkedVehicles.find(v => v.plaza_number === plaza.pla_numero);
 
+      // Determinar el tipo base de la plaza (antes de ocupación)
+      let tipoBase = plaza.pla_estado;
+      if (plaza.pla_estado === 'Ocupada') {
+        // Si estaba ocupada, determinar el tipo base por el contexto
+        if (plaza.abono) {
+          tipoBase = 'Abonado';
+        } else {
+          tipoBase = 'Libre';
+        }
+      }
+
       // Actualizar el estado basado en la información real de vehículos
       // IMPORTANTE: Preservar estados especiales como 'Reservada', 'Abonado', 'Mantenimiento'
       const estadoActual = vehicleInPlaza ? 'Ocupada' :
@@ -619,6 +630,7 @@ export default function OperatorPanel({
       return {
         ...plaza,
         pla_estado: estadoActual,
+        pla_tipo_base: tipoBase,
         vehicle_info: vehicleInPlaza || null
       };
     });
@@ -633,6 +645,17 @@ export default function OperatorPanel({
       return acc;
     }, {} as Record<string, any[]>);
 
+    // Función para obtener color oscuro basado en el tipo de plaza
+    const getDarkEstadoColor = (tipoBase: string): string => {
+      switch (tipoBase) {
+        case 'Libre': return 'bg-green-800';
+        case 'Abonado': return 'bg-violet-800';
+        case 'Reservada': return 'bg-yellow-800';
+        case 'Mantenimiento': return 'bg-gray-700';
+        default: return 'bg-gray-700';
+      }
+    };
+
     return (
       <TooltipProvider>
         <div key={visualizationKey} className="space-y-6">
@@ -642,13 +665,19 @@ export default function OperatorPanel({
                 <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
               </span>
               <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+                <div className="w-4 h-4 rounded-full bg-green-800"></div>Ocupado (Verde)
               </span>
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-yellow-500"></div>Reservado
               </span>
               <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-orange-500"></div>Abonado
+                <div className="w-4 h-4 rounded-full bg-yellow-800"></div>Ocupado (Reserva)
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-violet-500"></div>Abonado
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-violet-800"></div>Ocupado (Abono)
               </span>
             </div>
             <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
@@ -696,12 +725,16 @@ export default function OperatorPanel({
                         // Usar la información del vehículo ya sincronizada
                         const vehicleInPlaza = plaza.vehicle_info;
 
+                        // Determinar el color: oscuro si hay vehículo, normal si no
+                        const colorClass = vehicleInPlaza
+                          ? getDarkEstadoColor(plaza.pla_tipo_base || plaza.pla_estado)
+                          : (getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400');
+
                         return (
                           <Tooltip key={plaza.pla_numero}>
                             <TooltipTrigger asChild>
                               <div
-                                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center text-white font-bold text-xs shadow-md transition-colors duration-200 relative cursor-pointer hover:ring-2 hover:ring-blue-400 ${getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400'
-                                  } ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
+                                className={`w-16 h-16 rounded-lg flex flex-col items-center justify-center text-white font-bold text-xs shadow-md transition-colors duration-200 relative cursor-pointer hover:ring-2 hover:ring-blue-400 ${colorClass} ${plaza.plantillas ? 'ring-2 ring-blue-300' : ''}`}
                                 onClick={() => handlePlazaClick(plaza)}
                               >
                                 {plaza.pla_estado === 'Ocupada' && vehicleInPlaza ? (
