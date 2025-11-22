@@ -123,7 +123,7 @@ export default function VisualizacionPlazasPage() {
     const getEstadoColor = (estado: string) => {
         switch (estado) {
             case 'Libre': return 'bg-green-500';
-            case 'Ocupada': return 'bg-gray-700';
+            case 'Ocupada': return 'bg-red-500';
             case 'Reservada': return 'bg-yellow-500';
             case 'Abonado': return 'bg-violet-500';
             case 'Mantenimiento': return 'bg-gray-500';

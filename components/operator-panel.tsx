@@ -665,19 +665,16 @@ export default function OperatorPanel({
                 <div className="w-4 h-4 rounded-full bg-green-600"></div>Libre
               </span>
               <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-green-800"></div>Ocupado (Verde)
-              </span>
-              <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-yellow-500"></div>Reservado
-              </span>
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-yellow-800"></div>Ocupado (Reserva)
               </span>
               <span className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-violet-500"></div>Abonado
               </span>
               <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-violet-800"></div>Ocupado (Abono)
+                <div className="w-4 h-4 rounded-full bg-red-600"></div>Ocupado
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-violet-800"></div>Abonado Ocupado
               </span>
             </div>
             <Button variant="outline" size="sm" onClick={fetchPlazasStatus}>
@@ -725,10 +722,21 @@ export default function OperatorPanel({
                         // Usar la información del vehículo ya sincronizada
                         const vehicleInPlaza = plaza.vehicle_info;
 
-                        // Determinar el color: oscuro si hay vehículo, normal si no
-                        const colorClass = vehicleInPlaza
-                          ? getDarkEstadoColor(plaza.pla_tipo_base || plaza.pla_estado)
-                          : (getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400');
+                        // Determinar el color:
+                        // - Si hay vehículo en ABONO: usar color oscuro (violeta oscuro)
+                        // - Si hay vehículo en otros: usar rojo (Ocupada)
+                        // - Si no hay vehículo: usar color normal
+                        let colorClass: string;
+                        if (vehicleInPlaza && (plaza.pla_tipo_base === 'Abonado' || plaza.pla_estado === 'Abonado')) {
+                          // Plaza abonada con vehículo: violeta oscuro
+                          colorClass = getDarkEstadoColor('Abonado');
+                        } else if (vehicleInPlaza) {
+                          // Plaza libre o reserva con vehículo: rojo
+                          colorClass = getEstadoColor ? getEstadoColor('Ocupada') : 'bg-red-500';
+                        } else {
+                          // Sin vehículo: color normal según estado
+                          colorClass = (getEstadoColor ? getEstadoColor(plaza.pla_estado) : 'bg-gray-400');
+                        }
 
                         return (
                           <Tooltip key={plaza.pla_numero}>
