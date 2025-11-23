@@ -1,6 +1,12 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { formatTimeWithSeconds, nowInArgentinaISO } from "@/lib/utils/date-time";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,24 +65,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Registrar entrada en `ocupacion`
-    // FIX: Guardar timestamp UTC ISO completo (no solo hora)
-    // Interpretar entry_time como hora Argentina y convertir a UTC para BD
+    // FIX: Usar formato sin Z para BD timestamp without time zone (Argentina)
+    // NO usar .toISOString() que incluye Z y PostgreSQL ignora, causando +3h error
     let entryTimestamp: string;
 
     if (typeof entry_time === 'string' && entry_time.includes('T')) {
-      // ISO string desde API
-      entryTimestamp = dayjs.utc(entry_time).tz('America/Argentina/Buenos_Aires').utc().toISOString();
+      // ISO string desde API - parsear y convertir a Argentina
+      entryTimestamp = dayjs(entry_time).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
     } else if (typeof entry_time === 'object' && entry_time instanceof Date) {
-      // Date object
-      entryTimestamp = dayjs(entry_time).tz('America/Argentina/Buenos_Aires').utc().toISOString();
+      // Date object - convertir a Argentina
+      entryTimestamp = dayjs(entry_time).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
     } else {
       // String HH:mm:ss - asumir que es hora Argentina de hoy
+      // Obtener hora actual en Argentina y aplicar los valores HH:mm:ss
       const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-      entryTimestamp = ahora.set('hour', parseInt(entry_time.split(':')[0]))
+      entryTimestamp = ahora
+        .set('hour', parseInt(entry_time.split(':')[0]))
         .set('minute', parseInt(entry_time.split(':')[1]))
         .set('second', parseInt(entry_time.split(':')[2]) || 0)
-        .utc()
-        .toISOString();
+        .format('YYYY-MM-DD HH:mm:ss');
     }
 
     const { data, error } = await supabase

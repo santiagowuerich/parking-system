@@ -538,7 +538,8 @@ export default function OperadorSimplePage() {
             }
 
             // Registrar la ocupación
-            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+            // FIX: Usar formato sin Z para BD timestamp without time zone (Argentina)
+            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
             const ocupacionData = {
                 est_id: estId,
@@ -744,12 +745,13 @@ export default function OperadorSimplePage() {
             let reservationHours = 0;
             let montoReserva = 0;
 
-            // FIX: Mejorada - múltiples condiciones para detectar reservas
-            // Fallback logic: si no tiene res_codigo, verificar si es reserva por tipo o precio
+            // FIX: Detectar reserva SOLO si tiene código de reserva o es tipo 'reserva'
+            // NO incluir precio_acordado > 0 porque eso es cualquier egreso normal que cobre
+            // Y debe tener ocu_fecha_limite para poder determinar si salió antes o después
             const tieneReserva = !!(
-                ocupacion.res_codigo ||
-                ocupacion.ocu_duracion_tipo === 'reserva' ||
-                (ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0)
+                (ocupacion.res_codigo ||
+                ocupacion.ocu_duracion_tipo === 'reserva') &&
+                ocupacion.ocu_fecha_limite
             );
 
             console.log('🎯 Evaluación de condición de reserva (mejorada):', {
@@ -774,9 +776,9 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
-                // FIX: ocu_fecha_limite viene como "timestamp without time zone" en Argentina, no UTC
-                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
-                const inicioReserva = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                // FIX: Parsear directamente en Argentina timezone (no como UTC que causaba -3h error)
+                const finReserva = dayjs.tz(ocupacion.ocu_fecha_limite, 'America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
 
                 // Guardar datos para procesar después de confirmación
                 reservationExitDataRef.current = {
@@ -796,6 +798,19 @@ export default function OperadorSimplePage() {
                     diferencia_minutos: finReserva.diff(salidaReal, 'minutes')
                 });
 
+                const salioAntes = salidaReal.isBefore(finReserva);
+
+                // CASO 2: Si salió después de la reserva, calcular cargo y mostrar selector de pago directamente
+                if (!salioAntes) {
+                    console.log('💳 CASO 2 DETECTADO: Egreso después de fin de reserva - Mostrando selector de pago directamente');
+                    // Llamar confirmReservationExit directamente sin mostrar modal informacional
+                    // El ref ya está configurado con los datos necesarios
+                    await confirmReservationExit();
+                    return;
+                }
+
+                // CASO 1: Si salió antes de la reserva, mostrar modal informacional
+                console.log('✅ CASO 1 DETECTADO: Egreso antes de fin de reserva - Mostrando confirmación');
                 setReservationData({
                     res_codigo: ocupacion.res_codigo,
                     ocu_fecha_limite: ocupacion.ocu_fecha_limite,
@@ -805,7 +820,7 @@ export default function OperadorSimplePage() {
                     exitTime: salidaReal.format('HH:mm:ss'),
                     endDate: finReserva.format('DD/MM/YYYY'),
                     endTime: finReserva.format('HH:mm:ss'),
-                    salioAntes: salidaReal.isBefore(finReserva)
+                    salioAntes: salioAntes
                 });
                 setShowReservationConfirm(true);
                 return;
@@ -1737,9 +1752,12 @@ export default function OperadorSimplePage() {
 
             if (response.ok) {
                 console.log(`✅ [CLIENTE] Verificación exitosa. Se procesaron ${data.reservas_expiradas} reservas`);
+                const mensaje = data.reservas_expiradas > 0
+                    ? `Se liberaron ${data.reservas_expiradas} plazas reservadas que expiraron`
+                    : `No hay reservas expiradas en este momento`;
                 toast({
                     title: "✅ Verificación completada",
-                    description: `Se procesaron ${data.reservas_expiradas || 0} reservas expiradas y se liberaron sus plazas`
+                    description: mensaje
                 });
 
                 // Refrescar los datos de vehículos y plazas para mostrar cambios

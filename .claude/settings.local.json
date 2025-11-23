@@ -2,29 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm run build:*)",
-      "Bash(npm run lint)",
-      "Bash(npx tsc:*)",
-      "Bash(npm run dev:*)",
-      "WebSearch",
-      "WebFetch(domain:www.mercadopago.com.ar)",
-      "WebFetch(domain:www.figma.com)",
-      "Bash(curl:*)",
-      "Bash(code --list-extensions)",
-      "Bash(npm run build:components)",
-      "Bash(npm install resend)",
-      "Bash(npm install resend --legacy-peer-deps)",
-      "Bash(npm uninstall resend --legacy-peer-deps)",
-      "Bash(git -C \"c:\\Users\\santi\\OneDrive\\Escritorio\\Proyectos\\parqeo\\parking-system\" status)",
       "Bash(find:*)",
-      "Bash(npm install:*)",
-      "Bash(tree:*)",
-      "Bash(npm run:*)",
-      "Bash(dir:*)",
-      "Bash(findstr:*)",
-      "Bash(cat:*)",
-      "Bash(netstat:*)",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nFijar timezone en operador-simple/page.tsx: cambiar .local() por .tz()\n\n- Reemplazar todas las instancias de `.local()` con `.tz(''America/Argentina/Buenos_Aires'')`\n- Líneas 701, 953, 1440: asegurar que ingresoMomento se calcule en Argentina timezone\n- Coherencia con resto del codebase y operador/page.tsx\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

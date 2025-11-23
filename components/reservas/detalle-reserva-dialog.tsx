@@ -325,10 +325,6 @@ export function DetalleReservaDialog({ open, onOpenChange, res_codigo }: Props) 
                                             <span className="text-sm text-gray-600">Número de Pago</span>
                                             <p className="text-lg font-semibold">{reserva?.pag_nro || 'Sin pago registrado'}</p>
                                         </div>
-                                        <div>
-                                            <span className="text-sm text-gray-600">Tiempo de Gracia</span>
-                                            <p className="text-lg font-semibold">{reserva?.res_tiempo_gracia_min || 0} minutos</p>
-                                        </div>
                                     </div>
 
                                     {reserva?.payment_info && (
