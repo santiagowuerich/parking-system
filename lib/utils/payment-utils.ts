@@ -83,8 +83,9 @@ export function calculatePaymentExpiry(method: PaymentMethod): Date | null {
  */
 export function isPaymentExpired(expiresAt: string | null): boolean {
   if (!expiresAt) return false;
-  const now = dayjs().tz('America/Argentina/Buenos_Aires');
-  const expiry = dayjs(expiresAt).tz('America/Argentina/Buenos_Aires');
+  // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+  const now = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+  const expiry = dayjs.utc(expiresAt).tz('America/Argentina/Buenos_Aires');
   return expiry.isBefore(now);
 }
 
@@ -92,8 +93,9 @@ export function isPaymentExpired(expiresAt: string | null): boolean {
  * Formatea el tiempo restante hasta la expiración
  */
 export function formatTimeUntilExpiry(expiresAt: string): string {
-  const now = dayjs().tz('America/Argentina/Buenos_Aires');
-  const expiry = dayjs(expiresAt).tz('America/Argentina/Buenos_Aires');
+  // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+  const now = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+  const expiry = dayjs.utc(expiresAt).tz('America/Argentina/Buenos_Aires');
   const diffMs = expiry.diff(now);
 
   if (diffMs <= 0) return 'Expirado';

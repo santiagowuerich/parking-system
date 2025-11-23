@@ -108,79 +108,53 @@ async function getApiKey(estId: number): Promise<string> {
 
 export async function POST(request: NextRequest) {
     try {
-        console.log('📥 [RESERVA] Iniciando creación de reserva');
         const supabase = await createAuthenticatedSupabaseClient();
         const body: CrearReservaRequest = await request.json();
-
-        console.log('📥 [RESERVA] Body recibido:', JSON.stringify(body));
-
         const { est_id, pla_numero, veh_patente, fecha_inicio, duracion_horas, metodo_pago } = body;
-
-        console.log('📥 [RESERVA] Parametros extraídos:', { est_id, pla_numero, veh_patente, fecha_inicio, duracion_horas, metodo_pago });
 
         // Validar parámetros requeridos
         if (!est_id || !pla_numero || !veh_patente || !fecha_inicio || !duracion_horas || !metodo_pago) {
-            console.error('❌ [RESERVA] Parámetros faltantes:', { est_id, pla_numero, veh_patente, fecha_inicio, duracion_horas, metodo_pago });
             return NextResponse.json({
                 success: false,
                 error: 'Todos los parámetros son requeridos'
             }, { status: 400 });
         }
 
-        console.log('✅ [RESERVA] Parámetros válidos, continuando...');
-
         // Validar tiempo de reserva
         const validacionTiempo = validarTiempoReserva(fecha_inicio);
         if (!validacionTiempo.valido) {
-            console.error(`❌ [RESERVA] Validación de tiempo fallida: ${validacionTiempo.error}`);
-            console.error(`   Fecha inicio: ${fecha_inicio}`);
-            console.error(`   Hora actual: ${new Date().toISOString()}`);
             return NextResponse.json({
                 success: false,
                 error: validacionTiempo.error
             }, { status: 400 });
         }
 
-        console.log('✅ [RESERVA] Validación de tiempo exitosa');
-
         // Validar duración
         if (duracion_horas < 1 || duracion_horas > 24) {
-            console.error('❌ [RESERVA] Duración inválida:', duracion_horas);
             return NextResponse.json({
                 success: false,
                 error: 'La duración debe estar entre 1 y 24 horas'
             }, { status: 400 });
         }
 
-        console.log('✅ [RESERVA] Duración válida');
-
         // Validar método de pago
         if (!['link_pago', 'qr'].includes(metodo_pago)) {
-            console.error('❌ [RESERVA] Método de pago inválido:', metodo_pago);
             return NextResponse.json({
                 success: false,
                 error: 'Solo se aceptan pagos con MercadoPago (QR o Link de Pago)'
             }, { status: 400 });
         }
 
-        console.log('✅ [RESERVA] Método de pago válido:', metodo_pago);
-        console.log(`🔄 [RESERVA] Creando reserva: est_id=${est_id}, plaza=${pla_numero}, vehículo=${veh_patente}, inicio=${fecha_inicio}, duración=${duracion_horas}h`);
-
         // 1. Verificar que el conductor esté autenticado
-        console.log('🔐 [RESERVA] Verificando autenticación...');
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-            console.error('❌ [RESERVA] Usuario no autenticado:', authError);
             return NextResponse.json({
                 success: false,
                 error: 'Usuario no autenticado'
             }, { status: 401 });
         }
 
-        console.log('✅ [RESERVA] Usuario autenticado:', user.id);
-
         // 2. Obtener datos del conductor
-        console.log('🔍 [RESERVA] Buscando datos del conductor...');
         const { data: conductor, error: conductorError } = await supabase
             .from('conductores')
             .select(`
@@ -197,17 +171,13 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (conductorError || !conductor) {
-            console.error('❌ [RESERVA] Conductor no encontrado:', conductorError);
             return NextResponse.json({
                 success: false,
                 error: 'Conductor no encontrado'
             }, { status: 404 });
         }
 
-        console.log('✅ [RESERVA] Conductor encontrado:', conductor.con_id);
-
         // 3. Verificar que el vehículo pertenezca al conductor
-        console.log('🚗 [RESERVA] Verificando vehículo...');
         const { data: vehiculo, error: vehiculoError } = await supabase
             .from('vehiculos')
             .select('veh_patente, catv_segmento')
@@ -216,21 +186,37 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (vehiculoError || !vehiculo) {
-            console.error('❌ [RESERVA] Vehículo no encontrado:', vehiculoError);
             return NextResponse.json({
                 success: false,
                 error: 'Vehículo no encontrado o no pertenece al conductor'
             }, { status: 404 });
         }
 
-        console.log('✅ [RESERVA] Vehículo verificado');
-
         // 4. Calcular fechas de la nueva reserva
-        const fechaInicioDate = dayjs(fecha_inicio).tz('America/Argentina/Buenos_Aires', true).toDate();
-        const fechaFinDate = dayjs(fechaInicioDate).add(duracion_horas, 'hours').toDate();
+        // FIX: Interpretar fecha_inicio como Argentina timezone (no como UTC)
+        // Si es ISO string (tiene 'T'), interpretar como UTC primero; sino, como Argentina
+        const fechaInicioArgentina = fecha_inicio.includes('T')
+            ? dayjs.utc(fecha_inicio).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fecha_inicio).tz('America/Argentina/Buenos_Aires');
 
-        // Verificar que no tenga reservas activas que se solapen con la nueva
-        console.log('🔍 [RESERVA] Verificando reservas activas que se solapen...');
+        if (!fechaInicioArgentina.isValid()) {
+            console.error('❌ [RESERVA] Fecha inicio inválida:', fecha_inicio);
+            return NextResponse.json({
+                success: false,
+                error: 'Formato de fecha inválido'
+            }, { status: 400 });
+        }
+
+        const fechaFinArgentina = fechaInicioArgentina.add(duracion_horas, 'hours');
+        // FIX: Mandar SIN 'Z' porque BD es "timestamp without time zone" (no UTC)
+        const fechaInicioParaBD = fechaInicioArgentina.format('YYYY-MM-DD HH:mm:ss');
+        const fechaFinParaBD = fechaFinArgentina.format('YYYY-MM-DD HH:mm:ss');
+
+        // LOG IMPORTANTE: Mostrar horas para control
+        console.log(`📅 RESERVA: Veh=${veh_patente}, Plaza=${pla_numero}, Duración=${duracion_horas}h`);
+        console.log(`   Cliente envió: ${fecha_inicio}`);
+        console.log(`   Argentina: ${fechaInicioArgentina.format('YYYY-MM-DD HH:mm:ss')} → ${fechaFinArgentina.format('YYYY-MM-DD HH:mm:ss')}`);
+        console.log(`   Se guarda en BD: ${fechaInicioParaBD} → ${fechaFinParaBD}`);
 
         const { data: reservasActivas, error: reservasError } = await supabase
             .from('reservas')
@@ -239,31 +225,13 @@ export async function POST(request: NextRequest) {
             .in('res_estado', ['pendiente_pago', 'confirmada', 'activa']);
 
         if (reservasError) {
-            console.error('❌ [RESERVA] Error verificando reservas activas:', reservasError);
             return NextResponse.json({
                 success: false,
                 error: 'Error verificando reservas existentes'
             }, { status: 500 });
         }
 
-        // Verificar solapamiento manualmente
-        const reservasSolapadas = reservasActivas?.filter(reserva => {
-            const reservaInicio = dayjs(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires', true).toDate();
-            const reservaFin = dayjs(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires', true).toDate();
-            // Solapamiento: reserva existente comienza antes de que termine la nueva Y termina después de que comienza la nueva
-            return reservaInicio < fechaFinDate && reservaFin > fechaInicioDate;
-        }) || [];
-
-        if (reservasSolapadas.length > 0) {
-            console.error('❌ [RESERVA] Usuario tiene reservas que se solapan con la nueva');
-            console.error('Reservas solapadas:', reservasSolapadas);
-            return NextResponse.json({
-                success: false,
-                error: 'Ya tienes una reserva activa en este horario. No puedes crear otra que se solape.'
-            }, { status: 400 });
-        }
-
-        console.log('✅ [RESERVA] No hay reservas solapadas');
+        // REMOVIDO: Validación de solapamiento - permitir múltiples reservas solapadas
 
         // 5. Verificar disponibilidad de la plaza usando la función SQL
         console.log('🔍 [RESERVA] Verificando disponibilidad de plaza...');
@@ -272,8 +240,8 @@ export async function POST(request: NextRequest) {
             .rpc('validar_disponibilidad_plaza', {
                 p_est_id: est_id,
                 p_pla_numero: pla_numero,
-                p_fecha_inicio: fechaInicioDate.toISOString(),
-                p_fecha_fin: fechaFinDate.toISOString()
+                p_fecha_inicio: fechaInicioArgentina.utc().toISOString(),
+                p_fecha_fin: fechaFinArgentina.utc().toISOString()
             });
 
         if (disponibilidadError) {
@@ -320,7 +288,7 @@ export async function POST(request: NextRequest) {
             .select('tar_precio')
             .eq('plantilla_id', plazaData.plantilla_id)
             .eq('catv_segmento', plazaData.catv_segmento)
-            .lte('tar_f_desde', fechaInicioDate.toISOString())
+            .lte('tar_f_desde', fechaInicioArgentina.utc().toISOString())
             .order('tar_f_desde', { ascending: false })
             .limit(1)
             .single();
@@ -350,7 +318,7 @@ export async function POST(request: NextRequest) {
         if (metodo_pago === 'qr') {
             // Datos únicos para generar un código consistente
             // Formato: est_id|pla_numero|veh_patente|fecha_inicio
-            uniqueDataForCode = `${est_id}|${pla_numero}|${veh_patente}|${fechaInicioDate.toISOString()}`;
+            uniqueDataForCode = `${est_id}|${pla_numero}|${veh_patente}|${fechaInicioArgentina.utc().toISOString()}`;
             console.log(`📝 [RESERVA] Datos para hash QR: ${uniqueDataForCode}`);
         }
 
@@ -512,8 +480,8 @@ export async function POST(request: NextRequest) {
                 pla_numero,
                 veh_patente,
                 res_codigo: resCodigoGenerado,
-                res_fh_ingreso: fechaInicioDate.toISOString(),
-                res_fh_fin: fechaFinDate.toISOString(),
+                res_fh_ingreso: fechaInicioParaBD,
+                res_fh_fin: fechaFinParaBD,
                 con_id: conductor.con_id,
                 res_monto: precioTotal,
                 res_tiempo_gracia_min: 15,
@@ -540,8 +508,9 @@ export async function POST(request: NextRequest) {
             pla_numero,
             veh_patente,
             res_codigo: resCodigoGenerado,
-            res_fh_ingreso: fechaInicioDate.toISOString(),
-            res_fh_fin: fechaFinDate.toISOString(),
+            // FIX: Mandar formato local (sin timezone) porque BD es "timestamp without time zone"
+            res_fh_ingreso: fechaInicioParaBD,
+            res_fh_fin: fechaFinParaBD,
             con_id: conductor.con_id,
             res_monto: precioTotal,
             res_tiempo_gracia_min: 15,
@@ -584,8 +553,8 @@ export async function POST(request: NextRequest) {
             data: {
                 reserva: {
                     ...reservaCreada,
-                    res_fh_ingreso: dayjs(fechaInicioDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
-                    res_fh_fin: dayjs(fechaFinDate).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
+                    res_fh_ingreso: fechaInicioArgentina.format('YYYY-MM-DD HH:mm:ss'),
+                    res_fh_fin: fechaFinArgentina.format('YYYY-MM-DD HH:mm:ss'),
                 },
                 payment_info: paymentInfo
             }

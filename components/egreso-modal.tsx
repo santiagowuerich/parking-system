@@ -150,7 +150,8 @@ export default function EgresoModal({
             <div className="relative">
               <Input
                 id="ingreso"
-                value={dayjs.utc(vehicle.entry_time).local().format('DD/MM/YYYY HH:mm')}
+                // FIX: Usar .tz() en lugar de .local() para mostrar hora Argentina correctamente
+                value={dayjs.utc(vehicle.entry_time).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
                 readOnly
                 className="bg-muted"
               />

@@ -125,7 +125,7 @@ export default function VisualizacionPlazasPage() {
             case 'Libre': return 'bg-green-500';
             case 'Ocupada': return 'bg-red-500';
             case 'Reservada': return 'bg-yellow-500';
-            case 'Abonado': return 'bg-orange-500';
+            case 'Abonado': return 'bg-violet-500';
             case 'Mantenimiento': return 'bg-gray-500';
             default: return 'bg-gray-400';
         }
@@ -288,7 +288,7 @@ export default function VisualizacionPlazasPage() {
                                                                                     </div>
                                                                                     {plaza.pla_estado === 'Abonado' && plaza.abono && (
                                                                                         <div className="border-t pt-2 mt-2">
-                                                                                            <div className="text-sm font-medium text-orange-600 mb-1">🎫 Abono Asignado</div>
+                                                                                            <div className="text-sm font-medium text-violet-600 mb-1">🎫 Abono Asignado</div>
                                                                                             <div className="text-sm">
                                                                                                 <span className="font-medium">Titular:</span> {plaza.abono.abonado.abon_nombre} {plaza.abono.abonado.abon_apellido}
                                                                                             </div>
@@ -341,7 +341,7 @@ export default function VisualizacionPlazasPage() {
                                                                     <span className="font-medium text-yellow-600">Reservadas:</span> {estadisticasZona.reservadas}
                                                                 </div>
                                                                 <div>
-                                                                    <span className="font-medium text-orange-600">Abonadas:</span> {estadisticasZona.abonadas}
+                                                                    <span className="font-medium text-violet-600">Abonadas:</span> {estadisticasZona.abonadas}
                                                                 </div>
                                                                 <div>
                                                                     <span className="font-medium text-blue-600">Con Plantilla:</span> {estadisticasZona.conPlantilla}

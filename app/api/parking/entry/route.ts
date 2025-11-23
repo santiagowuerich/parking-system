@@ -59,22 +59,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Registrar entrada en `ocupacion`
-    // Convertir entry_time a formato hora argentina si viene como Date/string
-    // Si entry_time ya es una hora formateada, usarla directamente
-    // Si es Date o ISO string, formatearla en hora argentina
-    const horaEntrada = typeof entry_time === 'string' && entry_time.includes('T')
-      ? formatTimeWithSeconds(entry_time)
-      : typeof entry_time === 'object' && entry_time instanceof Date
-      ? formatTimeWithSeconds(entry_time)
-      : entry_time; // Si ya es string formateado, usar directamente
-    
+    // FIX: Guardar timestamp UTC ISO completo (no solo hora)
+    // Interpretar entry_time como hora Argentina y convertir a UTC para BD
+    let entryTimestamp: string;
+
+    if (typeof entry_time === 'string' && entry_time.includes('T')) {
+      // ISO string desde API
+      entryTimestamp = dayjs.utc(entry_time).tz('America/Argentina/Buenos_Aires').utc().toISOString();
+    } else if (typeof entry_time === 'object' && entry_time instanceof Date) {
+      // Date object
+      entryTimestamp = dayjs(entry_time).tz('America/Argentina/Buenos_Aires').utc().toISOString();
+    } else {
+      // String HH:mm:ss - asumir que es hora Argentina de hoy
+      const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
+      entryTimestamp = ahora.set('hour', parseInt(entry_time.split(':')[0]))
+        .set('minute', parseInt(entry_time.split(':')[1]))
+        .set('second', parseInt(entry_time.split(':')[2]) || 0)
+        .utc()
+        .toISOString();
+    }
+
     const { data, error } = await supabase
       .from("ocupacion")
       .insert({
         est_id: estId,
         pla_numero: plazaNumero,
         veh_patente: license_plate.trim(),
-        ocu_fh_entrada: horaEntrada,
+        ocu_fh_entrada: entryTimestamp,
         ocu_fh_salida: null,
         tiptar_nro: null,
         pag_nro: null,

@@ -18,9 +18,10 @@ export const ARGENTINA_TIMEZONE = 'America/Argentina/Buenos_Aires'
 /**
  * Obtiene la fecha/hora actual en zona horaria de Argentina
  * Funciona igual en servidor (Vercel) y cliente
+ * FIX: Usa dayjs.utc() para obtener siempre UTC primero, así funciona en cualquier timezone
  */
 export function nowInArgentina(): dayjs.Dayjs {
-  return dayjs().tz(ARGENTINA_TIMEZONE)
+  return dayjs.utc().tz(ARGENTINA_TIMEZONE)
 }
 
 /**
