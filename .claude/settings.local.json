@@ -4,7 +4,10 @@
       "Bash(npm run build:*)",
       "Bash(find:*)",
       "Bash(done)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(ls -la \"c:\\Users\\Usuario\\Desktop\\Proyectos\\parking-system\\supabase\\migrations\"\" | grep -E \"20251027)",
+      "Bash(ocupacion:*)",
+      "Bash(reserva \")"
     ],
     "deny": [],
     "ask": []

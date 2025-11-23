@@ -414,9 +414,78 @@ export default function OperadorPage() {
                 if (createVehicleError) throw createVehicleError;
             }
 
+            // Buscar reserva activa para esta patente y plaza (igual a operador-simple)
+            let reservaActiva = null;
+            if (payload.pla_numero) {
+                // PASO 1: Buscar reserva por patente EXACTA
+                const { data: reservas, error: reservasError } = await supabase
+                    .from('reservas')
+                    .select('*')
+                    .eq('est_id', estId)
+                    .eq('pla_numero', payload.pla_numero)
+                    .eq('veh_patente', payload.license_plate.toUpperCase())
+                    .in('res_estado', ['confirmada', 'activa'])
+                    .order('res_fh_ingreso', { ascending: false })
+                    .limit(1);
+
+                if (!reservasError && reservas && reservas.length > 0) {
+                    reservaActiva = reservas[0];
+                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (patente exacta):', {
+                        res_codigo: reservaActiva.res_codigo,
+                        veh_patente: reservaActiva.veh_patente,
+                        res_estado: reservaActiva.res_estado,
+                        res_monto: reservaActiva.res_monto,
+                        pag_nro: reservaActiva.pag_nro,
+                        res_fh_fin: reservaActiva.res_fh_fin
+                    });
+                } else {
+                    // PASO 2: Si no encontró por patente exacta, buscar por CONDUCTOR
+                    console.log('ℹ️ No se encontró reserva por patente exacta, buscando por conductor...');
+
+                    // Obtener conductor del vehículo actual
+                    const { data: vehiculoData, error: vehiculoError } = await supabase
+                        .from('vehiculos')
+                        .select('con_id')
+                        .eq('veh_patente', payload.license_plate.toUpperCase())
+                        .single();
+
+                    if (!vehiculoError && vehiculoData?.con_id) {
+                        console.log(`🔍 Conductor del vehículo ${payload.license_plate}: ${vehiculoData.con_id}`);
+
+                        // Buscar reservas del conductor en la misma plaza
+                        const { data: reservasPorConductor, error: reservasConductorError } = await supabase
+                            .from('reservas')
+                            .select('*')
+                            .eq('est_id', estId)
+                            .eq('pla_numero', payload.pla_numero)
+                            .eq('con_id', vehiculoData.con_id)
+                            .in('res_estado', ['confirmada', 'activa'])
+                            .order('res_fh_ingreso', { ascending: false })
+                            .limit(1);
+
+                        if (!reservasConductorError && reservasPorConductor && reservasPorConductor.length > 0) {
+                            reservaActiva = reservasPorConductor[0];
+                            console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (por conductor - vehículo diferente):', {
+                                res_codigo: reservaActiva.res_codigo,
+                                veh_patente_reserva: reservaActiva.veh_patente,
+                                veh_patente_actual: payload.license_plate,
+                                con_id: vehiculoData.con_id,
+                                res_estado: reservaActiva.res_estado,
+                                res_monto: reservaActiva.res_monto,
+                                res_fh_fin: reservaActiva.res_fh_fin
+                            });
+                        } else {
+                            console.log('ℹ️ No se encontró reserva activa para este conductor en esta plaza');
+                        }
+                    } else {
+                        console.log('⚠️ No se pudo obtener conductor del vehículo');
+                    }
+                }
+            }
+
             // Calcular fecha límite basada en duración seleccionada (en timezone Argentina)
             let fechaLimite: Date | null = null;
-            if (payload.duracion_tipo && payload.duracion_tipo !== 'hora' && payload.duracion_tipo !== 'abono') {
+            if (!reservaActiva && payload.duracion_tipo && payload.duracion_tipo !== 'hora' && payload.duracion_tipo !== 'abono') {
                 const nowArgentina = dayjs().tz('America/Argentina/Buenos_Aires');
                 let fechaLimiteArgentina: dayjs.Dayjs;
                 switch (payload.duracion_tipo) {
@@ -435,17 +504,19 @@ export default function OperadorPage() {
                 fechaLimite = fechaLimiteArgentina.toDate();
             }
 
-            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
             const { error: ocupacionError } = await supabase
                 .from('ocupacion')
                 .insert({
                     est_id: estId,
                     veh_patente: payload.license_plate,
-                    ocu_fh_entrada: entryTime,
+                    ocu_fh_entrada: reservaActiva ? reservaActiva.res_fh_ingreso : entryTime,
                     pla_numero: payload.pla_numero,
-                    ocu_duracion_tipo: payload.duracion_tipo || 'hora',
-                    ocu_precio_acordado: payload.precio_acordado || 0,
-                    ocu_fecha_limite: fechaLimite ? fechaLimite.toISOString() : null
+                    ocu_duracion_tipo: reservaActiva ? 'reserva' : (payload.duracion_tipo || 'hora'),
+                    ocu_precio_acordado: reservaActiva ? reservaActiva.res_monto : (payload.precio_acordado || 0),
+                    ocu_fecha_limite: reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
+                    res_codigo: reservaActiva ? reservaActiva.res_codigo : null,
+                    pag_nro: reservaActiva ? reservaActiva.pag_nro : null
                 });
 
             if (ocupacionError) {

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
                 est_id,
                 pla_numero,
                 res_estado,
-                ocupacion!left(ocu_id, ocu_fh_salida)
+                ocupacion!res_codigo(ocu_id, ocu_fh_salida)
             `)
             .eq('res_estado', 'confirmada')
             .lt('res_fh_fin', ahoraArgentina);

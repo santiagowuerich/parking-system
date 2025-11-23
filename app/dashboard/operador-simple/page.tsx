@@ -512,6 +512,7 @@ export default function OperadorSimplePage() {
 
             let reservaActiva = null;
             if (payload.pla_numero) {
+                // PASO 1: Buscar reserva por patente EXACTA
                 const { data: reservas, error: reservasError } = await supabase
                     .from('reservas')
                     .select('*')
@@ -524,16 +525,56 @@ export default function OperadorSimplePage() {
 
                 if (!reservasError && reservas && reservas.length > 0) {
                     reservaActiva = reservas[0];
-                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA:', {
+                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (patente exacta):', {
                         res_codigo: reservaActiva.res_codigo,
+                        veh_patente: reservaActiva.veh_patente,
                         res_estado: reservaActiva.res_estado,
                         res_monto: reservaActiva.res_monto,
                         pag_nro: reservaActiva.pag_nro,
-                        res_fh_ingreso: reservaActiva.res_fh_ingreso,
                         res_fh_fin: reservaActiva.res_fh_fin
                     });
                 } else {
-                    console.log('ℹ️ No se encontró reserva activa para esta patente y plaza');
+                    // PASO 2: Si no encontró por patente exacta, buscar por CONDUCTOR
+                    console.log('ℹ️ No se encontró reserva por patente exacta, buscando por conductor...');
+
+                    // Obtener conductor del vehículo actual
+                    const { data: vehiculoData, error: vehiculoError } = await supabase
+                        .from('vehiculos')
+                        .select('con_id')
+                        .eq('veh_patente', payload.license_plate.toUpperCase())
+                        .single();
+
+                    if (!vehiculoError && vehiculoData?.con_id) {
+                        console.log(`🔍 Conductor del vehículo ${payload.license_plate}: ${vehiculoData.con_id}`);
+
+                        // Buscar reservas del conductor en la misma plaza
+                        const { data: reservasPorConductor, error: reservasConductorError } = await supabase
+                            .from('reservas')
+                            .select('*')
+                            .eq('est_id', estId)
+                            .eq('pla_numero', payload.pla_numero)
+                            .eq('con_id', vehiculoData.con_id)
+                            .in('res_estado', ['confirmada', 'activa'])
+                            .order('res_fh_ingreso', { ascending: false })
+                            .limit(1);
+
+                        if (!reservasConductorError && reservasPorConductor && reservasPorConductor.length > 0) {
+                            reservaActiva = reservasPorConductor[0];
+                            console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (por conductor - vehículo diferente):', {
+                                res_codigo: reservaActiva.res_codigo,
+                                veh_patente_reserva: reservaActiva.veh_patente,
+                                veh_patente_actual: payload.license_plate,
+                                con_id: vehiculoData.con_id,
+                                res_estado: reservaActiva.res_estado,
+                                res_monto: reservaActiva.res_monto,
+                                res_fh_fin: reservaActiva.res_fh_fin
+                            });
+                        } else {
+                            console.log('ℹ️ No se encontró reserva activa para este conductor en esta plaza');
+                        }
+                    } else {
+                        console.log('⚠️ No se pudo obtener conductor del vehículo');
+                    }
                 }
             }
 
@@ -747,12 +788,11 @@ export default function OperadorSimplePage() {
             let montoReserva = 0;
 
             // FIX: Detectar reserva SOLO si tiene código de reserva o es tipo 'reserva'
-            // NO incluir precio_acordado > 0 porque eso es cualquier egreso normal que cobre
-            // Y debe tener ocu_fecha_limite para poder determinar si salió antes o después
+            // Si existe res_codigo, definitivamente ES una reserva (foreign key válida)
+            // No requerimos ocu_fecha_limite porque algunos registros podrían no tenerlo
             const tieneReserva = !!(
-                (ocupacion.res_codigo ||
-                ocupacion.ocu_duracion_tipo === 'reserva') &&
-                ocupacion.ocu_fecha_limite
+                ocupacion.res_codigo ||
+                ocupacion.ocu_duracion_tipo === 'reserva'
             );
 
             console.log('🎯 Evaluación de condición de reserva (mejorada):', {
