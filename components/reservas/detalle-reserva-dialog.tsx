@@ -181,19 +181,19 @@ export function DetalleReservaDialog({ open, onOpenChange, res_codigo }: Props) 
                                         <div>
                                             <span className="text-sm text-gray-600">Fecha de Reserva</span>
                                             <p className="text-lg font-semibold">
-                                                {reserva?.res_created_at ? dayjs.utc(reserva.res_created_at).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                                {reserva?.res_created_at ? dayjs.tz(reserva.res_created_at, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
                                             </p>
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Hora de Ingreso Prevista</span>
                                             <p className="text-lg font-semibold">
-                                                {reserva?.res_fh_ingreso ? dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                                {reserva?.res_fh_ingreso ? dayjs.tz(reserva.res_fh_ingreso, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
                                             </p>
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Hora de Fin Prevista</span>
                                             <p className="text-lg font-semibold">
-                                                {reserva?.res_fh_fin ? dayjs.utc(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
+                                                {reserva?.res_fh_fin ? dayjs.tz(reserva.res_fh_fin, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm') : 'N/A'}
                                             </p>
                                         </div>
                                         <div>

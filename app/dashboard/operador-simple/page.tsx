@@ -401,11 +401,13 @@ export default function OperadorSimplePage() {
                 : null;
 
             const abonoInfo = plazaSeleccionada?.abono || null;
+            const reservaInfo = plazaSeleccionada?.reserva || null;
             const patentesAbono = (abonoInfo?.vehiculos || [])
                 .map(v => v.veh_patente?.toUpperCase())
                 .filter((patente): patente is string => Boolean(patente));
 
             const esAbono = Boolean(payload.isAbono || abonoInfo);
+            const esReserva = payload.modality === 'Reserva' && reservaInfo;
 
             if (esAbono) {
                 if (!abonoInfo) {
@@ -430,6 +432,32 @@ export default function OperadorSimplePage() {
                 payload.abono_nro = abonoInfo.abo_nro;
                 payload.duracion_tipo = 'abono';
                 payload.precio_acordado = 0;
+            } else if (esReserva) {
+                // VALIDACIÓN DE RESERVA
+                if (!reservaInfo) {
+                    toast({
+                        variant: "destructive",
+                        title: "Reserva no encontrada",
+                        description: "La plaza seleccionada no tiene una reserva activa."
+                    });
+                    return;
+                }
+
+                if (reservaInfo.veh_patente?.toUpperCase() !== payload.license_plate) {
+                    toast({
+                        variant: "destructive",
+                        title: "Vehículo no autorizado",
+                        description: `La patente ${payload.license_plate} no coincide con la reserva de esta plaza.`
+                    });
+                    return;
+                }
+
+                // Asignar datos de reserva
+                payload.isAbono = false;
+                payload.abono_nro = undefined;
+                payload.duracion_tipo = 'reserva';
+                payload.res_codigo = reservaInfo.res_codigo;
+                payload.precio_acordado = reservaInfo.res_monto;
             } else {
                 payload.isAbono = false;
                 payload.abono_nro = undefined;
@@ -582,15 +610,22 @@ export default function OperadorSimplePage() {
             // FIX: Usar formato sin Z para BD timestamp without time zone (Argentina)
             const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
+            // Si es reserva seleccionada desde el modal, usar los datos del payload
+            const datosReserva = esReserva && payload.res_codigo ? {
+                res_codigo: payload.res_codigo,
+                res_monto: payload.precio_acordado,
+                res_fh_fin: null // Se obtendría de la BD si es necesario
+            } : reservaActiva;
+
             const ocupacionData = {
                 est_id: estId,
                 veh_patente: payload.license_plate,
-                ocu_fh_entrada: reservaActiva ? reservaActiva.res_fh_ingreso : entryTime,
+                ocu_fh_entrada: entryTime, // Siempre la hora ACTUAL del ingreso, no la creación de la reserva
                 pla_numero: payload.pla_numero || null, // Asegurar null explícito si no hay plaza
-                ocu_duracion_tipo: reservaActiva ? 'reserva' : (payload.duracion_tipo || 'hora'),
-                ocu_precio_acordado: reservaActiva ? reservaActiva.res_monto : (payload.precio_acordado || 0),
-                ocu_fecha_limite: reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
-                res_codigo: reservaActiva ? reservaActiva.res_codigo : null,
+                ocu_duracion_tipo: datosReserva ? 'reserva' : (payload.duracion_tipo || 'hora'),
+                ocu_precio_acordado: datosReserva ? datosReserva.res_monto : (payload.precio_acordado || 0),
+                ocu_fecha_limite: datosReserva && reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
+                res_codigo: datosReserva ? datosReserva.res_codigo : null,
                 pag_nro: reservaActiva ? reservaActiva.pag_nro : null
             };
 

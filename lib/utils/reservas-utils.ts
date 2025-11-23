@@ -321,9 +321,10 @@ export function validarDisponibilidadPlaza(
 /**
  * Formatea una fecha para mostrar en la UI
  * Usa timezone de Argentina explícitamente
+ * Las fechas en BD están como "timestamp without timezone" (son locales en Argentina time)
  */
 export function formatearFechaReserva(fecha: string): string {
-    return dayjs.utc(fecha).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm');
+    return dayjs.tz(fecha, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm');
 }
 
 /**

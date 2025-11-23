@@ -178,46 +178,119 @@ export async function GET(request: NextRequest) {
     }
     // ========== FIN PROCESAMIENTO VENCIMIENTOS ==========
 
+    // 1.3 Obtener reservas activas para mapear a plazas
+    const { data: reservasActivas, error: reservasError } = await supabase
+      .from('reservas')
+      .select(`
+        res_codigo,
+        pla_numero,
+        est_id,
+        res_monto,
+        res_estado,
+        res_fh_ingreso,
+        res_fh_fin,
+        veh_patente
+      `)
+      .eq('est_id', estId)
+      .in('res_estado', ['confirmada', 'activa'])
+      .order('res_fh_ingreso', { ascending: false });
+
+    if (reservasError) {
+      console.error('Error obteniendo reservas activas:', reservasError);
+    }
+
+    // Agrupar reservas por plaza (solo la más reciente por plaza)
+    const reservasPorPlaza = new Map<number, any>();
+    (reservasActivas || []).forEach((reserva) => {
+      if (reserva.pla_numero == null) return;
+      const plazaNumero = Number(reserva.pla_numero);
+      if (Number.isNaN(plazaNumero)) return;
+
+      // Si ya hay una reserva para esta plaza, mantener la más reciente (ya están ordenadas)
+      if (!reservasPorPlaza.has(plazaNumero)) {
+        reservasPorPlaza.set(plazaNumero, reserva);
+      }
+    });
+
+    // 1.4 Obtener vehículos de las reservas activas para obtener tipo de vehículo
+    const patentesReservas = Array.from(new Set(
+      (reservasActivas || []).map(r => r.veh_patente).filter(Boolean)
+    ));
+
+    const { data: vehiculosReservas, error: vehiculosReservasError } = await supabase
+      .from('vehiculos')
+      .select('veh_patente, catv_segmento')
+      .in('veh_patente', patentesReservas);
+
+    if (vehiculosReservasError) {
+      console.error('Error obteniendo vehículos de reservas:', vehiculosReservasError);
+    }
+
+    const vehiculosPorPatente = new Map<string, any>();
+    (vehiculosReservas || []).forEach((vehiculo) => {
+      vehiculosPorPatente.set(vehiculo.veh_patente, vehiculo);
+    });
+
     const plazasEnriquecidas = plazasBase.map((plaza) => {
       const plazaNumero = plaza.pla_numero == null ? null : Number(plaza.pla_numero);
       if (plazaNumero == null || Number.isNaN(plazaNumero)) {
         return {
           ...plaza,
           abono: null,
+          reserva: null,
         };
       }
 
       const abonoAsociado = abonosPorPlaza.get(plazaNumero);
-      if (!abonoAsociado) {
-        return {
-          ...plaza,
-          abono: null,
-        };
-      }
+      const reservaAsociada = reservasPorPlaza.get(plazaNumero);
 
-      const vehiculosAbono = (vehiculosPorAbono.get(abonoAsociado.abo_nro) || []).map((vehiculo) => ({
-        veh_patente: vehiculo.veh_patente,
-        catv_segmento: vehiculo.vehiculos?.catv_segmento ?? null,
-        veh_marca: vehiculo.vehiculos?.veh_marca ?? null,
-        veh_modelo: vehiculo.vehiculos?.veh_modelo ?? null,
-        veh_color: vehiculo.vehiculos?.veh_color ?? null,
-      }));
-
-      const abonoDetallado = {
-        ...abonoAsociado,
-        vehiculos: vehiculosAbono,
-      };
-
-      const plazaConAbono = {
+      let resultado: any = {
         ...plaza,
-        abono: abonoDetallado,
+        abono: null,
+        reserva: null,
       };
 
-      if (plazaConAbono.pla_estado === 'Libre' || plazaConAbono.pla_estado === 'Abonado') {
-        plazaConAbono.pla_estado = 'Abonado';
+      // Enriquecer con datos de abono si existe
+      if (abonoAsociado) {
+        const vehiculosAbono = (vehiculosPorAbono.get(abonoAsociado.abo_nro) || []).map((vehiculo) => ({
+          veh_patente: vehiculo.veh_patente,
+          catv_segmento: vehiculo.vehiculos?.catv_segmento ?? null,
+          veh_marca: vehiculo.vehiculos?.veh_marca ?? null,
+          veh_modelo: vehiculo.vehiculos?.veh_modelo ?? null,
+          veh_color: vehiculo.vehiculos?.veh_color ?? null,
+        }));
+
+        const abonoDetallado = {
+          ...abonoAsociado,
+          vehiculos: vehiculosAbono,
+        };
+
+        resultado.abono = abonoDetallado;
+
+        if (resultado.pla_estado === 'Libre' || resultado.pla_estado === 'Abonado') {
+          resultado.pla_estado = 'Abonado';
+        }
       }
 
-      return plazaConAbono;
+      // Enriquecer con datos de reserva si existe
+      if (reservaAsociada) {
+        const vehiculoReserva = vehiculosPorPatente.get(reservaAsociada.veh_patente);
+        resultado.reserva = {
+          res_codigo: reservaAsociada.res_codigo,
+          res_monto: reservaAsociada.res_monto,
+          res_estado: reservaAsociada.res_estado,
+          res_fh_ingreso: reservaAsociada.res_fh_ingreso,
+          res_fh_fin: reservaAsociada.res_fh_fin,
+          veh_patente: reservaAsociada.veh_patente,
+          catv_segmento: vehiculoReserva?.catv_segmento ?? null,
+        };
+
+        if (resultado.pla_estado === 'Libre' || resultado.pla_estado === 'Reservada') {
+          resultado.pla_estado = 'Reservada';
+        }
+      }
+
+      return resultado;
     });
 
     // 2. Obtener ocupaciones activas que tienen plaza asignada (para status)
