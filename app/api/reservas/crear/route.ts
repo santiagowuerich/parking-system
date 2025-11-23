@@ -35,7 +35,9 @@ async function generarCodigoReserva(supabase: any, isQR: boolean = false, unique
     let numero = 1;
     if (!error && ultimasReservas && ultimasReservas.length > 0) {
         const ultimoCodigo = ultimasReservas[0].res_codigo;
-        const ultimoNumero = parseInt(ultimoCodigo.split('-')[3] || '0');
+        // Formato: RES-YYYY-MM-DD-NNNN, split da: ['RES', 'YYYY', 'MM', 'DD', 'NNNN']
+        // El número está en índice [4], no [3]
+        const ultimoNumero = parseInt(ultimoCodigo.split('-')[4] || '0');
         numero = ultimoNumero + 1;
     }
 
