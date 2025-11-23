@@ -713,7 +713,7 @@ export default function OperadorPage() {
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
                 const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
-                const inicioReserva = dayjs.utc(ocupacion.entry_time).local();
+                const inicioReserva = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
 
                 if (salidaReal.isAfter(finReserva)) {
                     // FIX BUG #2: Agregar try-catch para manejar error cuando plaza sin plantilla
