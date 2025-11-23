@@ -22,19 +22,42 @@ export async function GET(request: NextRequest) {
         const ahoraArgentina = dayjs.utc().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
         console.log(`⏰ [EXPIRACION] Hora actual Argentina: ${ahoraArgentina}`);
 
+        // IMPORTANTE: Solo expirar si NO hay ocupación activa (vehículo NO ingresó)
         const { data: reservasExpiradas, error: errorExpirar } = await supabase
             .from('reservas')
-            .select('res_codigo, res_fh_fin, est_id, pla_numero, res_estado')
+            .select(`
+                res_codigo,
+                res_fh_fin,
+                est_id,
+                pla_numero,
+                res_estado,
+                ocupacion!left(ocu_id, ocu_fh_salida)
+            `)
             .eq('res_estado', 'confirmada')
             .lt('res_fh_fin', ahoraArgentina);
 
         console.log(`📋 [EXPIRACION] Buscando confirmadas con res_fh_fin < ${ahoraArgentina}`);
-        console.log(`📊 [EXPIRACION] Encontradas ${reservasExpiradas?.length || 0} reservas:`);
-        if (reservasExpiradas) {
-            reservasExpiradas.forEach(r => {
-                console.log(`   - ${r.res_codigo}: fin=${r.res_fh_fin}, estado=${r.res_estado}, plaza ${r.pla_numero}`);
-            });
-        }
+        console.log(`📊 [EXPIRACION] Encontradas ${reservasExpiradas?.length || 0} reservas (incluyendo las que podrían tener vehículo ingresado):`);
+
+        // Filtrar solo las que NO tienen ocupación activa
+        const reservasParaExpirar = reservasExpiradas?.filter(r => {
+            // Si no tiene ocupación, puede expirar (nunca llegó)
+            if (!r.ocupacion || r.ocupacion.length === 0) {
+                console.log(`   ✅ ${r.res_codigo}: Puede expirar (nunca llegó). fin=${r.res_fh_fin}`);
+                return true;
+            }
+
+            // Si tiene ocupación activa (sin fecha de salida), NO puede expirar
+            const tieneOcupacionActiva = r.ocupacion.some((ocu: any) => ocu.ocu_fh_salida === null);
+            if (tieneOcupacionActiva) {
+                console.log(`   ⚠️ [EXPIRACION] ${r.res_codigo}: NO expirar - tiene vehículo ingresado. fin=${r.res_fh_fin}`);
+                return false;
+            }
+
+            // Si solo tiene ocupaciones completadas (todas con ocu_fh_salida), puede expirar
+            console.log(`   ✅ ${r.res_codigo}: Puede expirar (ya egresó). fin=${r.res_fh_fin}`);
+            return true;
+        }) || [];
 
         if (errorExpirar) {
             console.error('❌ [EXPIRACION] Error buscando reservas expiradas:', errorExpirar);
@@ -46,12 +69,14 @@ export async function GET(request: NextRequest) {
 
         let reservasActualizadas = 0;
 
-        if (reservasExpiradas && reservasExpiradas.length > 0) {
+        if (reservasParaExpirar && reservasParaExpirar.length > 0) {
+            console.log(`🔄 [EXPIRACION] Marcando ${reservasParaExpirar.length} reservas como expiradas...`);
+
             // Actualizar estado a expirada
             const { error: updateError } = await supabase
                 .from('reservas')
                 .update({ res_estado: 'expirada' })
-                .in('res_codigo', reservasExpiradas.map(r => r.res_codigo));
+                .in('res_codigo', reservasParaExpirar.map(r => r.res_codigo));
 
             if (updateError) {
                 console.error('❌ [EXPIRACION] Error actualizando reservas:', updateError);
@@ -62,7 +87,7 @@ export async function GET(request: NextRequest) {
             }
 
             // Liberar plazas que estaban reservadas
-            for (const reserva of reservasExpiradas) {
+            for (const reserva of reservasParaExpirar) {
                 const { error: plazaError } = await supabase
                     .from('plazas')
                     .update({ pla_estado: 'Libre' })
@@ -71,12 +96,15 @@ export async function GET(request: NextRequest) {
                     .eq('pla_estado', 'Reservada'); // Solo si está Reservada
 
                 if (plazaError) {
-                    console.error(`❌ Error liberando plaza ${reserva.pla_numero}:`, plazaError);
+                    console.error(`❌ [EXPIRACION] Error liberando plaza ${reserva.pla_numero}:`, plazaError);
+                } else {
+                    console.log(`✅ [EXPIRACION] Plaza ${reserva.pla_numero} liberada`);
                 }
             }
-            console.log(`✅ [EXPIRACION] ${reservasExpiradas.length} plazas revisadas para liberación`);
 
-            reservasActualizadas = reservasExpiradas.length;
+            reservasActualizadas = reservasParaExpirar.length;
+        } else {
+            console.log(`ℹ️ [EXPIRACION] No hay reservas para expirar (descartadas las que tienen vehículos ingresados)`);
         }
 
         console.log(`✅ [EXPIRACION] Proceso completado. Reservas expiradas: ${reservasActualizadas}`);
