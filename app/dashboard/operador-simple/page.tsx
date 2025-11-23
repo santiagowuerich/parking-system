@@ -698,7 +698,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({
@@ -950,7 +950,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 toast({
@@ -1437,7 +1437,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).local();
+                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({
