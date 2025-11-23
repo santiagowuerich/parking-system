@@ -40,6 +40,15 @@ interface PlazaCompleta {
     }
     vehiculos?: VehiculoAbonado[]
   } | null
+  reserva?: {
+    res_codigo: string
+    res_monto: number
+    res_estado: 'confirmada' | 'activa'
+    res_fh_ingreso: string
+    res_fh_fin: string
+    veh_patente: string
+    catv_segmento: 'AUT' | 'MOT' | 'CAM'
+  } | null
 }
 
 interface Tarifa {
@@ -98,9 +107,12 @@ export default function IngresoModal({
   const [selectedZona, setSelectedZona] = useState<string>("")
 
   const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
-
-  // Estados para manejo de reservas
+  const [matchedReservaPlaza, setMatchedReservaPlaza] = useState<PlazaCompleta | null>(null)
   const [selectedReservaVehicle, setSelectedReservaVehicle] = useState<string>("")
+  const [conflictType, setConflictType] = useState<'abono' | 'reserva' | null>(null) // null=sin conflicto, 'abono'=eligió abono, 'reserva'=eligió reserva
+  const [ambosDisponibles, setAmbosDisponibles] = useState(false) // true cuando detecta ambos
+  const [detectedReservaData, setDetectedReservaData] = useState<any>(null) // Datos de reserva obtenidos por detección
+  const [loadingReservaData, setLoadingReservaData] = useState(false)
 
   // Verificación de turno activo
   const { puedeOperar, isEmployee } = useTurnos()
@@ -110,15 +122,19 @@ export default function IngresoModal({
       (vehiculo): vehiculo is VehiculoAbonado => Boolean(vehiculo?.veh_patente)
     );
   }, [abonoSource])
-  const isAbono = abonoVehicles.length > 0
 
-  // Lógica para reservas
+  // Lógica para reservas - usar detectedReservaData si está disponible (por detección), sino usar prop
+  const reservaSource = detectedReservaData || reserva
   const reservaVehicles = useMemo(() => {
-    return (reserva?.vehiculos || []).filter(
+    return (reservaSource?.vehiculos || []).filter(
       (vehiculo: any) => Boolean(vehiculo?.veh_patente)
     );
-  }, [reserva])
-  const isReserva = Boolean(reserva && reservaVehicles.length > 0)
+  }, [reservaSource])
+
+  // Cuando hay conflicto (ambos disponibles), el tipo elegido toma precedencia
+  // Si no hay conflicto, se usa la lógica original
+  const isAbono = ambosDisponibles ? conflictType === 'abono' : abonoVehicles.length > 0
+  const isReserva = ambosDisponibles ? conflictType === 'reserva' : Boolean(reservaSource && reservaVehicles.length > 0)
 
   const computeDefaultTariff = () => {
     let defaultModality = "Hora"
@@ -152,6 +168,11 @@ export default function IngresoModal({
   const getAvailablePlazasForVehicleType = (type: VehicleType): PlazaCompleta[] => {
     if (isAbono) {
       const sourcePlaza = matchedAbonoPlaza || plaza
+      return sourcePlaza ? [sourcePlaza] : []
+    }
+
+    if (isReserva) {
+      const sourcePlaza = matchedReservaPlaza || plaza
       return sourcePlaza ? [sourcePlaza] : []
     }
 
@@ -250,6 +271,9 @@ export default function IngresoModal({
     if (!isOpen) {
       setSelectedZona(""); // Reset zona cuando se cierra
       setSelectedReservaVehicle(""); // Reset reserva vehicle
+      setDetectedReservaData(null); // Reset detected reserva data
+      setConflictType(null); // Reset conflict selection
+      setAmbosDisponibles(false); // Reset conflict state
       return;
     }
 
@@ -367,10 +391,15 @@ export default function IngresoModal({
 
     const normalized = licensePlate.trim().toUpperCase()
     if (!normalized) {
-      if (matchedAbonoPlaza) {
+      // Resetear todos los estados cuando se limpia el campo de patente
+      if (matchedAbonoPlaza || matchedReservaPlaza) {
         setMatchedAbonoPlaza(null)
+        setMatchedReservaPlaza(null)
         setSelectedAbonoVehicle("")
+        setSelectedReservaVehicle("")
         setSelectedPlaza(null)
+        setConflictType(null)
+        setAmbosDisponibles(false)
         const { defaultModality, defaultPrice } = computeDefaultTariff()
         setSelectedModality(defaultModality)
         setAgreedPrice(defaultPrice)
@@ -378,16 +407,43 @@ export default function IngresoModal({
       return
     }
 
+    // Buscar AMBOS simultáneamente
     const plazaAbono = availablePlazas.find(p =>
       p.abono?.vehiculos?.some(v => v.veh_patente?.toUpperCase() === normalized)
     )
 
+    const plazaReserva = availablePlazas.find(p =>
+      p.reserva?.veh_patente?.toUpperCase() === normalized
+    )
+
+    // CASO 1: Tiene AMBOS abono y reserva
+    if (plazaAbono && plazaReserva && plazaReserva.reserva) {
+      setMatchedAbonoPlaza(plazaAbono)
+      setMatchedReservaPlaza(plazaReserva)
+      setAmbosDisponibles(true)
+      setConflictType(null) // Aún no ha elegido
+      setSelectedPlaza(null) // No seleccionar plaza automáticamente
+      setSelectedAbonoVehicle(normalized)
+      setSelectedReservaVehicle(normalized)
+
+      // No autoseleccionar modalidad ni precio - esperar a que elija
+      const { defaultModality, defaultPrice } = computeDefaultTariff()
+      setSelectedModality(defaultModality)
+      setAgreedPrice(defaultPrice)
+      return
+    }
+
+    // CASO 2: Solo tiene abono
     if (plazaAbono) {
       setMatchedAbonoPlaza(plazaAbono)
+      setMatchedReservaPlaza(null)
+      setAmbosDisponibles(false)
+      setConflictType(null)
       setSelectedPlaza(plazaAbono.pla_numero)
       setSelectedModality("Abono")
       setAgreedPrice(0)
       setSelectedAbonoVehicle(normalized)
+      setSelectedReservaVehicle("")
 
       const vehiculoSeleccionado = plazaAbono.abono?.vehiculos?.find(
         v => v.veh_patente?.toUpperCase() === normalized
@@ -395,15 +451,88 @@ export default function IngresoModal({
       if (vehiculoSeleccionado?.catv_segmento) {
         setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
       }
-    } else if (matchedAbonoPlaza) {
+      return
+    }
+
+    // CASO 3: Solo tiene reserva
+    if (plazaReserva && plazaReserva.reserva) {
+      setMatchedReservaPlaza(plazaReserva)
       setMatchedAbonoPlaza(null)
+      setAmbosDisponibles(false)
+      setConflictType(null)
+      setSelectedPlaza(plazaReserva.pla_numero)
+      setSelectedModality("Reserva")
+      setAgreedPrice(plazaReserva.reserva.res_monto)
+      setSelectedReservaVehicle(normalized)
       setSelectedAbonoVehicle("")
+
+      if (plazaReserva.reserva.catv_segmento) {
+        setVehicleType(mapearTipoVehiculo(plazaReserva.reserva.catv_segmento))
+      }
+      return
+    }
+
+    // CASO 4: No encontró nada - resetear
+    if (matchedAbonoPlaza || matchedReservaPlaza) {
+      setMatchedAbonoPlaza(null)
+      setMatchedReservaPlaza(null)
+      setSelectedAbonoVehicle("")
+      setSelectedReservaVehicle("")
       setSelectedPlaza(null)
+      setConflictType(null)
+      setAmbosDisponibles(false)
       const { defaultModality, defaultPrice } = computeDefaultTariff()
       setSelectedModality(defaultModality)
       setAgreedPrice(defaultPrice)
     }
   }, [licensePlate, availablePlazas, isOpen, plaza])
+
+  // Funciones para elegir entre abono y reserva cuando hay ambos
+  const handleChooseAbono = () => {
+    if (matchedAbonoPlaza) {
+      setConflictType('abono')
+      setSelectedPlaza(matchedAbonoPlaza.pla_numero)
+      setSelectedModality("Abono")
+      setAgreedPrice(0)
+
+      const vehiculoSeleccionado = matchedAbonoPlaza.abono?.vehiculos?.find(
+        v => v.veh_patente?.toUpperCase() === licensePlate.trim().toUpperCase()
+      )
+      if (vehiculoSeleccionado?.catv_segmento) {
+        setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
+      }
+    }
+  }
+
+  const handleChooseReserva = async () => {
+    if (matchedReservaPlaza && matchedReservaPlaza.reserva) {
+      setConflictType('reserva')
+      setSelectedPlaza(matchedReservaPlaza.pla_numero)
+      setSelectedZona(matchedReservaPlaza.pla_zona || 'A') // Setear zona de la plaza de la reserva
+      setSelectedModality("Reserva")
+      setAgreedPrice(matchedReservaPlaza.reserva.res_monto)
+
+      if (matchedReservaPlaza.reserva.catv_segmento) {
+        setVehicleType(mapearTipoVehiculo(matchedReservaPlaza.reserva.catv_segmento))
+      }
+
+      // Obtener datos completos de la reserva por res_codigo
+      try {
+        setLoadingReservaData(true)
+        const response = await fetch(`/api/reservas/${matchedReservaPlaza.reserva.res_codigo}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data) {
+            setDetectedReservaData(data.data)
+          }
+        }
+      } catch (error) {
+        console.error('Error obteniendo datos de reserva:', error)
+      } finally {
+        setLoadingReservaData(false)
+      }
+    }
+  }
 
   const handleConfirm = async () => {
     if (!selectedPlaza) return
@@ -411,14 +540,19 @@ export default function IngresoModal({
     if (!trimmedPlate) return
 
     try {
+      // Determinar si es abono o reserva basado en conflictType o isAbono
+      const isAbonoSelected = conflictType === 'abono' || (isAbono && !ambosDisponibles)
+      const isReservaSelected = conflictType === 'reserva'
+
       await onConfirm({
         license_plate: trimmedPlate,
         type: vehicleType,
         plaza_number: selectedPlaza,
-        modality: isAbono ? 'Abono' : selectedModality,
-        agreed_price: isAbono ? 0 : agreedPrice,
-        isAbono,
-        abono_nro: abonoSource?.abo_nro
+        modality: isAbonoSelected ? 'Abono' : (isReservaSelected ? 'Reserva' : selectedModality),
+        agreed_price: isAbonoSelected ? 0 : agreedPrice,
+        isAbono: isAbonoSelected,
+        abono_nro: isAbonoSelected ? abonoSource?.abo_nro : undefined,
+        res_codigo: isReservaSelected && matchedReservaPlaza?.reserva ? matchedReservaPlaza.reserva.res_codigo : undefined
       })
       onClose()
     } catch (error) {
@@ -433,7 +567,11 @@ export default function IngresoModal({
       : licensePlate.trim().length > 0 && selectedPlaza !== null
   const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
   const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
-  const selectedPlazaInfo = matchedAbonoPlaza || selectedPlazaData || plaza || null
+  const selectedPlazaInfo = isAbono
+    ? matchedAbonoPlaza
+    : isReserva
+      ? matchedReservaPlaza
+      : selectedPlazaData || plaza || null
 
   // Función helper para mapear tipo de vehículo
   const getTipoVehiculo = (segmento: string) => {
@@ -456,12 +594,12 @@ export default function IngresoModal({
     return availablePlazasForVehicle.filter(p => (p.pla_zona || 'A') === selectedZona);
   }, [availablePlazasForVehicle, selectedZona]);
 
-  // Auto-seleccionar primera zona disponible
+  // Auto-seleccionar primera zona disponible (pero no para abono/reserva que ya tienen plaza asignada)
   useEffect(() => {
-    if (!isAbono && zonasDisponibles.length > 0 && !selectedZona) {
+    if (!isAbono && !isReserva && zonasDisponibles.length > 0 && !selectedZona) {
       setSelectedZona(zonasDisponibles[0]);
     }
-  }, [zonasDisponibles, isAbono, selectedZona]);
+  }, [zonasDisponibles, isAbono, isReserva, selectedZona]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -495,25 +633,32 @@ export default function IngresoModal({
             </div>
           )}
 
-          {isReserva && reserva && (
+          {isReserva && reservaSource && (
             <div className="p-3 border rounded-lg bg-yellow-50 text-sm space-y-1">
               <p className="font-semibold text-yellow-700">Plaza reservada</p>
-              <p>
-                <span className="font-medium">Cliente:</span>{" "}
-                {reserva.conductor?.usu_nom} {reserva.conductor?.usu_ape}
-              </p>
-              {reserva.conductor?.usu_tel && (
-                <p>
-                  <span className="font-medium">Teléfono:</span> {reserva.conductor.usu_tel}
-                </p>
+              {loadingReservaData && (
+                <p className="text-xs text-yellow-600 italic">Cargando datos de reserva...</p>
               )}
-              <p>
-                <span className="font-medium">Vehículos habilitados:</span>{" "}
-                {reservaVehicles.map((v: any) => v.veh_patente).join(', ')}
-              </p>
-              <p>
-                <span className="font-medium">Código:</span> {reserva.res_codigo}
-              </p>
+              {!loadingReservaData && (
+                <>
+                  <p>
+                    <span className="font-medium">Cliente:</span>{" "}
+                    {reservaSource.conductor?.usu_nom} {reservaSource.conductor?.usu_ape}
+                  </p>
+                  {reservaSource.conductor?.usu_tel && (
+                    <p>
+                      <span className="font-medium">Teléfono:</span> {reservaSource.conductor.usu_tel}
+                    </p>
+                  )}
+                  <p>
+                    <span className="font-medium">Vehículos habilitados:</span>{" "}
+                    {reservaVehicles.map((v: any) => v.veh_patente).join(', ')}
+                  </p>
+                  <p>
+                    <span className="font-medium">Código:</span> {reservaSource.res_codigo}
+                  </p>
+                </>
+              )}
             </div>
           )}
 
@@ -580,6 +725,34 @@ export default function IngresoModal({
               />
             )}
           </div>
+
+          {/* Selector de conflicto: Abono vs Reserva */}
+          {ambosDisponibles && !conflictType && (
+            <Alert className="border-yellow-300 bg-yellow-50">
+              <AlertCircle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription>
+                <p className="text-sm text-yellow-800 font-medium mb-3">
+                  Esta patente tiene abono y reserva activos. ¿Cuál querés usar?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleChooseAbono}
+                    variant="default"
+                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    Usar Abono
+                  </Button>
+                  <Button
+                    onClick={handleChooseReserva}
+                    variant="default"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Usar Reserva
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Tipo de vehículo */}
           <div className="space-y-2">
@@ -712,6 +885,13 @@ export default function IngresoModal({
                 readOnly
                 className="bg-muted cursor-not-allowed"
               />
+            ) : isReserva ? (
+              <Input
+                id="modality"
+                value="Reserva"
+                readOnly
+                className="bg-muted cursor-not-allowed"
+              />
             ) : (
               <Select
                 value={selectedModality}
@@ -727,7 +907,7 @@ export default function IngresoModal({
                 </SelectContent>
               </Select>
             )}
-            {!isAbono && !selectedPlaza && (
+            {!isAbono && !isReserva && !selectedPlaza && (
               <p className="text-xs text-muted-foreground">Selecciona una plaza primero</p>
             )}
           </div>

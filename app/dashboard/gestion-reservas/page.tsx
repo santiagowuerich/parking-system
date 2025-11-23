@@ -178,11 +178,11 @@ export default function GestionReservasPage() {
     };
 
     const formatearHora = (fecha: string) => {
-        return dayjs.utc(fecha).tz('America/Argentina/Buenos_Aires').format('HH:mm');
+        return dayjs.tz(fecha, 'America/Argentina/Buenos_Aires').format('HH:mm');
     };
 
     const formatearFecha = (fecha: string) => {
-        return dayjs.utc(fecha).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY');
+        return dayjs.tz(fecha, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY');
     };
 
     return (
