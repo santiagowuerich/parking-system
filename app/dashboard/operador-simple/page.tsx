@@ -1723,6 +1723,36 @@ export default function OperadorSimplePage() {
         );
     }
 
+    // Función para verificar manualmente reservas expiradas
+    const checkExpiredReservations = async () => {
+        try {
+            const response = await fetch('/api/reservas/expirar', {
+                method: 'GET'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                toast({
+                    title: "✅ Verificación completada",
+                    description: `Se procesaron ${data.procesadas || 0} reservas expiradas`
+                });
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "❌ Error",
+                    description: data.error || "Error al verificar reservas"
+                });
+            }
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "❌ Error",
+                description: "No se pudo conectar con el servidor"
+            });
+        }
+    };
+
     return (
         <div className="flex h-screen bg-background">
             <DashboardSidebar />
@@ -1730,6 +1760,17 @@ export default function OperadorSimplePage() {
                 <main className="flex-1 overflow-auto">
                     <div className="min-h-screen bg-white">
                         <div className="p-6 space-y-6">
+                            {/* Botón para verificar reservas expiradas */}
+                            <div className="flex justify-end">
+                                <Button
+                                    onClick={checkExpiredReservations}
+                                    variant="outline"
+                                    className="gap-2"
+                                >
+                                    🔄 Verificar Reservas Expiradas
+                                </Button>
+                            </div>
+
                             <TurnoGuard showAlert={true} redirectButton={true}>
 
                                 <OperatorPanel
