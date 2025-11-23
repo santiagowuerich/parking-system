@@ -20,12 +20,21 @@ export async function GET(request: NextRequest) {
         // Buscar reservas que expiraron (res_fh_fin ya pasó)
         // NOTA: res_fh_fin es "timestamp without time zone" en Argentina timezone
         const ahoraArgentina = dayjs.utc().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
+        console.log(`⏰ [EXPIRACION] Hora actual Argentina: ${ahoraArgentina}`);
 
         const { data: reservasExpiradas, error: errorExpirar } = await supabase
             .from('reservas')
-            .select('res_codigo, res_fh_fin, est_id, pla_numero')
+            .select('res_codigo, res_fh_fin, est_id, pla_numero, res_estado')
             .eq('res_estado', 'confirmada')
             .lt('res_fh_fin', ahoraArgentina);
+
+        console.log(`📋 [EXPIRACION] Buscando confirmadas con res_fh_fin < ${ahoraArgentina}`);
+        console.log(`📊 [EXPIRACION] Encontradas ${reservasExpiradas?.length || 0} reservas:`);
+        if (reservasExpiradas) {
+            reservasExpiradas.forEach(r => {
+                console.log(`   - ${r.res_codigo}: fin=${r.res_fh_fin}, estado=${r.res_estado}, plaza ${r.pla_numero}`);
+            });
+        }
 
         if (errorExpirar) {
             console.error('❌ [EXPIRACION] Error buscando reservas expiradas:', errorExpirar);

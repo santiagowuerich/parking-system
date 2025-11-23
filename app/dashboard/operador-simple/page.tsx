@@ -1726,22 +1726,29 @@ export default function OperadorSimplePage() {
     // Función para verificar manualmente reservas expiradas
     const checkExpiredReservations = async () => {
         try {
+            console.log('🔄 [CLIENTE] Verificando reservas expiradas...');
             const response = await fetch('/api/reservas/expirar', {
                 method: 'GET'
             });
 
             const data = await response.json();
+            console.log('📊 [CLIENTE] Respuesta del servidor:', data);
+            console.log(`📋 [CLIENTE] Status: ${response.status}, Reservas expiradas: ${data.reservas_expiradas}`);
 
             if (response.ok) {
+                console.log(`✅ [CLIENTE] Verificación exitosa. Se procesaron ${data.reservas_expiradas} reservas`);
                 toast({
                     title: "✅ Verificación completada",
                     description: `Se procesaron ${data.reservas_expiradas || 0} reservas expiradas y se liberaron sus plazas`
                 });
 
                 // Refrescar los datos de vehículos y plazas para mostrar cambios
+                console.log('🔄 [CLIENTE] Refrescando datos...');
                 await refreshParkedVehicles();
                 await refreshCapacity();
+                console.log('✅ [CLIENTE] Datos refrescados');
             } else {
+                console.error('❌ [CLIENTE] Error en respuesta:', data.error);
                 toast({
                     variant: "destructive",
                     title: "❌ Error",
@@ -1749,6 +1756,7 @@ export default function OperadorSimplePage() {
                 });
             }
         } catch (error) {
+            console.error('❌ [CLIENTE] Error de conexión:', error);
             toast({
                 variant: "destructive",
                 title: "❌ Error",
