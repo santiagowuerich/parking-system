@@ -94,10 +94,10 @@ export function SimpleVehicleList({
     };
 
     const formatDuration = (entryTime: string) => {
-        // Los datos en BD están en UTC (timestamp without time zone)
-        // Interpretar como UTC y luego convertir a zona local para cálculo
-        const now = dayjs();
-        const entry = dayjs.utc(entryTime).local();
+        // Los datos en BD están en zona horaria de Argentina (timestamp without time zone)
+        // Interpretar directamente como Argentina para cálculo
+        const now = dayjs().tz('America/Argentina/Buenos_Aires');
+        const entry = dayjs.tz(entryTime, 'America/Argentina/Buenos_Aires');
         const diffMs = now.diff(entry);
 
         // Evitar tiempos negativos

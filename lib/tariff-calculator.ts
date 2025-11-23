@@ -156,8 +156,8 @@ export async function calculateParkingFee(
   }
 
   // 5. Calcular duración
-  const entryTime = dayjs.utc(ocupacion.entry_time).local();
-  const exitTime = dayjs();
+  const entryTime = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
+  const exitTime = dayjs().tz('America/Argentina/Buenos_Aires');
   const durationMs = exitTime.diff(entryTime);
   const durationHours = durationMs / (1000 * 60 * 60);
 

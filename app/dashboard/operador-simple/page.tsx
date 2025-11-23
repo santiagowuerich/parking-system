@@ -699,7 +699,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({
@@ -965,7 +965,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 toast({
@@ -1406,10 +1406,10 @@ export default function OperadorSimplePage() {
                 const paymentInfo: PaymentData = {
                     vehicleLicensePlate: licensePlate,
                     amount: cargoAdicional,
-                    calculatedFee: cargoAdicional,
+                    calculatedFee: totalFeeData.fee,
                     agreedFee: totalFeeData.agreedPrice > 0 ? totalFeeData.agreedPrice : undefined,
                     entryTime: ocupacion.ocu_fecha_limite,
-                    exitTime: exitTime.toISOString(),
+                    exitTime: exitTime.format('YYYY-MM-DD HH:mm:ss'),
                     duration: totalFeeData.durationMs,
                     method: 'efectivo',
                     estId: estId,
@@ -1452,7 +1452,7 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({

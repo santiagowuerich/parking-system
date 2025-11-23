@@ -712,8 +712,8 @@ export default function OperadorPage() {
                 console.log('🎫 Egreso con reserva detectado:', ocupacion.res_codigo);
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
-                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
-                const inicioReserva = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const finReserva = dayjs.tz(ocupacion.ocu_fecha_limite, 'America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
 
                 if (salidaReal.isAfter(finReserva)) {
                     // FIX BUG #2: Agregar try-catch para manejar error cuando plaza sin plantilla

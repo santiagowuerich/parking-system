@@ -135,7 +135,7 @@ export default function EgresoModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Egreso</DialogTitle>
           <DialogDescription>

@@ -161,8 +161,8 @@ export default function CustomEgresoModal({
       })
 
       // Calcular duración
-      const entryTime = dayjs.utc(ocupacion.entry_time).local()
-      const exitTime = dayjs()
+      const entryTime = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires')
+      const exitTime = dayjs().tz('America/Argentina/Buenos_Aires')
 
       console.log('🕐 Debug custom-egreso-modal:', {
         entryTimeRaw: ocupacion.entry_time,
@@ -483,9 +483,9 @@ export default function CustomEgresoModal({
   const calculateBasicFee = () => {
     if (!vehicle) return
 
-    // Los datos en BD están en UTC (timestamp without time zone)
-    // Interpretar como UTC y luego convertir a zona horaria de Argentina para cálculo
-    const entryTime = dayjs.utc(vehicle.entry_time).tz('America/Argentina/Buenos_Aires')
+    // Los datos en BD están en zona horaria de Argentina (timestamp without time zone)
+    // Interpretar directamente como Argentina para cálculo
+    const entryTime = dayjs.tz(vehicle.entry_time, 'America/Argentina/Buenos_Aires')
     const now = dayjs().tz('America/Argentina/Buenos_Aires')
 
     console.log('🕐 Debug calculateBasicFee:', {
@@ -555,7 +555,7 @@ export default function CustomEgresoModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Egreso</DialogTitle>
           <DialogDescription>
@@ -577,7 +577,7 @@ export default function CustomEgresoModal({
                 <div className="relative">
                   <Input
                     id="ingreso"
-                    value={dayjs.utc(vehicle.entry_time).local().format('DD/MM/YYYY HH:mm')}
+                    value={dayjs.tz(vehicle.entry_time, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
                     readOnly
                     className="bg-muted"
                   />
