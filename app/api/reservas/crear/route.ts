@@ -502,72 +502,33 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(response);
         }
 
-        // Para link_pago, creamos la reserva con estado pendiente_pago
-        console.log('📦 [RESERVA] Creando reserva en BD con estado pendiente_pago...');
+        // Para link_pago, NO creamos la reserva todavía (igual que QR)
+        // La reserva se creará cuando el usuario confirme el pago manualmente
+        console.log('📦 [RESERVA] Método link_pago: NO creando reserva aún, solo generando link de pago...');
 
-        // FIX: Establecer res_created_at explícitamente en Argentina timezone
-        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
-        const fechaCreacionParaBD = ahora.format('YYYY-MM-DD HH:mm:ss');
-
-        const reservaData = {
+        // Preparar datos temporales para crear la reserva después
+        const reservaTemporal = {
             est_id,
             pla_numero,
             veh_patente,
             res_codigo: resCodigoGenerado,
-            // FIX: Mandar formato local (sin timezone) porque BD es "timestamp without time zone"
             res_fh_ingreso: fechaInicioParaBD,
             res_fh_fin: fechaFinParaBD,
-            res_created_at: fechaCreacionParaBD,
             con_id: conductor.con_id,
             res_monto: precioTotal,
             res_tiempo_gracia_min: 15,
-            res_estado: 'pendiente_pago',
-            metodo_pago: metodo_pago,
-            payment_info: paymentInfo
+            metodo_pago: metodo_pago
         };
-
-        const { data: reservaCreada, error: insertError } = await supabase
-            .from('reservas')
-            .insert(reservaData)
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error('❌ [RESERVA] Error creando reserva en BD:', insertError);
-            return NextResponse.json({
-                success: false,
-                error: 'Error creando la reserva: ' + insertError.message
-            }, { status: 500 });
-        }
-
-        console.log(`✅ [RESERVA] Reserva creada en BD con código: ${reservaCreada.res_codigo}`);
-
-        // Marcar plaza como reservada
-        const { error: plazaUpdateError } = await supabase
-            .from('plazas')
-            .update({ pla_estado: 'Reservada' })
-            .eq('est_id', est_id)
-            .eq('pla_numero', pla_numero);
-
-        if (plazaUpdateError) {
-            console.error('⚠️ [RESERVA] Error actualizando estado de plaza:', plazaUpdateError);
-        } else {
-            console.log(`✅ [RESERVA] Plaza ${pla_numero} marcada como Reservada`);
-        }
 
         const response: CrearReservaResponse = {
             success: true,
             data: {
-                reserva: {
-                    ...reservaCreada,
-                    res_fh_ingreso: fechaInicioArgentina.format('YYYY-MM-DD HH:mm:ss'),
-                    res_fh_fin: fechaFinArgentina.format('YYYY-MM-DD HH:mm:ss'),
-                },
+                reserva_temporal: reservaTemporal, // Enviar datos temporales para crear después
                 payment_info: paymentInfo
             }
         };
 
-        console.log('🎉 [RESERVA] Reserva creada exitosamente');
+        console.log('🎉 [RESERVA] Link de pago generado exitosamente, reserva pendiente de confirmación');
         return NextResponse.json(response);
 
     } catch (error) {
