@@ -503,6 +503,10 @@ export async function POST(request: NextRequest) {
         // Para link_pago, creamos la reserva con estado pendiente_pago
         console.log('📦 [RESERVA] Creando reserva en BD con estado pendiente_pago...');
 
+        // FIX: Establecer res_created_at explícitamente en Argentina timezone
+        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+        const fechaCreacionParaBD = ahora.format('YYYY-MM-DD HH:mm:ss');
+
         const reservaData = {
             est_id,
             pla_numero,
@@ -511,6 +515,7 @@ export async function POST(request: NextRequest) {
             // FIX: Mandar formato local (sin timezone) porque BD es "timestamp without time zone"
             res_fh_ingreso: fechaInicioParaBD,
             res_fh_fin: fechaFinParaBD,
+            res_created_at: fechaCreacionParaBD,
             con_id: conductor.con_id,
             res_monto: precioTotal,
             res_tiempo_gracia_min: 15,

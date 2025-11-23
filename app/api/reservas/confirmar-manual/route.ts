@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { createAuthenticatedSupabaseClient } from "@/lib/supabase/server";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Función auxiliar para obtener la API Key del usuario
 async function getApiKey(userId: string | null): Promise<string> {
@@ -174,19 +180,23 @@ export async function POST(request: NextRequest) {
             });
             
             // Extraer payment_info si viene en reserva_data, sino usar preference_id
-            const paymentInfoFinal = reserva_data.payment_info 
+            const paymentInfoFinal = reserva_data.payment_info
                 ? { ...reserva_data.payment_info, preference_id: preference_id || reserva_data.payment_info.preference_id }
                 : (preference_id ? { preference_id } : null);
-            
+
             // Remover payment_info de reserva_data antes de insertar (ya que va como campo separado)
             const { payment_info, ...reservaDataSinPaymentInfo } = reserva_data;
-            
+
+            // FIX: Establecer res_created_at explícitamente en Argentina timezone
+            const fechaCreacionArgentina = dayjs.utc().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
+
             const { data: nuevaReserva, error: insertError } = await supabase
                 .from('reservas')
                 .insert({
                     ...reservaDataSinPaymentInfo,
                     res_codigo: codigoReservaFinal, // Usar código final (puede ser nuevo si hubo conflicto)
                     res_estado: 'confirmada', // Crear directamente como confirmada
+                    res_created_at: fechaCreacionArgentina,
                     payment_info: paymentInfoFinal
                 })
                 .select()
