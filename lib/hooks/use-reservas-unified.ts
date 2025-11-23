@@ -38,7 +38,39 @@ export function useReservas(estId?: number) {
             if (data.success && data.data) {
                 console.log(`✅ Reservas obtenidas: ${Array.isArray(data.data) ? data.data.length : 'formato incorrecto'}`);
                 // data.data es un array de ReservaConDetalles
-                setMisReservas(Array.isArray(data.data) ? data.data : []);
+                const reservas = Array.isArray(data.data) ? data.data : [];
+
+                // Para reservas completadas, verificar si todavía están ocupadas
+                // Sin necesidad de migración en BD, simplemente consultamos ocupacion
+                const reservasConEstadoActualizado = await Promise.all(
+                    reservas.map(async (reserva) => {
+                        if (reserva.res_estado === 'completada' && reserva.res_codigo) {
+                            try {
+                                // Buscar si hay una ocupación sin salida para esta reserva
+                                const ocupacionResponse = await fetch(
+                                    `/api/ocupacion/check?res_codigo=${reserva.res_codigo}`
+                                );
+                                const ocupacionData = await ocupacionResponse.json();
+
+                                if (ocupacionData.ocupada) {
+                                    // Si hay ocupación activa (sin salida), crear objeto ocupacion temporal
+                                    return {
+                                        ...reserva,
+                                        ocupacion: {
+                                            ocu_fh_salida: null
+                                        }
+                                    };
+                                }
+                            } catch (err) {
+                                console.error('Error verificando ocupación:', err);
+                                // Si hay error, devolver la reserva sin cambios
+                            }
+                        }
+                        return reserva;
+                    })
+                );
+
+                setMisReservas(reservasConEstadoActualizado);
             } else {
                 console.error('❌ Error en respuesta:', data.error);
                 setError(data.error || 'Error obteniendo reservas');

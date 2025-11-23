@@ -154,7 +154,13 @@ export function MisReservasPanel() {
     };
 
     const ReservaCard = ({ reserva }: { reserva: ReservaConDetalles }) => {
-        const estadoVisual = obtenerEstadoReservaVisual(reserva.res_estado, reserva.res_fh_ingreso);
+        const estadoVisual = obtenerEstadoReservaVisual(
+            reserva.res_estado,
+            reserva.res_fh_ingreso,
+            undefined,
+            reserva.res_fh_fin,
+            reserva.ocupacion
+        );
 
         return (
             <Card className="hover:shadow-md transition-shadow">
@@ -335,8 +341,8 @@ export function MisReservasPanel() {
 
     // Filtrar reservas por estado
     // NUEVA ESTRUCTURA: 2 SECCIONES
-    // 1. "Mis Reservas" - Todas las vigentes (pendiente_pago, confirmada, activa)
-    // 2. "Historial" - Finalizadas (completada, expirada, cancelada, no_show)
+    // 1. "Mis Reservas" - Todas las vigentes (pendiente_pago, confirmada, activa, + completada si vehículo adentro)
+    // 2. "Historial" - Finalizadas (completada con salida, expirada, cancelada, no_show)
 
     const misReservasVigentes = misReservas.filter(r => {
         // Mostrar estados vigentes/activos:
@@ -344,7 +350,14 @@ export function MisReservasPanel() {
         // - confirmada: reserva confirmada, esperando ingreso
         // - activa: vehículo está estacionado (En Estacionamiento)
         const esVigente = ['pendiente_pago', 'pendiente_confirmacion_operador', 'confirmada', 'activa'].includes(r.res_estado);
-        return esVigente;
+
+        // NUEVO: Si es completada pero el vehículo todavía está adentro (no tiene salida registrada)
+        // entonces mostrarla como vigente
+        const completadaPeroEstacionado = r.res_estado === 'completada' &&
+                                          r.ocupacion &&
+                                          !r.ocupacion.ocu_fh_salida;
+
+        return esVigente || completadaPeroEstacionado;
     }).sort((a, b) => {
         // Ordenar por fecha de inicio (más cercana primero)
         const fechaA = new Date(a.res_fh_ingreso).getTime();
@@ -354,8 +367,14 @@ export function MisReservasPanel() {
 
     const reservasHistorial = misReservas.filter(r => {
         // Mostrar estados finalizados
-        const esFinal = ['completada', 'cancelada', 'no_show', 'expirada'].includes(r.res_estado);
-        return esFinal;
+        const esFinal = ['cancelada', 'no_show', 'expirada'].includes(r.res_estado);
+
+        // NUEVO: Si es completada Y el vehículo ya salió (tiene ocu_fh_salida)
+        // entonces mostrarla en historial
+        const completadaYSalio = r.res_estado === 'completada' &&
+                                 (!r.ocupacion || r.ocupacion.ocu_fh_salida);
+
+        return esFinal || completadaYSalio;
     }).sort((a, b) => {
         // Ordenar por fecha de inicio (más reciente primero)
         const fechaA = new Date(a.res_fh_ingreso).getTime();

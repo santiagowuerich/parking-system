@@ -487,7 +487,7 @@ export function BuscarReservaDialog({
                                                     <div>
                                                         <div className="flex items-center gap-1 text-gray-600 mb-1">
                                                             <Clock className="w-3 h-3" />
-                                                            <span>{dayjs(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('HH:mm')}</span>
+                                                            <span>{dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('HH:mm')}</span>
                                                         </div>
                                                         <div className="flex items-center gap-1 text-gray-600">
                                                             <User className="w-3 h-3" />
@@ -632,7 +632,7 @@ export function BuscarReservaDialog({
                                             <div>
                                                 <div className="text-sm text-gray-600">Fecha de Inicio</div>
                                                 <div className="font-medium">
-                                                    {format(dayjs(resultado.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').toDate(), 'dd/MM/yyyy HH:mm', { locale: es })}
+                                                    {format(dayjs.utc(resultado.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').toDate(), 'dd/MM/yyyy HH:mm', { locale: es })}
                                                 </div>
                                             </div>
                                         </div>
@@ -642,7 +642,7 @@ export function BuscarReservaDialog({
                                             <div>
                                                 <div className="text-sm text-gray-600">Fecha de Fin</div>
                                                 <div className="font-medium">
-                                                    {format(dayjs(resultado.res_fh_fin).tz('America/Argentina/Buenos_Aires').toDate(), 'dd/MM/yyyy HH:mm', { locale: es })}
+                                                    {format(dayjs.utc(resultado.res_fh_fin).tz('America/Argentina/Buenos_Aires').toDate(), 'dd/MM/yyyy HH:mm', { locale: es })}
                                                 </div>
                                             </div>
                                         </div>

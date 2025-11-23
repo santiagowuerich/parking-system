@@ -83,8 +83,15 @@ export function formatearCodigoReserva(codigo: string): string {
  * @param fechaInicio - Fecha de inicio de la reserva (para verificar expiración de confirmadas)
  * @param tiempoGracia - Tiempo de gracia en minutos (para verificar expiración de confirmadas)
  * @param fechaFin - Fecha de fin de la reserva (para verificar expiración de activas)
+ * @param ocupacion - Datos de ocupación para determinar si vehículo sigue estacionado
  */
-export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number, fechaFin?: string) {
+export function obtenerEstadoReservaVisual(
+    estado: EstadoReserva,
+    fechaInicio?: string,
+    tiempoGracia?: number,
+    fechaFin?: string,
+    ocupacion?: { ocu_fh_salida: string | null } | null
+) {
     const estados = {
         pendiente_pago: {
             label: 'Pendiente de Pago',
@@ -158,6 +165,17 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
                 textColor: 'text-orange-800'
             };
         }
+    }
+
+    // NUEVO: Si es completada pero el vehículo todavía está estacionado (sin salida registrada)
+    // mostrar como "En Estacionamiento" en lugar de "Completada"
+    if (estado === 'completada' && ocupacion && !ocupacion.ocu_fh_salida) {
+        return {
+            label: 'En Estacionamiento',
+            color: 'green',
+            bgColor: 'bg-green-100',
+            textColor: 'text-green-800'
+        };
     }
 
     return estados[estado] || estados.completada;

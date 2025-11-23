@@ -1,13 +1,9 @@
 "use client";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Button } from "@/components/ui/button";
-import { Plus, Calendar } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { MisReservasPanel } from "@/components/reservas/mis-reservas-panel";
 
 export default function ReservasPage() {
-    const router = useRouter();
 
     return (
         <DashboardLayout>
@@ -19,22 +15,6 @@ export default function ReservasPage() {
                             <p className="text-gray-600 mt-1">
                                 Gestiona tus reservas de estacionamiento
                             </p>
-                        </div>
-                        <div className="flex gap-3">
-                            <Button
-                                variant="outline"
-                                onClick={() => router.push('/conductor')}
-                            >
-                                <Calendar className="w-4 h-4 mr-2" />
-                                Ver Estacionamientos
-                            </Button>
-                            <Button
-                                onClick={() => router.push('/conductor')}
-                                className="bg-blue-600 hover:bg-blue-700"
-                            >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Nueva Reserva
-                            </Button>
                         </div>
                     </div>
                 </div>
