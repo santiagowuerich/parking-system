@@ -768,7 +768,7 @@ export default function OperadorPage() {
                         calculatedFee: feeData.calculatedFee,
                         agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
                         entryTime: ocupacion.ocu_fecha_limite, // Desde fin de reserva
-                        exitTime: exitTime.toISOString(),
+                        exitTime: exitTime.format('YYYY-MM-DD HH:mm:ss'),
                         duration: feeData.durationMs,
                         method: 'efectivo',
                         estId: estId,
@@ -860,7 +860,7 @@ export default function OperadorPage() {
                 calculatedFee: feeData.calculatedFee,
                 agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
                 entryTime: ocupacion.entry_time,
-                exitTime: exitTime.toISOString(),
+                exitTime: exitTime.format('YYYY-MM-DD HH:mm:ss'),
                 duration: feeData.durationMs,
                 method: 'efectivo',
                 estId: estId,
@@ -1072,7 +1072,7 @@ export default function OperadorPage() {
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         );
 
-        const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+        const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
         const { error: updateError } = await supabase
             .from('ocupacion')
