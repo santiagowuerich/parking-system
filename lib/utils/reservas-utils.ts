@@ -105,7 +105,7 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
             textColor: 'text-blue-800'
         },
         activa: {
-            label: 'En Uso',
+            label: 'En Estacionamiento',
             color: 'green',
             bgColor: 'bg-green-100',
             textColor: 'text-green-800'
@@ -136,25 +136,10 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
         }
     };
 
-    // Si es confirmada, verificar si está expirada (sin tiempo de gracia)
-    if (estado === 'confirmada' && fechaInicio) {
-        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
-        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
-        const inicio = fechaInicio.includes('T')
-            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
-            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
-
-        // Marcar como expirada si la hora actual pasó el inicio de la reserva
-        // (sin tiempo de gracia adicional)
-        if (ahora.isAfter(inicio)) {
-            return {
-                label: 'Expirada',
-                color: 'orange',
-                bgColor: 'bg-orange-100',
-                textColor: 'text-orange-800'
-            };
-        }
-    }
+    // NOTA: Para confirmada, NO mostramos "Expirada" aquí
+    // Las confirmadas se muestran como "Confirmada" en la UI
+    // Solo se marcan como 'expirada' en la BD cuando la auto-expiración ocurre
+    // y es eso lo que el usuario verá, no lógica de fecha visual
 
     // Si es activa, verificar si la ocupación ha terminado
     if (estado === 'activa' && fechaFin) {

@@ -334,66 +334,42 @@ export function MisReservasPanel() {
     }
 
     // Filtrar reservas por estado
-    const reservasActivas = misReservas.filter(r => {
-        // Para reservas activas, pasar res_fh_fin para verificar si ya expiró la ocupación
-        const estadoVisual = obtenerEstadoReservaVisual(
-            r.res_estado,
-            r.res_fh_ingreso,
-            undefined, // Sin tiempo de gracia
-            r.res_fh_fin
-        );
-        // Considerar expirada si el estado visual muestra "Expirada"
-        return r.res_estado === 'activa' && estadoVisual.label !== 'Expirada';
-    });
+    // NUEVA ESTRUCTURA: 2 SECCIONES
+    // 1. "Mis Reservas" - Todas las vigentes (pendiente_pago, confirmada, activa)
+    // 2. "Historial" - Finalizadas (completada, expirada, cancelada, no_show)
 
-    const reservasFuturas = misReservas.filter(r => {
-        const ahora = new Date();
-        const fechaFin = new Date(r.res_fh_fin);
-        
-        // Estados que deben aparecer en Próximas
-        const esPendientePago = r.res_estado === 'pendiente_pago' || r.res_estado === 'pendiente_confirmacion_operador';
-        const esConfirmada = r.res_estado === 'confirmada';
-        const esExpirada = r.res_estado === 'expirada';
-        const esCancelada = r.res_estado === 'cancelada';
-        const esNoShow = r.res_estado === 'no_show';
-        const esCompletada = r.res_estado === 'completada';
-        
-        // Verificar si la reserva aún es válida (fecha fin no pasó)
-        const aunValida = fechaFin > ahora;
-        
-        // Excluir estados finales definitivos (incluyendo expiradas)
-        if (esCancelada || esNoShow || esCompletada || esExpirada) {
-            return false;
-        }
-        
-        // Mostrar en Próximas si:
-        // 1. Es pendiente_pago (siempre mostrar - necesita pagar)
-        // 2. Es confirmada y aún válida (puede usar la reserva)
-        const debeMostrar = 
-            esPendientePago || // Pendiente de pago siempre mostrar
-            (esConfirmada && aunValida); // Confirmada y aún válida
-        
-        return debeMostrar;
+    const misReservasVigentes = misReservas.filter(r => {
+        // Mostrar estados vigentes/activos:
+        // - pendiente_pago: esperando confirmación de pago
+        // - confirmada: reserva confirmada, esperando ingreso
+        // - activa: vehículo está estacionado (En Estacionamiento)
+        const esVigente = ['pendiente_pago', 'pendiente_confirmacion_operador', 'confirmada', 'activa'].includes(r.res_estado);
+        return esVigente;
+    }).sort((a, b) => {
+        // Ordenar por fecha de inicio (más cercana primero)
+        const fechaA = new Date(a.res_fh_ingreso).getTime();
+        const fechaB = new Date(b.res_fh_ingreso).getTime();
+        return fechaA - fechaB;
     });
 
     const reservasHistorial = misReservas.filter(r => {
-        // Estados finales definitivos siempre van al historial
+        // Mostrar estados finalizados
         const esFinal = ['completada', 'cancelada', 'no_show', 'expirada'].includes(r.res_estado);
-        
         return esFinal;
+    }).sort((a, b) => {
+        // Ordenar por fecha de inicio (más reciente primero)
+        const fechaA = new Date(a.res_fh_ingreso).getTime();
+        const fechaB = new Date(b.res_fh_ingreso).getTime();
+        return fechaB - fechaA;
     });
 
     return (
         <div className="space-y-6">
-            <Tabs defaultValue="activas" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="activas" className="flex items-center gap-2">
+            <Tabs defaultValue="vigentes" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="vigentes" className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
-                        Activas ({reservasActivas.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="futuras" className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Próximas ({reservasFuturas.length})
+                        Mis Reservas ({misReservasVigentes.length})
                     </TabsTrigger>
                     <TabsTrigger value="historial" className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
@@ -401,28 +377,14 @@ export function MisReservasPanel() {
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="activas" className="space-y-4">
-                    {reservasActivas.length === 0 ? (
+                <TabsContent value="vigentes" className="space-y-4">
+                    {misReservasVigentes.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
-                            No tienes reservas activas
+                            No tienes reservas vigentes. ¡Crea una ahora!
                         </div>
                     ) : (
                         <div className="grid gap-4">
-                            {reservasActivas.map((reserva) => (
-                                <ReservaCard key={`${reserva.res_codigo}-${reserva.res_fh_ingreso}`} reserva={reserva} />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                <TabsContent value="futuras" className="space-y-4">
-                    {reservasFuturas.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                            No tienes reservas próximas
-                        </div>
-                    ) : (
-                        <div className="grid gap-4">
-                            {reservasFuturas.map((reserva) => (
+                            {misReservasVigentes.map((reserva) => (
                                 <ReservaCard key={`${reserva.res_codigo}-${reserva.res_fh_ingreso}`} reserva={reserva} />
                             ))}
                         </div>
