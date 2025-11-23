@@ -1,27 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAuthenticatedSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function GET(request: NextRequest) {
     try {
         console.log('🔄 [EXPIRACION] Iniciando proceso de expiración automática de reservas');
 
-        // Verificar API key para seguridad (opcional)
-        const apiKey = request.headers.get('x-api-key');
-        const expectedApiKey = process.env.CRON_API_KEY;
-
-        if (expectedApiKey && apiKey !== expectedApiKey) {
-            console.error('❌ [EXPIRACION] API key inválida');
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const supabase = await createAuthenticatedSupabaseClient();
+        // Usar cliente anónimo para este endpoint ya que no requiere autenticación de usuario
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
 
         // Buscar reservas que expiraron (res_fh_fin ya pasó)
+        // NOTA: res_fh_fin es "timestamp without time zone" en Argentina timezone
+        const ahoraArgentina = dayjs.utc().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
+
         const { data: reservasExpiradas, error: errorExpirar } = await supabase
             .from('reservas')
             .select('res_codigo, res_fh_fin, est_id, pla_numero')
             .eq('res_estado', 'confirmada')
-            .lt('res_fh_fin', new Date().toISOString());
+            .lt('res_fh_fin', ahoraArgentina);
 
         if (errorExpirar) {
             console.error('❌ [EXPIRACION] Error buscando reservas expiradas:', errorExpirar);

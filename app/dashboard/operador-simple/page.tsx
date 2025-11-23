@@ -1735,8 +1735,12 @@ export default function OperadorSimplePage() {
             if (response.ok) {
                 toast({
                     title: "✅ Verificación completada",
-                    description: `Se procesaron ${data.procesadas || 0} reservas expiradas`
+                    description: `Se procesaron ${data.reservas_expiradas || 0} reservas expiradas y se liberaron sus plazas`
                 });
+
+                // Refrescar los datos de vehículos y plazas para mostrar cambios
+                await refreshParkedVehicles();
+                await refreshCapacity();
             } else {
                 toast({
                     variant: "destructive",

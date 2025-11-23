@@ -22,7 +22,9 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(cat:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFijar timezone en operador-simple/page.tsx: cambiar .local() por .tz()\n\n- Reemplazar todas las instancias de `.local()` con `.tz(''America/Argentina/Buenos_Aires'')`\n- Líneas 701, 953, 1440: asegurar que ingresoMomento se calcule en Argentina timezone\n- Coherencia con resto del codebase y operador/page.tsx\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
