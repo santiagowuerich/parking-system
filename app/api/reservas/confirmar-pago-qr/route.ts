@@ -94,48 +94,69 @@ export async function POST(request: NextRequest) {
         console.log(`✅ [CONFIRMAR-QR] Reserva confirmada exitosamente: ${reservaActualizada.res_codigo}`);
 
         // Registrar pago en tabla pagos
-        try {
-            console.log(`💰 [CONFIRMAR-QR] Registrando pago para reserva ${reserva.res_codigo}`);
+        console.log(`💰 [CONFIRMAR-QR] Registrando pago para reserva ${reserva.res_codigo}`);
 
-            const { data: pagoInsertado, error: pagoError } = await supabase
-                .from('pagos')
-                .insert({
-                    pag_monto: reserva.res_monto,
-                    pag_h_fh: new Date().toISOString(),
-                    est_id: reserva.est_id,
-                    mepa_metodo: 'MercadoPago', // Valor en BD (el frontend muestra 'QR' como transformación visual)
-                    veh_patente: reserva.veh_patente,
-                    pag_tipo: 'reserva',
-                    pag_descripcion: `Pago de reserva ${reserva.res_codigo}`,
-                    pag_estado: 'completado',
-                    pag_datos_tarjeta: {
-                        mercado_pago_id: preference_id || null,
-                        reserva_codigo: reserva.res_codigo,
-                        tipo_pago: 'reserva'
-                    }
-                })
-                .select('pag_nro')
-                .single();
-
-            if (pagoError) {
-                console.error('❌ [CONFIRMAR-QR] Error registrando pago:', pagoError);
-                // No fallamos el proceso completo por esto, solo loggeamos el error
-            } else {
-                console.log(`✅ [CONFIRMAR-QR] Pago registrado exitosamente: pag_nro=${pagoInsertado.pag_nro}`);
-
-                // Actualizar la reserva con el número de pago
-                const { error: updatePagNroError } = await supabase
-                    .from('reservas')
-                    .update({ pag_nro: pagoInsertado.pag_nro })
-                    .eq('res_codigo', reserva.res_codigo);
-
-                if (updatePagNroError) {
-                    console.error('⚠️ [CONFIRMAR-QR] Error actualizando pag_nro en reserva:', updatePagNroError);
+        const { data: pagoInsertado, error: pagoError } = await supabase
+            .from('pagos')
+            .insert({
+                pag_monto: reserva.res_monto,
+                pag_h_fh: new Date().toISOString(),
+                est_id: reserva.est_id,
+                mepa_metodo: 'MercadoPago', // Valor en BD (el frontend muestra 'QR' como transformación visual)
+                veh_patente: reserva.veh_patente,
+                pag_tipo: 'reserva',
+                pag_descripcion: `Pago de reserva ${reserva.res_codigo}`,
+                pag_estado: 'completado',
+                pag_datos_tarjeta: {
+                    mercado_pago_id: preference_id || null,
+                    reserva_codigo: reserva.res_codigo,
+                    tipo_pago: 'reserva'
                 }
-            }
-        } catch (pagoError) {
+            })
+            .select('pag_nro')
+            .single();
+
+        if (pagoError) {
             console.error('❌ [CONFIRMAR-QR] Error registrando pago:', pagoError);
+            return NextResponse.json({
+                success: false,
+                error: 'Error al registrar el pago: ' + pagoError.message
+            }, { status: 500 });
         }
+
+        console.log(`✅ [CONFIRMAR-QR] Pago registrado exitosamente: pag_nro=${pagoInsertado.pag_nro}`);
+
+        // Actualizar la reserva con el número de pago
+        const { data: updateResult, error: updatePagNroError } = await supabase
+            .from('reservas')
+            .update({ pag_nro: pagoInsertado.pag_nro })
+            .eq('res_codigo', reserva.res_codigo)
+            .select();
+
+        if (updatePagNroError) {
+            console.error('❌ [CONFIRMAR-QR] Error actualizando pag_nro en reserva:', updatePagNroError);
+            return NextResponse.json({
+                success: false,
+                error: 'Error al vincular el pago con la reserva: ' + updatePagNroError.message
+            }, { status: 500 });
+        }
+
+        // Verificar que se actualizó al menos una fila
+        if (!updateResult || updateResult.length === 0) {
+            console.error('❌ [CONFIRMAR-QR] No se encontró la reserva para actualizar pag_nro', {
+                res_codigo: reserva.res_codigo,
+                pag_nro: pagoInsertado.pag_nro
+            });
+            return NextResponse.json({
+                success: false,
+                error: 'No se pudo vincular el pago con la reserva: reserva no encontrada'
+            }, { status: 500 });
+        }
+
+        console.log(`✅ [CONFIRMAR-QR] Reserva ${reserva.res_codigo} vinculada con pag_nro=${pagoInsertado.pag_nro}`, {
+            filasActualizadas: updateResult.length,
+            pag_nro: updateResult[0]?.pag_nro
+        });
 
         return NextResponse.json({
             success: true,

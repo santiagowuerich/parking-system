@@ -19,13 +19,16 @@ export async function GET(request: NextRequest) {
         ocu_fh_salida,
         ocu_precio_acordado,
         ocu_duracion_tipo,
+        res_codigo,
         plazas!inner(
           pla_zona,
           est_id
         ),
         pagos(
+          pag_nro,
           pag_monto,
-          mepa_metodo
+          mepa_metodo,
+          pag_descripcion
         )
       `)
       .eq('plazas.est_id', estId)
@@ -39,6 +42,34 @@ export async function GET(request: NextRequest) {
 
     // Obtener contador de movimientos para cada ocupación
     const movementCounts = new Map<number, number>();
+
+    // Obtener todos los pagos de reservas para después hacer lookup rápido
+    let reservaPayments: Record<string, any[]> = {};
+    const reservaCodigos = movements
+      ?.filter(m => m.res_codigo && m.ocu_duracion_tipo === 'reserva')
+      .map(m => m.res_codigo) || [];
+
+    if (reservaCodigos.length > 0) {
+      // Buscar todos los pagos relacionados a estas reservas
+      const { data: allReservaPagos } = await supabase
+        .from('pagos')
+        .select('pag_nro, pag_monto, pag_descripcion')
+        .in('pag_descripcion', reservaCodigos.map(cod => `Pago de reserva ${cod}`));
+
+      if (allReservaPagos) {
+        allReservaPagos.forEach(pago => {
+          // Extraer código de reserva de la descripción (formato: "Pago de reserva RES-XXXX-XXXX")
+          const match = pago.pag_descripcion?.match(/RES-[\d\-]+/);
+          if (match) {
+            const resCode = match[0];
+            if (!reservaPayments[resCode]) {
+              reservaPayments[resCode] = [];
+            }
+            reservaPayments[resCode].push(pago);
+          }
+        });
+      }
+    }
 
     if (movements && movements.length > 0) {
       // Obtener todos los movimientos de vehículos para este estacionamiento
@@ -137,7 +168,12 @@ export async function GET(request: NextRequest) {
       if (esAbono && movement.ocu_fh_salida) {
         totalPagado = 'Incluido';
       } else if (movement.ocu_fh_salida) {
-        if (payment?.pag_monto) {
+        // Para ocupaciones tipo reserva, sumar TODOS los pagos (reserva + adicionales)
+        if (movement.ocu_duracion_tipo === 'reserva' && movement.res_codigo && reservaPayments[movement.res_codigo]) {
+          const totalMonto = reservaPayments[movement.res_codigo].reduce((sum, pago) => sum + (pago.pag_monto || 0), 0);
+          totalPagado = `$${totalMonto.toLocaleString('es-AR')}`;
+          console.log(`✅ [MOVIMIENTOS] Reserva ${movement.res_codigo}: Sumados ${reservaPayments[movement.res_codigo].length} pagos = $${totalMonto}`);
+        } else if (payment?.pag_monto) {
           totalPagado = `$${payment.pag_monto.toLocaleString('es-AR')}`;
         } else if (movement.ocu_precio_acordado) {
           totalPagado = `$${movement.ocu_precio_acordado.toLocaleString('es-AR')}`;

@@ -83,8 +83,15 @@ export function formatearCodigoReserva(codigo: string): string {
  * @param fechaInicio - Fecha de inicio de la reserva (para verificar expiración de confirmadas)
  * @param tiempoGracia - Tiempo de gracia en minutos (para verificar expiración de confirmadas)
  * @param fechaFin - Fecha de fin de la reserva (para verificar expiración de activas)
+ * @param ocupacion - Datos de ocupación para determinar si vehículo sigue estacionado
  */
-export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: string, tiempoGracia?: number, fechaFin?: string) {
+export function obtenerEstadoReservaVisual(
+    estado: EstadoReserva,
+    fechaInicio?: string,
+    tiempoGracia?: number,
+    fechaFin?: string,
+    ocupacion?: { ocu_fh_salida: string | null } | null
+) {
     const estados = {
         pendiente_pago: {
             label: 'Pendiente de Pago',
@@ -105,7 +112,7 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
             textColor: 'text-blue-800'
         },
         activa: {
-            label: 'En Uso',
+            label: 'En Estacionamiento',
             color: 'green',
             bgColor: 'bg-green-100',
             textColor: 'text-green-800'
@@ -136,25 +143,10 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
         }
     };
 
-    // Si es confirmada, verificar si está expirada (sin tiempo de gracia)
-    if (estado === 'confirmada' && fechaInicio) {
-        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
-        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
-        const inicio = fechaInicio.includes('T')
-            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
-            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
-
-        // Marcar como expirada si la hora actual pasó el inicio de la reserva
-        // (sin tiempo de gracia adicional)
-        if (ahora.isAfter(inicio)) {
-            return {
-                label: 'Expirada',
-                color: 'orange',
-                bgColor: 'bg-orange-100',
-                textColor: 'text-orange-800'
-            };
-        }
-    }
+    // NOTA: Para confirmada, NO mostramos "Expirada" aquí
+    // Las confirmadas se muestran como "Confirmada" en la UI
+    // Solo se marcan como 'expirada' en la BD cuando la auto-expiración ocurre
+    // y es eso lo que el usuario verá, no lógica de fecha visual
 
     // Si es activa, verificar si la ocupación ha terminado
     if (estado === 'activa' && fechaFin) {
@@ -173,6 +165,17 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
                 textColor: 'text-orange-800'
             };
         }
+    }
+
+    // NUEVO: Si es completada pero el vehículo todavía está estacionado (sin salida registrada)
+    // mostrar como "En Estacionamiento" en lugar de "Completada"
+    if (estado === 'completada' && ocupacion && !ocupacion.ocu_fh_salida) {
+        return {
+            label: 'En Estacionamiento',
+            color: 'green',
+            bgColor: 'bg-green-100',
+            textColor: 'text-green-800'
+        };
     }
 
     return estados[estado] || estados.completada;

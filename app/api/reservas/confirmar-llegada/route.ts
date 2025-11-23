@@ -111,11 +111,12 @@ export async function POST(request: NextRequest) {
             }, { status: 500 });
         }
 
-        // 5. Actualizar estado de la reserva a 'completada' ya que el vehículo ya ingresó
-        // La reserva cumplió su propósito (garantizar el lugar) y ya no debe seguir existiendo como activa
+        // 5. Actualizar estado de la reserva a 'activa' ya que el vehículo está dentro
+        // Estado 'activa' significa que el vehículo está estacionado (En Estacionamiento)
+        // Se cambiará a 'completada' cuando el vehículo salga
         const { error: updateReservaError } = await supabase
             .from('reservas')
-            .update({ res_estado: 'completada' })
+            .update({ res_estado: 'activa' })
             .eq('res_codigo', res_codigo)
             .eq('est_id', est_id);
 

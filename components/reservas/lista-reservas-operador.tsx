@@ -355,10 +355,10 @@ export function ListaReservasOperador({
 
                                             <TableCell>
                                                 <div className="text-sm">
-                                                    {dayjs(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('HH:mm')}
+                                                    {dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires').format('HH:mm')}
                                                 </div>
                                                 <div className="text-xs text-gray-500">
-                                                    {dayjs(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires').format('HH:mm')}
+                                                    {dayjs.utc(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires').format('HH:mm')}
                                                 </div>
                                             </TableCell>
 

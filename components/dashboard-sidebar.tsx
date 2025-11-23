@@ -374,7 +374,7 @@ export function DashboardSidebar({ className }: SidebarProps) {
                                     <div className="flex-1">
                                         <Badge variant={tieneTurnoActivo ? "default" : "destructive"} className={cn("text-xs", tieneTurnoActivo && "hover:bg-primary")}>
                                             {tieneTurnoActivo
-                                                ? `Turno activo desde ${turnoActivo?.tur_hora_entrada}`
+                                                ? "Turno Activo"
                                                 : "Sin turno activo"
                                             }
                                         </Badge>

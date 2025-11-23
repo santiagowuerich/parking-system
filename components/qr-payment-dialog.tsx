@@ -153,8 +153,6 @@ export default function QRPaymentDialog({
                       <QRCode
                         value={qrData.qrCode}
                         size={200}
-                        level="H"
-                        includeMargin={true}
                       />
                     )}
                   </div>

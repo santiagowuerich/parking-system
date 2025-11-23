@@ -1344,10 +1344,26 @@ export default function OperadorSimplePage() {
 
         const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
+        // Si la ocupación tiene una reserva, obtener el pag_nro para vincularlo
+        let pagNroReserva: number | null = null;
+        if (resCode) {
+            const { data: reservaData, error: reservaError } = await supabase
+                .from('reservas')
+                .select('pag_nro')
+                .eq('res_codigo', resCode)
+                .single();
+
+            if (!reservaError && reservaData?.pag_nro) {
+                pagNroReserva = reservaData.pag_nro;
+                console.log(`💰 Pag_nro de reserva ${resCode}: ${pagNroReserva}`);
+            }
+        }
+
         const { error: updateError } = await supabase
             .from('ocupacion')
             .update({
-                ocu_fh_salida: exitTimestamp
+                ocu_fh_salida: exitTimestamp,
+                ...(pagNroReserva && { pag_nro: pagNroReserva })  // Incluir pag_nro si existe
             })
             .eq('est_id', estId)
             .eq('veh_patente', licensePlate)

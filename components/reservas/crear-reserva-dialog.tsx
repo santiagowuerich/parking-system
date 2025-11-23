@@ -184,19 +184,20 @@ export function CrearReservaDialog({
         const result = await crearReserva(request);
 
         if (result && result.success && result.data) {
-            // Para QR: recibimos reserva_temporal (aún no creada en BD)
-            // Para link_pago: recibimos reserva (ya creada en BD con estado pendiente_pago)
+            // Para QR y link_pago: ambos devuelven reserva_temporal (aún no creada en BD)
+            // La reserva se creará cuando el usuario confirme el pago
+            const reservaTemporal = result.data.reserva_temporal || result.data.reserva;
             setReservaCreada({
-                reserva_temporal: result.data.reserva || result.data.reserva_temporal, // Compatibilidad con ambos formatos
+                reserva_temporal: reservaTemporal,
                 payment_info: result.data.payment_info
             });
 
             // Manejar flujo de pago según el método seleccionado
             if (metodoPago === 'link_pago') {
-                // Para link_pago, la reserva ya está creada
+                // Para link_pago, abrimos el link de pago
                 toast({
-                    title: "Reserva creada",
-                    description: `Código de reserva: ${result.data.reserva?.res_codigo}`,
+                    title: "Reserva preparada",
+                    description: `Se abrirá el link de pago. Código de reserva: ${reservaTemporal?.res_codigo}`,
                 });
 
                 // Recargar reservas para que aparezca en "Próximas"

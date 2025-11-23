@@ -402,6 +402,11 @@ export interface ReservaConDetalles extends Reserva {
     usu_tel: string;
     usu_email: string;
   };
+  ocupacion?: {
+    ocu_id: number;
+    ocu_fh_entrada: string;
+    ocu_fh_salida: string | null;
+  } | null;
   vehiculos?: VehiculoDB[]; // Todos los vehículos del conductor
 }
 

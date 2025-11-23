@@ -992,7 +992,7 @@ export default function OperatorPanel({
                             disabled={processingExit === vehicle.license_plate}
                             className="dark:bg-red-600 dark:hover:bg-red-700 dark:text-white"
                           >
-                            {processingExit === vehicle.license_plate ? 'Procesando...' : 'Registrar Salida'}
+                            {processingExit === vehicle.license_plate ? 'Procesando...' : 'Egreso'}
                           </Button>
                         </TableCell>
                       </TableRow>
