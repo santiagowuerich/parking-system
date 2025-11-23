@@ -154,7 +154,7 @@ export function MisReservasPanel() {
     };
 
     const ReservaCard = ({ reserva }: { reserva: ReservaConDetalles }) => {
-        const estadoVisual = obtenerEstadoReservaVisual(reserva.res_estado, reserva.res_fh_ingreso, reserva.res_tiempo_gracia_min);
+        const estadoVisual = obtenerEstadoReservaVisual(reserva.res_estado, reserva.res_fh_ingreso);
 
         return (
             <Card className="hover:shadow-md transition-shadow">
@@ -339,7 +339,7 @@ export function MisReservasPanel() {
         const estadoVisual = obtenerEstadoReservaVisual(
             r.res_estado,
             r.res_fh_ingreso,
-            r.res_tiempo_gracia_min,
+            undefined, // Sin tiempo de gracia
             r.res_fh_fin
         );
         // Considerar expirada si el estado visual muestra "Expirada"

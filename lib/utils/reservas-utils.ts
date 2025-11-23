@@ -26,7 +26,7 @@ export function calcularPrecioReserva(precioPorHora: number, duracionHoras: numb
 
 /**
  * Valida si una fecha de inicio está dentro del rango permitido
- * Solo verifica que sea el día actual (reserva inmediata)
+ * Solo verifica que no sea en el pasado
  */
 export function validarTiempoReserva(fechaInicio: string): { valido: boolean; error?: string } {
     try {
@@ -47,15 +47,9 @@ export function validarTiempoReserva(fechaInicio: string): { valido: boolean; er
         console.log(`🕐 [VALIDACIÓN TIEMPO] Ahora (ART): ${ahora.format('YYYY-MM-DD HH:mm:ss')}`);
         console.log(`🕐 [VALIDACIÓN TIEMPO] Inicio: ${inicio.format('YYYY-MM-DD HH:mm:ss')}`);
 
-        // Verificar que sea el mismo día (en zona horaria Argentina)
-        const hoyArgentina = ahora.startOf('day');
-        const diaInicio = inicio.startOf('day');
-
-        console.log(`🕐 [VALIDACIÓN TIEMPO] Hoy (ART): ${hoyArgentina.format('YYYY-MM-DD')}`);
-        console.log(`🕐 [VALIDACIÓN TIEMPO] Día inicio: ${diaInicio.format('YYYY-MM-DD')}`);
-
-        if (!diaInicio.isSame(hoyArgentina)) {
-            return { valido: false, error: 'Solo se pueden hacer reservas para el día actual' };
+        // Solo verificar que no sea en el pasado (permite reservas futuras y que crucen días)
+        if (inicio.isBefore(ahora)) {
+            return { valido: false, error: 'No se pueden hacer reservas en el pasado' };
         }
 
         console.log(`✅ [VALIDACIÓN TIEMPO] Validación exitosa`);
@@ -63,35 +57,6 @@ export function validarTiempoReserva(fechaInicio: string): { valido: boolean; er
     } catch (error) {
         console.error(`❌ [VALIDACIÓN TIEMPO] Error en validarTiempoReserva:`, error);
         return { valido: false, error: 'Error validando la fecha' };
-    }
-}
-
-/**
- * Verifica si una reserva está dentro del tiempo de gracia
- * Permite confirmar desde 30 minutos antes hasta tiempo_gracia después del inicio
- */
-export function estaEnTiempoGracia(fechaInicio: string, tiempoGraciaMinutos: number = 15): boolean {
-    try {
-        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
-        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
-        // FIX: Parsear fecha correctamente (ISO string = UTC, otro formato = Argentina)
-        const inicio = fechaInicio.includes('T')
-            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
-            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
-
-        if (!inicio.isValid()) {
-            console.warn(`⚠️ [TIEMPO_GRACIA] Fecha inválida: ${fechaInicio}`);
-            return false;
-        }
-
-        const limiteGracia = inicio.add(tiempoGraciaMinutos, 'minutes');
-        const ventanaAnticipada = inicio.subtract(30, 'minutes');
-
-        // Permitir confirmar desde 30 minutos antes hasta el tiempo de gracia después
-        return ahora.isAfter(ventanaAnticipada) && ahora.isBefore(limiteGracia);
-    } catch (error) {
-        console.error(`❌ [TIEMPO_GRACIA] Error en estaEnTiempoGracia:`, error);
-        return false;
     }
 }
 
@@ -167,22 +132,17 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
         }
     };
 
-    // Si es confirmada, verificar si está expirada
-    // Solo marcar como expirada si la reserva YA COMENZÓ y pasó el tiempo de gracia
-    if (estado === 'confirmada' && fechaInicio && tiempoGracia) {
+    // Si es confirmada, verificar si está expirada (sin tiempo de gracia)
+    if (estado === 'confirmada' && fechaInicio) {
         // FIX: Usar dayjs.utc() para obtener hora actual correctamente
         const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
         const inicio = fechaInicio.includes('T')
             ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
             : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
-        const limiteGracia = inicio.add(tiempoGracia, 'minutes');
 
-        // Solo marcar como expirada si:
-        // 1. La reserva ya comenzó (ahora >= inicio)
-        // 2. Y pasó el tiempo de gracia (ahora > limiteGracia)
-        if (ahora.isAfter(limiteGracia)) {
-            // Nota: No se cambia el estado en la BD aquí, solo en la UI
-            // El estado real se actualiza mediante el cron job o endpoint de expiración
+        // Marcar como expirada si la hora actual pasó el inicio de la reserva
+        // (sin tiempo de gracia adicional)
+        if (ahora.isAfter(inicio)) {
             return {
                 label: 'Expirada',
                 color: 'orange',
@@ -373,20 +333,17 @@ export function formatearDuracion(duracionHoras: number): string {
  * Genera un mensaje de instrucciones para el conductor
  */
 export function generarInstruccionesReserva(reserva: any): string {
-    // Calcular tiempo de gracia en timezone Argentina
-    const fechaIngreso = dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires');
-    const fechaGracia = fechaIngreso.add(reserva.res_tiempo_gracia_min || 15, 'minute');
-    
     // Calcular duración en timezone Argentina
+    const fechaIngreso = dayjs.utc(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires');
     const fechaFin = dayjs.utc(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires');
     const duracionHoras = fechaFin.diff(fechaIngreso, 'hour', true);
-    
+
     const instrucciones = [
         `Tu reserva está confirmada para la plaza ${reserva.pla_numero}`,
-        `Debes llegar entre ${formatearFechaReserva(reserva.res_fh_ingreso)} y ${formatearFechaReserva(fechaGracia.utc().toISOString())}`,
-        `Si llegas después del tiempo de gracia, tu reserva será cancelada`,
+        `Debes llegar a partir de ${formatearFechaReserva(reserva.res_fh_ingreso)}`,
+        `Tu tiempo de estacionamiento es válido hasta ${formatearFechaReserva(reserva.res_fh_fin)}`,
         `Muestra este código al operador: ${formatearCodigoReserva(reserva.res_codigo)}`,
-        `La reserva es válida por ${formatearDuracion(Math.round(duracionHoras))}`
+        `Duración total: ${formatearDuracion(Math.round(duracionHoras))}`
     ];
 
     return instrucciones.join('\n');

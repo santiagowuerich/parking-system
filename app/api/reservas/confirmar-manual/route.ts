@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
                     // No retornar error, simplemente continuar y crear una nueva reserva
                     // Esto significa que el código fue reutilizado incorrectamente, pero queremos crear la reserva correcta
                 } else {
-                    
+
                     // Si los datos coinciden, actualizar a confirmada
                     const { error: updateError } = await supabase
                         .from('reservas')
@@ -120,7 +120,54 @@ export async function POST(request: NextRequest) {
 
                     reserva = { ...reservaExistente, res_estado: 'confirmada' };
                     console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} actualizada a confirmada`);
-                    
+
+                    // Registrar pago en tabla pagos (si no existe)
+                    if (!reservaExistente.pag_nro) {
+                        try {
+                            console.log(`💰 [CONFIRMAR-MANUAL] Registrando pago para reserva ${reserva.res_codigo}`);
+
+                            const { data: pagoInsertado, error: pagoError } = await supabase
+                                .from('pagos')
+                                .insert({
+                                    pag_monto: reserva.res_monto,
+                                    pag_h_fh: new Date().toISOString(),
+                                    est_id: reserva.est_id,
+                                    mepa_metodo: 'MercadoPago',
+                                    veh_patente: reserva.veh_patente,
+                                    pag_tipo: 'reserva',
+                                    pag_descripcion: `Pago de reserva ${reserva.res_codigo}`,
+                                    pag_estado: 'completado',
+                                    pag_datos_tarjeta: {
+                                        preference_id: preference_id || null,
+                                        reserva_codigo: reserva.res_codigo,
+                                        tipo_pago: 'reserva'
+                                    }
+                                })
+                                .select('pag_nro')
+                                .single();
+
+                            if (pagoError) {
+                                console.error('❌ [CONFIRMAR-MANUAL] Error registrando pago:', pagoError);
+                            } else if (pagoInsertado) {
+                                console.log(`✅ [CONFIRMAR-MANUAL] Pago registrado: pag_nro=${pagoInsertado.pag_nro}`);
+
+                                // Actualizar reserva con pag_nro
+                                const { error: updatePagNroError } = await supabase
+                                    .from('reservas')
+                                    .update({ pag_nro: pagoInsertado.pag_nro })
+                                    .eq('res_codigo', reserva.res_codigo);
+
+                                if (updatePagNroError) {
+                                    console.error('⚠️ [CONFIRMAR-MANUAL] Error actualizando pag_nro:', updatePagNroError);
+                                } else {
+                                    console.log(`✅ [CONFIRMAR-MANUAL] Reserva vinculada con pago: pag_nro=${pagoInsertado.pag_nro}`);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('❌ [CONFIRMAR-MANUAL] Error en registro de pago:', error);
+                        }
+                    }
+
                     // Salir aquí si se actualizó correctamente
                     // Marcar plaza como reservada usando los datos de la reserva actualizada
                     const { error: plazaError } = await supabase
@@ -300,6 +347,53 @@ export async function POST(request: NextRequest) {
             }
 
             console.log(`✅ [CONFIRMAR-MANUAL] Reserva ${reserva.res_codigo} actualizada a confirmada`);
+
+            // Registrar pago en tabla pagos (si no existe)
+            if (!reserva.pag_nro) {
+                try {
+                    console.log(`💰 [CONFIRMAR-MANUAL] Registrando pago para reserva ${reserva.res_codigo}`);
+
+                    const { data: pagoInsertado, error: pagoError } = await supabase
+                        .from('pagos')
+                        .insert({
+                            pag_monto: reserva.res_monto,
+                            pag_h_fh: new Date().toISOString(),
+                            est_id: reserva.est_id,
+                            mepa_metodo: 'MercadoPago',
+                            veh_patente: reserva.veh_patente,
+                            pag_tipo: 'reserva',
+                            pag_descripcion: `Pago de reserva ${reserva.res_codigo}`,
+                            pag_estado: 'completado',
+                            pag_datos_tarjeta: {
+                                preference_id: preference_id || null,
+                                reserva_codigo: reserva.res_codigo,
+                                tipo_pago: 'reserva'
+                            }
+                        })
+                        .select('pag_nro')
+                        .single();
+
+                    if (pagoError) {
+                        console.error('❌ [CONFIRMAR-MANUAL] Error registrando pago:', pagoError);
+                    } else if (pagoInsertado) {
+                        console.log(`✅ [CONFIRMAR-MANUAL] Pago registrado: pag_nro=${pagoInsertado.pag_nro}`);
+
+                        // Actualizar reserva con pag_nro
+                        const { error: updatePagNroError } = await supabase
+                            .from('reservas')
+                            .update({ pag_nro: pagoInsertado.pag_nro })
+                            .eq('res_codigo', reserva.res_codigo);
+
+                        if (updatePagNroError) {
+                            console.error('⚠️ [CONFIRMAR-MANUAL] Error actualizando pag_nro:', updatePagNroError);
+                        } else {
+                            console.log(`✅ [CONFIRMAR-MANUAL] Reserva vinculada con pago: pag_nro=${pagoInsertado.pag_nro}`);
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ [CONFIRMAR-MANUAL] Error en registro de pago:', error);
+                }
+            }
         }
 
 

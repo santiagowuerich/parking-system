@@ -14,8 +14,10 @@ import { useTurnos } from "@/lib/hooks/use-turnos"
 import { toast } from "@/components/ui/use-toast"
 import dayjs from "dayjs"
 import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 
 dayjs.extend(utc)
+dayjs.extend(timezone)
 
 interface PlazaCompleta {
   pla_numero: number
@@ -166,7 +168,7 @@ export default function PlazaActionsModal({
               {vehicle?.entry_time && (
                 <>
                   {' '}
-                  • Ingreso: {dayjs.utc(vehicle.entry_time).local().format('DD/MM/YYYY HH:mm')}
+                  • Ingreso: {dayjs.tz(vehicle.entry_time, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
                 </>
               )}
             </span>

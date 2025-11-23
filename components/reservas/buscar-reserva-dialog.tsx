@@ -378,25 +378,9 @@ export function BuscarReservaDialog({
         }
     };
 
-    const estaEnTiempoGracia = (reserva: ReservaConDetalles) => {
-        // Convertir todo a hora de Argentina para comparar correctamente
-        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-        const inicioReserva = dayjs(reserva.res_fh_ingreso).tz('America/Argentina/Buenos_Aires');
-        const tiempoGracia = inicioReserva.add(reserva.res_tiempo_gracia_min, 'minutes');
-
-        console.log('🔍 [TIEMPO GRACIA] Verificando:', {
-            ahora: ahora.format('YYYY-MM-DD HH:mm:ss'),
-            inicioReserva: inicioReserva.format('YYYY-MM-DD HH:mm:ss'),
-            tiempoGracia: tiempoGracia.format('YYYY-MM-DD HH:mm:ss'),
-            estado: reserva.res_estado
-        });
-
-        // Permitir confirmar desde 30 minutos antes hasta el tiempo de gracia
-        return ahora.isBefore(tiempoGracia) && ahora.isAfter(inicioReserva.subtract(30, 'minutes'));
-    };
-
     const puedeConfirmarLlegada = (reserva: ReservaConDetalles) => {
-        const puede = reserva.res_estado === 'confirmada' && estaEnTiempoGracia(reserva);
+        // Permitir confirmar llegada si la reserva está confirmada (sin restricción de tiempo de gracia)
+        const puede = reserva.res_estado === 'confirmada';
         console.log('🔍 [CONFIRMAR LLEGADA] Puede confirmar:', puede, 'Estado:', reserva.res_estado);
         return puede;
     };
@@ -663,13 +647,6 @@ export function BuscarReservaDialog({
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="w-4 h-4 text-gray-500" />
-                                            <div>
-                                                <div className="text-sm text-gray-600">Tiempo de Gracia</div>
-                                                <div className="font-medium">{resultado.res_tiempo_gracia_min} minutos</div>
-                                            </div>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -708,18 +685,6 @@ export function BuscarReservaDialog({
                                     </div>
                                 </div>
 
-                                {/* Estado de tiempo de gracia */}
-                                {resultado.res_estado === 'confirmada' && (
-                                    <Alert className={estaEnTiempoGracia(resultado) ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
-                                        <AlertTriangle className="w-4 h-4" />
-                                        <AlertDescription>
-                                            {estaEnTiempoGracia(resultado)
-                                                ? 'El conductor está dentro del tiempo de gracia y puede ingresar'
-                                                : 'El conductor está fuera del tiempo de gracia'
-                                            }
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
                             </CardContent>
                         </Card>
                     )}

@@ -74,7 +74,7 @@ export default function VehicleSelectorModal({
   }
 
   const formatTime = (dateString: string) => {
-    return dayjs.utc(dateString).local().format('HH:mm')
+    return dayjs.tz(dateString, 'America/Argentina/Buenos_Aires').format('HH:mm')
   }
 
   const getVehicleIcon = (type: string) => {
@@ -168,8 +168,8 @@ export default function VehicleSelectorModal({
                 )
                 if (!selectedVehicle) return null
 
-                const entryTime = dayjs.utc(selectedVehicle.entry_time).local()
-                const now = dayjs()
+                const entryTime = dayjs.tz(selectedVehicle.entry_time, 'America/Argentina/Buenos_Aires')
+                const now = dayjs().tz('America/Argentina/Buenos_Aires')
                 const durationMs = Math.max(0, now.diff(entryTime))
                 const hours = Math.floor(durationMs / (1000 * 60 * 60))
                 const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60))

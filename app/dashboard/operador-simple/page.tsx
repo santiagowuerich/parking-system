@@ -512,6 +512,7 @@ export default function OperadorSimplePage() {
 
             let reservaActiva = null;
             if (payload.pla_numero) {
+                // PASO 1: Buscar reserva por patente EXACTA
                 const { data: reservas, error: reservasError } = await supabase
                     .from('reservas')
                     .select('*')
@@ -524,21 +525,62 @@ export default function OperadorSimplePage() {
 
                 if (!reservasError && reservas && reservas.length > 0) {
                     reservaActiva = reservas[0];
-                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA:', {
+                    console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (patente exacta):', {
                         res_codigo: reservaActiva.res_codigo,
+                        veh_patente: reservaActiva.veh_patente,
                         res_estado: reservaActiva.res_estado,
                         res_monto: reservaActiva.res_monto,
                         pag_nro: reservaActiva.pag_nro,
-                        res_fh_ingreso: reservaActiva.res_fh_ingreso,
                         res_fh_fin: reservaActiva.res_fh_fin
                     });
                 } else {
-                    console.log('ℹ️ No se encontró reserva activa para esta patente y plaza');
+                    // PASO 2: Si no encontró por patente exacta, buscar por CONDUCTOR
+                    console.log('ℹ️ No se encontró reserva por patente exacta, buscando por conductor...');
+
+                    // Obtener conductor del vehículo actual
+                    const { data: vehiculoData, error: vehiculoError } = await supabase
+                        .from('vehiculos')
+                        .select('con_id')
+                        .eq('veh_patente', payload.license_plate.toUpperCase())
+                        .single();
+
+                    if (!vehiculoError && vehiculoData?.con_id) {
+                        console.log(`🔍 Conductor del vehículo ${payload.license_plate}: ${vehiculoData.con_id}`);
+
+                        // Buscar reservas del conductor en la misma plaza
+                        const { data: reservasPorConductor, error: reservasConductorError } = await supabase
+                            .from('reservas')
+                            .select('*')
+                            .eq('est_id', estId)
+                            .eq('pla_numero', payload.pla_numero)
+                            .eq('con_id', vehiculoData.con_id)
+                            .in('res_estado', ['confirmada', 'activa'])
+                            .order('res_fh_ingreso', { ascending: false })
+                            .limit(1);
+
+                        if (!reservasConductorError && reservasPorConductor && reservasPorConductor.length > 0) {
+                            reservaActiva = reservasPorConductor[0];
+                            console.log('✅ 🎫 RESERVA ACTIVA ENCONTRADA (por conductor - vehículo diferente):', {
+                                res_codigo: reservaActiva.res_codigo,
+                                veh_patente_reserva: reservaActiva.veh_patente,
+                                veh_patente_actual: payload.license_plate,
+                                con_id: vehiculoData.con_id,
+                                res_estado: reservaActiva.res_estado,
+                                res_monto: reservaActiva.res_monto,
+                                res_fh_fin: reservaActiva.res_fh_fin
+                            });
+                        } else {
+                            console.log('ℹ️ No se encontró reserva activa para este conductor en esta plaza');
+                        }
+                    } else {
+                        console.log('⚠️ No se pudo obtener conductor del vehículo');
+                    }
                 }
             }
 
             // Registrar la ocupación
-            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+            // FIX: Usar formato sin Z para BD timestamp without time zone (Argentina)
+            const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
             const ocupacionData = {
                 est_id: estId,
@@ -694,11 +736,12 @@ export default function OperadorSimplePage() {
                 await finalizeSubscriptionExit({
                     licensePlate,
                     entryTime: ocupacion.entry_time,
-                    plazaNumber: ocupacion.plaza_number
+                    plazaNumber: ocupacion.plaza_number,
+                    resCode: ocupacion.res_codigo
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({
@@ -744,12 +787,12 @@ export default function OperadorSimplePage() {
             let reservationHours = 0;
             let montoReserva = 0;
 
-            // FIX: Mejorada - múltiples condiciones para detectar reservas
-            // Fallback logic: si no tiene res_codigo, verificar si es reserva por tipo o precio
+            // FIX: Detectar reserva SOLO si tiene código de reserva o es tipo 'reserva'
+            // Si existe res_codigo, definitivamente ES una reserva (foreign key válida)
+            // No requerimos ocu_fecha_limite porque algunos registros podrían no tenerlo
             const tieneReserva = !!(
                 ocupacion.res_codigo ||
-                ocupacion.ocu_duracion_tipo === 'reserva' ||
-                (ocupacion.ocu_precio_acordado && ocupacion.ocu_precio_acordado > 0)
+                ocupacion.ocu_duracion_tipo === 'reserva'
             );
 
             console.log('🎯 Evaluación de condición de reserva (mejorada):', {
@@ -774,9 +817,9 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
-                // FIX: ocu_fecha_limite viene como "timestamp without time zone" en Argentina, no UTC
-                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
-                const inicioReserva = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                // FIX: Parsear directamente en Argentina timezone (no como UTC que causaba -3h error)
+                const finReserva = dayjs.tz(ocupacion.ocu_fecha_limite, 'America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
 
                 // Guardar datos para procesar después de confirmación
                 reservationExitDataRef.current = {
@@ -796,6 +839,19 @@ export default function OperadorSimplePage() {
                     diferencia_minutos: finReserva.diff(salidaReal, 'minutes')
                 });
 
+                const salioAntes = salidaReal.isBefore(finReserva);
+
+                // CASO 2: Si salió después de la reserva, calcular cargo y mostrar selector de pago directamente
+                if (!salioAntes) {
+                    console.log('💳 CASO 2 DETECTADO: Egreso después de fin de reserva - Mostrando selector de pago directamente');
+                    // Llamar confirmReservationExit directamente sin mostrar modal informacional
+                    // El ref ya está configurado con los datos necesarios
+                    await confirmReservationExit();
+                    return;
+                }
+
+                // CASO 1: Si salió antes de la reserva, mostrar modal informacional
+                console.log('✅ CASO 1 DETECTADO: Egreso antes de fin de reserva - Mostrando confirmación');
                 setReservationData({
                     res_codigo: ocupacion.res_codigo,
                     ocu_fecha_limite: ocupacion.ocu_fecha_limite,
@@ -805,7 +861,7 @@ export default function OperadorSimplePage() {
                     exitTime: salidaReal.format('HH:mm:ss'),
                     endDate: finReserva.format('DD/MM/YYYY'),
                     endTime: finReserva.format('HH:mm:ss'),
-                    salioAntes: salidaReal.isBefore(finReserva)
+                    salioAntes: salioAntes
                 });
                 setShowReservationConfirm(true);
                 return;
@@ -903,7 +959,7 @@ export default function OperadorSimplePage() {
                 calculatedFee: feeData.calculatedFee,
                 agreedFee: feeData.agreedPrice > 0 ? feeData.agreedPrice : undefined,
                 entryTime: hasReservation ? ocupacion.ocu_fecha_limite : ocupacion.entry_time,
-                exitTime: exitTime.toISOString(),
+                exitTime: exitTime.format('YYYY-MM-DD HH:mm:ss'),
                 duration: feeData.durationMs,
                 method: 'efectivo',
                 estId: estId,
@@ -946,11 +1002,12 @@ export default function OperadorSimplePage() {
                 await finalizeSubscriptionExit({
                     licensePlate,
                     entryTime: ocupacion.entry_time,
-                    plazaNumber: ocupacion.plaza_number
+                    plazaNumber: ocupacion.plaza_number,
+                    resCode: ocupacion.res_codigo
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 toast({
@@ -1270,11 +1327,13 @@ export default function OperadorSimplePage() {
     const finalizeSubscriptionExit = async ({
         licensePlate,
         entryTime,
-        plazaNumber
+        plazaNumber,
+        resCode
     }: {
         licensePlate: string;
         entryTime: string;
         plazaNumber?: number | null;
+        resCode?: string | null;
     }) => {
         if (!estId || !user?.id) return;
 
@@ -1283,7 +1342,7 @@ export default function OperadorSimplePage() {
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         );
 
-        const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
+        const exitTimestamp = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
         const { error: updateError } = await supabase
             .from('ocupacion')
@@ -1297,6 +1356,21 @@ export default function OperadorSimplePage() {
 
         if (updateError) {
             throw updateError;
+        }
+
+        // Si la ocupación tiene una reserva, marcarla como completada
+        if (resCode) {
+            console.log(`📌 Actualizando estado de reserva ${resCode} a completada`);
+            const { error: resError } = await supabase
+                .from('reservas')
+                .update({ res_estado: 'completada' })
+                .eq('res_codigo', resCode);
+
+            if (resError) {
+                console.error(`Error actualizando reserva ${resCode}:`, resError);
+            } else {
+                console.log(`✅ Reserva ${resCode} marcada como completada`);
+            }
         }
 
         if (plazaNumber) {
@@ -1319,8 +1393,6 @@ export default function OperadorSimplePage() {
         const { licensePlate, ocupacion, salidaReal, finReserva, inicioReserva } = reservationExitDataRef.current;
 
         try {
-            setShowReservationConfirm(false);
-
             if (salidaReal.isAfter(finReserva)) {
                 console.log('⏰ El vehículo salió después del fin de reserva, calculando cargo adicional...');
 
@@ -1391,10 +1463,10 @@ export default function OperadorSimplePage() {
                 const paymentInfo: PaymentData = {
                     vehicleLicensePlate: licensePlate,
                     amount: cargoAdicional,
-                    calculatedFee: cargoAdicional,
+                    calculatedFee: totalFeeData.fee,
                     agreedFee: totalFeeData.agreedPrice > 0 ? totalFeeData.agreedPrice : undefined,
-                    entryTime: ocupacion.ocu_fecha_limite,
-                    exitTime: exitTime.toISOString(),
+                    entryTime: ocupacion.entry_time,
+                    exitTime: exitTime.format('YYYY-MM-DD HH:mm:ss'),
                     duration: totalFeeData.durationMs,
                     method: 'efectivo',
                     estId: estId,
@@ -1433,11 +1505,12 @@ export default function OperadorSimplePage() {
                 await finalizeSubscriptionExit({
                     licensePlate,
                     entryTime: ocupacion.entry_time,
-                    plazaNumber: ocupacion.plaza_number
+                    plazaNumber: ocupacion.plaza_number,
+                    resCode: ocupacion.res_codigo
                 });
 
                 const salidaMomento = dayjs().tz('America/Argentina/Buenos_Aires');
-                const ingresoMomento = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                const ingresoMomento = dayjs.tz(ocupacion.entry_time, 'America/Argentina/Buenos_Aires');
                 const duracionMs = salidaMomento.diff(ingresoMomento);
 
                 setExitInfo({
@@ -1494,7 +1567,8 @@ export default function OperadorSimplePage() {
                 await finalizeSubscriptionExit({
                     licensePlate: data.vehicleLicensePlate,
                     entryTime: data.entryTime,
-                    plazaNumber: data.plazaNumber
+                    plazaNumber: data.plazaNumber,
+                    resCode: data.reservationCode
                 });
                 return;
             }
@@ -1537,7 +1611,7 @@ export default function OperadorSimplePage() {
             console.log('✅ Pago registrado:', payment);
 
             // 2. Actualizar la ocupación marcando la salida y enlazando el pago
-            const { error: updateError } = await supabase
+            const { data: updateResult, error: updateError } = await supabase
                 .from('ocupacion')
                 .update({
                     ocu_fh_salida: data.exitTime,
@@ -1546,14 +1620,42 @@ export default function OperadorSimplePage() {
                 .eq('est_id', estId)
                 .eq('veh_patente', data.vehicleLicensePlate)
                 .eq('ocu_fh_entrada', data.entryTime)
-                .is('ocu_fh_salida', null);
+                .is('ocu_fh_salida', null)
+                .select();
 
             if (updateError) {
                 console.error('❌ Error actualizando ocupación:', updateError);
                 throw updateError;
             }
 
+            // Validar que se actualizó al menos una fila
+            if (!updateResult || updateResult.length === 0) {
+                console.error('❌ No se encontró la ocupación para actualizar:', {
+                    est_id: estId,
+                    veh_patente: data.vehicleLicensePlate,
+                    ocu_fh_entrada_buscada: data.entryTime,
+                    hasReservation: data.hasReservation
+                });
+                throw new Error(`No se encontró la ocupación para actualizar. Verificar ocu_fh_entrada: ${data.entryTime}`);
+            }
+
             console.log('✅ Ocupación actualizada - pag_nro vinculado:', payment.pag_nro);
+            console.log('✅ Filas actualizadas:', updateResult.length);
+
+            // Si la ocupación tiene una reserva, marcarla como completada
+            if (data.reservationCode) {
+                console.log(`📌 Actualizando estado de reserva ${data.reservationCode} a completada`);
+                const { error: resError } = await supabase
+                    .from('reservas')
+                    .update({ res_estado: 'completada' })
+                    .eq('res_codigo', data.reservationCode);
+
+                if (resError) {
+                    console.error(`Error actualizando reserva ${data.reservationCode}:`, resError);
+                } else {
+                    console.log(`✅ Reserva ${data.reservationCode} marcada como completada`);
+                }
+            }
 
             // Si había una plaza asignada, liberarla
             if (data.plazaNumber) {
@@ -1737,9 +1839,12 @@ export default function OperadorSimplePage() {
 
             if (response.ok) {
                 console.log(`✅ [CLIENTE] Verificación exitosa. Se procesaron ${data.reservas_expiradas} reservas`);
+                const mensaje = data.reservas_expiradas > 0
+                    ? `Se liberaron ${data.reservas_expiradas} plazas reservadas que expiraron`
+                    : `No hay reservas expiradas en este momento`;
                 toast({
                     title: "✅ Verificación completada",
-                    description: `Se procesaron ${data.reservas_expiradas || 0} reservas expiradas y se liberaron sus plazas`
+                    description: mensaje
                 });
 
                 // Refrescar los datos de vehículos y plazas para mostrar cambios

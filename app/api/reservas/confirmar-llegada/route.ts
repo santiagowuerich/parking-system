@@ -82,9 +82,10 @@ export async function POST(request: NextRequest) {
         }
 
         // 4. Crear registro de ocupación
-        // FIX: Validar y normalizar fechas a UTC ISO correctamente
-        const entryTime = dayjs.utc(reserva.res_fh_ingreso).toISOString();
-        const limitTime = dayjs.utc(reserva.res_fh_fin).toISOString();
+        // FIX: Registrar la hora REAL de llegada (ahora), no la hora planificada de reserva
+        // Usar formato sin Z para BD timestamp without time zone (Argentina)
+        const entryTime = dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
+        const limitTime = dayjs(reserva.res_fh_fin).tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss');
 
         const { data: ocupacion, error: ocupacionError } = await supabase
             .from('ocupacion')

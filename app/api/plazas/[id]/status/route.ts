@@ -1,6 +1,12 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const PlazaStatusSchema = z.object({
   pla_estado: z.enum(['Libre', 'Ocupada', 'Reservada', 'Mantenimiento']),
@@ -134,7 +140,7 @@ export async function PATCH(
       const { error: exitError } = await supabase
         .from('ocupacion')
         .update({
-          ocu_fh_salida: new Date().toISOString(),
+          ocu_fh_salida: dayjs().tz('America/Argentina/Buenos_Aires').format('YYYY-MM-DD HH:mm:ss'),
           // Agregar una nota de que fue desalojado
         })
         .eq('ocu_id', currentOccupation.ocu_id);
