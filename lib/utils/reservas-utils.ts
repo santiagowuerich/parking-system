@@ -47,9 +47,13 @@ export function validarTiempoReserva(fechaInicio: string): { valido: boolean; er
         console.log(`🕐 [VALIDACIÓN TIEMPO] Ahora (ART): ${ahora.format('YYYY-MM-DD HH:mm:ss')}`);
         console.log(`🕐 [VALIDACIÓN TIEMPO] Inicio: ${inicio.format('YYYY-MM-DD HH:mm:ss')}`);
 
-        // Solo verificar que no sea en el pasado (permite reservas futuras y que crucen días)
-        if (inicio.isBefore(ahora)) {
-            return { valido: false, error: 'No se pueden hacer reservas en el pasado' };
+        // Permitir margen de 5 minutos para latencia de red y reservas "ahora mismo"
+        // Esto evita rechazar reservas legítimas que se procesan en <5min
+        const margenToleranciaMins = 5;
+        const limiteMinimo = ahora.subtract(margenToleranciaMins, 'minutes');
+
+        if (inicio.isBefore(limiteMinimo)) {
+            return { valido: false, error: `No se pueden hacer reservas con más de ${margenToleranciaMins} minutos en el pasado` };
         }
 
         console.log(`✅ [VALIDACIÓN TIEMPO] Validación exitosa`);
