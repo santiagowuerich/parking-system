@@ -774,9 +774,9 @@ export default function OperadorSimplePage() {
                 });
 
                 const salidaReal = dayjs().tz('America/Argentina/Buenos_Aires');
-                // ocu_fecha_limite viene como ISO string en UTC, hay que convertirlo a Argentina time
-                const finReserva = dayjs.utc(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
-                const inicioReserva = dayjs.utc(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
+                // FIX: ocu_fecha_limite viene como "timestamp without time zone" en Argentina, no UTC
+                const finReserva = dayjs(ocupacion.ocu_fecha_limite).tz('America/Argentina/Buenos_Aires');
+                const inicioReserva = dayjs(ocupacion.entry_time).tz('America/Argentina/Buenos_Aires');
 
                 // Guardar datos para procesar después de confirmación
                 reservationExitDataRef.current = {
@@ -801,7 +801,9 @@ export default function OperadorSimplePage() {
                     ocu_fecha_limite: ocupacion.ocu_fecha_limite,
                     ocu_precio_acordado: ocupacion.ocu_precio_acordado,
                     licensePlate: licensePlate,
+                    exitDate: salidaReal.format('DD/MM/YYYY'),
                     exitTime: salidaReal.format('HH:mm:ss'),
+                    endDate: finReserva.format('DD/MM/YYYY'),
                     endTime: finReserva.format('HH:mm:ss'),
                     salioAntes: salidaReal.isBefore(finReserva)
                 });
@@ -1912,8 +1914,16 @@ export default function OperadorSimplePage() {
                                             <p className="font-semibold">{reservationData.res_codigo}</p>
                                         </div>
                                         <div>
+                                            <p className="text-sm text-muted-foreground">Fecha de Salida</p>
+                                            <p className="font-semibold">{reservationData.exitDate}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">Hora de Salida</p>
+                                            <p className="font-semibold">{reservationData.exitTime}</p>
+                                        </div>
+                                        <div>
                                             <p className="text-sm text-muted-foreground">Fin de Reserva</p>
-                                            <p className="font-semibold">{reservationData.endTime}</p>
+                                            <p className="font-semibold">{reservationData.endDate} {reservationData.endTime}</p>
                                         </div>
                                         <div>
                                             <p className="text-sm text-muted-foreground">Monto Pagado</p>

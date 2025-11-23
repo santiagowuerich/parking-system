@@ -82,18 +82,22 @@ export async function POST(request: NextRequest) {
         }
 
         // 4. Crear registro de ocupación
+        // FIX: Validar y normalizar fechas a UTC ISO correctamente
+        const entryTime = dayjs.utc(reserva.res_fh_ingreso).toISOString();
+        const limitTime = dayjs.utc(reserva.res_fh_fin).toISOString();
+
         const { data: ocupacion, error: ocupacionError } = await supabase
             .from('ocupacion')
             .insert({
                 est_id: reserva.est_id,
                 veh_patente: reserva.veh_patente,
-                ocu_fh_entrada: reserva.res_fh_ingreso,
+                ocu_fh_entrada: entryTime,
                 pla_numero: reserva.pla_numero,
                 ocu_duracion_tipo: 'reserva',
                 ocu_precio_acordado: reserva.res_monto,
                 pag_nro: reserva.pag_nro,
                 res_codigo: reserva.res_codigo,
-                ocu_fecha_limite: reserva.res_fh_fin
+                ocu_fecha_limite: limitTime
             })
             .select('ocu_id')
             .single();

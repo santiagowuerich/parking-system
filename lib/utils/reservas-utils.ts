@@ -13,7 +13,8 @@ dayjs.extend(timezone);
  * Obtiene la hora actual en zona horaria de Argentina (ART - UTC-3)
  */
 export function obtenerAhoraEnArgentina(): Date {
-    return dayjs().tz('America/Argentina/Buenos_Aires').toDate();
+    // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+    return dayjs.utc().tz('America/Argentina/Buenos_Aires').toDate();
 }
 
 /**
@@ -28,25 +29,41 @@ export function calcularPrecioReserva(precioPorHora: number, duracionHoras: numb
  * Solo verifica que sea el día actual (reserva inmediata)
  */
 export function validarTiempoReserva(fechaInicio: string): { valido: boolean; error?: string } {
-    const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-    const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
+    try {
+        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+        // FIX: Si fechaInicio es ISO string (incluye 'T'), interpretar como UTC primero
+        // Si es solo hora (HH:mm:ss), es hora Argentina local
+        const inicio = fechaInicio.includes('T')
+            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
 
-    console.log(`🕐 [VALIDACIÓN TIEMPO] Ahora (ART): ${ahora.format('YYYY-MM-DD HH:mm:ss')}`);
-    console.log(`🕐 [VALIDACIÓN TIEMPO] Inicio: ${inicio.format('YYYY-MM-DD HH:mm:ss')}`);
+        // Validar que el objeto dayjs sea válido
+        if (!inicio.isValid()) {
+            console.error(`❌ [VALIDACIÓN TIEMPO] Fecha inválida: ${fechaInicio}`);
+            return { valido: false, error: 'Formato de fecha inválido' };
+        }
 
-    // Verificar que sea el mismo día (en zona horaria Argentina)
-    const hoyArgentina = ahora.startOf('day');
-    const diaInicio = inicio.startOf('day');
+        console.log(`🕐 [VALIDACIÓN TIEMPO] Ahora (ART): ${ahora.format('YYYY-MM-DD HH:mm:ss')}`);
+        console.log(`🕐 [VALIDACIÓN TIEMPO] Inicio: ${inicio.format('YYYY-MM-DD HH:mm:ss')}`);
 
-    console.log(`🕐 [VALIDACIÓN TIEMPO] Hoy (ART): ${hoyArgentina.format('YYYY-MM-DD')}`);
-    console.log(`🕐 [VALIDACIÓN TIEMPO] Día inicio: ${diaInicio.format('YYYY-MM-DD')}`);
+        // Verificar que sea el mismo día (en zona horaria Argentina)
+        const hoyArgentina = ahora.startOf('day');
+        const diaInicio = inicio.startOf('day');
 
-    if (!diaInicio.isSame(hoyArgentina)) {
-        return { valido: false, error: 'Solo se pueden hacer reservas para el día actual' };
+        console.log(`🕐 [VALIDACIÓN TIEMPO] Hoy (ART): ${hoyArgentina.format('YYYY-MM-DD')}`);
+        console.log(`🕐 [VALIDACIÓN TIEMPO] Día inicio: ${diaInicio.format('YYYY-MM-DD')}`);
+
+        if (!diaInicio.isSame(hoyArgentina)) {
+            return { valido: false, error: 'Solo se pueden hacer reservas para el día actual' };
+        }
+
+        console.log(`✅ [VALIDACIÓN TIEMPO] Validación exitosa`);
+        return { valido: true };
+    } catch (error) {
+        console.error(`❌ [VALIDACIÓN TIEMPO] Error en validarTiempoReserva:`, error);
+        return { valido: false, error: 'Error validando la fecha' };
     }
-
-    console.log(`✅ [VALIDACIÓN TIEMPO] Validación exitosa`);
-    return { valido: true };
 }
 
 /**
@@ -54,13 +71,28 @@ export function validarTiempoReserva(fechaInicio: string): { valido: boolean; er
  * Permite confirmar desde 30 minutos antes hasta tiempo_gracia después del inicio
  */
 export function estaEnTiempoGracia(fechaInicio: string, tiempoGraciaMinutos: number = 15): boolean {
-    const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-    const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
-    const limiteGracia = inicio.add(tiempoGraciaMinutos, 'minutes');
-    const ventanaAnticipada = inicio.subtract(30, 'minutes');
+    try {
+        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+        // FIX: Parsear fecha correctamente (ISO string = UTC, otro formato = Argentina)
+        const inicio = fechaInicio.includes('T')
+            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
 
-    // Permitir confirmar desde 30 minutos antes hasta el tiempo de gracia después
-    return ahora.isAfter(ventanaAnticipada) && ahora.isBefore(limiteGracia);
+        if (!inicio.isValid()) {
+            console.warn(`⚠️ [TIEMPO_GRACIA] Fecha inválida: ${fechaInicio}`);
+            return false;
+        }
+
+        const limiteGracia = inicio.add(tiempoGraciaMinutos, 'minutes');
+        const ventanaAnticipada = inicio.subtract(30, 'minutes');
+
+        // Permitir confirmar desde 30 minutos antes hasta el tiempo de gracia después
+        return ahora.isAfter(ventanaAnticipada) && ahora.isBefore(limiteGracia);
+    } catch (error) {
+        console.error(`❌ [TIEMPO_GRACIA] Error en estaEnTiempoGracia:`, error);
+        return false;
+    }
 }
 
 /**
@@ -138,8 +170,11 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
     // Si es confirmada, verificar si está expirada
     // Solo marcar como expirada si la reserva YA COMENZÓ y pasó el tiempo de gracia
     if (estado === 'confirmada' && fechaInicio && tiempoGracia) {
-        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-        const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
+        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+        const inicio = fechaInicio.includes('T')
+            ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
         const limiteGracia = inicio.add(tiempoGracia, 'minutes');
 
         // Solo marcar como expirada si:
@@ -159,8 +194,11 @@ export function obtenerEstadoReservaVisual(estado: EstadoReserva, fechaInicio?: 
 
     // Si es activa, verificar si la ocupación ha terminado
     if (estado === 'activa' && fechaFin) {
-        const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-        const fin = dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
+        // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+        const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+        const fin = fechaFin.includes('T')
+            ? dayjs.utc(fechaFin).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
 
         // Si la fecha de fin ya pasó, la reserva expiró
         if (ahora.isAfter(fin)) {
@@ -185,12 +223,17 @@ export function calcularTiempoRestante(fechaInicio: string, fechaFin?: string): 
     esUrgente: boolean;
     minutosRestantes: number;
 } {
-    const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
-    const inicio = dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
+    // FIX: Usar dayjs.utc() para obtener hora actual correctamente
+    const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
+    const inicio = fechaInicio.includes('T')
+        ? dayjs.utc(fechaInicio).tz('America/Argentina/Buenos_Aires')
+        : dayjs(fechaInicio).tz('America/Argentina/Buenos_Aires');
     
     // Si la reserva ya comenzó y tenemos fechaFin, calcular tiempo hasta el fin
     if (ahora.isAfter(inicio) && fechaFin) {
-        const fin = dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
+        const fin = fechaFin.includes('T')
+            ? dayjs.utc(fechaFin).tz('America/Argentina/Buenos_Aires')
+            : dayjs(fechaFin).tz('America/Argentina/Buenos_Aires');
         const diffMs = fin.diff(ahora);
         
         if (diffMs <= 0) {
@@ -273,13 +316,16 @@ export function generarOpcionesDuracion(): Array<{ value: number; label: string 
  * Solo para reserva inmediata (hora actual)
  */
 export function generarOpcionesFechaHora(): Array<{ value: string; label: string }> {
-    const ahora = dayjs().tz('America/Argentina/Buenos_Aires');
+    // FIX: Usar dayjs.utc() para obtener hora actual como UTC, luego convertir a Argentina
+    // Así funciona correctamente tanto en localhost como en Vercel
+    const ahora = dayjs.utc().tz('America/Argentina/Buenos_Aires');
 
     console.log(`🕐 [OPCIONES] Generando opción de reserva inmediata: ${ahora.format('YYYY-MM-DD HH:mm:ss')}`);
 
     // Solo una opción: hora actual
     return [{
-        value: ahora.toISOString(),
+        // FIX: Convertir a UTC antes de toISOString para guardar correctamente en BD
+        value: ahora.utc().toISOString(),
         label: `Ahora (${ahora.format('HH:mm')})`
     }];
 }
