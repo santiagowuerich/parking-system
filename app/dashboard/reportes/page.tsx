@@ -8,7 +8,6 @@ import {
     BarChart3,
     Activity,
     DollarSign,
-    CreditCard,
     Calendar,
 } from "lucide-react";
 
@@ -16,14 +15,12 @@ import {
 import { OcupacionReporte } from "./components/reportes/operativos/ocupacion-reporte";
 import { MovimientosReporte } from "./components/reportes/operativos/movimientos-reporte";
 import { IngresosReporte } from "./components/reportes/economicos/ingresos-reporte";
-import { MediosPagoReporte } from "./components/reportes/economicos/medios-pago-reporte";
 import { AbonosReporte } from "./components/reportes/economicos/abonos-reporte";
 
 type ReporteType =
     | "ocupacion"
     | "movimientos"
     | "ingresos"
-    | "medios-pago"
     | "abonos"
     | null;
 
@@ -50,10 +47,6 @@ export default function ReportesPage() {
         ingresos: {
             titulo: "Ingresos por Período",
             component: <IngresosReporte />
-        },
-        "medios-pago": {
-            titulo: "Medios de Pago",
-            component: <MediosPagoReporte />
         },
         abonos: {
             titulo: "Abonos y Suscripciones",
@@ -90,14 +83,6 @@ export default function ReportesPage() {
                             description="Evolución de ingresos con análisis de tendencias y comparativas."
                             onClick={() => abrirReporte("ingresos")}
                             color="green"
-                        />
-
-                        <ReporteCard
-                            icon={CreditCard}
-                            title="Medios de Pago"
-                            description="Distribución de cobros: efectivo, transferencia, MercadoPago y QR."
-                            onClick={() => abrirReporte("medios-pago")}
-                            color="blue"
                         />
 
                         <ReporteCard

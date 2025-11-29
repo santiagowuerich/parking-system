@@ -497,6 +497,13 @@ export function IngresosReporte() {
                                                 dataKey="amount"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#3b82f6"
+                                                label={{
+                                                    position: 'center',
+                                                    fill: '#ffffff',
+                                                    fontSize: 12,
+                                                    fontWeight: 'bold',
+                                                    formatter: (value) => formatCurrency(value as number)
+                                                }}
                                             />
                                         </BarChart>
                                     </ResponsiveContainer>

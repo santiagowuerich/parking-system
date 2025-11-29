@@ -397,6 +397,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         tipoAbono,
                         fechaInicio,
                         fechaFin: calcularFechaFin(),
+                        cantidadDuracion,
                         plaza: {
                             pla_numero: plazaSeleccionada.pla_numero,
                             est_id: plazaSeleccionada.est_id
@@ -428,6 +429,7 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         tipoAbono,
                         fechaInicio,
                         fechaFin: calcularFechaFin(),
+                        cantidadDuracion,
                         plaza: {
                             pla_numero: plazaSeleccionada.pla_numero,
                             est_id: plazaSeleccionada.est_id

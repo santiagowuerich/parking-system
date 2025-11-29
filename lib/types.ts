@@ -179,6 +179,7 @@ export interface CrearConductorConAbonoRequest {
     tipoAbono: TipoAbono;
     fechaInicio: string;
     fechaFin: string;
+    cantidadDuracion: number;
     plaza: {
       pla_numero: number;
       est_id: number;
@@ -192,6 +193,7 @@ export interface CrearAbonoExistenteRequest {
   tipoAbono: TipoAbono;
   fechaInicio: string;
   fechaFin: string;
+  cantidadDuracion: number;
 }
 
 export interface CrearConductorConAbonoResponse {
