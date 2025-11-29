@@ -6,7 +6,7 @@ import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -25,6 +25,7 @@ interface PagoExtendido {
     amount: number;
     category: string;
     date: Date;
+    paymentMethod?: string | null;
 }
 
 interface SummaryMetrics {
@@ -78,17 +79,20 @@ function normalizeHistory(history: HistoryEntry[]) {
             const parsed = new Date(rawDate);
             if (Number.isNaN(parsed.getTime())) return null;
 
-            // Categorize by income type
-            let category = "Ocupaciones";
-            if (item.pag_tipo === 'abono_inicial' || item.pag_tipo === 'extension' || item.abo_nro != null) {
+            // Categorize by income type based on pag_tipo
+            let category = "Rotación";
+            if (item.pag_tipo === 'abono_inicial') {
                 category = "Abonos";
+            } else if (item.pag_tipo === 'reserva') {
+                category = "Reservas";
             }
 
             const amount = item.fee ? Number(item.fee) : 0;
             return {
                 amount,
                 category,
-                date: parsed
+                date: parsed,
+                paymentMethod: item.mepa_metodo || null
             } as PagoExtendido;
         })
         .filter((item): item is PagoExtendido => !!item);
@@ -152,6 +156,34 @@ function buildBreakdown(pagos: PagoExtendido[]) {
         map.set(key, entry);
     });
     return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+}
+
+function buildCategoryTotals(pagos: PagoExtendido[]) {
+    const categories = { "Rotación": 0, "Abonos": 0, "Reservas": 0 };
+    pagos.forEach((pago) => {
+        const cat = pago.category as keyof typeof categories;
+        if (cat in categories) {
+            categories[cat] += pago.amount;
+        }
+    });
+    return [
+        { name: "Rotación", amount: categories["Rotación"] },
+        { name: "Abonos", amount: categories["Abonos"] },
+        { name: "Reservas", amount: categories["Reservas"] }
+    ];
+}
+
+function buildPaymentMethodTotals(pagos: PagoExtendido[]) {
+    const methods = new Map<string, number>();
+    pagos.forEach((pago) => {
+        if (pago.paymentMethod) {
+            const method = pago.paymentMethod;
+            methods.set(method, (methods.get(method) ?? 0) + pago.amount);
+        }
+    });
+    return Array.from(methods.entries())
+        .map(([name, amount]) => ({ name, amount }))
+        .sort((a, b) => b.amount - a.amount);
 }
 
 function deriveInsights(
@@ -284,7 +316,7 @@ export function IngresosReporte() {
         const load = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`/api/parking/history?est_id=${estId}`);
+                const response = await fetch(`/api/pagos?est_id=${estId}`);
                 const data = await response.json();
                 const rows: HistoryEntry[] = Array.isArray(data.history) ? data.history : (data || []);
                 setHistory(normalizeHistory(rows));
@@ -328,6 +360,8 @@ export function IngresosReporte() {
     const maxTrendCurrent = useMemo(() => Math.max(1, ...trendCurrent.map((item) => item.value)), [trendCurrent]);
     const maxTrendPrevious = useMemo(() => Math.max(1, ...trendPrevious.map((item) => item.value)), [trendPrevious]);
     const breakdown = useMemo(() => buildBreakdown(currentPagos), [currentPagos]);
+    const categoryTotals = useMemo(() => buildCategoryTotals(currentPagos), [currentPagos]);
+    const paymentMethodTotals = useMemo(() => buildPaymentMethodTotals(currentPagos), [currentPagos]);
     const insights = useMemo(() => deriveInsights(currentSummary, previousSummary, breakdown, trendCurrent), [currentSummary, previousSummary, breakdown, trendCurrent]);
 
     return (
@@ -349,9 +383,9 @@ export function IngresosReporte() {
                     className="print-a4-inner flex h-full flex-col gap-6 px-6 py-6 print:gap-3 print:px-4 print:py-3"
                     style={{ transform: `scale(${contentScale})`, transformOrigin: "top center" }}
                 >
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 print:grid-cols-2 print:gap-2">
                         {loading ? (
-                            Array.from({ length: 4 }).map((_, idx) => (
+                            Array.from({ length: 2 }).map((_, idx) => (
                                 <Skeleton key={idx} className="h-24 print:h-20" />
                             ))
                         ) : (
@@ -364,50 +398,11 @@ export function IngresosReporte() {
                                         {(() => {
                                             const text = formatCurrency(currentSummary.totalIncome);
                                             return (
-                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>
+                                                <div className={`font-bold leading-tight ${valueSizeClasses(text)}`}>
                                                     {text}
                                                 </div>
                                             );
                                         })()}
-                                        <div className={`text-xs ${diffDescriptor(currentSummary.totalIncome, previousSummary.totalIncome).tone === "positive" ? "text-emerald-600" : diffDescriptor(currentSummary.totalIncome, previousSummary.totalIncome).tone === "negative" ? "text-red-600" : "text-slate-500"}`}>
-                                            {diffDescriptor(currentSummary.totalIncome, previousSummary.totalIncome).label}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="print:shadow-none">
-                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Promedio diario</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        {(() => {
-                                            const text = formatCurrency(currentSummary.dailyAverage);
-                                            return (
-                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>
-                                                    {text}
-                                                </div>
-                                            );
-                                        })()}
-                                        <div className={`text-xs ${diffDescriptor(currentSummary.dailyAverage, previousSummary.dailyAverage).tone === "positive" ? "text-emerald-600" : diffDescriptor(currentSummary.dailyAverage, previousSummary.dailyAverage).tone === "negative" ? "text-red-600" : "text-slate-500"}`}>
-                                            {diffDescriptor(currentSummary.dailyAverage, previousSummary.dailyAverage).label}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="print:shadow-none">
-                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Ticket promedio</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        {(() => {
-                                            const text = formatCurrency(currentSummary.ticketAverage);
-                                            return (
-                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>
-                                                    {text}
-                                                </div>
-                                            );
-                                        })()}
-                                        <div className={`text-xs ${diffDescriptor(currentSummary.ticketAverage, previousSummary.ticketAverage).tone === "positive" ? "text-emerald-600" : diffDescriptor(currentSummary.ticketAverage, previousSummary.ticketAverage).tone === "negative" ? "text-red-600" : "text-slate-500"}`}>
-                                            {diffDescriptor(currentSummary.ticketAverage, previousSummary.ticketAverage).label}
-                                        </div>
                                     </CardContent>
                                 </Card>
                                 <Card className="print:shadow-none">
@@ -418,14 +413,11 @@ export function IngresosReporte() {
                                         {(() => {
                                             const text = currentSummary.operations.toLocaleString();
                                             return (
-                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>
+                                                <div className={`font-bold leading-tight ${valueSizeClasses(text)}`}>
                                                     {text}
                                                 </div>
                                             );
                                         })()}
-                                        <div className={`text-xs ${diffDescriptor(currentSummary.operations, previousSummary.operations).tone === "positive" ? "text-emerald-600" : diffDescriptor(currentSummary.operations, previousSummary.operations).tone === "negative" ? "text-red-600" : "text-slate-500"}`}>
-                                            {diffDescriptor(currentSummary.operations, previousSummary.operations).label}
-                                        </div>
                                     </CardContent>
                                 </Card>
                             </>
@@ -434,47 +426,36 @@ export function IngresosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Evolucion de ingresos diarios</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Ingresos por categoría</CardTitle>
                             <p className="text-sm text-slate-500 print:text-xs">
-                                Comparación entre el período actual y la referencia previa.
+                                Total de ingresos dividido por tipo de ingreso.
                             </p>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
                                 <Skeleton className="h-64 print:h-48" />
-                            ) : trendCurrent.length === 0 ? (
+                            ) : categoryTotals.every(c => c.amount === 0) ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
                                     No hay registros en el periodo seleccionado.
                                 </div>
                             ) : (
                                 <ChartContainer
                                     config={{
-                                        actual: {
-                                            label: "Período actual",
+                                        amount: {
+                                            label: "Ingresos",
                                             color: "#3b82f6",
-                                        },
-                                        anterior: {
-                                            label: "Período anterior",
-                                            color: "#cbd5e1",
                                         },
                                     }}
                                     className="h-[320px] w-full"
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
-                                            data={trendCurrent.map((current, idx) => {
-                                                const prev = trendPrevious[idx] || { label: current.label, value: 0 };
-                                                return {
-                                                    date: current.label.slice(5),
-                                                    actual: current.value,
-                                                    anterior: prev.value,
-                                                };
-                                            })}
+                                            data={categoryTotals}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
                                             <XAxis
-                                                dataKey="date"
+                                                dataKey="name"
                                                 tick={{ fontSize: 10 }}
                                                 className="text-slate-600"
                                             />
@@ -486,23 +467,17 @@ export function IngresosReporte() {
                                             <ChartTooltip
                                                 content={
                                                     <ChartTooltipContent
-                                                        formatter={(value, name) => [
+                                                        formatter={(value) => [
                                                             formatCurrency(value as number),
-                                                            name === "actual" ? "Período actual" : "Período anterior",
+                                                            "Ingresos",
                                                         ]}
                                                     />
                                                 }
                                             />
-                                            <Legend />
                                             <Bar
-                                                dataKey="actual"
+                                                dataKey="amount"
                                                 radius={[4, 4, 0, 0]}
                                                 fill="#3b82f6"
-                                            />
-                                            <Bar
-                                                dataKey="anterior"
-                                                radius={[4, 4, 0, 0]}
-                                                fill="#cbd5e1"
                                             />
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -515,66 +490,56 @@ export function IngresosReporte() {
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">Distribucion por tipo de ingreso</CardTitle>
                             <p className="text-sm text-slate-500 print:text-xs">
-                                Desglose de ingresos por categoría de pago.
+                                Porcentaje de ingresos por categoría.
                             </p>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
                                 <Skeleton className="h-64 print:h-48" />
-                            ) : breakdown.length === 0 ? (
+                            ) : categoryTotals.every(c => c.amount === 0) ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
-                                    No hay informacion de pagos en el periodo.
+                                    No hay registros en el periodo seleccionado.
                                 </div>
                             ) : (
                                 <ChartContainer
                                     config={{
                                         amount: {
                                             label: "Ingresos",
-                                            color: "#10b981",
+                                            color: "#3b82f6",
                                         },
                                     }}
-                                    className="h-auto w-full"
-                                    style={{ height: `${Math.max(240, breakdown.length * 50)}px` }}
+                                    className="h-[300px] w-full"
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={breakdown.map((item) => ({
-                                                name: capitalize(item.label),
-                                                amount: Math.round(item.amount * 100) / 100,
-                                                count: item.count,
-                                            }))}
-                                            layout="vertical"
-                                            margin={{ top: 5, right: 5, left: 100, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
-                                            <XAxis
-                                                type="number"
-                                                tick={{ fontSize: 11 }}
-                                                className="text-slate-600"
-                                            />
-                                            <YAxis
-                                                type="category"
-                                                dataKey="name"
-                                                tick={{ fontSize: 11 }}
-                                                className="text-slate-600"
-                                                width={90}
-                                            />
+                                        <PieChart>
+                                            <Pie
+                                                data={categoryTotals}
+                                                dataKey="amount"
+                                                nameKey="name"
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={80}
+                                                label={(entry) => {
+                                                    const total = categoryTotals.reduce((sum, item) => sum + item.amount, 0);
+                                                    const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
+                                                    return `${entry.name} ${percent}%`;
+                                                }}
+                                            >
+                                                <Cell fill="#3b82f6" />
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#f59e0b" />
+                                            </Pie>
                                             <ChartTooltip
                                                 content={
                                                     <ChartTooltipContent
-                                                        formatter={(value, name) => [
-                                                            name === "amount" ? formatCurrency(value as number) : `${value} ops.`,
-                                                            name === "amount" ? "Ingresos" : "Operaciones",
+                                                        formatter={(value) => [
+                                                            formatCurrency(value as number),
+                                                            "Ingresos",
                                                         ]}
                                                     />
                                                 }
                                             />
-                                            <Bar
-                                                dataKey="amount"
-                                                radius={[0, 4, 4, 0]}
-                                                fill="#10b981"
-                                            />
-                                        </BarChart>
+                                        </PieChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
                             )}
@@ -583,20 +548,98 @@ export function IngresosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Insights automaticos</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Distribucion por metodo de pago</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Porcentaje de ingresos por método de pago.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
+                            {loading ? (
+                                <Skeleton className="h-64 print:h-48" />
+                            ) : paymentMethodTotals.length === 0 ? (
+                                <div className="text-sm text-slate-500 print:text-xs">
+                                    No hay datos de métodos de pago en el periodo seleccionado.
+                                </div>
+                            ) : (
+                                <ChartContainer
+                                    config={{
+                                        amount: {
+                                            label: "Ingresos",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-[300px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={paymentMethodTotals}
+                                                dataKey="amount"
+                                                nameKey="name"
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={80}
+                                                label={(entry) => {
+                                                    const total = paymentMethodTotals.reduce((sum, item) => sum + item.amount, 0);
+                                                    const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
+                                                    return `${entry.name} ${percent}%`;
+                                                }}
+                                            >
+                                                <Cell fill="#3b82f6" />
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#f59e0b" />
+                                                <Cell fill="#8b5cf6" />
+                                            </Pie>
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => [
+                                                            formatCurrency(value as number),
+                                                            "Ingresos",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="print:shadow-none">
+                        <CardHeader className="pb-3 print:py-2 print:pb-1">
+                            <CardTitle className="text-base print:text-sm">Resumen del reporte</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
                             {loading ? (
                                 <Skeleton className="h-24 print:h-16" />
-                            ) : insights.length ? (
-                                <ul className="list-disc space-y-1 pl-5 text-sm print:space-y-1 print:text-xs">
-                                    {insights.map((text, idx) => (
-                                        <li key={idx}>{text}</li>
-                                    ))}
+                            ) : currentSummary.totalIncome > 0 ? (
+                                <ul className="space-y-2 text-sm print:space-y-1 print:text-xs">
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Total de ingresos en el período: <strong>{formatCurrency(currentSummary.totalIncome)}</strong></span>
+                                    </li>
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Operaciones registradas: <strong>{currentSummary.operations.toLocaleString()}</strong></span>
+                                    </li>
+                                    {categoryTotals.some(c => c.amount > 0) && (
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                            <span>Categoría principal: <strong>{categoryTotals.find(c => c.amount === Math.max(...categoryTotals.map(x => x.amount)))?.name}</strong></span>
+                                        </li>
+                                    )}
+                                    {paymentMethodTotals.length > 0 && (
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                            <span>Método de pago principal: <strong>{paymentMethodTotals[0]?.name}</strong></span>
+                                        </li>
+                                    )}
                                 </ul>
                             ) : (
                                 <div className="text-sm text-slate-500 print:text-xs">
-                                    No se generaron insights para el periodo indicado.
+                                    No hay datos disponibles para el período seleccionado.
                                 </div>
                             )}
                         </CardContent>
