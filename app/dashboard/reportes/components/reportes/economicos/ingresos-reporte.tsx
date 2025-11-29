@@ -331,13 +331,21 @@ export function IngresosReporte() {
     }, [estId]);
 
     const rangeInfo = useMemo(() => {
-        const from = dateRange?.from ? new Date(dateRange.from) : (() => {
+        const from = dateRange?.from ? (() => {
+            const d = new Date(dateRange.from);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        })() : (() => {
             const d = new Date();
             d.setDate(d.getDate() - 29);
             d.setHours(0, 0, 0, 0);
             return d;
         })();
-        const to = dateRange?.to ? new Date(dateRange.to) : (() => {
+        const to = dateRange?.to ? (() => {
+            const d = new Date(dateRange.to);
+            d.setHours(23, 59, 59, 999);
+            return d;
+        })() : (() => {
             const d = new Date();
             d.setHours(23, 59, 59, 999);
             return d;
