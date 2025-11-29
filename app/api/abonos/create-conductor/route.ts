@@ -421,17 +421,21 @@ export async function POST(request: NextRequest) {
                 .single();
 
             if (tarifaData) {
+                // Calcular monto total del abono
+                const cantidadDuracion = body.abono.cantidadDuracion || 1;
+                const montoTotal = Number(tarifaData.tar_precio) * cantidadDuracion;
+
                 // Crear pago inicial
                 const { data: nuevoPago, error: errorPago } = await supabase
                     .from('pagos')
                     .insert({
-                        pag_monto: Number(tarifaData.tar_precio),
+                        pag_monto: montoTotal,
                         pag_h_fh: new Date().toISOString(),
                         est_id: body.abono.est_id,
                         mepa_metodo: 'Efectivo',
                         veh_patente: vehiculosCreados[0]?.veh_patente || '',
                         pag_tipo: 'abono_inicial',
-                        pag_descripcion: `Abono ${body.abono.tipoAbono}`,
+                        pag_descripcion: `Abono ${body.abono.tipoAbono} x${cantidadDuracion}`,
                         pag_estado: 'completado',
                         abo_nro: abonoNro
                     })
