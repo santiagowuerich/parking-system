@@ -6,10 +6,11 @@ import { ReporteHeader } from "../../reporte-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { HorarioFranja } from "@/lib/types/horarios";
 
 interface HistoryEntry {
     entry_time: string | null;
@@ -66,6 +67,18 @@ function formatDuration(hoursValue: number) {
     return `${hours} h ${minutes.toString().padStart(2, "0")} min`;
 }
 
+function getOperatingHours(horarios: HorarioFranja[]): number[] {
+    const hours = new Set<number>();
+    horarios.forEach(h => {
+        const [startH] = h.hora_apertura.split(':').map(Number);
+        const [endH] = h.hora_cierre.split(':').map(Number);
+        for (let hour = startH; hour <= endH; hour++) {
+            hours.add(hour);
+        }
+    });
+    return Array.from(hours).sort((a, b) => a - b);
+}
+
 function diffDescriptor(current: number, previous: number, suffix = "") {
     if (!Number.isFinite(current) || !Number.isFinite(previous)) {
         return { label: "vs dia anterior: sin dato", tone: "neutral" as const };
@@ -104,6 +117,7 @@ export function MovimientosReporte() {
     const [loading, setLoading] = useState(true);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [totalPlazas, setTotalPlazas] = useState<number>(0);
+    const [horarios, setHorarios] = useState<HorarioFranja[]>([]);
 
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -167,9 +181,10 @@ export function MovimientosReporte() {
         const loadData = async () => {
             setLoading(true);
             try {
-                const [historyRes, plazasRes] = await Promise.all([
+                const [historyRes, plazasRes, horariosRes] = await Promise.all([
                     fetch(`/api/parking/history?est_id=${estId}`),
-                    fetch(`/api/plazas?est_id=${estId}`)
+                    fetch(`/api/plazas?est_id=${estId}`),
+                    fetch(`/api/estacionamiento/horarios?est_id=${estId}`)
                 ]);
 
                 const historyJson = await historyRes.json();
@@ -183,10 +198,18 @@ export function MovimientosReporte() {
 
                 const total = Array.isArray(plazasJson?.plazas) ? plazasJson.plazas.length : 0;
                 setTotalPlazas(total);
+
+                if (horariosRes.ok) {
+                    const horariosJson = await horariosRes.json();
+                    setHorarios(horariosJson.horarios || []);
+                } else {
+                    setHorarios([]);
+                }
             } catch (error) {
                 console.error("Error al cargar movimientos diarios:", error);
                 setHistory([]);
                 setTotalPlazas(0);
+                setHorarios([]);
             } finally {
                 setLoading(false);
             }
@@ -395,21 +418,25 @@ export function MovimientosReporte() {
         };
     }, [normalizedHistory, range.from, range.to, totalPlazas]);
 
-    const rotacionPromedio = totalPlazas > 0
-        ? (baseStats.current.entries / Math.max(1, totalPlazas * range.dayCount))
-        : 0;
+    const vehicleTypeDistribution = useMemo(() => {
+        const types: Record<string, number> = { AUT: 0, MOT: 0, CAM: 0, Desconocido: 0 };
 
-    const rotacionAnterior = totalPlazas > 0
-        ? (baseStats.previous.entries / Math.max(1, totalPlazas))
-        : 0;
+        normalizedHistory.forEach((event) => {
+            const type = event.raw.catv_segmento || "Desconocido";
+            types[type] = (types[type] || 0) + 1;
+        });
 
-    const promedioEstadia = baseStats.current.stayDurations.length
-        ? baseStats.current.stayDurations.reduce((acc, value) => acc + value, 0) / baseStats.current.stayDurations.length
-        : 0;
+        const total = Object.values(types).reduce((sum, count) => sum + count, 0);
 
-    const promedioEstadiaPrev = baseStats.previous.stayDurations.length
-        ? baseStats.previous.stayDurations.reduce((acc, value) => acc + value, 0) / baseStats.previous.stayDurations.length
-        : 0;
+        return Object.entries(types)
+            .filter(([_, count]) => count > 0)
+            .map(([type, count]) => ({
+                name: type === "AUT" ? "Autos" : type === "MOT" ? "Motos" : type === "CAM" ? "Camionetas" : "Desconocido",
+                value: Math.round((count / Math.max(1, total)) * 100),
+                count: count
+            }))
+            .sort((a, b) => b.value - a.value);
+    }, [normalizedHistory]);
 
     const insights = useMemo(() => {
         if (loading) return [];
@@ -417,33 +444,30 @@ export function MovimientosReporte() {
 
         if (flowSeries.peakEntryValue > 0) {
             list.push(
-                `El pico de ingresos se registro a las ${formatHourLabel(flowSeries.peakEntryHour)} con ${flowSeries.peakEntryValue} vehiculos.`
+                `La hora de mayor ingreso fue a las ${formatHourLabel(flowSeries.peakEntryHour)} con ${flowSeries.peakEntryValue} vehículos.`
             );
         }
         if (flowSeries.peakExitValue > 0) {
             list.push(
-                `Las salidas alcanzaron su maximo a las ${formatHourLabel(flowSeries.peakExitHour)} con ${flowSeries.peakExitValue} egresos.`
+                `La hora de mayor salida fue a las ${formatHourLabel(flowSeries.peakExitHour)} con ${flowSeries.peakExitValue} vehículos.`
             );
         }
         if (stayDistribution.total > 0) {
             const corta = stayDistribution.a + stayDistribution.b;
             if (corta >= 60) {
-                list.push(`El ${corta}% de las estadias finalizo antes de las 3 horas, lo que indica rotacion alta.`);
+                list.push(`El ${corta}% de los vehículos permanecieron menos de 3 horas.`);
             } else if (stayDistribution.d >= 40) {
-                list.push(`Un ${stayDistribution.d}% de los vehiculos permanecio mas de 6 horas, predominan estadias largas.`);
+                list.push(`Un ${stayDistribution.d}% de los vehículos permanecieron más de 6 horas.`);
             }
         }
         if (occupancyBlocks.peak.occupancy > 0 && totalPlazas > 0) {
             const peakPct = Math.round((occupancyBlocks.peak.occupancy / totalPlazas) * 100);
             list.push(
-                `La ocupacion llego a su maximo en el bloque ${occupancyBlocks.peak.label} con ${occupancyBlocks.peak.occupancy} plazas (${peakPct}% del total).`
+                `El pico de ocupación fue ${occupancyBlocks.peak.label} con ${occupancyBlocks.peak.occupancy} vehículos (${peakPct}%).`
             );
         }
-        if (occupancyBlocks.deadHours > 0) {
-            list.push(`Se detectaron ${occupancyBlocks.deadHours} horas sin movimientos, buen momento para tareas internas.`);
-        }
         if (baseStats.current.reentryRate > 0) {
-            list.push(`Los reingresos representaron el ${Math.round(baseStats.current.reentryRate)}% de las patentes identificadas.`);
+            list.push(`El ${Math.round(baseStats.current.reentryRate)}% de los vehículos ingresaron más de una vez.`);
         }
 
         return list;
@@ -476,91 +500,27 @@ export function MovimientosReporte() {
                 <div
                     className="flex h-full flex-col gap-6 px-6 py-6"
                 >
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 print:grid-cols-2 print:gap-2">
                         {loading ? (
-                            Array.from({ length: 4 }).map((_, index) => (
-                                <Skeleton key={index} className="h-24" />
+                            Array.from({ length: 2 }).map((_, index) => (
+                                <Skeleton key={index} className="h-24 print:h-20" />
                             ))
                         ) : (
                             <>
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Ingresos del dia</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Ingresos del día</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="text-3xl font-semibold print:text-xl">{baseStats.current.entries}</div>
-                                        <div
-                                            className={`text-xs ${
-                                                diffDescriptor(baseStats.current.entries, baseStats.previous.entries).tone === "positive"
-                                                    ? "text-emerald-600"
-                                                    : diffDescriptor(baseStats.current.entries, baseStats.previous.entries).tone === "negative"
-                                                        ? "text-red-600"
-                                                        : "text-slate-500"
-                                            }`}
-                                        >
-                                            {diffDescriptor(baseStats.current.entries, baseStats.previous.entries).label}
-                                        </div>
+                                        <div className="text-3xl font-bold print:text-2xl">{baseStats.current.entries}</div>
                                     </CardContent>
                                 </Card>
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Egresos del dia</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Egresos del día</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="text-3xl font-semibold print:text-xl">{baseStats.current.exits}</div>
-                                        <div
-                                            className={`text-xs ${
-                                                diffDescriptor(baseStats.current.exits, baseStats.previous.exits).tone === "positive"
-                                                    ? "text-emerald-600"
-                                                    : diffDescriptor(baseStats.current.exits, baseStats.previous.exits).tone === "negative"
-                                                        ? "text-red-600"
-                                                        : "text-slate-500"
-                                            }`}
-                                        >
-                                            {diffDescriptor(baseStats.current.exits, baseStats.previous.exits).label}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="print:shadow-none">
-                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Rotacion promedio</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="text-3xl font-semibold print:text-xl">
-                                            {totalPlazas > 0 ? (rotacionPromedio * 100).toFixed(1) : "0"}%
-                                        </div>
-                                        <div
-                                            className={`text-xs ${
-                                                diffDescriptor(rotacionPromedio, rotacionAnterior).tone === "positive"
-                                                    ? "text-emerald-600"
-                                                    : diffDescriptor(rotacionPromedio, rotacionAnterior).tone === "negative"
-                                                        ? "text-red-600"
-                                                        : "text-slate-500"
-                                            }`}
-                                        >
-                                            {diffDescriptor(rotacionPromedio, rotacionAnterior).label}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card className="print:shadow-none">
-                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Permanencia promedio</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="text-3xl font-semibold print:text-xl">
-                                            {formatDuration(promedioEstadia)}
-                                        </div>
-                                        <div
-                                            className={`text-xs ${
-                                                diffDescriptor(promedioEstadia, promedioEstadiaPrev).tone === "positive"
-                                                    ? "text-emerald-600"
-                                                    : diffDescriptor(promedioEstadia, promedioEstadiaPrev).tone === "negative"
-                                                        ? "text-red-600"
-                                                        : "text-slate-500"
-                                            }`}
-                                        >
-                                            {diffDescriptor(promedioEstadia, promedioEstadiaPrev).label}
-                                        </div>
+                                        <div className="text-3xl font-bold print:text-2xl">{baseStats.current.exits}</div>
                                     </CardContent>
                                 </Card>
                             </>
@@ -593,11 +553,19 @@ export function MovimientosReporte() {
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
-                                            data={flowSeries.entriesByHour.map((entries, hour) => ({
-                                                hour: `${String(hour).padStart(2, "0")}h`,
-                                                ingresos: entries,
-                                                egresos: flowSeries.exitsByHour[hour],
-                                            }))}
+                                            data={(() => {
+                                                const operatingHours = getOperatingHours(horarios);
+                                                return flowSeries.entriesByHour
+                                                    .map((entries, hour) => ({
+                                                        hour: `${String(hour).padStart(2, "0")}h`,
+                                                        ingresos: entries,
+                                                        egresos: flowSeries.exitsByHour[hour],
+                                                    }))
+                                                    .filter((item) => {
+                                                        const hour = parseInt(item.hour);
+                                                        return operatingHours.length === 0 || operatingHours.includes(hour);
+                                                    });
+                                            })()}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
@@ -641,66 +609,53 @@ export function MovimientosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Distribucion de permanencias</CardTitle>
-                            <p className="text-sm text-slate-500 print:text-xs">
-                                Porcentaje de estadias segun el tiempo que cada vehiculo permanecio en el predio.
-                            </p>
+                            <CardTitle className="text-base print:text-sm">Tipos de vehículos</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
                                 <Skeleton className="h-64 print:h-48" />
-                            ) : baseStats.current.stayDurations.length === 0 ? (
+                            ) : vehicleTypeDistribution.length === 0 ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
-                                    No se registraron estadias completas en el periodo seleccionado.
+                                    No se registraron vehículos en el período seleccionado.
                                 </div>
                             ) : (
                                 <ChartContainer
                                     config={{
                                         percentage: {
-                                            label: "% de Estadías",
+                                            label: "Porcentaje",
                                             color: "#3b82f6",
                                         },
                                     }}
                                     className="h-[320px] w-full"
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={[
-                                                { label: "Menos de 1h", percentage: stayDistribution.a },
-                                                { label: "1-3 horas", percentage: stayDistribution.b },
-                                                { label: "3-6 horas", percentage: stayDistribution.c },
-                                                { label: "Más de 6h", percentage: stayDistribution.d }
-                                            ]}
-                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
-                                            <XAxis
-                                                dataKey="label"
-                                                tick={{ fontSize: 11 }}
-                                                className="text-slate-600"
-                                            />
-                                            <YAxis
-                                                tick={{ fontSize: 11 }}
-                                                className="text-slate-600"
-                                                label={{ value: "Porcentaje (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
-                                                domain={[0, 100]}
-                                            />
+                                        <PieChart>
+                                            <Pie
+                                                data={vehicleTypeDistribution}
+                                                cx="50%"
+                                                cy="50%"
+                                                labelLine={true}
+                                                label={({ name, value }) => `${name}: ${value}%`}
+                                                outerRadius={100}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#3b82f6" />
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#f59e0b" />
+                                                <Cell fill="#8b5cf6" />
+                                            </Pie>
                                             <ChartTooltip
                                                 content={
                                                     <ChartTooltipContent
-                                                        formatter={(value) => [
-                                                            `${value}%`,
-                                                            "Porcentaje de vehículos",
+                                                        formatter={(value, name, props) => [
+                                                            `${value}% (${props.payload.count} vehículos)`,
+                                                            props.payload.name,
                                                         ]}
                                                     />
                                                 }
                                             />
-                                            <Bar
-                                                dataKey="percentage"
-                                                radius={[6, 6, 0, 0]}
-                                                fill="#3b82f6"
-                                            />
-                                        </BarChart>
+                                        </PieChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
                             )}
@@ -709,62 +664,23 @@ export function MovimientosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Indicadores de eficiencia</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Resumen del reporte</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
                             {loading ? (
-                                <Skeleton className="h-32" />
-                            ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2 print:gap-2">
-                                    <div className="rounded-md border border-slate-200 p-3 print:p-2">
-                                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Pico de ocupacion</div>
-                                        <div className="mt-1 text-lg font-semibold print:text-base">
-                                            {occupancyBlocks.peak.occupancy} vehiculos
-                                        </div>
-                                        <div className="text-xs text-slate-500">{occupancyBlocks.peak.label}</div>
-                                    </div>
-                                    <div className="rounded-md border border-slate-200 p-3 print:p-2">
-                                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Horas sobre 90%</div>
-                                        <div className="mt-1 text-lg font-semibold print:text-base">
-                                            {occupancyBlocks.saturatedHours}
-                                        </div>
-                                        <div className="text-xs text-slate-500">Congestion alta</div>
-                                    </div>
-                                    <div className="rounded-md border border-slate-200 p-3 print:p-2">
-                                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Horas sin movimientos</div>
-                                        <div className="mt-1 text-lg font-semibold print:text-base">
-                                            {occupancyBlocks.deadHours}
-                                        </div>
-                                        <div className="text-xs text-slate-500">Ventanas operativas</div>
-                                    </div>
-                                    <div className="rounded-md border border-slate-200 p-3 print:p-2">
-                                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Reingresos detectados</div>
-                                        <div className="mt-1 text-lg font-semibold print:text-base">
-                                            {Math.round(baseStats.current.reentryRate)}%
-                                        </div>
-                                        <div className="text-xs text-slate-500">Patentes repetidas</div>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="print:shadow-none">
-                        <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Insights automaticos</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
-                            {loading ? (
-                                <Skeleton className="h-24" />
+                                <Skeleton className="h-32 print:h-24" />
                             ) : insights.length ? (
-                                <ul className="list-disc space-y-1 pl-5 text-sm print:space-y-1 print:text-xs">
-                                    {insights.map((item, index) => (
-                                        <li key={index}>{item}</li>
+                                <ul className="space-y-2 print:space-y-1">
+                                    {insights.map((insight, i) => (
+                                        <li key={i} className="flex gap-2 text-sm print:text-xs">
+                                            <span className="text-blue-600 font-bold">•</span>
+                                            <span className="text-slate-700">{insight}</span>
+                                        </li>
                                     ))}
                                 </ul>
                             ) : (
                                 <div className="text-sm text-slate-500 print:text-xs">
-                                    No se generaron insights relevantes para el periodo seleccionado.
+                                    No se generó información relevante para el período seleccionado.
                                 </div>
                             )}
                         </CardContent>
