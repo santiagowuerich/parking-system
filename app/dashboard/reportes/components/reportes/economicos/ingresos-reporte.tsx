@@ -80,7 +80,7 @@ function normalizeHistory(history: HistoryEntry[]) {
             if (Number.isNaN(parsed.getTime())) return null;
 
             // Categorize by income type based on pag_tipo
-            let category = "Rotación";
+            let category = "Ocupación";
             if (item.pag_tipo === 'abono_inicial') {
                 category = "Abonos";
             } else if (item.pag_tipo === 'reserva') {
@@ -159,7 +159,7 @@ function buildBreakdown(pagos: PagoExtendido[]) {
 }
 
 function buildCategoryTotals(pagos: PagoExtendido[]) {
-    const categories = { "Rotación": 0, "Abonos": 0, "Reservas": 0 };
+    const categories = { "Ocupación": 0, "Abonos": 0, "Reservas": 0 };
     pagos.forEach((pago) => {
         const cat = pago.category as keyof typeof categories;
         if (cat in categories) {
@@ -167,7 +167,7 @@ function buildCategoryTotals(pagos: PagoExtendido[]) {
         }
     });
     return [
-        { name: "Rotación", amount: categories["Rotación"] },
+        { name: "Ocupación", amount: categories["Ocupación"] },
         { name: "Abonos", amount: categories["Abonos"] },
         { name: "Reservas", amount: categories["Reservas"] }
     ];
@@ -319,7 +319,12 @@ export function IngresosReporte() {
                 const response = await fetch(`/api/pagos?est_id=${estId}`);
                 const data = await response.json();
                 const rows: HistoryEntry[] = Array.isArray(data.history) ? data.history : (data || []);
-                setHistory(normalizeHistory(rows));
+                console.log("📊 DATOS CRUDOS DEL ENDPOINT:", rows);
+                console.log("📊 TOTAL REGISTROS:", rows.length);
+                const normalized = normalizeHistory(rows);
+                console.log("📊 DATOS NORMALIZADOS:", normalized);
+                console.log("📊 CATEGORÍAS:", normalized.map(n => n.category));
+                setHistory(normalized);
             } catch (error) {
                 console.error("Error cargando historial de ingresos:", error);
                 setHistory([]);
@@ -357,7 +362,13 @@ export function IngresosReporte() {
         return { from, to, prevFrom, prevTo };
     }, [dateRange]);
 
-    const currentPagos = useMemo(() => filterByRange(history, rangeInfo.from, rangeInfo.to), [history, rangeInfo.from, rangeInfo.to]);
+    const currentPagos = useMemo(() => {
+        const filtered = filterByRange(history, rangeInfo.from, rangeInfo.to);
+        console.log("🔍 RANGO DE FECHAS:", rangeInfo.from, "a", rangeInfo.to);
+        console.log("🔍 PAGOS FILTRADOS:", filtered.length);
+        console.log("🔍 CATEGORÍAS FILTRADAS:", filtered.map(p => p.category));
+        return filtered;
+    }, [history, rangeInfo.from, rangeInfo.to]);
     const previousPagos = useMemo(() => filterByRange(history, rangeInfo.prevFrom, rangeInfo.prevTo), [history, rangeInfo.prevFrom, rangeInfo.prevTo]);
 
     const currentSummary = useMemo(() => buildSummary(currentPagos, rangeInfo.from, rangeInfo.to), [currentPagos, rangeInfo]);
@@ -494,126 +505,128 @@ export function IngresosReporte() {
                         </CardContent>
                     </Card>
 
-                    <Card className="print:shadow-none">
-                        <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Distribucion por tipo de ingreso</CardTitle>
-                            <p className="text-sm text-slate-500 print:text-xs">
-                                Porcentaje de ingresos por categoría.
-                            </p>
-                        </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-2">
-                            {loading ? (
-                                <Skeleton className="h-64 print:h-48" />
-                            ) : categoryTotals.every(c => c.amount === 0) ? (
-                                <div className="text-sm text-slate-500 print:text-xs">
-                                    No hay registros en el periodo seleccionado.
-                                </div>
-                            ) : (
-                                <ChartContainer
-                                    config={{
-                                        amount: {
-                                            label: "Ingresos",
-                                            color: "#3b82f6",
-                                        },
-                                    }}
-                                    className="h-[300px] w-full"
-                                >
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={categoryTotals}
-                                                dataKey="amount"
-                                                nameKey="name"
-                                                cx="50%"
-                                                cy="50%"
-                                                outerRadius={80}
-                                                label={(entry) => {
-                                                    const total = categoryTotals.reduce((sum, item) => sum + item.amount, 0);
-                                                    const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
-                                                    return `${entry.name} ${percent}%`;
-                                                }}
-                                            >
-                                                <Cell fill="#3b82f6" />
-                                                <Cell fill="#10b981" />
-                                                <Cell fill="#f59e0b" />
-                                            </Pie>
-                                            <ChartTooltip
-                                                content={
-                                                    <ChartTooltipContent
-                                                        formatter={(value) => [
-                                                            formatCurrency(value as number),
-                                                            "Ingresos",
-                                                        ]}
-                                                    />
-                                                }
-                                            />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </ChartContainer>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 print:grid-cols-2 print:gap-2">
+                        <Card className="print:shadow-none">
+                            <CardHeader className="pb-3 print:py-2 print:pb-1">
+                                <CardTitle className="text-base print:text-sm">Distribucion por tipo de ingreso</CardTitle>
+                                <p className="text-sm text-slate-500 print:text-xs">
+                                    Porcentaje de ingresos por categoría.
+                                </p>
+                            </CardHeader>
+                            <CardContent className="pt-0 print:pt-1 print:pb-2">
+                                {loading ? (
+                                    <Skeleton className="h-48 print:h-40" />
+                                ) : categoryTotals.every(c => c.amount === 0) ? (
+                                    <div className="text-sm text-slate-500 print:text-xs">
+                                        No hay registros en el periodo seleccionado.
+                                    </div>
+                                ) : (
+                                    <ChartContainer
+                                        config={{
+                                            amount: {
+                                                label: "Ingresos",
+                                                color: "#3b82f6",
+                                            },
+                                        }}
+                                        className="h-[220px] w-full"
+                                    >
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={categoryTotals}
+                                                    dataKey="amount"
+                                                    nameKey="name"
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={60}
+                                                    label={(entry) => {
+                                                        const total = categoryTotals.reduce((sum, item) => sum + item.amount, 0);
+                                                        const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
+                                                        return `${entry.name} ${percent}%`;
+                                                    }}
+                                                >
+                                                    <Cell fill="#3b82f6" />
+                                                    <Cell fill="#10b981" />
+                                                    <Cell fill="#f59e0b" />
+                                                </Pie>
+                                                <ChartTooltip
+                                                    content={
+                                                        <ChartTooltipContent
+                                                            formatter={(value) => [
+                                                                formatCurrency(value as number),
+                                                                "Ingresos",
+                                                            ]}
+                                                        />
+                                                    }
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </ChartContainer>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                    <Card className="print:shadow-none">
-                        <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Distribucion por metodo de pago</CardTitle>
-                            <p className="text-sm text-slate-500 print:text-xs">
-                                Porcentaje de ingresos por método de pago.
-                            </p>
-                        </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-2">
-                            {loading ? (
-                                <Skeleton className="h-64 print:h-48" />
-                            ) : paymentMethodTotals.length === 0 ? (
-                                <div className="text-sm text-slate-500 print:text-xs">
-                                    No hay datos de métodos de pago en el periodo seleccionado.
-                                </div>
-                            ) : (
-                                <ChartContainer
-                                    config={{
-                                        amount: {
-                                            label: "Ingresos",
-                                            color: "#3b82f6",
-                                        },
-                                    }}
-                                    className="h-[300px] w-full"
-                                >
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={paymentMethodTotals}
-                                                dataKey="amount"
-                                                nameKey="name"
-                                                cx="50%"
-                                                cy="50%"
-                                                outerRadius={80}
-                                                label={(entry) => {
-                                                    const total = paymentMethodTotals.reduce((sum, item) => sum + item.amount, 0);
-                                                    const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
-                                                    return `${entry.name} ${percent}%`;
-                                                }}
-                                            >
-                                                <Cell fill="#3b82f6" />
-                                                <Cell fill="#10b981" />
-                                                <Cell fill="#f59e0b" />
-                                                <Cell fill="#8b5cf6" />
-                                            </Pie>
-                                            <ChartTooltip
-                                                content={
-                                                    <ChartTooltipContent
-                                                        formatter={(value) => [
-                                                            formatCurrency(value as number),
-                                                            "Ingresos",
-                                                        ]}
-                                                    />
-                                                }
-                                            />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </ChartContainer>
-                            )}
-                        </CardContent>
-                    </Card>
+                        <Card className="print:shadow-none">
+                            <CardHeader className="pb-3 print:py-2 print:pb-1">
+                                <CardTitle className="text-base print:text-sm">Distribucion por metodo de pago</CardTitle>
+                                <p className="text-sm text-slate-500 print:text-xs">
+                                    Porcentaje de ingresos por método de pago.
+                                </p>
+                            </CardHeader>
+                            <CardContent className="pt-0 print:pt-1 print:pb-2">
+                                {loading ? (
+                                    <Skeleton className="h-48 print:h-40" />
+                                ) : paymentMethodTotals.length === 0 ? (
+                                    <div className="text-sm text-slate-500 print:text-xs">
+                                        No hay datos de métodos de pago en el periodo seleccionado.
+                                    </div>
+                                ) : (
+                                    <ChartContainer
+                                        config={{
+                                            amount: {
+                                                label: "Ingresos",
+                                                color: "#3b82f6",
+                                            },
+                                        }}
+                                        className="h-[220px] w-full"
+                                    >
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={paymentMethodTotals}
+                                                    dataKey="amount"
+                                                    nameKey="name"
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={60}
+                                                    label={(entry) => {
+                                                        const total = paymentMethodTotals.reduce((sum, item) => sum + item.amount, 0);
+                                                        const percent = total > 0 ? Math.round((entry.amount / total) * 100) : 0;
+                                                        return `${entry.name} ${percent}%`;
+                                                    }}
+                                                >
+                                                    <Cell fill="#3b82f6" />
+                                                    <Cell fill="#10b981" />
+                                                    <Cell fill="#f59e0b" />
+                                                    <Cell fill="#8b5cf6" />
+                                                </Pie>
+                                                <ChartTooltip
+                                                    content={
+                                                        <ChartTooltipContent
+                                                            formatter={(value) => [
+                                                                formatCurrency(value as number),
+                                                                "Ingresos",
+                                                            ]}
+                                                        />
+                                                    }
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </ChartContainer>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
