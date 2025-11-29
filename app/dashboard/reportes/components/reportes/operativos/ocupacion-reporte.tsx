@@ -12,6 +12,7 @@ import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { HorarioFranja } from "@/lib/types/horarios";
 
 interface HistoryEntry {
     entry_time: string | null;
@@ -51,6 +52,30 @@ function getRiskLevel(percent: number): { level: string; color: string } {
     return { level: "Bajo", color: "text-green-600" };
 }
 
+function getOperatingHours(horarios: HorarioFranja[]): number[] {
+    const hours = new Set<number>();
+    horarios.forEach(h => {
+        const [startH] = h.hora_apertura.split(':').map(Number);
+        const [endH] = h.hora_cierre.split(':').map(Number);
+        for (let hour = startH; hour <= endH; hour++) {
+            hours.add(hour);
+        }
+    });
+    return Array.from(hours).sort((a, b) => a - b);
+}
+
+function getOperatingDays(horarios: HorarioFranja[]): number[] {
+    const days = new Set<number>();
+    horarios.forEach(h => days.add(h.dia_semana));
+    return Array.from(days).sort((a, b) => a - b);
+}
+
+function formatHour12(hour24: number): string {
+    const hour12 = hour24 === 0 ? 12 : (hour24 > 12 ? hour24 - 12 : hour24);
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour12} ${period}`;
+}
+
 export function OcupacionReporte() {
     const { estId } = useAuth();
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -58,7 +83,9 @@ export function OcupacionReporte() {
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [previousHistory, setPreviousHistory] = useState<HistoryEntry[]>([]);
     const [totalPlazas, setTotalPlazas] = useState<number>(0);
+    const [plazasAbonadas, setPlazasAbonadas] = useState<number>(0);
     const [zonas, setZonas] = useState<Record<string, { total: number }>>({});
+    const [horarios, setHorarios] = useState<HorarioFranja[]>([]);
     const printRef = useRef<HTMLDivElement>(null);
 
     // Función para generar PDF con html2canvas - TODO en una página A4
@@ -133,16 +160,38 @@ export function OcupacionReporte() {
             if (!estId) return;
             setLoading(true);
             try {
+                // Cargar horarios del estacionamiento
+                const horariosRes = await fetch(`/api/estacionamiento/horarios?est_id=${estId}`);
+                if (horariosRes.ok) {
+                    const horariosJson = await horariosRes.json();
+                    setHorarios(horariosJson.horarios || []);
+                } else {
+                    setHorarios([]);
+                }
+
                 // Historial completo
                 const res = await fetch(`/api/parking/history?est_id=${estId}`);
-                const json = await res.json();
-                const rows: HistoryEntry[] = Array.isArray(json.history) ? json.history : (json || []);
+                let rows: HistoryEntry[] = [];
+                if (res.ok) {
+                    const json = await res.json();
+                    rows = Array.isArray(json.history) ? json.history : (json || []);
+                }
 
                 // Plazas actuales
                 const plazasRes = await fetch(`/api/plazas?est_id=${estId}`);
-                const plazasJson: PlazasApi = await plazasRes.json();
-                const total = Array.isArray(plazasJson?.plazas) ? plazasJson.plazas.length : 0;
-                setTotalPlazas(total);
+                let plazasJson: PlazasApi = { plazas: [] };
+                if (plazasRes.ok) {
+                    plazasJson = await plazasRes.json();
+                    const total = Array.isArray(plazasJson?.plazas) ? plazasJson.plazas.length : 0;
+                    setTotalPlazas(total);
+
+                    // Contar plazas abonadas
+                    const plazasAbonadasCount = (plazasJson?.plazas || []).filter(p => p.pla_estado === "Abonado").length;
+                    setPlazasAbonadas(plazasAbonadasCount);
+                } else {
+                    setTotalPlazas(0);
+                    setPlazasAbonadas(0);
+                }
 
                 const z: Record<string, { total: number }> = {};
                 (plazasJson?.plazas || []).forEach(p => {
@@ -197,12 +246,14 @@ export function OcupacionReporte() {
             prevAvgOccupancy: 0,
             occupancyChange: 0,
             peak: { value: 0, label: "-", day: "-" },
+            lowPeak: { value: 0, label: "-" },
+            peakDay: { name: "-", percent: 0 },
             riskZone: { name: "-", percent: 0, level: "Bajo", color: "text-green-600" },
             trend: { direction: "stable" as "up" | "down" | "stable", percent: 0 },
 
             // Visualizaciones
             hourlyPattern: Array(24).fill(0).map((_, i) => ({ hour: i, occupancy: 0, isPeak: false })),
-            weeklyPattern: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((day, i) => ({
+            weeklyPattern: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day, i) => ({
                 day,
                 occupancy: 0,
                 isCritical: false
@@ -237,28 +288,80 @@ export function OcupacionReporte() {
         from.setHours(0, 0, 0, 0);
         to.setHours(23, 59, 59, 999);
 
-        // ===== ACTIVIDAD POR HORA DEL DÍA (Simple conteo de entradas) =====
-        const hourlyEntries: Record<number, number> = {};
+        // ===== OCUPACIÓN REAL POR HORA (% promedio de plazas ocupadas por hora) =====
+        const hourlyOccupancy: Record<number, { totalPercent: number; dayCount: number }> = {};
 
-        filteredByType.forEach((r) => {
-            const entry = r.entry_time ? new Date(r.entry_time) : null;
-            if (!entry) return;
-            const h = entry.getHours();
-            hourlyEntries[h] = (hourlyEntries[h] || 0) + 1;
-        });
+        // Inicializar para cada hora
+        for (let h = 0; h < 24; h++) {
+            hourlyOccupancy[h] = { totalPercent: 0, dayCount: 0 };
+        }
 
-        // Encontrar máximo para normalizar
-        const maxEntries = Math.max(...Object.values(hourlyEntries), 1);
+        // Iterar por cada día del período
+        let currentDateHourly = new Date(from);
+        while (currentDateHourly <= to) {
+            // Para cada hora del día
+            for (let h = 0; h < 24; h++) {
+                let vehiculosEnHora = plazasAbonadas; // Empezar con plazas abonadas siempre ocupadas
+
+                // Crear fecha/hora exacta para esta hora de este día
+                const checkDateTime = new Date(currentDateHourly);
+                checkDateTime.setHours(h, 0, 0, 0);
+
+                // Contar vehículos presentes en esta hora específica
+                filteredByType.forEach((r) => {
+                    const entry = r.entry_time ? new Date(r.entry_time) : null;
+                    const exit = r.exit_time ? new Date(r.exit_time) : null;
+
+                    if (!entry || !exit) return;
+
+                    // Vehículo está presente si: entry <= checkDateTime < exit
+                    if (entry <= checkDateTime && exit > checkDateTime) {
+                        vehiculosEnHora++;
+                    }
+                });
+
+                // Calcular % de ocupación para esta hora de este día
+                const percentOcupacion = totalPlazas > 0
+                    ? (vehiculosEnHora / totalPlazas) * 100
+                    : 0;
+
+                hourlyOccupancy[h].totalPercent += percentOcupacion;
+                hourlyOccupancy[h].dayCount += 1;
+            }
+
+            currentDateHourly.setDate(currentDateHourly.getDate() + 1);
+        }
+
+        // Calcular promedio por hora
+        const hourlyOccupancyPercent: Record<number, number> = {};
+        for (let h = 0; h < 24; h++) {
+            const data = hourlyOccupancy[h];
+            const avgOccupancy = data.dayCount > 0
+                ? Math.round(data.totalPercent / data.dayCount)
+                : 0;
+            hourlyOccupancyPercent[h] = avgOccupancy;
+        }
+
+        // Encontrar máximo y mínimo solo entre horas operativas
+        const occupancyValues = Object.values(hourlyOccupancyPercent);
+        const operatingHours = getOperatingHours(horarios);
         let maxHourIdx = 0;
-        let maxHourCount = 0;
+        let maxHourOccupancy = 0;
+        let minHourIdx = 0;
+        let minHourOccupancy = Infinity;
 
         result.hourlyPattern = Array(24).fill(0).map((_, h) => {
-            const entries = hourlyEntries[h] || 0;
-            const occupancy = Math.round((entries / maxEntries) * 100);
+            const occupancy = hourlyOccupancyPercent[h] || 0;
 
-            if (entries > maxHourCount) {
-                maxHourCount = entries;
+            if (occupancy > maxHourOccupancy) {
+                maxHourOccupancy = occupancy;
                 maxHourIdx = h;
+            }
+
+            // Hora muerta: menor ocupación entre horas operativas
+            if (operatingHours.includes(h) && occupancy < minHourOccupancy) {
+                minHourOccupancy = occupancy;
+                minHourIdx = h;
             }
 
             return {
@@ -268,7 +371,7 @@ export function OcupacionReporte() {
             };
         });
 
-        // Marcar las 3 horas con mayor actividad
+        // Marcar las 3 horas con mayor ocupación
         const sortedHours = [...result.hourlyPattern]
             .sort((a, b) => b.occupancy - a.occupancy)
             .slice(0, 3);
@@ -277,55 +380,100 @@ export function OcupacionReporte() {
             if (idx >= 0) result.hourlyPattern[idx].isPeak = true;
         });
 
-        // ===== DISTRIBUCIÓN SEMANAL (Porcentaje de actividad por día) =====
-        const weeklyEntries: Record<number, number> = {};
+        // Calcular peak (hora con mayor ocupación)
+        result.peak = {
+            value: maxHourOccupancy,
+            label: formatHour12(maxHourIdx),
+            day: result.weeklyPattern.reduce((max, curr) =>
+                curr.occupancy > max.occupancy ? curr : max
+            ).day
+        };
 
-        filteredByType.forEach((r) => {
-            const entry = r.entry_time ? new Date(r.entry_time) : null;
-            if (!entry) return;
-            const weekday = (entry.getDay() + 6) % 7; // 0=Lun, 6=Dom
-            weeklyEntries[weekday] = (weeklyEntries[weekday] || 0) + 1;
-        });
+        // Calcular lowPeak (hora con menor ocupación)
+        result.lowPeak = {
+            value: minHourOccupancy,
+            label: minHourOccupancy === Infinity ? "-" : formatHour12(minHourIdx)
+        };
 
-        // Calcular porcentaje del total
-        const totalWeeklyEntries = Object.values(weeklyEntries).reduce((sum, count) => sum + count, 0);
-        const avgDailyEntries = totalWeeklyEntries / 7;
+        // ===== DISTRIBUCIÓN SEMANAL (% promedio de plazas ocupadas por día de semana) =====
+        const dailyOccupancy: Record<number, { totalPercent: number; dayCount: number }> = {};
 
+        // Inicializar para cada día de la semana (0=Lun, 6=Dom)
+        for (let i = 0; i < 7; i++) {
+            dailyOccupancy[i] = { totalPercent: 0, dayCount: 0 };
+        }
+
+        // Iterar por cada día del período
+        let currentDate = new Date(from);
+        while (currentDate <= to) {
+            const weekday = (currentDate.getDay() + 6) % 7; // 0=Lun, 6=Dom
+
+            // Contar vehículos presentes en este día (contar una vez por día, no por hora)
+            let vehiculosEnDia = plazasAbonadas; // Empezar con plazas abonadas
+
+            // Crear timestamp para medianoche de este día y siguiente
+            const dayStart = new Date(currentDate);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(currentDate);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            filteredByType.forEach((r) => {
+                const entry = r.entry_time ? new Date(r.entry_time) : null;
+                const exit = r.exit_time ? new Date(r.exit_time) : null;
+
+                if (!entry || !exit) return;
+
+                // Vehículo está presente si: entry <= dayEnd AND exit >= dayStart
+                if (entry <= dayEnd && exit >= dayStart) {
+                    vehiculosEnDia++;
+                }
+            });
+
+            // Calcular % de ocupación promedio del día
+            const percentOcupacion = totalPlazas > 0
+                ? (vehiculosEnDia / totalPlazas) * 100
+                : 0;
+
+            dailyOccupancy[weekday].totalPercent += percentOcupacion;
+            dailyOccupancy[weekday].dayCount += 1;
+
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Calcular promedio por día de la semana
         result.weeklyPattern = result.weeklyPattern.map((item, i) => {
-            const count = weeklyEntries[i] || 0;
-            const percent = totalWeeklyEntries > 0 ? Math.round((count / totalWeeklyEntries) * 100) : 0;
+            const dayData = dailyOccupancy[i];
+            const avgOccupancy = dayData.dayCount > 0
+                ? Math.round(dayData.totalPercent / dayData.dayCount)
+                : 0;
+
             return {
                 ...item,
-                occupancy: percent,
-                isCritical: count > avgDailyEntries * 1.3 // 30% más que el promedio
+                occupancy: avgOccupancy,
+                isCritical: avgOccupancy > 70 // Mayor a 70% es crítico
             };
         });
 
-        // Ocupación promedio actual y anterior
-        let totalOccHours = 0;
-        let totalHours = 0;
+        // Calcular peakDay (día con mayor ocupación promedio)
+        const maxDay = result.weeklyPattern.reduce((max, curr) =>
+            curr.occupancy > max.occupancy ? curr : max
+        );
+        result.peakDay = {
+            name: maxDay.day,
+            percent: maxDay.occupancy
+        };
 
-        filteredByType.forEach((r) => {
-            const start = r.entry_time ? new Date(r.entry_time) : from;
-            const end = r.exit_time ? new Date(r.exit_time) : to;
-            const hours = hoursBetween(start, end);
-            totalOccHours += hours;
-        });
+        // Ocupación promedio: promedio solo de horas operativas
+        const operatingOccupancies = operatingHours.length > 0
+            ? operatingHours.map(h => hourlyOccupancyPercent[h] || 0)
+            : occupancyValues;
+        result.avgOccupancy = operatingOccupancies.length > 0
+            ? Math.round(operatingOccupancies.reduce((sum, v) => sum + v, 0) / operatingOccupancies.length)
+            : 0;
 
-        const periodHours = (to.getTime() - from.getTime()) / (1000 * 60 * 60);
-        result.avgOccupancy = Math.round((totalOccHours / (periodHours * totalPlazas)) * 100);
-
-        // Ocupación período anterior
-        let prevTotalOccHours = 0;
-        prevFilteredByType.forEach((r) => {
-            const start = r.entry_time ? new Date(r.entry_time) : null;
-            const end = r.exit_time ? new Date(r.exit_time) : null;
-            if (!start || !end) return;
-            const hours = hoursBetween(start, end);
-            prevTotalOccHours += hours;
-        });
-        result.prevAvgOccupancy = Math.round((prevTotalOccHours / (periodHours * totalPlazas)) * 100);
-        result.occupancyChange = result.avgOccupancy - result.prevAvgOccupancy;
+        // No se usa comparación con período anterior en tarjetas
+        result.prevAvgOccupancy = result.avgOccupancy;
+        result.occupancyChange = 0;
 
         // Tendencia
         if (Math.abs(result.occupancyChange) < 3) {
@@ -335,15 +483,6 @@ export function OcupacionReporte() {
         } else {
             result.trend = { direction: "down", percent: Math.abs(result.occupancyChange) };
         }
-
-        // Pico máximo (ahora basado en entradas reales)
-        result.peak = {
-            value: maxHourCount,
-            label: `${String(maxHourIdx).padStart(2, "0")}:00`,
-            day: result.weeklyPattern.reduce((max, curr) =>
-                curr.occupancy > max.occupancy ? curr : max
-            ).day
-        };
 
         // ===== ACTIVIDAD POR ZONA (Verificar datos y calcular) =====
         const zoneEntries: Record<string, number> = {};
@@ -407,79 +546,81 @@ export function OcupacionReporte() {
 
         const totalStays = filteredByType.length;
         if (totalStays > 0) {
-            result.stayDistribution.a.percent = Math.round((result.stayDistribution.a.count / totalStays) * 100);
-            result.stayDistribution.b.percent = Math.round((result.stayDistribution.b.count / totalStays) * 100);
-            result.stayDistribution.c.percent = Math.round((result.stayDistribution.c.count / totalStays) * 100);
-            result.stayDistribution.d.percent = Math.round((result.stayDistribution.d.count / totalStays) * 100);
+            // Calcular porcentajes exactos
+            const exactPercents = [
+                (result.stayDistribution.a.count / totalStays) * 100,
+                (result.stayDistribution.b.count / totalStays) * 100,
+                (result.stayDistribution.c.count / totalStays) * 100,
+                (result.stayDistribution.d.count / totalStays) * 100,
+            ];
+
+            // Redondear y ajustar para que sumen 100
+            let rounded = exactPercents.map(p => Math.floor(p));
+            let remaining = 100 - rounded.reduce((sum, p) => sum + p, 0);
+
+            // Distribuir el resto a los valores con mayor residuo
+            const residuals = exactPercents.map((p, i) => ({ index: i, residual: p - rounded[i] }))
+                .sort((a, b) => b.residual - a.residual);
+
+            // Asegurar que remaining no exceda la longitud de residuals
+            remaining = Math.min(remaining, residuals.length);
+
+            for (let i = 0; i < remaining; i++) {
+                rounded[residuals[i].index]++;
+            }
+
+            result.stayDistribution.a.percent = rounded[0];
+            result.stayDistribution.b.percent = rounded[1];
+            result.stayDistribution.c.percent = rounded[2];
+            result.stayDistribution.d.percent = rounded[3];
         }
 
-        // ===== GENERAR INSIGHTS EJECUTIVOS =====
+        // ===== GENERAR RESUMEN DESCRIPTIVO =====
         const insightsGenerated: string[] = [];
 
-        // 1. Zona más/menos utilizada
-        if (result.zonaOcupacion.length > 0) {
-            const topZone = result.zonaOcupacion[0];
-            const lowZone = result.zonaOcupacion[result.zonaOcupacion.length - 1];
+        // 1. Ocupación general
+        insightsGenerated.push(
+            `El porcentaje promedio de ocupación del período es ${result.avgOccupancy}%.`
+        );
 
-            if (topZone.ocupacion >= 40) {
-                insightsGenerated.push(`La zona "${topZone.zona}" concentra ${topZone.ocupacion}% de la actividad total.`);
-            }
+        // 2. Distribución semanal
+        insightsGenerated.push(
+            `${result.peakDay.name} es el día con mayor actividad, representando ${result.peakDay.percent}% del flujo semanal.`
+        );
 
-            if (lowZone.ocupacion < 10 && result.zonaOcupacion.length > 1) {
-                insightsGenerated.push(`Oportunidad: Zona "${lowZone.zona}" solo representa ${lowZone.ocupacion}% de la actividad - evaluar estrategias de promoción.`);
-            }
-        }
-
-        // 2. Días críticos
-        const criticalDays = result.weeklyPattern.filter(d => d.isCritical);
-        if (criticalDays.length > 0) {
-            const dayNames = criticalDays.map(d => d.day).join(", ");
-            const maxDay = result.weeklyPattern.reduce((max, curr) =>
-                curr.occupancy > max.occupancy ? curr : max
-            );
-            insightsGenerated.push(`Mayor actividad: ${maxDay.day} con ${maxDay.occupancy}% del flujo semanal - planificar staffing adicional.`);
-        }
-
-        // 3. Horas pico
+        // 3. Horas de mayor flujo
         const peakHours = result.hourlyPattern.filter(h => h.isPeak).sort((a, b) => b.occupancy - a.occupancy);
         if (peakHours.length > 0) {
             const hourRanges = peakHours.map(h => `${String(h.hour).padStart(2, "0")}:00`).join(", ");
-            insightsGenerated.push(`Horas de mayor flujo: ${hourRanges}.`);
+            insightsGenerated.push(
+                `Las horas de mayor flujo son: ${hourRanges}.`
+            );
         }
 
-        // 4. Tendencia del período
-        if (result.trend.direction === "up") {
-            insightsGenerated.push(`📈 Tendencia positiva: La ocupación aumentó ${result.trend.percent}% respecto al período anterior.`);
-        } else if (result.trend.direction === "down") {
-            insightsGenerated.push(`📉 Tendencia a la baja: La ocupación disminuyó ${result.trend.percent}% respecto al período anterior.`);
-        } else {
-            insightsGenerated.push(`Ocupación estable respecto al período anterior (variación < 3%).`);
-        }
-
-        // 5. Patrón de estadías
+        // 4. Patrón de estadías predominante
         const dominantStay = Object.entries({
             "0-1h": result.stayDistribution.a.percent,
             "1-3h": result.stayDistribution.b.percent,
             "3-6h": result.stayDistribution.c.percent,
-            ">6h": result.stayDistribution.d.percent
-        }).sort(([,a], [,b]) => b - a)[0];
+            ">6h": result.stayDistribution.d.percent,
+        }).sort(([, a], [, b]) => b - a)[0];
 
-        if (dominantStay[1] > 40) {
-            insightsGenerated.push(`Patrón dominante: ${dominantStay[1]}% de vehículos permanecen ${dominantStay[0]}.`);
+        insightsGenerated.push(
+            `La mayoría de los vehículos (${dominantStay[1]}%) permanecen ${dominantStay[0]}.`
+        );
+
+        // 5. Distribución por zona (si hay datos)
+        if (result.zonaOcupacion.length > 0) {
+            const topZone = result.zonaOcupacion[0];
+            insightsGenerated.push(
+                `La zona "${topZone.zona}" concentra ${topZone.ocupacion}% de la actividad total.`
+            );
         }
 
-        // 6. Distribución equilibrada o desbalanceada
-        const dayPercentages = result.weeklyPattern.map(d => d.occupancy);
-        const maxDayPercent = Math.max(...dayPercentages);
-        const minDayPercent = Math.min(...dayPercentages);
-        if (maxDayPercent - minDayPercent > 20) {
-            insightsGenerated.push(`Distribución semanal desbalanceada: diferencia de ${maxDayPercent - minDayPercent}% entre días de mayor y menor actividad.`);
-        }
-
-        result.insights = insightsGenerated.slice(0, 6);
+        result.insights = insightsGenerated.slice(0, 5);
 
         return result;
-    }, [history, previousHistory, totalPlazas, zonas, dateRange]);
+    }, [history, previousHistory, totalPlazas, plazasAbonadas, zonas, dateRange, horarios]);
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -510,29 +651,21 @@ export function OcupacionReporte() {
                             </>
                         ) : (
                             <>
-                                {/* Ocupación Promedio */}
+                                {/* Porcentaje Promedio de Ocupación */}
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
                                         <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">
-                                            Ocupación Promedio
+                                            Porcentaje promedio de ocupación
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
                                         <div className="text-3xl font-bold print:text-2xl">
                                             {calculations.avgOccupancy}%
                                         </div>
-                                        <div className="text-xs text-slate-500 print:text-[10px] mt-1">
-                                            {calculations.occupancyChange !== 0 && (
-                                                <span className={calculations.occupancyChange > 0 ? "text-green-600" : "text-red-600"}>
-                                                    {calculations.occupancyChange > 0 ? "+" : ""}{calculations.occupancyChange}% vs anterior
-                                                </span>
-                                            )}
-                                            {calculations.occupancyChange === 0 && "Sin cambios vs anterior"}
-                                        </div>
                                     </CardContent>
                                 </Card>
 
-                                {/* Pico de Actividad */}
+                                {/* Hora Pico */}
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
                                         <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">
@@ -540,94 +673,36 @@ export function OcupacionReporte() {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="flex items-baseline gap-2">
-                                            <div className="text-3xl font-bold print:text-2xl">
-                                                {calculations.peak.value}
-                                            </div>
-                                            <Badge variant="outline" className="text-xs print:text-[10px]">
-                                                {calculations.peak.label}
-                                            </Badge>
-                                        </div>
-                                        <div className="text-xs text-slate-500 print:text-[10px] mt-1">
-                                            entradas - {calculations.peak.day}
+                                        <div className="text-3xl font-bold print:text-2xl">
+                                            {calculations.peak.label}
                                         </div>
                                     </CardContent>
                                 </Card>
 
-                                {/* Zona en Riesgo */}
-                                <Card className="print:shadow-none">
-                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs flex items-center gap-1">
-                                            <AlertTriangle className="h-3 w-3" />
-                                            Zona en Riesgo
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="text-lg font-bold print:text-base truncate">
-                                            {calculations.riskZone.name}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className={`text-sm font-semibold ${calculations.riskZone.color} print:text-xs`}>
-                                                {calculations.riskZone.percent}%
-                                            </span>
-                                            <Badge
-                                                variant="outline"
-                                                className={`text-xs print:text-[10px] ${calculations.riskZone.color} border-current`}
-                                            >
-                                                {calculations.riskZone.level}
-                                            </Badge>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Tendencia */}
+                                {/* Hora Muerta */}
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
                                         <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">
-                                            Tendencia
+                                            Hora Muerta
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
-                                        <div className="flex items-center gap-2">
-                                            {calculations.trend.direction === "up" && (
-                                                <>
-                                                    <TrendingUp className="h-8 w-8 text-green-600 print:h-6 print:w-6" />
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-green-600 print:text-xl">
-                                                            +{calculations.trend.percent}%
-                                                        </div>
-                                                        <div className="text-xs text-slate-500 print:text-[10px]">
-                                                            Creciendo
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
-                                            {calculations.trend.direction === "down" && (
-                                                <>
-                                                    <TrendingDown className="h-8 w-8 text-red-600 print:h-6 print:w-6" />
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-red-600 print:text-xl">
-                                                            -{calculations.trend.percent}%
-                                                        </div>
-                                                        <div className="text-xs text-slate-500 print:text-[10px]">
-                                                            Bajando
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
-                                            {calculations.trend.direction === "stable" && (
-                                                <>
-                                                    <Minus className="h-8 w-8 text-slate-600 print:h-6 print:w-6" />
-                                                    <div>
-                                                        <div className="text-2xl font-bold text-slate-600 print:text-xl">
-                                                            Estable
-                                                        </div>
-                                                        <div className="text-xs text-slate-500 print:text-[10px]">
-                                                            Sin cambios
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
+                                        <div className="text-3xl font-bold print:text-2xl">
+                                            {calculations.lowPeak.label}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Día Pico */}
+                                <Card className="print:shadow-none">
+                                    <CardHeader className="pb-2 print:py-2 print:pb-1">
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">
+                                            Día Pico
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="pt-0 print:pt-1 print:pb-0">
+                                        <div className="text-3xl font-bold print:text-2xl">
+                                            {calculations.peakDay.name}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -635,11 +710,11 @@ export function OcupacionReporte() {
                         )}
                     </div>
 
-                    {/* Actividad por Hora del Día - Recharts */}
+                    {/* Porcentaje de Ocupación por Hora Operativa - Recharts */}
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">
-                                Actividad por Hora del Día
+                                Porcentaje de Ocupación por hora Operativa
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-2">
@@ -648,24 +723,24 @@ export function OcupacionReporte() {
                             ) : (
                                 <ChartContainer
                                     config={{
-                                        entries: {
-                                            label: "Entradas",
+                                        occupancy: {
+                                            label: "Ocupación",
                                             color: "#3b82f6",
-                                        },
-                                        peak: {
-                                            label: "Hora Pico",
-                                            color: "#ef4444",
                                         },
                                     }}
                                     className="h-[320px] w-full"
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
-                                            data={calculations.hourlyPattern.map((item) => ({
-                                                hour: `${String(item.hour).padStart(2, "0")}h`,
-                                                entries: item.occupancy,
-                                                fill: item.isPeak ? "#ef4444" : "#3b82f6",
-                                            }))}
+                                            data={(() => {
+                                                const operatingHours = getOperatingHours(horarios);
+                                                return calculations.hourlyPattern
+                                                    .filter(h => operatingHours.includes(h.hour))
+                                                    .map((item) => ({
+                                                        hour: `${String(item.hour).padStart(2, "0")}h`,
+                                                        occupancy: item.occupancy,
+                                                    }));
+                                            })()}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
@@ -677,31 +752,20 @@ export function OcupacionReporte() {
                                             <YAxis
                                                 tick={{ fontSize: 11 }}
                                                 className="text-slate-600"
-                                                label={{ value: "Actividad (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                                label={{ value: "Ocupación (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
                                             />
                                             <ChartTooltip
                                                 content={
                                                     <ChartTooltipContent
-                                                        formatter={(value, name, props) => [
-                                                            `${value}%`,
-                                                            props.payload.fill === "#ef4444" ? "Hora Pico" : "Actividad",
-                                                        ]}
+                                                        formatter={(value) => [`${value}%`, "Ocupación"]}
                                                     />
                                                 }
                                             />
                                             <Bar
-                                                dataKey="entries"
-                                                radius={[4, 4, 0, 0]}
+                                                dataKey="occupancy"
                                                 fill="#3b82f6"
-                                            >
-                                                {calculations.hourlyPattern.map((entry, index) => (
-                                                    <Fragment key={`cell-${index}`}>
-                                                        <rect
-                                                            fill={entry.isPeak ? "#ef4444" : "#3b82f6"}
-                                                        />
-                                                    </Fragment>
-                                                ))}
-                                            </Bar>
+                                                radius={[4, 4, 0, 0]}
+                                            />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
@@ -709,11 +773,11 @@ export function OcupacionReporte() {
                         </CardContent>
                     </Card>
 
-                    {/* Distribución Semanal - Recharts */}
+                    {/* Porcentaje de Ocupación por Día Operativo - Recharts */}
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">
-                                Distribución Semanal de Actividad
+                                Porcentaje de ocupación por día operativo
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-2">
@@ -723,26 +787,26 @@ export function OcupacionReporte() {
                                 <ChartContainer
                                     config={{
                                         percentage: {
-                                            label: "% del Total",
-                                            color: "#10b981",
-                                        },
-                                        critical: {
-                                            label: "Día Crítico",
-                                            color: "#ef4444",
+                                            label: "Ocupación",
+                                            color: "#3b82f6",
                                         },
                                     }}
                                     className="h-[280px] w-full"
                                 >
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
-                                            data={calculations.weeklyPattern.map((item) => {
-                                                const maxOccupancy = Math.max(...calculations.weeklyPattern.map(d => d.occupancy));
-                                                return {
-                                                    day: item.day,
-                                                    percentage: item.occupancy,
-                                                    fill: item.occupancy === maxOccupancy ? "#ef4444" : "#10b981",
-                                                };
-                                            })}
+                                            data={(() => {
+                                                const operatingDays = getOperatingDays(horarios);
+                                                return calculations.weeklyPattern
+                                                    .filter((item, index) => {
+                                                        const diaSemana = (index + 1) % 7;
+                                                        return operatingDays.includes(diaSemana);
+                                                    })
+                                                    .map((item) => ({
+                                                        day: item.day,
+                                                        percentage: item.occupancy,
+                                                    }));
+                                            })()}
                                             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
@@ -754,35 +818,21 @@ export function OcupacionReporte() {
                                             <YAxis
                                                 tick={{ fontSize: 11 }}
                                                 className="text-slate-600"
-                                                label={{ value: "% del Total", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                                label={{ value: "Ocupación (%)", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
                                                 domain={[0, 100]}
                                             />
                                             <ChartTooltip
                                                 content={
                                                     <ChartTooltipContent
-                                                        formatter={(value, name, props) => [
-                                                            `${value}%`,
-                                                            props.payload.fill === "#ef4444" ? "Día de Mayor Actividad" : "% del Total Semanal",
-                                                        ]}
+                                                        formatter={(value) => [`${value}%`, "Ocupación"]}
                                                     />
                                                 }
                                             />
                                             <Bar
                                                 dataKey="percentage"
+                                                fill="#3b82f6"
                                                 radius={[6, 6, 0, 0]}
-                                                fill="#10b981"
-                                            >
-                                                {calculations.weeklyPattern.map((entry, index) => {
-                                                    const maxOccupancy = Math.max(...calculations.weeklyPattern.map(d => d.occupancy));
-                                                    return (
-                                                        <Fragment key={`cell-${index}`}>
-                                                            <rect
-                                                                fill={entry.occupancy === maxOccupancy ? "#ef4444" : "#10b981"}
-                                                            />
-                                                        </Fragment>
-                                                    );
-                                                })}
-                                            </Bar>
+                                            />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
@@ -884,11 +934,11 @@ export function OcupacionReporte() {
                         </Card>
                     )}
 
-                    {/* Distribución de Estadías - Mejorado */}
+                    {/* Porcentaje por Tiempo de Estadia */}
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">
-                                Distribución de Estadías
+                                Porcentaje por Tiempo de estadia
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
@@ -908,7 +958,7 @@ export function OcupacionReporte() {
                                                     className="w-full rounded-lg bg-emerald-500 flex items-center justify-center"
                                                     style={{ height: `${Math.max(bucket.data.percent, 5)}%` }}
                                                 >
-                                                    {bucket.data.percent > 10 && (
+                                                    {bucket.data.percent > 0 && (
                                                         <span className="text-white font-bold text-sm print:text-xs">
                                                             {bucket.data.percent}%
                                                         </span>
@@ -919,11 +969,6 @@ export function OcupacionReporte() {
                                                 <div className="text-sm font-medium text-slate-700 print:text-xs">
                                                     {bucket.label}
                                                 </div>
-                                                {bucket.data.percent <= 10 && (
-                                                    <div className="text-xs text-emerald-600 font-semibold print:text-[10px]">
-                                                        {bucket.data.percent}%
-                                                    </div>
-                                                )}
                                                 <div className="text-xs text-slate-500 print:text-[10px]">
                                                     {bucket.data.count} vehículos
                                                 </div>
@@ -935,11 +980,11 @@ export function OcupacionReporte() {
                         </CardContent>
                     </Card>
 
-                    {/* Insights Ejecutivos - Mejorado */}
+                    {/* Resumen del Reporte */}
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
                             <CardTitle className="text-base print:text-sm">
-                                Análisis Ejecutivo
+                                Resumen del reporte
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">

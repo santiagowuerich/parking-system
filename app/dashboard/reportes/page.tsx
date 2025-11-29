@@ -69,12 +69,12 @@ export default function ReportesPage() {
     };
     return (
         <DashboardLayout title="Reportes" description="Análisis y reportes del negocio">
-            <div className="space-y-8">
-                <div className="space-y-3 max-w-6xl mx-auto">
-                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Reportes disponibles
-                    </h3>
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="container mx-auto p-6 space-y-6">
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold text-gray-900">Reportes</h1>
+                    <p className="text-gray-600">Análisis y reportes del negocio</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <ReporteCard
                             icon={BarChart3}
                             title="Ocupación y Disponibilidad"
@@ -123,7 +123,6 @@ export default function ReportesPage() {
                             color="purple"
                         />
                     </div>
-                </div>
             </div>
 
             {/* Render all modals */}
