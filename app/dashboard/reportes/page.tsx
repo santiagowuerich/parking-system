@@ -64,31 +64,31 @@ export default function ReportesPage() {
                         <ReporteCard
                             icon={BarChart3}
                             title="Ocupación y Disponibilidad"
-                            description="Tasa de ocupación por zona y horario con identificación de horas pico."
+                            description="Tasa de ocupación por hora y día operativos, con tiempos de permanencias."
                             onClick={() => abrirReporte("ocupacion")}
                             color="blue"
                         />
 
                         <ReporteCard
                             icon={Activity}
-                            title="Movimientos Diarios"
-                            description="Registro de entradas y salidas con tiempos de permanencia."
+                            title="Movimientos de Playa"
+                            description="Registro de entradas y salidas, con tipo de vehículos."
                             onClick={() => abrirReporte("movimientos")}
                             color="green"
                         />
 
                         <ReporteCard
                             icon={DollarSign}
-                            title="Ingresos por Período"
-                            description="Evolución de ingresos con análisis de tendencias y comparativas."
+                            title="Ingresos"
+                            description="Desglose de ingresos por categoría, con métodos de pago."
                             onClick={() => abrirReporte("ingresos")}
-                            color="green"
+                            color="orange"
                         />
 
                         <ReporteCard
                             icon={Calendar}
-                            title="Abonos y Suscripciones"
-                            description="Ingresos recurrentes, renovaciones y próximos vencimientos."
+                            title="Abonos"
+                            description="Desglose de abonos activos, nuevos, renovaciones y próximos vencimientos."
                             onClick={() => abrirReporte("abonos")}
                             color="purple"
                         />

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ReporteHeader } from "../../reporte-header";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, LineChart, Line, Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -258,6 +258,27 @@ function buildExpiryList(abonos: AbonoRecord[], from: Date, to: Date, limit = 6)
     return upcoming;
 }
 
+function buildExpiryBuckets(abonos: AbonoRecord[], referenceDate: Date) {
+    const now = referenceDate.getTime();
+    const buckets = [
+        { label: "0-5 días", min: 0, max: 5, count: 0 },
+        { label: "6-10 días", min: 6, max: 10, count: 0 },
+        { label: "11-15 días", min: 11, max: 15, count: 0 },
+        { label: "16-20 días", min: 16, max: 20, count: 0 },
+        { label: "+20 días", min: 21, max: Infinity, count: 0 }
+    ];
+
+    abonos.forEach(abono => {
+        const daysUntilExpiry = Math.ceil((abono.end.getTime() - now) / (1000 * 60 * 60 * 24));
+        if (daysUntilExpiry >= 0) {
+            const bucket = buckets.find(b => daysUntilExpiry >= b.min && daysUntilExpiry <= b.max);
+            if (bucket) bucket.count++;
+        }
+    });
+
+    return buckets;
+}
+
 function buildInsights(
     activeCurrent: number,
     activeDescriptor: Descriptor,
@@ -403,7 +424,7 @@ export function AbonosReporte() {
         const loadPayments = async () => {
             setLoadingPayments(true);
             try {
-                const response = await fetch(`/api/parking/history?est_id=${estId}`);
+                const response = await fetch(`/api/pagos?est_id=${estId}`);
                 const data = await response.json();
                 const rows: HistoryEntry[] = Array.isArray(data.history) ? data.history : data || [];
                 setPayments(normalizePayments(rows));
@@ -500,6 +521,8 @@ export function AbonosReporte() {
 
     const upcomingExpirations = useMemo(() => buildExpiryList(abonos, rangeInfo.to, new Date(rangeInfo.to.getTime() + 30 * 24 * 60 * 60 * 1000)), [abonos, rangeInfo.to]);
 
+    const expiryBuckets = useMemo(() => buildExpiryBuckets(abonos, rangeInfo.to), [abonos, rangeInfo.to]);
+
     const insights = useMemo(
         () =>
             buildInsights(
@@ -548,26 +571,13 @@ export function AbonosReporte() {
                             <>
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Abonos en el periodo</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Abonos activos</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
                                         {(() => {
                                             const text = currentAbonos.length.toLocaleString();
                                             return (
-                                                <>
-                                                    <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
-                                                    <div
-                                                        className={`mt-1 text-xs ${
-                                                            activeDescriptor.tone === "positive"
-                                                                ? "text-emerald-600"
-                                                                : activeDescriptor.tone === "negative"
-                                                                ? "text-red-600"
-                                                                : "text-slate-500"
-                                                        }`}
-                                                    >
-                                                        {activeDescriptor.label}
-                                                    </div>
-                                                </>
+                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
                                             );
                                         })()}
                                     </CardContent>
@@ -575,26 +585,13 @@ export function AbonosReporte() {
 
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Ingresos recurrentes</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Total de Ingresos por Abonos</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
                                         {(() => {
                                             const text = formatCurrency(revenueCurrent);
                                             return (
-                                                <>
-                                                    <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
-                                                    <div
-                                                        className={`mt-1 text-xs ${
-                                                            revenueDescriptor.tone === "positive"
-                                                                ? "text-emerald-600"
-                                                                : revenueDescriptor.tone === "negative"
-                                                                ? "text-red-600"
-                                                                : "text-slate-500"
-                                                        }`}
-                                                    >
-                                                        {revenueDescriptor.label}
-                                                    </div>
-                                                </>
+                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
                                             );
                                         })()}
                                     </CardContent>
@@ -602,26 +599,13 @@ export function AbonosReporte() {
 
                                 <Card className="print:shadow-none">
                                     <CardHeader className="pb-2 print:py-2 print:pb-1">
-                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Altas en el periodo</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-slate-600 print:text-xs">Altas</CardTitle>
                                     </CardHeader>
                                     <CardContent className="pt-0 print:pt-1 print:pb-0">
                                         {(() => {
                                             const text = newAbonosCurrent.length.toLocaleString();
                                             return (
-                                                <>
-                                                    <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
-                                                    <div
-                                                        className={`mt-1 text-xs ${
-                                                            newDescriptor.tone === "positive"
-                                                                ? "text-emerald-600"
-                                                                : newDescriptor.tone === "negative"
-                                                                ? "text-red-600"
-                                                                : "text-slate-500"
-                                                        }`}
-                                                    >
-                                                        {newDescriptor.label}
-                                                    </div>
-                                                </>
+                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
                                             );
                                         })()}
                                     </CardContent>
@@ -635,20 +619,7 @@ export function AbonosReporte() {
                                         {(() => {
                                             const text = renewalsCurrent.toLocaleString();
                                             return (
-                                                <>
-                                                    <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
-                                                    <div
-                                                        className={`mt-1 text-xs ${
-                                                            renewalsDescriptor.tone === "positive"
-                                                                ? "text-emerald-600"
-                                                                : renewalsDescriptor.tone === "negative"
-                                                                ? "text-red-600"
-                                                                : "text-slate-500"
-                                                        }`}
-                                                    >
-                                                        {renewalsDescriptor.label}
-                                                    </div>
-                                                </>
+                                                <div className={`font-semibold leading-tight ${valueSizeClasses(text)}`}>{text}</div>
                                             );
                                         })()}
                                     </CardContent>
@@ -656,68 +627,6 @@ export function AbonosReporte() {
                             </>
                         )}
                     </div>
-
-                    <Card className="print:shadow-none">
-                        <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Evolucion de abonos activos</CardTitle>
-                            <p className="text-sm text-slate-500 print:text-xs">
-                                Cantidad de abonos activos por día durante el período seleccionado.
-                            </p>
-                        </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-2">
-                            {isLoading ? (
-                                <Skeleton className="h-64 print:h-48" />
-                            ) : activeSeries.length === 0 ? (
-                                <div className="text-sm text-slate-500 print:text-xs">Sin registros en el periodo.</div>
-                            ) : (
-                                <ChartContainer
-                                    config={{
-                                        value: {
-                                            label: "Abonos activos",
-                                            color: "#3b82f6",
-                                        },
-                                    }}
-                                    className="h-[320px] w-full"
-                                >
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart
-                                            data={activeSeries}
-                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
-                                            <XAxis
-                                                dataKey="label"
-                                                tick={{ fontSize: 10 }}
-                                                className="text-slate-600"
-                                            />
-                                            <YAxis
-                                                tick={{ fontSize: 11 }}
-                                                className="text-slate-600"
-                                                label={{ value: "Cantidad", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
-                                            />
-                                            <ChartTooltip
-                                                content={
-                                                    <ChartTooltipContent
-                                                        formatter={(value) => [
-                                                            `${value} activos`,
-                                                            "Abonos",
-                                                        ]}
-                                                    />
-                                                }
-                                            />
-                                            <Line
-                                                type="monotone"
-                                                dataKey="value"
-                                                stroke="#3b82f6"
-                                                dot={{ fill: "#3b82f6", r: 3 }}
-                                                activeDot={{ r: 5 }}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </ChartContainer>
-                            )}
-                        </CardContent>
-                    </Card>
 
                     <Card className="print:shadow-none">
                             <CardHeader className="pb-3 print:py-2 print:pb-1">
@@ -742,27 +651,28 @@ export function AbonosReporte() {
                                         className="h-[280px] w-full"
                                     >
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart
-                                                data={typeBreakdown.map((item) => ({
-                                                    label: item.label,
-                                                    count: item.count,
-                                                }))}
-                                                layout="vertical"
-                                                margin={{ top: 5, right: 5, left: 120, bottom: 5 }}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
-                                                <XAxis
-                                                    type="number"
-                                                    tick={{ fontSize: 11 }}
-                                                    className="text-slate-600"
-                                                />
-                                                <YAxis
-                                                    type="category"
-                                                    dataKey="label"
-                                                    tick={{ fontSize: 11 }}
-                                                    className="text-slate-600"
-                                                    width={110}
-                                                />
+                                            <PieChart>
+                                                <Pie
+                                                    data={typeBreakdown.map((item) => ({
+                                                        name: item.label,
+                                                        value: item.count,
+                                                    }))}
+                                                    dataKey="value"
+                                                    nameKey="name"
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={80}
+                                                    label={(entry) => {
+                                                        const total = typeBreakdown.reduce((sum, item) => sum + item.count, 0);
+                                                        const percent = total > 0 ? Math.round((entry.value / total) * 100) : 0;
+                                                        return `${entry.name} ${percent}%`;
+                                                    }}
+                                                >
+                                                    <Cell fill="#3b82f6" />
+                                                    <Cell fill="#10b981" />
+                                                    <Cell fill="#f59e0b" />
+                                                    <Cell fill="#8b5cf6" />
+                                                </Pie>
                                                 <ChartTooltip
                                                     content={
                                                         <ChartTooltipContent
@@ -773,12 +683,7 @@ export function AbonosReporte() {
                                                         />
                                                     }
                                                 />
-                                                <Bar
-                                                    dataKey="count"
-                                                    radius={[0, 6, 6, 0]}
-                                                    fill="#6366f1"
-                                                />
-                                            </BarChart>
+                                            </PieChart>
                                         </ResponsiveContainer>
                                     </ChartContainer>
                                 )}
@@ -787,56 +692,98 @@ export function AbonosReporte() {
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Vencimientos proximos</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Vencimientos próximos</CardTitle>
+                            <p className="text-sm text-slate-500 print:text-xs">
+                                Cantidad de abonos próximos a vencer por rango de días.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {isLoading ? (
-                                <Skeleton className="h-40 print:h-28" />
-                            ) : upcomingExpirations.length === 0 ? (
+                                <Skeleton className="h-64 print:h-48" />
+                            ) : expiryBuckets.every((b) => b.count === 0) ? (
                                 <div className="text-sm text-slate-500 print:text-xs">
-                                    No hay abonos por vencer dentro de los proximos 30 dias.
+                                    No hay abonos próximos a vencer.
                                 </div>
                             ) : (
-                                <div className="space-y-2 print:space-y-[6px]">
-                                    {upcomingExpirations.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm print:px-2 print:py-1.5 print:text-xs"
+                                <ChartContainer
+                                    config={{
+                                        count: {
+                                            label: "Cantidad",
+                                            color: "#f59e0b",
+                                        },
+                                    }}
+                                    className="h-[280px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={expiryBuckets}
+                                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                                         >
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-slate-700">{item.titular}</span>
-                                                <span className="text-xs text-slate-500">
-                                                    {item.type} - {item.zone} - #{item.id}
-                                                </span>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm font-medium text-slate-700 print:text-xs">
-                                                    {item.end.toLocaleDateString()}
-                                                </div>
-                                                <div className="text-xs text-slate-500">{item.remaining} dias restantes</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 10 }}
+                                                className="text-slate-600"
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11 }}
+                                                className="text-slate-600"
+                                                label={{ value: "Cantidad", angle: -90, position: "insideLeft", style: { fontSize: 12 } }}
+                                            />
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value) => [
+                                                            `${value} abonos`,
+                                                            "Total",
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                            <Bar
+                                                dataKey="count"
+                                                radius={[4, 4, 0, 0]}
+                                                fill="#f59e0b"
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
 
                     <Card className="print:shadow-none">
                         <CardHeader className="pb-3 print:py-2 print:pb-1">
-                            <CardTitle className="text-base print:text-sm">Insights automaticos</CardTitle>
+                            <CardTitle className="text-base print:text-sm">Resumen del reporte</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-0 print:pt-1 print:pb-0">
                             {isLoading ? (
                                 <Skeleton className="h-24 print:h-16" />
-                            ) : insights.length ? (
-                                <ul className="list-disc space-y-1 pl-5 text-sm print:space-y-[6px] print:text-xs">
-                                    {insights.map((text, idx) => (
-                                        <li key={idx}>{text}</li>
-                                    ))}
-                                </ul>
                             ) : (
-                                <div className="text-sm text-slate-500 print:text-xs">No se generaron insights para el periodo indicado.</div>
+                                <ul className="space-y-2 text-sm print:space-y-1 print:text-xs">
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Total de abonos activos: <strong>{currentAbonos.length}</strong></span>
+                                    </li>
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Ingresos por abonos: <strong>{formatCurrency(revenueCurrent)}</strong></span>
+                                    </li>
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Nuevas altas: <strong>{newAbonosCurrent.length}</strong></span>
+                                    </li>
+                                    <li className="flex gap-2">
+                                        <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                        <span>Renovaciones: <strong>{renewalsCurrent}</strong></span>
+                                    </li>
+                                    {topType && (
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-500 font-bold print:text-blue-600">•</span>
+                                            <span>Tipo principal: <strong>{topType}</strong></span>
+                                        </li>
+                                    )}
+                                </ul>
                             )}
                         </CardContent>
                     </Card>
