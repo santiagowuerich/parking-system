@@ -6,7 +6,6 @@ import { ReporteCard } from "./components/reporte-card";
 import { ReporteModal } from "./components/reporte-modal";
 import {
     BarChart3,
-    Clock,
     Activity,
     DollarSign,
     CreditCard,
@@ -16,7 +15,6 @@ import {
 // Import report components
 import { OcupacionReporte } from "./components/reportes/operativos/ocupacion-reporte";
 import { MovimientosReporte } from "./components/reportes/operativos/movimientos-reporte";
-import { TurnosReporte } from "./components/reportes/operativos/turnos-reporte";
 import { IngresosReporte } from "./components/reportes/economicos/ingresos-reporte";
 import { MediosPagoReporte } from "./components/reportes/economicos/medios-pago-reporte";
 import { AbonosReporte } from "./components/reportes/economicos/abonos-reporte";
@@ -24,7 +22,6 @@ import { AbonosReporte } from "./components/reportes/economicos/abonos-reporte";
 type ReporteType =
     | "ocupacion"
     | "movimientos"
-    | "turnos"
     | "ingresos"
     | "medios-pago"
     | "abonos"
@@ -49,10 +46,6 @@ export default function ReportesPage() {
         movimientos: {
             titulo: "Movimientos Diarios",
             component: <MovimientosReporte />
-        },
-        turnos: {
-            titulo: "Desempeño de Turnos",
-            component: <TurnosReporte />
         },
         ingresos: {
             titulo: "Ingresos por Período",
@@ -89,14 +82,6 @@ export default function ReportesPage() {
                             description="Registro de entradas y salidas con tiempos de permanencia."
                             onClick={() => abrirReporte("movimientos")}
                             color="green"
-                        />
-
-                        <ReporteCard
-                            icon={Clock}
-                            title="Desempeño de Turnos"
-                            description="Rendimiento de playeros y eficiencia operativa por turno."
-                            onClick={() => abrirReporte("turnos")}
-                            color="purple"
                         />
 
                         <ReporteCard
