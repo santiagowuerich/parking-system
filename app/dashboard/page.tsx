@@ -19,7 +19,6 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import type { VehicleType } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
-import { createBrowserClient } from "@supabase/ssr";
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -148,22 +147,18 @@ export default function DashboardPage() {
             }
 
             try {
-                const supabase = createBrowserClient(
-                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-                );
+                const response = await fetch(`/api/pagos?est_id=${estId}`);
+                const data = await response.json();
 
-                const { data, error } = await supabase
-                    .from('vw_historial_estacionamiento')
-                    .select('*')
-                    .eq('est_id', estId)
-                    .order('exit_time', { ascending: false });
+                // El endpoint ya devuelve los datos en el formato correcto
+                // con exit_time y fee, e incluye todos los tipos de pago
+                // (ocupación, abonos, reservas)
+                const pagos = Array.isArray(data.history) ? data.history : (data || []);
 
-                if (error) throw error;
-
-                setHistory(data || []);
+                setHistory(pagos);
             } catch (error) {
                 console.error("Error al cargar historial:", error);
+                setHistory([]);
             } finally {
                 setLoading(false);
             }
