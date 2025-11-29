@@ -61,6 +61,8 @@ export async function GET(request: NextRequest) {
       query = query.eq('est_id', estId);
     }
 
+    query = query.eq('pag_estado', 'completado');
+
     logger.debug(`Ejecutando query de pagos para est_id: ${estId}`);
     const { data, error } = await query;
 

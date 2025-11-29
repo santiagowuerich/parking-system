@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DateRange } from "react-day-picker";
 import { useAuth } from "@/lib/auth-context";
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, PieChart, Cell } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -941,41 +941,54 @@ export function OcupacionReporte() {
                                 Porcentaje por Tiempo de estadia
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-0 print:pt-1 print:pb-0">
+                        <CardContent className="pt-0 print:pt-1 print:pb-2">
                             {loading ? (
-                                <Skeleton className="h-40 print:h-28" />
+                                <Skeleton className="h-64 print:h-48" />
                             ) : (
-                                <div className="grid grid-cols-4 gap-4 print:gap-2">
-                                    {[
-                                        { label: "0-1h", data: calculations.stayDistribution.a },
-                                        { label: "1-3h", data: calculations.stayDistribution.b },
-                                        { label: "3-6h", data: calculations.stayDistribution.c },
-                                        { label: ">6h", data: calculations.stayDistribution.d },
-                                    ].map((bucket, idx) => (
-                                        <div key={idx} className="text-center">
-                                            <div className="flex h-32 items-end justify-center rounded-lg bg-slate-100 print:h-20 relative">
-                                                <div
-                                                    className="w-full rounded-lg bg-emerald-500 flex items-center justify-center"
-                                                    style={{ height: `${Math.max(bucket.data.percent, 5)}%` }}
-                                                >
-                                                    {bucket.data.percent > 0 && (
-                                                        <span className="text-white font-bold text-sm print:text-xs">
-                                                            {bucket.data.percent}%
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 space-y-0.5 print:mt-1 print:space-y-0">
-                                                <div className="text-sm font-medium text-slate-700 print:text-xs">
-                                                    {bucket.label}
-                                                </div>
-                                                <div className="text-xs text-slate-500 print:text-[10px]">
-                                                    {bucket.data.count} vehículos
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <ChartContainer
+                                    config={{
+                                        percentage: {
+                                            label: "Porcentaje",
+                                            color: "#3b82f6",
+                                        },
+                                    }}
+                                    className="h-[320px] w-full"
+                                >
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: "0-1h", value: calculations.stayDistribution.a.percent, count: calculations.stayDistribution.a.count },
+                                                    { name: "1-3h", value: calculations.stayDistribution.b.percent, count: calculations.stayDistribution.b.count },
+                                                    { name: "3-6h", value: calculations.stayDistribution.c.percent, count: calculations.stayDistribution.c.count },
+                                                    { name: ">6h", value: calculations.stayDistribution.d.percent, count: calculations.stayDistribution.d.count },
+                                                ]}
+                                                cx="50%"
+                                                cy="50%"
+                                                labelLine={true}
+                                                label={({ name, value }) => `${name}: ${value}%`}
+                                                outerRadius={100}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#3b82f6" />
+                                                <Cell fill="#f59e0b" />
+                                                <Cell fill="#ef4444" />
+                                            </Pie>
+                                            <ChartTooltip
+                                                content={
+                                                    <ChartTooltipContent
+                                                        formatter={(value, name, props) => [
+                                                            `${value}% (${props.payload.count} vehículos)`,
+                                                            props.payload.name,
+                                                        ]}
+                                                    />
+                                                }
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
                             )}
                         </CardContent>
                     </Card>
