@@ -12,9 +12,11 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExtenderAbonoDialog } from "@/components/abonos/extender-abono-dialog";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
@@ -39,7 +41,8 @@ export default function ServiciosAbonosPage() {
     const [abonos, setAbonos] = useState<Abono[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [mostrarVencidos, setMostrarVencidos] = useState(false);
+    const [fechaDesde, setFechaDesde] = useState<Date | undefined>();
+    const [fechaHasta, setFechaHasta] = useState<Date | undefined>();
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const [abonoDialog, setAbonoDialog] = useState<any | null>(null);
@@ -50,8 +53,8 @@ export default function ServiciosAbonosPage() {
     const cargarAbonos = async () => {
         try {
             setLoading(true);
-            console.log('🔍 Cargando abonos para estId:', estId, 'Incluir vencidos:', mostrarVencidos);
-            const url = `/api/abonos/list?est_id=${estId}&incluir_vencidos=${mostrarVencidos}`;
+            console.log('🔍 Cargando abonos para estId:', estId);
+            const url = `/api/abonos/list?est_id=${estId}&incluir_vencidos=true`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -70,21 +73,34 @@ export default function ServiciosAbonosPage() {
         }
     };
 
-    // Cargar abonos cuando cambia el estId o mostrarVencidos
+    // Cargar abonos cuando cambia el estId
     useEffect(() => {
         if (estId) {
             cargarAbonos();
         }
-    }, [estId, mostrarVencidos]);
+    }, [estId]);
 
-    // Filtrar abonos por búsqueda (el filtro de vencidos ya lo hace la API)
+    // Filtrar abonos por búsqueda y fecha
     const abonosFiltrados = abonos.filter(abono => {
         const searchLower = searchTerm.toLowerCase();
-        return (
+        const cumpleSearchTerm =
             abono.conductor_nombre.toLowerCase().includes(searchLower) ||
             abono.conductor_apellido.toLowerCase().includes(searchLower) ||
-            abono.conductor_dni.includes(searchTerm)
-        );
+            abono.conductor_dni.includes(searchTerm);
+
+        let cumpleFecha = true;
+        if (fechaDesde) {
+            const fromDate = dayjs(fechaDesde).startOf('day');
+            const fechaInicio = dayjs(abono.fecha_inicio);
+            cumpleFecha = cumpleFecha && (fechaInicio.isAfter(fromDate) || fechaInicio.isSame(fromDate, 'day'));
+        }
+        if (fechaHasta) {
+            const toDate = dayjs(fechaHasta).endOf('day');
+            const fechaInicio = dayjs(abono.fecha_inicio);
+            cumpleFecha = cumpleFecha && (fechaInicio.isBefore(toDate) || fechaInicio.isSame(toDate, 'day'));
+        }
+
+        return cumpleSearchTerm && cumpleFecha;
     });
 
     // Ordenar: SIEMPRE activos primero (por proximidad a vencer), luego vencidos
@@ -143,14 +159,9 @@ export default function ServiciosAbonosPage() {
     return (
         <DashboardLayout>
             <div className="container mx-auto p-6 space-y-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                        <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Abonos del Estacionamiento</h1>
-                        <p className="text-gray-600 dark:text-zinc-400">Gestiona todos los abonos activos del estacionamiento</p>
-                    </div>
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Abonos del Estacionamiento</h1>
+                    <p className="text-gray-600 dark:text-zinc-400">Gestiona todos los abonos activos del estacionamiento</p>
                 </div>
 
                 <Card>
@@ -171,6 +182,57 @@ export default function ServiciosAbonosPage() {
                                         />
                                     </div>
                                 </div>
+
+                                {/* Filtro de fecha desde */}
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="justify-start text-left font-normal"
+                                        >
+                                            <CalendarComponent className="mr-2 h-4 w-4" />
+                                            {fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "Fecha desde"}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={fechaDesde}
+                                            onSelect={(date) => {
+                                                setFechaDesde(date);
+                                                setCurrentPage(1);
+                                            }}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+
+                                {/* Filtro de fecha hasta */}
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="justify-start text-left font-normal"
+                                        >
+                                            <CalendarComponent className="mr-2 h-4 w-4" />
+                                            {fechaHasta ? format(fechaHasta, "PPP", { locale: es }) : "Fecha hasta"}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={fechaHasta}
+                                            onSelect={(date) => {
+                                                setFechaHasta(date);
+                                                setCurrentPage(1);
+                                            }}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+
                                 <Button
                                     variant="outline"
                                     onClick={cargarAbonos}
@@ -182,24 +244,6 @@ export default function ServiciosAbonosPage() {
                                         <RefreshCw className="h-4 w-4" />
                                     )}
                                 </Button>
-                            </div>
-
-                            {/* Checkbox para mostrar vencidos */}
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="mostrar-vencidos"
-                                    checked={mostrarVencidos}
-                                    onCheckedChange={(checked) => {
-                                        setMostrarVencidos(checked as boolean);
-                                        setCurrentPage(1);
-                                    }}
-                                />
-                                <Label
-                                    htmlFor="mostrar-vencidos"
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                >
-                                    Mostrar abonos vencidos
-                                </Label>
                             </div>
                         </div>
                     </CardHeader>

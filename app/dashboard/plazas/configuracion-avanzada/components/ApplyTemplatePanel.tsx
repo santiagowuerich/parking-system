@@ -184,9 +184,8 @@ export const ApplyTemplatePanel: React.FC<ApplyTemplatePanelProps> = ({
                     <Button
                         onClick={handleAplicarPlantilla}
                         disabled={!plantillaSeleccionada || seleccion.size === 0}
-                        className="w-full flex items-center gap-2"
+                        className="w-full"
                     >
-                        <CheckCircle className="h-4 w-4" />
                         Aplicar plantilla
                         {seleccion.size > 0 && ` (${seleccion.size} plazas)`}
                     </Button>
