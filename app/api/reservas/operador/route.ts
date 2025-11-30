@@ -19,28 +19,31 @@ export async function GET(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Usar fecha actual si no se proporciona
-        const fechaConsulta = fecha ? new Date(fecha) : new Date();
-        const fechaInicio = new Date(fechaConsulta.getFullYear(), fechaConsulta.getMonth(), fechaConsulta.getDate());
-        const fechaFin = new Date(fechaInicio.getTime() + (24 * 60 * 60 * 1000));
-
-        console.log(`🔍 Obteniendo reservas del operador: est_id=${estId}, fecha=${fechaInicio.toISOString()}`);
-
-        // Construir query base
+        // Si se proporciona fecha, filtrar por ese día. Si no, mostrar todas las reservas
         let query = supabase
             .from('vw_reservas_detalles')
             .select('*')
-            .eq('est_id', estId)
-            .gte('res_fh_ingreso', fechaInicio.toISOString())
-            .lt('res_fh_ingreso', fechaFin.toISOString());
+            .eq('est_id', estId);
+
+        if (fecha) {
+            const fechaConsulta = new Date(fecha);
+            const fechaInicio = new Date(fechaConsulta.getFullYear(), fechaConsulta.getMonth(), fechaConsulta.getDate());
+            const fechaFin = new Date(fechaInicio.getTime() + (24 * 60 * 60 * 1000));
+
+            console.log(`🔍 Obteniendo reservas del operador: est_id=${estId}, fecha=${fechaInicio.toISOString()}`);
+
+            query = query
+                .gte('res_fh_ingreso', fechaInicio.toISOString())
+                .lt('res_fh_ingreso', fechaFin.toISOString());
+        } else {
+            console.log(`🔍 Obteniendo TODAS las reservas del operador: est_id=${estId}`);
+        }
 
         // Aplicar filtro de estado si se proporciona
         if (estado) {
             query = query.eq('res_estado', estado);
-        } else {
-            // Por defecto, mostrar todas las reservas relevantes para el operador
-            query = query.in('res_estado', ['confirmada', 'activa', 'no_show', 'pendiente_confirmacion_operador']);
         }
+        // Si no se proporciona estado, retornar TODAS las reservas sin filtro
 
         // Ordenar por hora de inicio
         query = query.order('res_fh_ingreso', { ascending: true });
@@ -62,7 +65,7 @@ export async function GET(request: NextRequest) {
                     reservas: [],
                     total: 0,
                     filtros: {
-                        fecha: fechaInicio.toISOString().split('T')[0],
+                        fecha: fecha || undefined,
                         estado: estado || undefined
                     }
                 }
@@ -131,7 +134,7 @@ export async function GET(request: NextRequest) {
                 reservas: reservasFormateadas,
                 total: reservasFormateadas.length,
                 filtros: {
-                    fecha: fechaInicio.toISOString().split('T')[0],
+                    fecha: fecha || undefined,
                     estado: estado || undefined
                 }
             }
