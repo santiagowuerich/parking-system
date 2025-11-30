@@ -5,8 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Calendar, Clock, DollarSign } from "lucide-react";
 import dayjs from "dayjs";
@@ -141,7 +139,7 @@ export default function HistorialTurnos({ isOpen, onClose, estId }: HistorialTur
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Calendar className="h-5 w-5" />
-                        Historial de Turnos
+                        Historial
                     </DialogTitle>
                 </DialogHeader>
 
@@ -174,21 +172,21 @@ export default function HistorialTurnos({ isOpen, onClose, estId }: HistorialTur
                             <Loader2 className="h-6 w-6 animate-spin" />
                         </div>
                     ) : historial.length > 0 ? (
-                        <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead>Horario</TableHead>
-                                        <TableHead>Duración</TableHead>
-                                        <TableHead>Caja</TableHead>
-                                        <TableHead>Fondo Inicial</TableHead>
-                                        <TableHead>Fondo Final</TableHead>
-                                        <TableHead>Diferencia</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
+                        <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                            <table className="w-full bg-white border-collapse">
+                                <thead>
+                                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Horario</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Duración</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fondo Inicial</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fondo Final</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Diferencia</th>
+                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                     {historial.map((turno) => {
                                         const diferencia = calcularDiferenciaCaja(
                                             turno.cajas_empleados[0]?.caj_fondo_inicial || 0,
@@ -196,51 +194,54 @@ export default function HistorialTurnos({ isOpen, onClose, estId }: HistorialTur
                                         );
 
                                         return (
-                                            <TableRow key={turno.tur_id}>
-                                                <TableCell>
+                                            <tr key={turno.tur_id} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
                                                     {dayjs(turno.tur_fecha).format('DD/MM/YYYY')}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="text-sm">
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                    <div>
                                                         <div>{turno.tur_hora_entrada}</div>
                                                         {turno.tur_hora_salida && (
                                                             <div className="text-gray-500">{turno.tur_hora_salida}</div>
                                                         )}
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
                                                     {calcularDuracion(turno.tur_hora_entrada, turno.tur_hora_salida, turno.tur_fecha, turno.tur_fecha_salida)}
-                                                </TableCell>
-                                                <TableCell>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
                                                     {turno.cajas_empleados[0]?.caj_nombre || 'N/A'}
-                                                </TableCell>
-                                                <TableCell>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
                                                     {formatCurrency(turno.cajas_empleados[0]?.caj_fondo_inicial || 0)}
-                                                </TableCell>
-                                                <TableCell>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
                                                     {turno.cajas_empleados[0]?.caj_fondo_final
                                                         ? formatCurrency(turno.cajas_empleados[0].caj_fondo_final)
                                                         : '-'
                                                     }
-                                                </TableCell>
-                                                <TableCell>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm border-r border-gray-300 text-center">
                                                     {diferencia !== null ? (
-                                                        <span className={`font-medium ${diferencia >= 0 ? 'text-green-600' : 'text-red-600'
-                                                            }`}>
+                                                        <span className={`font-medium ${diferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                             {diferencia >= 0 ? '+' : ''}{formatCurrency(diferencia)}
                                                         </span>
                                                     ) : '-'}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={turno.tur_estado === 'activo' ? 'default' : 'secondary'}>
+                                                </td>
+                                                <td className="py-4 px-4 text-sm text-center">
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        turno.tur_estado === 'activo'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-gray-100 text-gray-800'
+                                                    }`}>
                                                         {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
+                                                    </span>
+                                                </td>
+                                            </tr>
                                         );
                                     })}
-                                </TableBody>
-                            </Table>
+                                </tbody>
+                            </table>
                         </div>
                     ) : (
                         <div className="text-center py-8">
