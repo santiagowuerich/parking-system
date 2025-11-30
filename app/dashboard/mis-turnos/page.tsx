@@ -106,7 +106,7 @@ export default function MisTurnosPage() {
 
             const hoy = dayjs();
             const params = new URLSearchParams({
-                play_id: playId.toString(),
+                usu_id: playId.toString(),
                 est_id: estId!.toString(),
                 fecha_desde: hoy.subtract(50, 'year').format('YYYY-MM-DD'),
                 fecha_hasta: hoy.format('YYYY-MM-DD')
