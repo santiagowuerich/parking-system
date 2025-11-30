@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    Calendar,
     Search,
     MapPin,
     Clock,
@@ -25,7 +24,6 @@ import { ReservaConDetalles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import dayjs from 'dayjs';
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const ITEMS_POR_PAGINA = 10;
@@ -35,8 +33,8 @@ export default function ReservasPage() {
     const [reservas, setReservas] = useState<ReservaConDetalles[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [fechaFiltro, setFechaFiltro] = useState('');
-    const [mostrarHistorial, setMostrarHistorial] = useState(false);
+    const [fechaDesde, setFechaDesde] = useState('');
+    const [fechaHasta, setFechaHasta] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
     const cargarReservas = async () => {
@@ -75,12 +73,6 @@ export default function ReservasPage() {
     // Filtrado unificado
     const reservasFiltradas = useMemo(() => {
         return reservas.filter(r => {
-            // Filtrar historial si checkbox no está marcado
-            if (!mostrarHistorial) {
-                const esHistorial = ['completada', 'expirada', 'cancelada', 'no_show'].includes(r.res_estado);
-                if (esHistorial) return false;
-            }
-
             // Filtro de búsqueda
             const cumpleBusqueda = !searchTerm || (
                 r.res_codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -88,13 +80,21 @@ export default function ReservasPage() {
                 `${r.conductor.usu_nom} ${r.conductor.usu_ape}`.toLowerCase().includes(searchTerm.toLowerCase())
             );
 
-            // Filtro de fecha
-            const cumpleFecha = !fechaFiltro ||
-                dayjs(r.res_fh_ingreso).format('YYYY-MM-DD') === fechaFiltro;
+            // Filtro de fecha por rango
+            let cumpleFecha = true;
+            const fechaIngreso = dayjs(r.res_fh_ingreso).format('YYYY-MM-DD');
+
+            if (fechaDesde) {
+                cumpleFecha = cumpleFecha && fechaIngreso >= fechaDesde;
+            }
+
+            if (fechaHasta) {
+                cumpleFecha = cumpleFecha && fechaIngreso <= fechaHasta;
+            }
 
             return cumpleBusqueda && cumpleFecha;
         });
-    }, [reservas, searchTerm, fechaFiltro, mostrarHistorial]);
+    }, [reservas, searchTerm, fechaDesde, fechaHasta]);
 
     const totalPages = Math.ceil(reservasFiltradas.length / ITEMS_POR_PAGINA);
     const startIndex = (currentPage - 1) * ITEMS_POR_PAGINA;
@@ -172,14 +172,9 @@ export default function ReservasPage() {
         <DashboardLayout title="Reservas" description="Gestiona las reservas del estacionamiento">
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reservas del Estacionamiento</h1>
-                        <p className="text-gray-600 dark:text-zinc-400">Gestiona todas las reservas del estacionamiento</p>
-                    </div>
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reservas del Estacionamiento</h1>
+                    <p className="text-gray-600 dark:text-zinc-400">Gestiona todas las reservas del estacionamiento</p>
                 </div>
 
                 {/* Filtros */}
@@ -200,39 +195,38 @@ export default function ReservasPage() {
                                 />
                             </div>
 
-                            {/* Filtro de fecha */}
+                            {/* Filtro de fecha desde */}
                             <div className="flex items-center space-x-2">
-                                <Label htmlFor="fecha-filtro" className="text-sm font-medium whitespace-nowrap">
-                                    Fecha:
+                                <Label htmlFor="fecha-desde" className="text-sm font-medium whitespace-nowrap">
+                                    Desde:
                                 </Label>
                                 <Input
-                                    id="fecha-filtro"
+                                    id="fecha-desde"
                                     type="date"
-                                    value={fechaFiltro}
+                                    value={fechaDesde}
                                     onChange={(e) => {
-                                        setFechaFiltro(e.target.value);
+                                        setFechaDesde(e.target.value);
                                         setCurrentPage(1);
                                     }}
-                                    className="w-48"
+                                    className="w-40"
                                 />
                             </div>
 
-                            {/* Checkbox para mostrar historial */}
+                            {/* Filtro de fecha hasta */}
                             <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="mostrar-historial"
-                                    checked={mostrarHistorial}
-                                    onCheckedChange={(checked) => {
-                                        setMostrarHistorial(checked as boolean);
+                                <Label htmlFor="fecha-hasta" className="text-sm font-medium whitespace-nowrap">
+                                    Hasta:
+                                </Label>
+                                <Input
+                                    id="fecha-hasta"
+                                    type="date"
+                                    value={fechaHasta}
+                                    onChange={(e) => {
+                                        setFechaHasta(e.target.value);
                                         setCurrentPage(1);
                                     }}
+                                    className="w-40"
                                 />
-                                <Label
-                                    htmlFor="mostrar-historial"
-                                    className="text-sm font-medium cursor-pointer whitespace-nowrap"
-                                >
-                                    Incluir historial
-                                </Label>
                             </div>
 
                             {/* Botón refrescar */}
