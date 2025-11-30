@@ -40,11 +40,11 @@ export function useReservas(estId?: number) {
                 // data.data es un array de ReservaConDetalles
                 const reservas = Array.isArray(data.data) ? data.data : [];
 
-                // Para reservas completadas, verificar si todavía están ocupadas
+                // Para reservas confirmadas o completadas, verificar si están ocupadas
                 // Sin necesidad de migración en BD, simplemente consultamos ocupacion
                 const reservasConEstadoActualizado = await Promise.all(
                     reservas.map(async (reserva) => {
-                        if (reserva.res_estado === 'completada' && reserva.res_codigo) {
+                        if ((reserva.res_estado === 'confirmada' || reserva.res_estado === 'completada') && reserva.res_codigo) {
                             try {
                                 // Buscar si hay una ocupación sin salida para esta reserva
                                 const ocupacionResponse = await fetch(

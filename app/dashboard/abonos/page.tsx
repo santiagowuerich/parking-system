@@ -5,15 +5,19 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useUserRole } from "@/lib/use-user-role";
 import { AbonoConductor } from "@/lib/types";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
 import { Search, Loader2, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export default function AbonosPage() {
     const { isDriver, loading: roleLoading } = useUserRole();
@@ -85,17 +89,31 @@ export default function AbonosPage() {
     const endIndex = startIndex + itemsPerPage;
     const abonosPaginados = abonosOrdenados.slice(startIndex, endIndex);
 
-    const getEstadoBadge = (estado: string) => {
+    const getEstadoDisplay = (estado: string) => {
+        let dotColor = 'bg-gray-500';
+        let textColor = 'text-gray-700';
+
         switch (estado) {
             case 'Activo':
-                return <Badge className="bg-green-100 text-green-800 border-green-200">Activo</Badge>;
+                dotColor = 'bg-green-500';
+                textColor = 'text-green-700';
+                break;
             case 'Por vencer':
-                return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Por vencer</Badge>;
+                dotColor = 'bg-yellow-500';
+                textColor = 'text-yellow-700';
+                break;
             case 'Vencido':
-                return <Badge className="bg-red-100 text-red-800 border-red-200">Vencido</Badge>;
-            default:
-                return <Badge>{estado}</Badge>;
+                dotColor = 'bg-red-500';
+                textColor = 'text-red-700';
+                break;
         }
+
+        return (
+            <div className="flex items-center justify-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+                <span className={`text-sm font-medium ${textColor}`}>{estado}</span>
+            </div>
+        );
     };
 
     const getTipoAbono = (tipo: string) => {
@@ -178,40 +196,40 @@ export default function AbonosPage() {
                                         </Alert>
                                     ) : (
                                         <>
-                                            <div className="rounded-md border">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Estacionamiento</TableHead>
-                                                            <TableHead className="hidden md:table-cell">Zona</TableHead>
-                                                            <TableHead>Plaza</TableHead>
-                                                            <TableHead className="hidden md:table-cell">Tipo</TableHead>
-                                                            <TableHead className="hidden md:table-cell">Inicio</TableHead>
-                                                            <TableHead>Vence</TableHead>
-                                                            <TableHead>Restan</TableHead>
-                                                            <TableHead>Aviso</TableHead>
-                                                            <TableHead>Acc</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
+                                            <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                                <table className="w-full bg-white border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estacionamiento</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300 hidden md:table-cell">Zona</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Plaza</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300 hidden md:table-cell">Tipo</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300 hidden md:table-cell">Inicio</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Vence</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Restan</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
+                                                            <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
                                                         {abonosPaginados.map((abono) => (
-                                                            <TableRow key={abono.abo_nro}>
-                                                                <TableCell>
+                                                            <tr key={abono.abo_nro} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300">
                                                                     <div>
                                                                         <div className="font-medium">{abono.estacionamiento_nombre}</div>
                                                                         <div className="text-sm text-gray-500">{abono.estacionamiento_direccion}</div>
                                                                     </div>
-                                                                </TableCell>
-                                                                <TableCell className="hidden md:table-cell">{abono.pla_zona}</TableCell>
-                                                                <TableCell>P{abono.pla_numero.toString().padStart(3, '0')}</TableCell>
-                                                                <TableCell className="hidden md:table-cell">{getTipoAbono(abono.abo_tipoabono)}</TableCell>
-                                                                <TableCell className="hidden md:table-cell">{formatDate(abono.abo_fecha_inicio)}</TableCell>
-                                                                <TableCell>{formatDate(abono.abo_fecha_fin)}</TableCell>
-                                                                <TableCell>
+                                                                </td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center hidden md:table-cell">{abono.pla_zona}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">P{abono.pla_numero.toString().padStart(3, '0')}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center hidden md:table-cell">{getTipoAbono(abono.abo_tipoabono)}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center hidden md:table-cell">{formatDate(abono.abo_fecha_inicio)}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{formatDate(abono.abo_fecha_fin)}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
                                                                     <span className="font-medium">{abono.dias_restantes} días</span>
-                                                                </TableCell>
-                                                                <TableCell>{getEstadoBadge(abono.estado)}</TableCell>
-                                                                <TableCell>
+                                                                </td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{getEstadoDisplay(abono.estado)}</td>
+                                                                <td className="py-4 px-4 text-sm text-gray-800 text-center">
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
@@ -219,11 +237,11 @@ export default function AbonosPage() {
                                                                     >
                                                                         Ver detalle
                                                                     </Button>
-                                                                </TableCell>
-                                                            </TableRow>
+                                                                </td>
+                                                            </tr>
                                                         ))}
-                                                    </TableBody>
-                                                </Table>
+                                                    </tbody>
+                                                </table>
                                             </div>
 
                                             {/* Paginación */}

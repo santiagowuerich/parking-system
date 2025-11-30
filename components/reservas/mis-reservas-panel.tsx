@@ -402,7 +402,7 @@ export function MisReservasPanel() {
                             No tienes reservas vigentes. ¡Crea una ahora!
                         </div>
                     ) : (
-                        <div className="grid gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {misReservasVigentes.map((reserva) => (
                                 <ReservaCard key={`${reserva.res_codigo}-${reserva.res_fh_ingreso}`} reserva={reserva} />
                             ))}
@@ -416,7 +416,7 @@ export function MisReservasPanel() {
                             No tienes historial de reservas
                         </div>
                     ) : (
-                        <div className="grid gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {reservasHistorial.map((reserva) => (
                                 <ReservaCard key={`${reserva.res_codigo}-${reserva.res_fh_ingreso}`} reserva={reserva} />
                             ))}

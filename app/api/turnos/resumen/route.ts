@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
             .select(`
                 tur_id,
                 tur_fecha,
+                tur_fecha_salida,
                 tur_hora_entrada,
                 tur_hora_salida,
                 tur_estado,
@@ -62,11 +63,12 @@ export async function GET(request: NextRequest) {
         const fechaTurno = turno.tur_fecha;
         const horaInicio = turno.tur_hora_entrada;
         const horaFin = turno.tur_hora_salida;
+        const fechaSalida = turno.tur_fecha_salida || turno.tur_fecha;
 
         // Crear timestamps en formato ISO completo con timezone
         const timestampInicio = dayjs.tz(`${fechaTurno} ${horaInicio}`, 'America/Argentina/Buenos_Aires').toISOString();
         const timestampFin = horaFin
-            ? dayjs.tz(`${fechaTurno} ${horaFin}`, 'America/Argentina/Buenos_Aires').toISOString()
+            ? dayjs.tz(`${fechaSalida} ${horaFin}`, 'America/Argentina/Buenos_Aires').toISOString()
             : dayjs().tz('America/Argentina/Buenos_Aires').toISOString();
 
         logger.info(`Buscando movimientos entre ${timestampInicio} y ${timestampFin}`);

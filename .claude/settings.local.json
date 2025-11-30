@@ -4,7 +4,8 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nEliminar reporte de desempeño de turnos\n\n- Remover componente TurnosReporte\n- Eliminar tarjeta del reporte en página de reportes\n- Remover imports innecesarios (Clock icon)\n- Actualizar tipos de ReporteType\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git commit:*)",
       "Bash(pwsh:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
