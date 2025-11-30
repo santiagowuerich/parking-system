@@ -178,7 +178,7 @@ export default function ReservasPage() {
 
     return (
         <DashboardLayout title="Reservas" description="Gestiona las reservas del estacionamiento">
-            <div className="space-y-6">
+            <div className="container mx-auto p-6 space-y-6">
                 {/* Header */}
                 <div className="space-y-2">
                     <h1 className="text-3xl font-bold text-gray-900">Reservas del Estacionamiento</h1>
