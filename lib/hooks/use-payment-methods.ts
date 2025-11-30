@@ -48,11 +48,10 @@ export function usePaymentMethods(estId: number | null) {
         if (!estId) throw new Error('Estacionamiento no disponible');
 
         try {
-            const response = await fetch('/api/payment/methods', {
+            const response = await fetch(`/api/payment/methods?est_id=${estId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    est_id: estId,
                     method: methodName,
                     enabled
                 }),

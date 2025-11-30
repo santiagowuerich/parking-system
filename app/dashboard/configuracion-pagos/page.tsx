@@ -282,34 +282,88 @@ export default function ConfiguracionPagosPage() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {paymentMethods.map((method) => (
-                                        <div key={method.method} className="flex items-center justify-between p-4 border rounded-lg">
-                                            <div className="flex items-center gap-3">
-                                                {method.method === 'Efectivo' && <Banknote className="h-5 w-5 text-green-600" />}
-                                                {method.method === 'Transferencia' && <Wallet className="h-5 w-5 text-blue-600" />}
-                                                {method.method === 'QR' && <QrCode className="h-5 w-5 text-purple-600" />}
-                                                {method.method === 'Link de Pago' && <Link className="h-5 w-5 text-orange-600" />}
-                                                <div>
-                                                    <p className="font-medium">{method.method}</p>
-                                                    <p className="text-sm text-gray-500">{method.description}</p>
-                                                </div>
+                                <div className="space-y-4">
+                                    {/* EFECTIVO - Siempre habilitado, sin toggle */}
+                                    <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50">
+                                        <div className="flex items-center gap-3">
+                                            <Banknote className="h-5 w-5 text-green-600" />
+                                            <div>
+                                                <p className="font-medium">Efectivo</p>
+                                                <p className="text-sm text-gray-500">Pago en efectivo</p>
                                             </div>
-                                            <Switch
-                                                checked={method.enabled}
-                                                onCheckedChange={() => handleTogglePaymentMethod(method.method)}
-                                                disabled={methodsLoading || ((method.method === 'QR' || method.method === 'Link de Pago') && !hasMercadoPagoKey)}
-                                            />
                                         </div>
-                                    ))}
-                                </div>
-                                {!hasMercadoPagoKey && (
-                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <p className="text-sm text-yellow-800">
-                                            ⚠️ Para habilitar QR y Link de Pago, primero configura tu API Key de MercadoPago en la sección de configuraciones.
-                                        </p>
+                                        <Badge className="bg-green-600">Siempre activo</Badge>
                                     </div>
-                                )}
+
+                                    {/* TRANSFERENCIA */}
+                                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <Wallet className="h-5 w-5 text-blue-600" />
+                                            <div>
+                                                <p className="font-medium">Transferencia</p>
+                                                <p className="text-sm text-gray-500">Transferencia bancaria</p>
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            checked={paymentMethods.find(m => m.method === 'Transferencia')?.enabled || false}
+                                            onCheckedChange={() => {
+                                                if (!userSettings.bankAccountHolder || !userSettings.bankAccountCbu) {
+                                                    toast({
+                                                        variant: "destructive",
+                                                        title: "Datos incompletos",
+                                                        description: "Configura los datos bancarios antes de habilitar Transferencia"
+                                                    });
+                                                    return;
+                                                }
+                                                handleTogglePaymentMethod('Transferencia');
+                                            }}
+                                            disabled={methodsLoading}
+                                        />
+                                    </div>
+
+                                    {/* MERCADOPAGO (QR + Link de Pago) */}
+                                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <QrCode className="h-5 w-5 text-purple-600" />
+                                            <div>
+                                                <p className="font-medium">MercadoPago (QR + Link de Pago)</p>
+                                                <p className="text-sm text-gray-500">Código QR y enlace de pago</p>
+                                            </div>
+                                        </div>
+                                        <Switch
+                                            checked={paymentMethods.find(m => m.method === 'QR')?.enabled || false}
+                                            onCheckedChange={() => {
+                                                if (!hasMercadoPagoKey) {
+                                                    toast({
+                                                        variant: "destructive",
+                                                        title: "API Key requerida",
+                                                        description: "Configura tu API Key de MercadoPago antes de habilitar"
+                                                    });
+                                                    return;
+                                                }
+                                                handleTogglePaymentMethod('QR');
+                                            }}
+                                            disabled={methodsLoading}
+                                        />
+                                    </div>
+
+                                    {/* ADVERTENCIAS */}
+                                    {!userSettings.bankAccountHolder && (
+                                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <p className="text-sm text-yellow-800">
+                                                ⚠️ Para habilitar Transferencia, configura tus datos bancarios en la sección de configuraciones.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {!hasMercadoPagoKey && (
+                                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <p className="text-sm text-yellow-800">
+                                                ⚠️ Para habilitar MercadoPago (QR y Link de Pago), configura tu API Key en la sección de configuraciones.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
 

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     console.log(`📊 Estacionamiento ${estId}: ${acceptedMethods?.length || 0} métodos configurados`);
     console.log(`📋 Métodos configurados: ${Array.from(acceptedSet).join(', ') || 'NINGUNO'}`);
 
-    // Crear lista de métodos asegurando que estén todos los 4 métodos
+    // Crear lista de métodos
     const defaultMethods = [
       { method: 'Efectivo', description: 'Pago en efectivo' },
       { method: 'Transferencia', description: 'Transferencia bancaria' },
@@ -51,15 +51,16 @@ export async function GET(request: NextRequest) {
       { method: 'Link de Pago', description: 'Enlace de pago generado' }
     ];
 
-    // Combinar métodos de BD con métodos por defecto, dando prioridad a BD
+    // Combinar métodos de BD con métodos por defecto
     const methodsMap = new Map();
 
     // Si no hay métodos aceptados configurados, habilitar todos por defecto
     const hasAnyAccepted = acceptedSet.size > 0;
+    const mercadoPagoEnabled = acceptedSet.has('MercadoPago');
 
-    // Primero agregar métodos de BD
+    // Primero agregar métodos de BD (excluyendo MercadoPago que lo procesamos especialmente)
     (allMethods || []).forEach(method => {
-      if (method.mepa_metodo !== 'MercadoPago') { // Excluir MercadoPago ya que QR lo reemplaza
+      if (method.mepa_metodo !== 'MercadoPago') {
         methodsMap.set(method.mepa_metodo, {
           method: method.mepa_metodo,
           description: method.mepa_descripcion,
@@ -71,14 +72,19 @@ export async function GET(request: NextRequest) {
     // Agregar métodos por defecto si no existen
     defaultMethods.forEach(defaultMethod => {
       if (!methodsMap.has(defaultMethod.method)) {
-        // Si no hay métodos aceptados configurados, habilitar por defecto
-        const hasAnyAccepted = acceptedSet.size > 0;
-        methodsMap.set(defaultMethod.method, {
-          ...defaultMethod,
-          enabled: hasAnyAccepted ?
-            acceptedSet.has(defaultMethod.method === 'QR' ? 'MercadoPago' : defaultMethod.method) :
-            true // Habilitar por defecto si no hay configuración
-        });
+        // QR y Link de Pago dependen de MercadoPago
+        if (defaultMethod.method === 'QR' || defaultMethod.method === 'Link de Pago') {
+          methodsMap.set(defaultMethod.method, {
+            ...defaultMethod,
+            enabled: hasAnyAccepted ? mercadoPagoEnabled : true
+          });
+        } else {
+          // Otros métodos
+          methodsMap.set(defaultMethod.method, {
+            ...defaultMethod,
+            enabled: hasAnyAccepted ? acceptedSet.has(defaultMethod.method) : true
+          });
+        }
       }
     });
 
@@ -170,107 +176,55 @@ export async function POST(request: NextRequest) {
     const { method, enabled } = await request.json();
     const { supabase, response } = createClient(request);
     const url = new URL(request.url);
-    const estId = Number(url.searchParams.get('est_id')) || 1;
+    const estId = Number(url.searchParams.get('est_id'));
+
+    console.log(`🔄 POST /api/payment/methods - estId: ${estId}, method: ${method}, enabled: ${enabled}`);
+
+    if (!estId || estId <= 0) {
+      return NextResponse.json({ error: "ID de estacionamiento inválido" }, { status: 400 });
+    }
 
     if (!method) {
       return NextResponse.json({ error: "Método de pago requerido" }, { status: 400 });
     }
 
-    // Manejar métodos según su tipo
-    if (method === 'QR') {
-      // QR está ligado a MercadoPago
-      const dbMethod = 'MercadoPago';
-      if (enabled) {
-        const { error: insertError } = await supabase
-          .from("est_acepta_metodospago")
-          .upsert({
-            est_id: estId,
-            mepa_metodo: dbMethod
-          }, {
-            onConflict: 'est_id,mepa_metodo'
-          });
+    // Mapear métodos del frontend a BD
+    let dbMethod = method;
+    if (method === 'QR' || method === 'Link de Pago') {
+      dbMethod = 'MercadoPago';
+    }
 
-        if (insertError) {
-          console.error("Error habilitando MercadoPago para QR:", insertError);
-          return NextResponse.json({ error: insertError.message }, { status: 500 });
-        }
-      } else {
-        const { error: deleteError } = await supabase
-          .from("est_acepta_metodospago")
-          .delete()
-          .eq("est_id", estId)
-          .eq("mepa_metodo", dbMethod);
+    if (enabled) {
+      // Habilitar método
+      const { error: insertError } = await supabase
+        .from("est_acepta_metodospago")
+        .upsert({
+          est_id: estId,
+          mepa_metodo: dbMethod
+        }, {
+          onConflict: 'est_id,mepa_metodo'
+        });
 
-        if (deleteError) {
-          console.error("Error deshabilitando MercadoPago para QR:", deleteError);
-          return NextResponse.json({ error: deleteError.message }, { status: 500 });
-        }
+      if (insertError) {
+        console.error(`Error habilitando método ${method}:`, insertError);
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
-    } else if (method === 'Link de Pago') {
-      // Link de Pago está ligado a MercadoPago también
-      const dbMethod = 'MercadoPago';
-      if (enabled) {
-        const { error: insertError } = await supabase
-          .from("est_acepta_metodospago")
-          .upsert({
-            est_id: estId,
-            mepa_metodo: dbMethod
-          }, {
-            onConflict: 'est_id,mepa_metodo'
-          });
 
-        if (insertError) {
-          console.error("Error habilitando MercadoPago para Link de Pago:", insertError);
-          return NextResponse.json({ error: insertError.message }, { status: 500 });
-        }
-      } else {
-        // Solo deshabilitar si tanto QR como Link de Pago están deshabilitados
-        const { data: currentMethods } = await supabase
-          .from("est_acepta_metodospago")
-          .select("mepa_metodo")
-          .eq("est_id", estId)
-          .eq("mepa_metodo", dbMethod);
-
-        if (currentMethods && currentMethods.length > 0) {
-          // Verificar si QR también está habilitado
-          const { data: qrEnabled } = await supabase
-            .from("est_acepta_metodospago")
-            .select("mepa_metodo")
-            .eq("est_id", estId)
-            .eq("mepa_metodo", 'MercadoPago');
-
-          // Solo deshabilitar MercadoPago si QR también está siendo deshabilitado
-          // Por ahora, mantener habilitado si QR está activo
-        }
-      }
+      console.log(`✅ Método ${method} habilitado para estId ${estId}`);
     } else {
-      // Método normal (Efectivo, Transferencia)
-      if (enabled) {
-        const { error: insertError } = await supabase
-          .from("est_acepta_metodospago")
-          .upsert({
-            est_id: estId,
-            mepa_metodo: method
-          }, {
-            onConflict: 'est_id,mepa_metodo'
-          });
+      // Deshabilitar método
+      const { error: deleteError } = await supabase
+        .from("est_acepta_metodospago")
+        .delete()
+        .eq("est_id", estId)
+        .eq("mepa_metodo", dbMethod);
 
-        if (insertError) {
-          console.error("Error habilitando método:", insertError);
-          return NextResponse.json({ error: insertError.message }, { status: 500 });
-        }
-      } else {
-        const { error: deleteError } = await supabase
-          .from("est_acepta_metodospago")
-          .delete()
-          .eq("est_id", estId)
-          .eq("mepa_metodo", method);
-
-        if (deleteError) {
-          console.error("Error deshabilitando método:", deleteError);
-          return NextResponse.json({ error: deleteError.message }, { status: 500 });
-        }
+      if (deleteError) {
+        console.error(`Error deshabilitando método ${method}:`, deleteError);
+        return NextResponse.json({ error: deleteError.message }, { status: 500 });
       }
+
+      console.log(`✅ Método ${method} deshabilitado para estId ${estId}`);
     }
 
     const jsonResponse = NextResponse.json({
