@@ -6,14 +6,6 @@ import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import { Calendar, Search, RefreshCw, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DetalleReservaDialog } from "@/components/reservas/detalle-reserva-dialog";
@@ -265,127 +257,126 @@ export default function GestionReservasPage() {
                                     </div>
                                 </CardHeader>
                                 <CardContent>
-                                    {loading ? (
-                                        <div className="flex items-center justify-center py-12">
-                                            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                                            <span className="ml-2 text-gray-600">Cargando reservas...</span>
-                                        </div>
-                                    ) : reservasPaginadas.length === 0 ? (
-                                        <Alert>
-                                            <AlertDescription>
-                                                {searchTerm ? 'No se encontraron reservas con ese criterio de búsqueda.' : 'No hay reservas para la fecha seleccionada.'}
-                                            </AlertDescription>
-                                        </Alert>
-                                    ) : (
-                                        <>
-                                            <div className="rounded-md border">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Código</TableHead>
-                                                            <TableHead>Hora reservada</TableHead>
-                                                            <TableHead>Hora ingresada</TableHead>
-                                                            <TableHead>Plaza</TableHead>
-                                                            <TableHead>Conductor</TableHead>
-                                                            <TableHead>Vehículo</TableHead>
-                                                            <TableHead>Estado</TableHead>
-                                                            <TableHead>Monto</TableHead>
-                                                            <TableHead className="text-right">Acciones</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {reservasPaginadas.map((reserva) => (
-                                                            <TableRow key={reserva.res_codigo}>
-                                                                <TableCell className="font-mono font-medium">{reserva.res_codigo}</TableCell>
-                                                                <TableCell>
-                                                                    <div className="text-sm">
-                                                                        {formatearFecha(reserva.res_fh_ingreso)}
-                                                                    </div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                        {formatearHora(reserva.res_fh_ingreso)}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    {reserva.ocu_fh_entrada ? (
-                                                                        <div>
-                                                                            <div className="text-sm font-medium text-green-600">
-                                                                                {formatearFecha(reserva.ocu_fh_entrada)}
-                                                                            </div>
-                                                                            <div className="text-xs text-green-500">
-                                                                                {formatearHora(reserva.ocu_fh_entrada)}
-                                                                            </div>
+                                    <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                        <table className="w-full bg-white border-collapse">
+                                            <thead>
+                                                <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Código</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora reservada</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora ingresada</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Plaza</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Conductor</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Vehículo</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Monto</th>
+                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {loading ? (
+                                                    <tr>
+                                                        <td colSpan={9} className="py-12 text-center">
+                                                            <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-400" />
+                                                        </td>
+                                                    </tr>
+                                                ) : reservasPaginadas.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={9} className="py-12 text-center text-gray-500">
+                                                            {searchTerm ? 'No se encontraron reservas con ese criterio de búsqueda.' : 'No hay reservas para la fecha seleccionada.'}
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    reservasPaginadas.map((reserva) => (
+                                                        <tr key={reserva.res_codigo} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-mono font-medium text-center">{reserva.res_codigo}</td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                                <div className="text-sm">
+                                                                    {formatearFecha(reserva.res_fh_ingreso)}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {formatearHora(reserva.res_fh_ingreso)}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                                {reserva.ocu_fh_entrada ? (
+                                                                    <div>
+                                                                        <div className="text-sm font-medium text-green-600">
+                                                                            {formatearFecha(reserva.ocu_fh_entrada)}
                                                                         </div>
-                                                                    ) : (
-                                                                        <Badge variant="outline" className="text-gray-500">
-                                                                            No ingresó
-                                                                        </Badge>
-                                                                    )}
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    <div className="text-sm">
-                                                                        {reserva.pla_zona}
+                                                                        <div className="text-xs text-green-500">
+                                                                            {formatearHora(reserva.ocu_fh_entrada)}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                        Plaza {reserva.pla_numero}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    <div className="text-sm font-medium">
-                                                                        {reserva.conductor_nombre} {reserva.conductor_apellido}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    <div className="text-sm">
-                                                                        {reserva.vehiculo_marca} {reserva.vehiculo_modelo}
-                                                                    </div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                        {reserva.veh_patente}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell>{getEstadoBadge(reserva.res_estado)}</TableCell>
-                                                                <TableCell>${reserva.res_monto?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                                                <TableCell className="text-right">
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        onClick={() => setDetalleReservaDialog(reserva.res_codigo)}
-                                                                    >
-                                                                        Detalles
-                                                                    </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-gray-500">
+                                                                        No ingresó
+                                                                    </Badge>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                                <div className="text-sm">
+                                                                    {reserva.pla_zona}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    Plaza {reserva.pla_numero}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-medium text-center">
+                                                                {reserva.conductor_nombre} {reserva.conductor_apellido}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                                <div className="text-sm">
+                                                                    {reserva.vehiculo_marca} {reserva.vehiculo_modelo}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {reserva.veh_patente}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{getEstadoBadge(reserva.res_estado)}</td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-semibold text-center">${reserva.res_monto?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                            <td className="py-4 px-4 text-sm text-gray-800 text-center">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setDetalleReservaDialog(reserva.res_codigo)}
+                                                                >
+                                                                    Detalles
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                                            {/* Paginación */}
-                                            <div className="flex items-center justify-between mt-4">
-                                                <p className="text-sm text-gray-600">
-                                                    Mostrando {startIndex + 1}-{Math.min(endIndex, reservasOrdenadas.length)} de {reservasOrdenadas.length}
-                                                </p>
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                        disabled={currentPage === 1}
-                                                    >
-                                                        <ChevronLeft className="h-4 w-4" />
-                                                        Anterior
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                        disabled={currentPage === totalPages}
-                                                    >
-                                                        Siguiente
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                    {/* Paginación */}
+                                    {!loading && reservasPaginadas.length > 0 && (
+                                        <div className="flex items-center justify-between mt-4">
+                                            <p className="text-sm text-gray-600">
+                                                Mostrando {startIndex + 1}-{Math.min(endIndex, reservasOrdenadas.length)} de {reservasOrdenadas.length}
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    Anterior
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={currentPage === totalPages}
+                                                >
+                                                    Siguiente
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                        </>
+                                        </div>
                                     )}
                                 </CardContent>
                             </Card>
