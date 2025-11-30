@@ -280,7 +280,7 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                                     {data.estadisticas.cobros_por_metodo.mercadopago.cantidad > 0 && (
                                         <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
                                             <div>
-                                                <span className="font-medium">QR/MercadoPago</span>
+                                                <span className="font-medium">Mercado Pago</span>
                                                 <span className="text-sm text-gray-600 ml-2">
                                                     ({data.estadisticas.cobros_por_metodo.mercadopago.cantidad} cobros)
                                                 </span>
@@ -301,17 +301,6 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                                             <span className="font-bold text-purple-600">
                                                 ${data.estadisticas.cobros_por_metodo.link_pago.monto.toLocaleString('es-AR')}
                                             </span>
-                                        </div>
-                                    )}
-                                    {data.estadisticas.abonos_count > 0 && (
-                                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                                            <div>
-                                                <span className="font-medium">Abono</span>
-                                                <span className="text-sm text-gray-600 ml-2">
-                                                    ({data.estadisticas.abonos_count} ingresos)
-                                                </span>
-                                            </div>
-                                            <span className="font-medium text-gray-600">Sin cobro</span>
                                         </div>
                                     )}
                                     <Separator />
