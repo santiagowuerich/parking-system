@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
                     res_fh_fin: reserva.res_fh_fin,
                     con_id: reserva.con_id,
                     pag_nro: reserva.pag_nro,
-                    res_estado: reserva.estado_calculado || reserva.res_estado,
+                    res_estado: reserva.res_estado,
                     res_monto: reserva.res_monto,
                     res_tiempo_gracia_min: reserva.res_tiempo_gracia_min,
                     res_created_at: reserva.res_created_at,
