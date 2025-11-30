@@ -58,12 +58,25 @@ export async function GET(request: NextRequest) {
                 .eq('est_id', r.est_id)
                 .single();
 
+            // Verificar si el vehículo está estacionado (para reservas confirmadas o activas)
+            let enEstacionamiento = false;
+            if (r.res_estado === 'confirmada' || r.res_estado === 'activa') {
+                const { data: ocupacion } = await supabase
+                    .from('vw_ocupacion_actual')
+                    .select('ocu_id')
+                    .eq('res_codigo', r.res_codigo)
+                    .maybeSingle();
+
+                enEstacionamiento = !!ocupacion;
+            }
+
             return {
                 ...r,
                 conductor: conductor || { usu_nom: 'N/A', usu_ape: 'N/A', usu_tel: 'N/A', usu_email: 'N/A' },
                 vehiculo: vehiculo || { veh_patente: r.veh_patente || 'N/A', veh_marca: 'N/A', veh_modelo: 'N/A', veh_color: 'N/A' },
                 plaza: plaza || { pla_zona: 'N/A', catv_segmento: 'N/A' },
-                estacionamiento: estacionamiento || { est_nombre: 'N/A', est_direc: 'N/A', est_telefono: 'N/A', est_email: 'N/A' }
+                estacionamiento: estacionamiento || { est_nombre: 'N/A', est_direc: 'N/A', est_telefono: 'N/A', est_email: 'N/A' },
+                enEstacionamiento
             };
         }));
 

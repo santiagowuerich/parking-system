@@ -410,6 +410,7 @@ export interface ReservaConDetalles extends Reserva {
     ocu_fh_salida: string | null;
   } | null;
   vehiculos?: VehiculoDB[]; // Todos los vehículos del conductor
+  enEstacionamiento?: boolean; // Indica si el vehículo está actualmente estacionado (para reservas confirmadas o activas)
 }
 
 export interface PlazaDisponible {
