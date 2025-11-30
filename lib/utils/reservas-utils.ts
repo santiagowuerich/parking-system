@@ -167,9 +167,9 @@ export function obtenerEstadoReservaVisual(
         }
     }
 
-    // NUEVO: Si es completada pero el vehículo todavía está estacionado (sin salida registrada)
-    // mostrar como "En Estacionamiento" en lugar de "Completada"
-    if (estado === 'completada' && ocupacion && !ocupacion.ocu_fh_salida) {
+    // Si es confirmada o completada y el vehículo está estacionado (sin salida registrada)
+    // mostrar como "En Estacionamiento"
+    if ((estado === 'confirmada' || estado === 'completada') && ocupacion && !ocupacion.ocu_fh_salida) {
         return {
             label: 'En Estacionamiento',
             color: 'green',
