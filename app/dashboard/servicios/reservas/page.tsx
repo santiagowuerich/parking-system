@@ -36,6 +36,7 @@ export default function ReservasPage() {
     const [reservas, setReservas] = useState<ReservaConDetalles[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [fechaFiltro, setFechaFiltro] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [tabActual, setTabActual] = useState<'vigentes' | 'historial'>('vigentes');
     const [reservaSeleccionada, setReservaSeleccionada] = useState<ReservaConDetalles | null>(null);
@@ -88,14 +89,21 @@ export default function ReservasPage() {
     const reservasFiltradas = useMemo(() => {
         const lista = tabActual === 'vigentes' ? reservasVigentes : reservasHistorial;
 
-        if (!searchTerm) return lista;
+        return lista.filter(r => {
+            // Filtro de búsqueda
+            const cumpleBusqueda = !searchTerm || (
+                r.res_codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                r.veh_patente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                `${r.conductor.usu_nom} ${r.conductor.usu_ape}`.toLowerCase().includes(searchTerm.toLowerCase())
+            );
 
-        return lista.filter(r =>
-            r.res_codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.veh_patente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            `${r.conductor.usu_nom} ${r.conductor.usu_ape}`.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [tabActual, reservasVigentes, reservasHistorial, searchTerm]);
+            // Filtro de fecha
+            const cumpleFecha = !fechaFiltro ||
+                dayjs(r.res_fh_ingreso).format('YYYY-MM-DD') === fechaFiltro;
+
+            return cumpleBusqueda && cumpleFecha;
+        });
+    }, [tabActual, reservasVigentes, reservasHistorial, searchTerm, fechaFiltro]);
 
     const totalPages = Math.ceil(reservasFiltradas.length / ITEMS_POR_PAGINA);
     const startIndex = (currentPage - 1) * ITEMS_POR_PAGINA;
@@ -232,20 +240,15 @@ export default function ReservasPage() {
     return (
         <DashboardLayout title="Reservas" description="Gestiona las reservas del estacionamiento">
             <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Calendar className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold">Reservas del Estacionamiento</h1>
-                        <p className="text-gray-600">Gestiona todas las reservas del estacionamiento</p>
-                    </div>
+                <div>
+                    <h1 className="text-3xl font-bold">Reservas del Estacionamiento</h1>
+                    <p className="text-gray-600">Gestiona todas las reservas del estacionamiento</p>
                 </div>
 
                 <Card>
                     <CardHeader>
                         <div className="flex flex-col md:flex-row gap-4">
-                            <div className="flex-1">
+                            <div className="flex-1 max-w-md">
                                 <Input
                                     type="text"
                                     placeholder="Buscar por código, patente o conductor..."
@@ -257,6 +260,16 @@ export default function ReservasPage() {
                                     className="w-full"
                                 />
                             </div>
+
+                            <Input
+                                type="date"
+                                value={fechaFiltro}
+                                onChange={(e) => {
+                                    setFechaFiltro(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="w-full md:w-48"
+                            />
 
                             <Button onClick={cargarReservas} disabled={loading} size="sm">
                                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />

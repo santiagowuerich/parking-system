@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
         const reservasEnriquecidas = await Promise.all((reservasBase || []).map(async (r: any) => {
             // Obtener datos del conductor
             const { data: conductor } = await supabase
-                .from('conductores')
+                .from('usuario')
                 .select('usu_nom, usu_ape, usu_tel, usu_email')
-                .eq('con_id', r.con_id)
+                .eq('usu_id', r.con_id)
                 .single();
 
             // Obtener datos del vehículo
