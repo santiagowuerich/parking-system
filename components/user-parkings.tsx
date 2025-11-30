@@ -881,10 +881,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                         openCreateParkingModal();
                                     }
                                 }}
+                                variant="outline"
                                 size="sm"
-                                className={`shadow text-white transition-colors ${estacionamientos.length >= MAX_PARKINGS_PER_USER
-                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300"
-                                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"}`}
                                 disabled={estacionamientos.length >= MAX_PARKINGS_PER_USER}
                             >
                                 <Plus className="h-4 w-4 mr-2" />
