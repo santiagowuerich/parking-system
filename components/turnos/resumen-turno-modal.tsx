@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 dayjs.extend(duration);
 
@@ -56,6 +58,7 @@ interface TurnoData {
 export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenTurnoModalProps) {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<TurnoData | null>(null);
+    const printRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isOpen && turnoId) {
@@ -86,8 +89,54 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
         }
     };
 
-    const handlePrint = () => {
-        window.print();
+    const handlePrint = async () => {
+        const element = printRef.current;
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1920,
+                windowHeight: element.scrollHeight,
+                backgroundColor: '#ffffff',
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const pdfUsableHeight = pdfHeight - 10;
+
+            const imgWidth = pdfWidth - 10;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let finalImgWidth = imgWidth;
+            let finalImgHeight = imgHeight;
+
+            if (imgHeight > pdfUsableHeight) {
+                const scaleFactor = pdfUsableHeight / imgHeight;
+                finalImgWidth = imgWidth * scaleFactor;
+                finalImgHeight = pdfUsableHeight;
+            }
+
+            const xOffset = (pdfWidth - finalImgWidth) / 2;
+            const yOffset = (pdfHeight - finalImgHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalImgWidth, finalImgHeight);
+
+            const fileName = `resumen-turno-${turnoId}-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error al generar el PDF. Por favor intenta nuevamente."
+            });
+        }
     };
 
     const calcularDuracion = () => {
@@ -114,8 +163,8 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto resumen-turno-modal">
-                <DialogHeader className="no-print">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-2xl">
                         <Receipt className="h-6 w-6 text-blue-600" />
                         Resumen de Turno
@@ -128,15 +177,9 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         <span className="ml-3 text-gray-600">Generando resumen...</span>
                     </div>
                 ) : data ? (
-                    <div className="space-y-6 print-content">
-                        {/* Header imprimible */}
-                        <div className="print-only text-center mb-6">
-                            <h1 className="text-2xl font-bold">Resumen de Turno</h1>
-                            <p className="text-gray-600">Sistema de Gestión de Estacionamiento</p>
-                        </div>
-
+                    <div ref={printRef} className="space-y-6 bg-white p-6">
                         {/* Información General */}
-                        <Card className="no-page-break">
+                        <Card>
                             <CardContent className="pt-6">
                                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                                     <Clock className="h-5 w-5 text-blue-600" />
@@ -172,7 +215,7 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         </Card>
 
                         {/* Información de Caja */}
-                        <Card className="no-page-break">
+                        <Card>
                             <CardContent className="pt-6">
                                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                                     <DollarSign className="h-5 w-5 text-green-600" />
@@ -220,7 +263,7 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         </Card>
 
                         {/* Movimientos de Vehículos */}
-                        <Card className="no-page-break">
+                        <Card>
                             <CardContent className="pt-6">
                                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                                     <Car className="h-5 w-5 text-purple-600" />
@@ -244,7 +287,7 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         </Card>
 
                         {/* Cobros por Método de Pago */}
-                        <Card className="no-page-break">
+                        <Card>
                             <CardContent className="pt-6">
                                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                                     <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -280,7 +323,7 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                                     {data.estadisticas.cobros_por_metodo.mercadopago.cantidad > 0 && (
                                         <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
                                             <div>
-                                                <span className="font-medium">QR/MercadoPago</span>
+                                                <span className="font-medium">Mercado Pago</span>
                                                 <span className="text-sm text-gray-600 ml-2">
                                                     ({data.estadisticas.cobros_por_metodo.mercadopago.cantidad} cobros)
                                                 </span>
@@ -303,17 +346,6 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                                             </span>
                                         </div>
                                     )}
-                                    {data.estadisticas.abonos_count > 0 && (
-                                        <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                                            <div>
-                                                <span className="font-medium">Abono</span>
-                                                <span className="text-sm text-gray-600 ml-2">
-                                                    ({data.estadisticas.abonos_count} ingresos)
-                                                </span>
-                                            </div>
-                                            <span className="font-medium text-gray-600">Sin cobro</span>
-                                        </div>
-                                    )}
                                     <Separator />
                                     <div className="flex justify-between items-center p-4 bg-green-100 rounded-lg">
                                         <span className="font-bold text-green-900 text-lg">TOTAL COBRADO:</span>
@@ -326,10 +358,10 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         </Card>
 
                         {/* Botones de acción */}
-                        <div className="flex justify-end gap-3 pt-4 no-print">
+                        <div className="flex justify-end gap-3 pt-4">
                             <Button variant="outline" onClick={handlePrint}>
                                 <Printer className="h-4 w-4 mr-2" />
-                                Imprimir
+                                Descargar PDF
                             </Button>
                             <Button onClick={onClose}>
                                 Cerrar
@@ -341,52 +373,6 @@ export default function ResumenTurnoModal({ isOpen, onClose, turnoId }: ResumenT
                         <p className="text-gray-600">No se pudo cargar el resumen del turno</p>
                     </div>
                 )}
-
-                {/* Estilos de impresión */}
-                <style jsx global>{`
-                    @media print {
-                        body * {
-                            visibility: hidden;
-                        }
-
-                        .resumen-turno-modal,
-                        .resumen-turno-modal * {
-                            visibility: visible;
-                        }
-
-                        .resumen-turno-modal {
-                            position: fixed;
-                            left: 0;
-                            top: 0;
-                            width: 100%;
-                        }
-
-                        .no-print {
-                            display: none !important;
-                        }
-
-                        .print-only {
-                            display: block !important;
-                        }
-
-                        .no-page-break {
-                            page-break-inside: avoid;
-                        }
-
-                        @page {
-                            size: A4;
-                            margin: 1.5cm;
-                        }
-
-                        button {
-                            display: none !important;
-                        }
-                    }
-
-                    .print-only {
-                        display: none;
-                    }
-                `}</style>
             </DialogContent>
         </Dialog>
     );

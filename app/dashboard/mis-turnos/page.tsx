@@ -13,7 +13,6 @@ import { Loader2, Clock, Calendar, DollarSign, AlertCircle } from "lucide-react"
 import dayjs from "dayjs";
 import IniciarTurnoModal from "@/components/turnos/iniciar-turno-modal";
 import FinalizarTurnoModal from "@/components/turnos/finalizar-turno-modal";
-import HistorialTurnos from "@/components/turnos/historial-turnos";
 import ResumenTurnoModal from "@/components/turnos/resumen-turno-modal";
 
 interface TurnoActivo {
@@ -44,13 +43,15 @@ export default function MisTurnosPage() {
     const { estId, user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [turnoActivo, setTurnoActivo] = useState<TurnoActivo | null>(null);
-    const [historialHoy, setHistorialHoy] = useState<HistorialTurno[]>([]);
+    const [historial, setHistorial] = useState<HistorialTurno[]>([]);
+    const [loadingHistorial, setLoadingHistorial] = useState(false);
     const [showIniciarModal, setShowIniciarModal] = useState(false);
     const [showFinalizarModal, setShowFinalizarModal] = useState(false);
-    const [showHistorial, setShowHistorial] = useState(false);
     const [showResumenModal, setShowResumenModal] = useState(false);
     const [turnoParaResumen, setTurnoParaResumen] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [paginaActual, setPaginaActual] = useState(1);
+    const itemsPorPagina = 10;
 
     // Actualizar la hora actual cada minuto para que la duración sea dinámica
     useEffect(() => {
@@ -65,7 +66,7 @@ export default function MisTurnosPage() {
         if (estId && user) {
             loadTurnoEstado();
         }
-    }, [estId, user]);
+    }, [estId]);
 
     const loadTurnoEstado = async () => {
         try {
@@ -85,8 +86,10 @@ export default function MisTurnosPage() {
             if (turnoResponse.ok) {
                 const data = await turnoResponse.json();
                 setTurnoActivo(data.turno_activo);
-                setHistorialHoy(data.historial_hoy || []);
             }
+
+            // Cargar historial completo
+            await loadHistorial(playId);
         } catch (error) {
             console.error('Error loading turno estado:', error);
             toast({
@@ -96,6 +99,31 @@ export default function MisTurnosPage() {
             });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadHistorial = async (playId: number) => {
+        try {
+            setLoadingHistorial(true);
+
+            const hoy = dayjs();
+            const params = new URLSearchParams({
+                usu_id: playId.toString(),
+                est_id: estId!.toString(),
+                fecha_desde: hoy.subtract(50, 'year').format('YYYY-MM-DD'),
+                fecha_hasta: hoy.format('YYYY-MM-DD')
+            });
+
+            const response = await fetch(`/api/turnos/historial?${params}`);
+            if (response.ok) {
+                const data = await response.json();
+                setHistorial(data.historial || []);
+                setPaginaActual(1);
+            }
+        } catch (error) {
+            console.error('Error loading historial:', error);
+        } finally {
+            setLoadingHistorial(false);
         }
     };
 
@@ -122,39 +150,58 @@ export default function MisTurnosPage() {
         setShowResumenModal(true);
     };
 
-    const calcularDuracion = (horaEntrada: string, fechaTurno?: string) => {
+    const calcularDuracion = (fechaEntrada: string, horaEntrada: string, fechaSalida?: string, horaSalida?: string) => {
         try {
-            // Intentar diferentes formatos para la hora de entrada
-            let entrada;
+            const entrada = dayjs(`${fechaEntrada} ${horaEntrada}`);
 
-            // Si viene solo la hora (HH:mm:ss), combinar con fecha del turno
-            if (horaEntrada && horaEntrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-                const fecha = fechaTurno || dayjs().format('YYYY-MM-DD');
-                entrada = dayjs(`${fecha} ${horaEntrada}`);
-            } else {
-                // Si viene con fecha completa o timestamp
-                entrada = dayjs(horaEntrada);
-            }
-
-            // Verificar que la entrada sea válida
             if (!entrada.isValid()) {
-                console.error('Hora de entrada inválida:', horaEntrada);
                 return '0h 0m';
             }
 
-            const ahora = dayjs();
-            const duracion = ahora.diff(entrada, 'minute');
+            let salida;
+            if (horaSalida && fechaSalida) {
+                salida = dayjs(`${fechaSalida} ${horaSalida}`);
+            } else {
+                // Si no hay hora de salida, calcular hasta ahora
+                salida = dayjs();
+            }
 
-            // Asegurar que la duración sea positiva
-            const duracionPositiva = Math.max(0, duracion);
+            if (!salida.isValid()) {
+                return '0h 0m';
+            }
+
+            const duracionMinutos = salida.diff(entrada, 'minute');
+            const duracionPositiva = Math.max(0, duracionMinutos);
             const horas = Math.floor(duracionPositiva / 60);
             const minutos = duracionPositiva % 60;
 
             return `${horas}h ${minutos}m`;
         } catch (error) {
-            console.error('Error calculando duración:', error, 'Hora entrada:', horaEntrada);
+            console.error('Error calculando duración:', error);
             return '0h 0m';
         }
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('es-AR', {
+            style: 'currency',
+            currency: 'ARS'
+        }).format(amount);
+    };
+
+    const calcularDiferenciaCaja = (fondoInicial: number, fondoFinal?: number) => {
+        if (!fondoFinal) return null;
+        return fondoFinal - fondoInicial;
+    };
+
+    // Lógica de paginación
+    const totalPaginas = Math.ceil(historial.length / itemsPorPagina);
+    const indiceInicio = (paginaActual - 1) * itemsPorPagina;
+    const indiceFin = indiceInicio + itemsPorPagina;
+    const historialPaginado = historial.slice(indiceInicio, indiceFin);
+
+    const irAPagina = (numeroPagina: number) => {
+        setPaginaActual(Math.max(1, Math.min(numeroPagina, totalPaginas)));
     };
 
     if (loading) {
@@ -271,49 +318,152 @@ export default function MisTurnosPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Historial de Hoy */}
-                        {historialHoy.length > 0 && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Calendar className="h-5 w-5" />
-                                        Historial de Hoy
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {historialHoy.map((turno) => (
-                                            <div key={turno.tur_id} className="flex items-center justify-between p-4 border rounded-lg">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-3 h-3 rounded-full ${turno.tur_estado === 'activo' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                                    <div>
-                                                        <p className="font-medium">
-                                                            {turno.tur_hora_entrada} - {turno.tur_hora_salida || 'En curso'}
-                                                        </p>
-                                                        <p className="text-sm text-gray-600">
-                                                            Caja: ${turno.caja_inicio?.toLocaleString('es-AR') || '0'}
-                                                            {turno.caja_final && ` → $${turno.caja_final?.toLocaleString('es-AR')}`}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <Badge variant={turno.tur_estado === 'activo' ? 'default' : 'secondary'}>
-                                                    {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
-                                                </Badge>
-                                            </div>
-                                        ))}
+                        {/* Historial de Turnos */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Calendar className="h-5 w-5" />
+                                    Historial de Turnos
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {loadingHistorial ? (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="h-6 w-6 animate-spin" />
                                     </div>
+                                ) : historial.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                            <table className="w-full bg-white border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Inicio</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora Inicio</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Fin</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora Fin</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Duración</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Inicial</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Final</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Diferencia</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {historialPaginado.map((turno) => {
+                                                    const diferencia = calcularDiferenciaCaja(
+                                                        turno.caja_inicio || 0,
+                                                        turno.caja_final
+                                                    );
+                                                    const duracion = calcularDuracion(
+                                                        turno.tur_fecha,
+                                                        turno.tur_hora_entrada,
+                                                        turno.tur_fecha_salida,
+                                                        turno.tur_hora_salida
+                                                    );
 
-                                    <div className="mt-4 text-center">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setShowHistorial(true)}
-                                        >
-                                            Ver Historial Completo
-                                        </Button>
+                                                    return (
+                                                        <tr key={turno.tur_id} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
+                                                            <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                                {dayjs(turno.tur_fecha).format('DD/MM/YYYY')}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {turno.tur_hora_entrada}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {turno.tur_fecha_salida
+                                                                    ? dayjs(turno.tur_fecha_salida).format('DD/MM/YYYY')
+                                                                    : '-'
+                                                                }
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {turno.tur_hora_salida || '-'}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {duracion}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {formatCurrency(turno.caja_inicio || 0)}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {turno.caja_final
+                                                                    ? formatCurrency(turno.caja_final)
+                                                                    : '-'
+                                                                }
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm border-r border-gray-300 text-center">
+                                                                {diferencia !== null ? (
+                                                                    <span className={`font-medium ${diferencia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {diferencia >= 0 ? '+' : ''}{formatCurrency(diferencia)}
+                                                                    </span>
+                                                                ) : '-'}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-center">
+                                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                    turno.tur_estado === 'activo'
+                                                                        ? 'bg-green-100 text-green-800'
+                                                                        : 'bg-gray-100 text-gray-800'
+                                                                }`}>
+                                                                    {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+
+                                            {/* Controles de paginación */}
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 border-t border-gray-300">
+                                                <div className="text-sm text-gray-600">
+                                                    Mostrando {indiceInicio + 1} - {Math.min(indiceFin, historial.length)} de {historial.length} turnos
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => irAPagina(paginaActual - 1)}
+                                                        disabled={paginaActual === 1}
+                                                    >
+                                                        Anterior
+                                                    </Button>
+                                                    <div className="flex items-center gap-2">
+                                                        {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((pagina) => (
+                                                            <Button
+                                                                key={pagina}
+                                                                variant={paginaActual === pagina ? "default" : "outline"}
+                                                                size="sm"
+                                                                onClick={() => irAPagina(pagina)}
+                                                                className="min-w-[2.5rem]"
+                                                            >
+                                                                {pagina}
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => irAPagina(paginaActual + 1)}
+                                                        disabled={paginaActual === totalPaginas}
+                                                    >
+                                                        Siguiente
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        )}
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                            No hay turnos registrados
+                                        </h3>
+                                        <p className="text-gray-600">
+                                            No se encontraron turnos para este perfil.
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
 
                     {/* Modales */}
@@ -329,12 +479,6 @@ export default function MisTurnosPage() {
                         onClose={() => setShowFinalizarModal(false)}
                         onSuccess={handleTurnoFinalizado}
                         turnoActivo={turnoActivo}
-                    />
-
-                    <HistorialTurnos
-                        isOpen={showHistorial}
-                        onClose={() => setShowHistorial(false)}
-                        estId={estId}
                     />
 
                     <ResumenTurnoModal
