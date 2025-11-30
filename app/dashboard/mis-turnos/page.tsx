@@ -108,7 +108,7 @@ export default function MisTurnosPage() {
             const params = new URLSearchParams({
                 play_id: playId.toString(),
                 est_id: estId!.toString(),
-                fecha_desde: hoy.subtract(30, 'day').format('YYYY-MM-DD'),
+                fecha_desde: hoy.subtract(50, 'year').format('YYYY-MM-DD'),
                 fecha_hasta: hoy.format('YYYY-MM-DD')
             });
 
@@ -399,7 +399,7 @@ export default function MisTurnosPage() {
                                             No hay turnos registrados
                                         </h3>
                                         <p className="text-gray-600">
-                                            No se encontraron turnos en los últimos 30 días.
+                                            No se encontraron turnos para este perfil.
                                         </p>
                                     </div>
                                 )}
