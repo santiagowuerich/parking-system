@@ -1,8 +1,6 @@
 "use client";
 
-
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuth } from "@/lib/auth-context";
@@ -14,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 
-export default function SecuritySettingsPage() {
+export default function PerfilPage() {
   const { user } = useAuth();
   const router = useRouter();
 
@@ -23,70 +21,124 @@ export default function SecuritySettingsPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Nombre (perfil)
-  const [name, setName] = useState<string>("");
-  const [savingName, setSavingName] = useState(false);
+  // Datos personales
+  const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
-  // Email
-  const [newEmail, setNewEmail] = useState<string>("");
+  // Email cambio
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
 
-  // Password
+  // Contraseña
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPass, setChangingPass] = useState(false);
   const [passError, setPassError] = useState<string | null>(null);
 
+  // Cargar datos del usuario
+  const loadUserProfile = async () => {
+    try {
+      setLoadingProfile(true);
+      const response = await fetch("/api/usuario/profile");
+      if (response.ok) {
+        const data = await response.json();
+        setNombre(data.nombre || "");
+        setApellido(data.apellido || "");
+        setTelefono(data.telefono || "");
+        setEmail(data.email || "");
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar los datos del perfil"
+        });
+      }
+    } catch (error) {
+      console.error("Error cargando perfil:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar el perfil"
+      });
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
   useEffect(() => {
-    if (!user) return;
-    setName((user.user_metadata as any)?.name || "");
-    setNewEmail(user.email || "");
+    if (user) {
+      loadUserProfile();
+    }
   }, [user]);
 
   if (!user) {
     return (
       <DashboardLayout>
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto p-6">
           <Alert>
             <AlertDescription>
-              Debe iniciar sesión para gestionar la seguridad de su cuenta.
+              Debes iniciar sesión para gestionar tu perfil.
             </AlertDescription>
           </Alert>
-          <div className="mt-4">
-            <Button asChild>
-              <Link href="/auth/login">Ir a iniciar sesión</Link>
-            </Button>
-          </div>
         </div>
       </DashboardLayout>
     );
   }
 
-  const handleSaveName = async () => {
+  // Guardar datos personales
+  const handleSaveProfile = async () => {
+    if (!nombre || !apellido) {
+      toast({
+        variant: "destructive",
+        title: "Campos requeridos",
+        description: "Nombre y apellido son obligatorios"
+      });
+      return;
+    }
+
     try {
-      setSavingName(true);
-      const { error } = await supabase.auth.updateUser({ data: { name } });
-      if (error) throw error;
-      toast({ title: "Nombre actualizado", description: "Se guardó el nombre de perfil." });
+      setSavingProfile(true);
+      const response = await fetch("/api/usuario/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre, apellido, telefono })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Error al actualizar");
+      }
+
+      toast({
+        title: "Información actualizada",
+        description: "Tus datos personales fueron actualizados correctamente"
+      });
       router.refresh();
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo actualizar" });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: e.message || "No se pudo actualizar"
+      });
     } finally {
-      setSavingName(false);
+      setSavingProfile(false);
     }
   };
 
   const handleSaveEmail = async () => {
     setEmailMsg(null);
     try {
-      if (!newEmail || newEmail === user.email) {
+      if (!email || email === user.email) {
         toast({ title: "Sin cambios", description: "El email es el mismo." });
         return;
       }
       setSavingEmail(true);
-      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      const { error } = await supabase.auth.updateUser({ email: email });
       if (error) throw error;
       setEmailMsg(
         "Te enviamos un correo de confirmación al nuevo email. Seguí el enlace para completar el cambio."
@@ -141,63 +193,119 @@ export default function SecuritySettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto p-4 space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-semibold dark:text-zinc-100">Seguridad de la cuenta</h1>
-          <Button variant="outline" className="dark:border-zinc-700 dark:text-zinc-100" asChild>
-            <Link href="/dashboard">Volver al Dashboard</Link>
-          </Button>
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Usuario</h1>
+          <p className="text-gray-600 dark:text-zinc-400">Gestiona tu información personal y configuración de seguridad</p>
         </div>
 
+        {/* Card 1: Información Personal */}
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Perfil</CardTitle>
+            <CardTitle className="dark:text-zinc-100">Información Personal</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label className="dark:text-zinc-400">Nombre para mostrar</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-              />
-            </div>
-            <Button onClick={handleSaveName} disabled={savingName} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
-              {savingName ? "Guardando..." : "Guardar nombre"}
-            </Button>
-          </CardContent>
-        </Card>
+          <CardContent className="space-y-4">
+            {loadingProfile ? (
+              <div className="text-center py-4">
+                <p className="text-zinc-500 dark:text-zinc-400">Cargando datos...</p>
+              </div>
+            ) : (
+              <>
+                {/* Grid 2 columnas para nombre y apellido */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="dark:text-zinc-400">Nombre</Label>
+                    <Input
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                      required
+                      placeholder="Tu nombre"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="dark:text-zinc-400">Apellido</Label>
+                    <Input
+                      value={apellido}
+                      onChange={(e) => setApellido(e.target.value)}
+                      className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                      required
+                      placeholder="Tu apellido"
+                    />
+                  </div>
+                </div>
 
-        <Card className="dark:bg-zinc-900 dark:border-zinc-800">
-          <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Correo electrónico</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label className="dark:text-zinc-400">Nuevo correo</Label>
-              <Input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
-              />
-            </div>
-            {emailMsg && (
-              <p className="text-sm text-emerald-400">{emailMsg}</p>
+                {/* Teléfono */}
+                <div className="space-y-1">
+                  <Label className="dark:text-zinc-400">Teléfono</Label>
+                  <Input
+                    type="tel"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                    placeholder="Opcional"
+                  />
+                </div>
+
+                {/* Email */}
+                <div className="space-y-1">
+                  <Label className="dark:text-zinc-400">Correo electrónico</Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
+                    required
+                    placeholder="Tu email"
+                  />
+                  <p className="text-xs text-zinc-400">
+                    Si cambias tu email, recibirás un enlace de confirmación
+                  </p>
+                </div>
+
+                {/* Mensajes */}
+                {emailMsg && (
+                  <Alert className="bg-emerald-50 border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800">
+                    <AlertDescription className="text-emerald-700 dark:text-emerald-400">
+                      {emailMsg}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Botones */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile || loadingProfile}
+                    className="dark:bg-white dark:text-black dark:hover:bg-gray-200"
+                  >
+                    {savingProfile ? "Guardando..." : "Guardar información"}
+                  </Button>
+
+                  {email !== user?.email && (
+                    <Button
+                      onClick={handleSaveEmail}
+                      disabled={savingEmail}
+                      variant="outline"
+                      className="dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      {savingEmail ? "Enviando..." : "Actualizar email"}
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
-            <Button onClick={handleSaveEmail} disabled={savingEmail} className="dark:bg-white dark:text-black dark:hover:bg-gray-200">
-              {savingEmail ? "Enviando..." : "Guardar email"}
-            </Button>
-            <p className="text-xs text-zinc-400">Te enviaremos un enlace de verificación al nuevo correo.</p>
           </CardContent>
         </Card>
 
+        {/* Card 2: Cambiar Contraseña */}
         <Card className="dark:bg-zinc-900 dark:border-zinc-800">
           <CardHeader>
-            <CardTitle className="dark:text-zinc-100">Cambiar contraseña</CardTitle>
+            <CardTitle className="dark:text-zinc-100">Cambiar Contraseña</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleChangePassword} className="space-y-3">
+            <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-1">
                 <Label className="dark:text-zinc-400">Contraseña actual</Label>
                 <Input
@@ -206,6 +314,7 @@ export default function SecuritySettingsPage() {
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                   required
+                  placeholder="Tu contraseña actual"
                 />
               </div>
               <div className="space-y-1">
@@ -217,6 +326,7 @@ export default function SecuritySettingsPage() {
                   className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                   minLength={6}
                   required
+                  placeholder="Mínimo 6 caracteres"
                 />
               </div>
               <div className="space-y-1">
@@ -228,6 +338,7 @@ export default function SecuritySettingsPage() {
                   className="dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                   minLength={6}
                   required
+                  placeholder="Confirma tu nueva contraseña"
                 />
               </div>
               {passError && (
