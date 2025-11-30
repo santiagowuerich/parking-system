@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
     Search,
     MapPin,
@@ -18,13 +20,16 @@ import {
     ChevronLeft,
     ChevronRight,
     Loader2,
-    AlertTriangle
+    AlertTriangle,
+    Calendar as CalendarIcon
 } from "lucide-react";
 import { ReservaConDetalles } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import dayjs from 'dayjs';
 import { Label } from "@/components/ui/label";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 const ITEMS_POR_PAGINA = 10;
 
@@ -33,8 +38,8 @@ export default function ReservasPage() {
     const [reservas, setReservas] = useState<ReservaConDetalles[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [fechaDesde, setFechaDesde] = useState('');
-    const [fechaHasta, setFechaHasta] = useState('');
+    const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
+    const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
     const [currentPage, setCurrentPage] = useState(1);
 
     const cargarReservas = async () => {
@@ -82,14 +87,17 @@ export default function ReservasPage() {
 
             // Filtro de fecha por rango
             let cumpleFecha = true;
-            const fechaIngreso = dayjs(r.res_fh_ingreso).format('YYYY-MM-DD');
 
             if (fechaDesde) {
-                cumpleFecha = cumpleFecha && fechaIngreso >= fechaDesde;
+                const fromDate = dayjs(fechaDesde).startOf('day');
+                const fechaIngreso = dayjs(r.res_fh_ingreso);
+                cumpleFecha = cumpleFecha && (fechaIngreso.isAfter(fromDate) || fechaIngreso.isSame(fromDate, 'day'));
             }
 
             if (fechaHasta) {
-                cumpleFecha = cumpleFecha && fechaIngreso <= fechaHasta;
+                const toDate = dayjs(fechaHasta).endOf('day');
+                const fechaIngreso = dayjs(r.res_fh_ingreso);
+                cumpleFecha = cumpleFecha && (fechaIngreso.isBefore(toDate) || fechaIngreso.isSame(toDate, 'day'));
             }
 
             return cumpleBusqueda && cumpleFecha;
@@ -172,9 +180,9 @@ export default function ReservasPage() {
         <DashboardLayout title="Reservas" description="Gestiona las reservas del estacionamiento">
             <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-zinc-100">Reservas del Estacionamiento</h1>
-                    <p className="text-gray-600 dark:text-zinc-400">Gestiona todas las reservas del estacionamiento</p>
+                <div className="space-y-2">
+                    <h1 className="text-3xl font-bold text-gray-900">Reservas del Estacionamiento</h1>
+                    <p className="text-gray-600">Gestiona todas las reservas del estacionamiento</p>
                 </div>
 
                 {/* Filtros */}
@@ -196,38 +204,54 @@ export default function ReservasPage() {
                             </div>
 
                             {/* Filtro de fecha desde */}
-                            <div className="flex items-center space-x-2">
-                                <Label htmlFor="fecha-desde" className="text-sm font-medium whitespace-nowrap">
-                                    Desde:
-                                </Label>
-                                <Input
-                                    id="fecha-desde"
-                                    type="date"
-                                    value={fechaDesde}
-                                    onChange={(e) => {
-                                        setFechaDesde(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                    className="w-40"
-                                />
-                            </div>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="justify-start text-left font-normal"
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "Fecha desde"}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={fechaDesde}
+                                        onSelect={(date) => {
+                                            setFechaDesde(date);
+                                            setCurrentPage(1);
+                                        }}
+                                        initialFocus
+                                        locale={es}
+                                    />
+                                </PopoverContent>
+                            </Popover>
 
                             {/* Filtro de fecha hasta */}
-                            <div className="flex items-center space-x-2">
-                                <Label htmlFor="fecha-hasta" className="text-sm font-medium whitespace-nowrap">
-                                    Hasta:
-                                </Label>
-                                <Input
-                                    id="fecha-hasta"
-                                    type="date"
-                                    value={fechaHasta}
-                                    onChange={(e) => {
-                                        setFechaHasta(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                    className="w-40"
-                                />
-                            </div>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="justify-start text-left font-normal"
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {fechaHasta ? format(fechaHasta, "PPP", { locale: es }) : "Fecha hasta"}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={fechaHasta}
+                                        onSelect={(date) => {
+                                            setFechaHasta(date);
+                                            setCurrentPage(1);
+                                        }}
+                                        initialFocus
+                                        locale={es}
+                                    />
+                                </PopoverContent>
+                            </Popover>
 
                             {/* Botón refrescar */}
                             <Button variant="outline" onClick={cargarReservas} disabled={loading}>
@@ -247,7 +271,7 @@ export default function ReservasPage() {
                         <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
                             <table className="w-full bg-white border-collapse">
                                 <thead>
-                                    <tr className="bg-gradient-to-r from-purple-100 to-purple-200 border-b-2 border-gray-400">
+                                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Código</th>
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Conductor</th>
@@ -274,7 +298,7 @@ export default function ReservasPage() {
                                         </tr>
                                     ) : (
                                         reservasPaginadas.map((reserva) => (
-                                            <tr key={reserva.res_codigo} className="border-b border-gray-300 hover:bg-purple-50 transition-colors">
+                                            <tr key={reserva.res_codigo} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
                                                 <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 font-mono font-medium text-center">
                                                     {reserva.res_codigo}
                                                 </td>
