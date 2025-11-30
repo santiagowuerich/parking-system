@@ -50,6 +50,8 @@ export default function MisTurnosPage() {
     const [showResumenModal, setShowResumenModal] = useState(false);
     const [turnoParaResumen, setTurnoParaResumen] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [paginaActual, setPaginaActual] = useState(1);
+    const itemsPorPagina = 10;
 
     // Actualizar la hora actual cada minuto para que la duración sea dinámica
     useEffect(() => {
@@ -116,6 +118,7 @@ export default function MisTurnosPage() {
             if (response.ok) {
                 const data = await response.json();
                 setHistorial(data.historial || []);
+                setPaginaActual(1);
             }
         } catch (error) {
             console.error('Error loading historial:', error);
@@ -147,37 +150,34 @@ export default function MisTurnosPage() {
         setShowResumenModal(true);
     };
 
-    const calcularDuracion = (horaEntrada: string, fechaTurno?: string) => {
+    const calcularDuracion = (fechaEntrada: string, horaEntrada: string, fechaSalida?: string, horaSalida?: string) => {
         try {
-            // Intentar diferentes formatos para la hora de entrada
-            let entrada;
+            const entrada = dayjs(`${fechaEntrada} ${horaEntrada}`);
 
-            // Si viene solo la hora (HH:mm:ss), combinar con fecha del turno
-            if (horaEntrada && horaEntrada.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-                const fecha = fechaTurno || dayjs().format('YYYY-MM-DD');
-                entrada = dayjs(`${fecha} ${horaEntrada}`);
-            } else {
-                // Si viene con fecha completa o timestamp
-                entrada = dayjs(horaEntrada);
-            }
-
-            // Verificar que la entrada sea válida
             if (!entrada.isValid()) {
-                console.error('Hora de entrada inválida:', horaEntrada);
                 return '0h 0m';
             }
 
-            const ahora = dayjs();
-            const duracion = ahora.diff(entrada, 'minute');
+            let salida;
+            if (horaSalida && fechaSalida) {
+                salida = dayjs(`${fechaSalida} ${horaSalida}`);
+            } else {
+                // Si no hay hora de salida, calcular hasta ahora
+                salida = dayjs();
+            }
 
-            // Asegurar que la duración sea positiva
-            const duracionPositiva = Math.max(0, duracion);
+            if (!salida.isValid()) {
+                return '0h 0m';
+            }
+
+            const duracionMinutos = salida.diff(entrada, 'minute');
+            const duracionPositiva = Math.max(0, duracionMinutos);
             const horas = Math.floor(duracionPositiva / 60);
             const minutos = duracionPositiva % 60;
 
             return `${horas}h ${minutos}m`;
         } catch (error) {
-            console.error('Error calculando duración:', error, 'Hora entrada:', horaEntrada);
+            console.error('Error calculando duración:', error);
             return '0h 0m';
         }
     };
@@ -192,6 +192,16 @@ export default function MisTurnosPage() {
     const calcularDiferenciaCaja = (fondoInicial: number, fondoFinal?: number) => {
         if (!fondoFinal) return null;
         return fondoFinal - fondoInicial;
+    };
+
+    // Lógica de paginación
+    const totalPaginas = Math.ceil(historial.length / itemsPorPagina);
+    const indiceInicio = (paginaActual - 1) * itemsPorPagina;
+    const indiceFin = indiceInicio + itemsPorPagina;
+    const historialPaginado = historial.slice(indiceInicio, indiceFin);
+
+    const irAPagina = (numeroPagina: number) => {
+        setPaginaActual(Math.max(1, Math.min(numeroPagina, totalPaginas)));
     };
 
     if (loading) {
@@ -322,24 +332,33 @@ export default function MisTurnosPage() {
                                         <Loader2 className="h-6 w-6 animate-spin" />
                                     </div>
                                 ) : historial.length > 0 ? (
-                                    <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
-                                        <table className="w-full bg-white border-collapse">
-                                            <thead>
-                                                <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Horario</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Duración</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Inicial</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Final</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Diferencia</th>
-                                                    <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Estado</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {historial.map((turno) => {
+                                    <div className="space-y-4">
+                                        <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                            <table className="w-full bg-white border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Inicio</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora Inicio</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Fecha Fin</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Hora Fin</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Duración</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Inicial</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Final</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Diferencia</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {historialPaginado.map((turno) => {
                                                     const diferencia = calcularDiferenciaCaja(
                                                         turno.caja_inicio || 0,
                                                         turno.caja_final
+                                                    );
+                                                    const duracion = calcularDuracion(
+                                                        turno.tur_fecha,
+                                                        turno.tur_hora_entrada,
+                                                        turno.tur_fecha_salida,
+                                                        turno.tur_hora_salida
                                                     );
 
                                                     return (
@@ -348,18 +367,19 @@ export default function MisTurnosPage() {
                                                                 {dayjs(turno.tur_fecha).format('DD/MM/YYYY')}
                                                             </td>
                                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
-                                                                <div>
-                                                                    <div>{turno.tur_hora_entrada}</div>
-                                                                    {turno.tur_hora_salida && (
-                                                                        <div className="text-gray-500">{turno.tur_hora_salida}</div>
-                                                                    )}
-                                                                </div>
+                                                                {turno.tur_hora_entrada}
                                                             </td>
                                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
-                                                                {turno.tur_hora_salida
-                                                                    ? calcularDuracion(turno.tur_hora_entrada, turno.tur_fecha)
-                                                                    : 'En curso'
+                                                                {turno.tur_fecha_salida
+                                                                    ? dayjs(turno.tur_fecha_salida).format('DD/MM/YYYY')
+                                                                    : '-'
                                                                 }
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {turno.tur_hora_salida || '-'}
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
+                                                                {duracion}
                                                             </td>
                                                             <td className="py-4 px-4 text-sm text-gray-700 border-r border-gray-300 text-center">
                                                                 {formatCurrency(turno.caja_inicio || 0)}
@@ -391,6 +411,45 @@ export default function MisTurnosPage() {
                                                 })}
                                             </tbody>
                                         </table>
+
+                                            {/* Controles de paginación */}
+                                            <div className="flex items-center justify-between p-4 bg-gray-50 border-t border-gray-300">
+                                                <div className="text-sm text-gray-600">
+                                                    Mostrando {indiceInicio + 1} - {Math.min(indiceFin, historial.length)} de {historial.length} turnos
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => irAPagina(paginaActual - 1)}
+                                                        disabled={paginaActual === 1}
+                                                    >
+                                                        Anterior
+                                                    </Button>
+                                                    <div className="flex items-center gap-2">
+                                                        {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((pagina) => (
+                                                            <Button
+                                                                key={pagina}
+                                                                variant={paginaActual === pagina ? "default" : "outline"}
+                                                                size="sm"
+                                                                onClick={() => irAPagina(pagina)}
+                                                                className="min-w-[2.5rem]"
+                                                            >
+                                                                {pagina}
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => irAPagina(paginaActual + 1)}
+                                                        disabled={paginaActual === totalPaginas}
+                                                    >
+                                                        Siguiente
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-center py-8">
