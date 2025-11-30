@@ -13,13 +13,14 @@ import { VehicleSelector } from "@/components/vehicle-selector";
 import { VehicleDisplay } from "@/components/vehicle-display";
 import { useVehicle } from "@/lib/contexts/vehicle-context";
 import { CrearReservaDialog } from "@/components/reservas/crear-reserva-dialog";
+import { ValoracionButton } from "@/components/valoraciones/valoracion-button";
 
 declare global {
     interface Window {
         centerMapOnUserLocation: () => void;
     }
 }
-import { Calendar, Loader2, Search, MapPin, Navigation2 } from "lucide-react";
+import { Calendar, Loader2, Search, MapPin, Navigation2, Star } from "lucide-react";
 import { HorarioFranja, EstadoApertura } from "@/lib/types/horarios";
 
 interface ParkingData {
@@ -44,6 +45,9 @@ interface ParkingData {
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
     tipoDisponibilidad?: 'configurada' | 'fisica';
+    promedioValoracion?: number;
+    totalValoraciones?: number;
+    tieneMercadoPago?: boolean; // ✅ Indica si tiene MercadoPago configurado
 }
 
 export default function MapaEstacionamientos() {
@@ -378,6 +382,31 @@ export default function MapaEstacionamientos() {
                                                                                             {parking.distance.toFixed(1)} km de distancia
                                                                                         </div>
                                                                                     )}
+                                                                                    {/* Promedio de valoraciones */}
+                                                                                    {parking.totalValoraciones && parking.totalValoraciones > 0 ? (
+                                                                                        <div className="flex items-center gap-1.5 mt-1">
+                                                                                            <div className="flex items-center">
+                                                                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                                                                    <Star
+                                                                                                        key={star}
+                                                                                                        className={`h-4 w-4 ${
+                                                                                                            star <= Math.round(parking.promedioValoracion || 0)
+                                                                                                                ? 'fill-yellow-400 text-yellow-400'
+                                                                                                                : 'fill-gray-200 text-gray-200'
+                                                                                                        }`}
+                                                                                                    />
+                                                                                                ))}
+                                                                                            </div>
+                                                                                            <span className="text-sm font-semibold text-gray-700">
+                                                                                                {(parking.promedioValoracion || 0).toFixed(1)}
+                                                                                            </span>
+                                                                                            <span className="text-xs text-gray-500">
+                                                                                                ({parking.totalValoraciones})
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="text-xs text-gray-400 mt-1">Sin valoraciones</div>
+                                                                                    )}
                                                                                 </div>
                                                                                 <Badge className={`px-3 py-1 text-sm font-semibold w-fit ml-3 ${parking.estadoApertura && !parking.estadoApertura.isOpen
                                                                                     ? 'bg-gray-600 text-white hover:bg-gray-600'
@@ -427,41 +456,54 @@ export default function MapaEstacionamientos() {
                                                                             )}
                                                                         </div>
 
-                                                                        <div className="flex gap-3 justify-center">
-                                                                            <Button
-                                                                                className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (parking) {
-                                                                                        // Crear la URL para Google Maps
-                                                                                        const address = encodeURIComponent(
-                                                                                            parking.direccionCompleta || parking.direccion
-                                                                                        );
-                                                                                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
-
-                                                                                        // Abrir en nueva pestaña
-                                                                                        window.open(googleMapsUrl, '_blank');
-
-                                                                                        console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                <Navigation2 className="w-5 h-5 mr-2" />
-                                                                                Navegar
-                                                                            </Button>
-
-                                                                            {plazasDisponibles.length > 0 && (
+                                                                        <div className="flex flex-col gap-3">
+                                                                            {/* Fila de botones */}
+                                                                            <div className="flex gap-3 justify-center flex-wrap">
                                                                                 <Button
-                                                                                    className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                                                    className="flex-1 max-w-[200px] h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg shadow-lg"
                                                                                     onClick={(e) => {
                                                                                         e.stopPropagation();
-                                                                                        setReservaDialogOpen(true);
+                                                                                        if (parking) {
+                                                                                            // Crear la URL para Google Maps
+                                                                                            const address = encodeURIComponent(
+                                                                                                parking.direccionCompleta || parking.direccion
+                                                                                            );
+                                                                                            const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${address}`;
+
+                                                                                            // Abrir en nueva pestaña
+                                                                                            window.open(googleMapsUrl, '_blank');
+
+                                                                                            console.log('🧭 Navegando a:', parking.nombre, 'en', parking.direccionCompleta || parking.direccion);
+                                                                                        }
                                                                                     }}
                                                                                 >
-                                                                                    <Calendar className="w-5 h-5 mr-2" />
-                                                                                    Reservar
+                                                                                    <Navigation2 className="w-5 h-5 mr-2" />
+                                                                                    Navegar
                                                                                 </Button>
-                                                                            )}
+
+                                                                                {plazasDisponibles.length > 0 && parking.tieneMercadoPago && (
+                                                                                    <Button
+                                                                                        className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            setReservaDialogOpen(true);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Calendar className="w-5 h-5 mr-2" />
+                                                                                        Reservar
+                                                                                    </Button>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {/* Botón de valoraciones */}
+                                                                            <div className="flex justify-center">
+                                                                                <ValoracionButton
+                                                                                    estacionamiento={{
+                                                                                        est_id: parking.id,
+                                                                                        est_nombre: parking.nombre
+                                                                                    }}
+                                                                                />
+                                                                            </div>
                                                                         </div>
                                                                     </CardContent>
                                                                 </Card>
@@ -487,18 +529,35 @@ export default function MapaEstacionamientos() {
                                                                                     {parking.direccion}
                                                                                 </p>
                                                                                 <div className="flex items-center justify-between">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <div className={`w-2 h-2 rounded-full ${parking.estado === 'disponible' ? 'bg-green-500' :
-                                                                                            parking.estado === 'pocos' ? 'bg-orange-500' : 'bg-red-500'
-                                                                                            }`}></div>
-                                                                                        <span className="text-xs font-medium text-gray-700">
-                                                                                            {parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <div className={`w-2 h-2 rounded-full ${parking.estado === 'disponible' ? 'bg-green-500' :
+                                                                                                parking.estado === 'pocos' ? 'bg-orange-500' : 'bg-red-500'
+                                                                                                }`}></div>
+                                                                                            <span className="text-xs font-medium text-gray-700">
+                                                                                                {parking.espaciosDisponibles > 0 ? `${parking.espaciosDisponibles} libres` : 'Sin espacios'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-semibold text-blue-600">
+                                                                                            {parking.distance?.toFixed(1)} km
                                                                                         </span>
                                                                                     </div>
-                                                                                    <span className="text-xs font-semibold text-blue-600">
-                                                                                        {parking.distance?.toFixed(1)} km
-                                                                                    </span>
-                                                                                </div>
+                                                                                    {/* Promedio de valoraciones en vista comprimida */}
+                                                                                    {parking.totalValoraciones && parking.totalValoraciones > 0 ? (
+                                                                                        <div className="flex items-center gap-1 mt-1">
+                                                                                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                                                                            <span className="text-xs font-medium text-gray-600">
+                                                                                                {(parking.promedioValoracion || 0).toFixed(1)}
+                                                                                            </span>
+                                                                                            <span className="text-xs text-gray-400">
+                                                                                                ({parking.totalValoraciones})
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex items-center gap-1 mt-1">
+                                                                                            <Star className="h-3 w-3 fill-gray-200 text-gray-300" />
+                                                                                            <span className="text-xs text-gray-400">Sin valoraciones</span>
+                                                                                        </div>
+                                                                                    )}
                                                                             </div>
                                                                         </div>
                                                                     </CardContent>

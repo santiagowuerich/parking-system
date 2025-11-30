@@ -28,6 +28,9 @@ interface ParkingData {
     horarios?: HorarioFranja[];
     estadoApertura?: EstadoApertura;
     tipoDisponibilidad?: 'configurada' | 'fisica';
+    promedioValoracion?: number;
+    totalValoraciones?: number;
+    tieneMercadoPago?: boolean; // ✅ Indica si tiene MercadoPago configurado
 }
 
 interface ParkingMapProps {
@@ -274,7 +277,7 @@ export default function ParkingMap({
     // Función para limpiar la ruta mostrada
     const clearRoute = () => {
         if (directionsRendererRef.current) {
-            directionsRendererRef.current.setDirections(null);
+            directionsRendererRef.current.setDirections({ routes: [] } as google.maps.DirectionsResult);
         }
     };
 
@@ -401,6 +404,28 @@ export default function ParkingMap({
             contentDiv.className = 'parking-popup relative w-[280px] max-w-[80vw] rounded-2xl border bg-white p-4 shadow-xl';
 
 
+            // Generar HTML de estrellas para valoración
+            const generarEstrellas = (promedio: number) => {
+                let estrellas = '';
+                const promedioRedondeado = Math.round(promedio);
+                for (let i = 1; i <= 5; i++) {
+                    if (i <= promedioRedondeado) {
+                        estrellas += '<span style="color: #fbbf24;">★</span>';
+                    } else {
+                        estrellas += '<span style="color: #d1d5db;">★</span>';
+                    }
+                }
+                return estrellas;
+            };
+
+            const valoracionHTML = parking.totalValoraciones && parking.totalValoraciones > 0
+                ? `<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+                    <span style="font-size: 14px; letter-spacing: -1px;">${generarEstrellas(parking.promedioValoracion || 0)}</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #374151;">${(parking.promedioValoracion || 0).toFixed(1)}</span>
+                    <span style="font-size: 12px; color: #6b7280;">(${parking.totalValoraciones})</span>
+                </div>`
+                : `<div style="margin-bottom: 12px; font-size: 12px; color: #9ca3af;">Sin valoraciones aún</div>`;
+
             contentDiv.innerHTML = `
                 <button
                     aria-label="Cerrar"
@@ -412,7 +437,7 @@ export default function ParkingMap({
                     ×
                 </button>
 
-                <!-- Nombre del estacionamiento con badge de capacidad -->
+                <!-- Nombre del estacionamiento con badge de disponibilidad -->
                 <div style="margin-bottom: 12px; padding-right: 24px;">
                     <h3 style="margin: 0 0 6px 0; font-weight: 700; font-size: 19px; color: #111827; line-height: 1.3;">
                         ${parking.nombre}
@@ -420,10 +445,13 @@ export default function ParkingMap({
                     <div style="display: inline-flex; align-items: center; gap: 6px; background: ${parking.estado === 'disponible' ? '#dcfce7' : parking.estado === 'pocos' ? '#fef3c7' : '#fee2e2'}; padding: 4px 10px; border-radius: 12px;">
                         <div style="width: 8px; height: 8px; border-radius: 50%; background: ${parking.estado === 'disponible' ? '#10b981' : parking.estado === 'pocos' ? '#f59e0b' : '#ef4444'};"></div>
                         <span style="font-weight: 600; color: ${parking.estado === 'disponible' ? '#047857' : parking.estado === 'pocos' ? '#b45309' : '#b91c1c'}; font-size: 13px;">
-                            ${parking.capacidad} plazas totales
+                            ${parking.espaciosDisponibles} plazas libres
                         </span>
                     </div>
                 </div>
+
+                <!-- Valoración promedio -->
+                ${valoracionHTML}
 
                 <!-- Dirección con icono -->
                 <div style="margin-bottom: 14px; display: flex; align-items: start; gap: 8px;">
