@@ -128,25 +128,19 @@ export async function GET(request: NextRequest) {
             logger.info(`Egresos encontrados: ${egresos?.length || 0}`);
         }
 
-        // 4. Obtener todos los pagos que corresponden a estos egresos
-        const pagNros = egresos?.filter(e => e.pag_nro).map(e => e.pag_nro) || [];
-        let pagosMap: Record<number, any> = {};
+        // 4. Obtener TODOS los pagos del turno por timestamp
+        const { data: pagos, error: pagosError } = await supabase
+            .from('pagos')
+            .select('pag_nro, pag_monto, mepa_metodo, pag_tipo, pag_h_fh')
+            .eq('est_id', turno.est_id)
+            .gte('pag_h_fh', timestampInicio)
+            .lte('pag_h_fh', timestampFin)
+            .eq('pag_estado', 'completado');
 
-        if (pagNros.length > 0) {
-            const { data: pagos, error: pagosError } = await supabase
-                .from('pagos')
-                .select('pag_nro, pag_monto, mepa_metodo')
-                .in('pag_nro', pagNros);
-
-            if (pagosError) {
-                logger.error("Error fetching pagos:", pagosError);
-            } else {
-                logger.info(`Pagos encontrados: ${pagos?.length || 0}`);
-                // Crear un mapa de pag_nro -> pago para fácil acceso
-                pagos?.forEach(pago => {
-                    pagosMap[pago.pag_nro] = pago;
-                });
-            }
+        if (pagosError) {
+            logger.error("Error fetching pagos:", pagosError);
+        } else {
+            logger.info(`Pagos encontrados: ${pagos?.length || 0}`);
         }
 
         // 4. Procesar cobros por método de pago
@@ -160,45 +154,37 @@ export async function GET(request: NextRequest) {
         let totalCobrado = 0;
         let abonosCount = 0;
 
+        // Contar abonos de egresos
         egresos?.forEach((egreso: any) => {
-            const esAbono = egreso.ocu_duracion_tipo?.toLowerCase() === 'abono';
-
-            if (esAbono) {
+            if (egreso.ocu_duracion_tipo?.toLowerCase() === 'abono') {
                 abonosCount++;
-            } else {
-                // Buscar el pago en el mapa usando pag_nro
-                const pago = egreso.pag_nro ? pagosMap[egreso.pag_nro] : null;
-
-                if (pago && pago.pag_monto) {
-                    const monto = pago.pag_monto || 0;
-                    const metodo = pago.mepa_metodo?.toLowerCase() || 'efectivo';
-
-                    totalCobrado += monto;
-
-                    logger.info(`Procesando pago #${egreso.pag_nro}: $${monto} en ${metodo}`);
-
-                    if (metodo === 'efectivo') {
-                        cobrosPorMetodo.efectivo.monto += monto;
-                        cobrosPorMetodo.efectivo.cantidad++;
-                    } else if (metodo === 'transferencia') {
-                        cobrosPorMetodo.transferencia.monto += monto;
-                        cobrosPorMetodo.transferencia.cantidad++;
-                    } else if (metodo === 'mercadopago' || metodo === 'qr') {
-                        cobrosPorMetodo.mercadopago.monto += monto;
-                        cobrosPorMetodo.mercadopago.cantidad++;
-                    } else if (metodo === 'link de pago') {
-                        cobrosPorMetodo.link_pago.monto += monto;
-                        cobrosPorMetodo.link_pago.cantidad++;
-                    } else {
-                        logger.warn(`Método de pago no reconocido: ${metodo} (original: ${pago.mepa_metodo})`);
-                    }
-                } else if (egreso.pag_nro) {
-                    logger.warn(`Egreso ${egreso.ocu_id} tiene pag_nro ${egreso.pag_nro} pero no se encontró el pago en la BD`);
-                } else {
-                    logger.warn(`Egreso ${egreso.ocu_id} sin pag_nro - posible egreso sin pago registrado`);
-                }
             }
+        });
 
+        // Procesar TODOS los pagos del turno
+        pagos?.forEach((pago: any) => {
+            const monto = pago.pag_monto || 0;
+            const metodo = pago.mepa_metodo?.toLowerCase() || 'efectivo';
+
+            totalCobrado += monto;
+
+            logger.info(`Procesando pago #${pago.pag_nro}: $${monto} (${pago.pag_tipo || 'ocupacion'}) en ${metodo}`);
+
+            if (metodo === 'efectivo') {
+                cobrosPorMetodo.efectivo.monto += monto;
+                cobrosPorMetodo.efectivo.cantidad++;
+            } else if (metodo === 'transferencia') {
+                cobrosPorMetodo.transferencia.monto += monto;
+                cobrosPorMetodo.transferencia.cantidad++;
+            } else if (metodo === 'mercadopago' || metodo === 'qr') {
+                cobrosPorMetodo.mercadopago.monto += monto;
+                cobrosPorMetodo.mercadopago.cantidad++;
+            } else if (metodo === 'link de pago') {
+                cobrosPorMetodo.link_pago.monto += monto;
+                cobrosPorMetodo.link_pago.cantidad++;
+            } else {
+                logger.warn(`Método de pago no reconocido: ${metodo} (original: ${pago.mepa_metodo})`);
+            }
         });
 
         // Calcular caja esperada
