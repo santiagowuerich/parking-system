@@ -14,6 +14,12 @@ import { useUserRole } from "@/lib/use-user-role";
 import { AbonoConductor } from "@/lib/types";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
 import { Search, Loader2, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export default function AbonosPage() {
     const { isDriver, loading: roleLoading } = useUserRole();
