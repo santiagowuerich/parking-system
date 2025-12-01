@@ -28,6 +28,8 @@ import { formatDuration } from "@/lib/utils";
 import { calculateParkingFee } from "@/lib/tariff-calculator";
 import { useTurnos } from "@/lib/hooks/use-turnos";
 import { TurnoGuard } from "@/components/turno-guard";
+import { useTicket } from "@/lib/hooks/use-ticket";
+import { TicketDialog } from "@/components/ticket";
 import dayjs from "dayjs";
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -64,6 +66,17 @@ export default function OperadorPage() {
     const { canOperateParking, loading: roleLoading } = useUserRole();
     const { puedeOperar, isEmployee } = useTurnos();
     const router = useRouter();
+    
+    // Hook para generación de tickets
+    const { 
+        ticket, 
+        isLoading: ticketLoading, 
+        isDialogOpen: showTicketDialog, 
+        generateTicket, 
+        closeDialog: closeTicketDialog,
+        setTicket
+    } = useTicket({ autoShowOnGenerate: true });
+    
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('ingreso');
 
@@ -516,7 +529,8 @@ export default function OperadorPage() {
                     ocu_precio_acordado: reservaActiva ? reservaActiva.res_monto : (payload.precio_acordado || 0),
                     ocu_fecha_limite: reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
                     res_codigo: reservaActiva ? reservaActiva.res_codigo : null,
-                    pag_nro: reservaActiva ? reservaActiva.pag_nro : null
+                    pag_nro: reservaActiva ? reservaActiva.pag_nro : null,
+                    ocu_telefono: payload.telefono || null
                 });
 
             if (ocupacionError) {
@@ -643,6 +657,7 @@ export default function OperadorPage() {
         agreed_price: number
         isAbono?: boolean
         abono_nro?: number
+        telefono?: string
     }) => {
         setModalLoading(true);
         try {
@@ -653,7 +668,8 @@ export default function OperadorPage() {
                 duracion_tipo: data.modality.toLowerCase(),
                 precio_acordado: data.agreed_price,
                 isAbono: Boolean(data.isAbono),
-                abono_nro: data.abono_nro
+                abono_nro: data.abono_nro,
+                telefono: data.telefono
             });
 
             toast({
@@ -1219,7 +1235,7 @@ export default function OperadorPage() {
             console.log('✅ Pago registrado:', payment);
 
             // 2. Actualizar la ocupación marcando la salida y enlazando el pago
-            const { error: updateError } = await supabase
+            const { data: updateResult, error: updateError } = await supabase
                 .from('ocupacion')
                 .update({
                     ocu_fh_salida: data.exitTime,
@@ -1228,9 +1244,51 @@ export default function OperadorPage() {
                 .eq('est_id', estId)
                 .eq('veh_patente', data.vehicleLicensePlate)
                 .eq('ocu_fh_entrada', data.entryTime)
-                .is('ocu_fh_salida', null);
+                .is('ocu_fh_salida', null)
+                .select();
 
             if (updateError) throw updateError;
+
+            // Validar que se actualizó al menos una fila
+            if (!updateResult || updateResult.length === 0) {
+                console.error('❌ No se encontró la ocupación para actualizar:', {
+                    est_id: estId,
+                    veh_patente: data.vehicleLicensePlate,
+                    ocu_fh_entrada_buscada: data.entryTime
+                });
+                throw new Error(`No se encontró la ocupación para actualizar. Verificar ocu_fh_entrada: ${data.entryTime}`);
+            }
+
+            console.log('✅ Ocupación actualizada - pag_nro vinculado:', payment.pag_nro);
+            console.log('✅ Filas actualizadas:', updateResult.length);
+
+            // 🎫 GENERAR TICKET DE ESTACIONAMIENTO
+            const occupationId = updateResult[0]?.ocu_id;
+            if (occupationId) {
+                console.log('🎫 Generando ticket para ocupación:', occupationId, 'método:', data.method);
+                
+                // Convertir método de pago al formato del ticket
+                // 'app' en el frontend significa MercadoPago (QR o Link)
+                const ticketPaymentMethod = data.method === 'app' ? 'qr' : 
+                    (data.method as 'efectivo' | 'transferencia' | 'qr' | 'link_pago');
+                
+                try {
+                    await generateTicket(
+                        occupationId,
+                        user?.email || 'operador',
+                        payment.pag_nro,
+                        'reduced',
+                        undefined, // notes
+                        ticketPaymentMethod
+                    );
+                    console.log('✅ Ticket generado exitosamente con método:', ticketPaymentMethod);
+                } catch (ticketError) {
+                    console.warn('⚠️ Error generando ticket (no crítico):', ticketError);
+                    // No lanzar error aquí porque el pago ya se procesó
+                }
+            } else {
+                console.warn('⚠️ No se pudo obtener ocu_id para generar ticket');
+            }
 
             // Si había una plaza asignada, liberarla
             if (data.plazaNumber) {
@@ -1270,7 +1328,7 @@ export default function OperadorPage() {
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
-        setQRPaymentStatus('pending');
+        setQRPaymentStatus('pendiente');
     };
 
 
@@ -1472,7 +1530,11 @@ export default function OperadorPage() {
                         onClose={closePaymentModals}
                         onPaymentComplete={async () => {
                             if (paymentData) {
-                                await finalizeVehicleExit(paymentData);
+                                // Asegurarnos de que el método sea 'app' (MercadoPago) para QR
+                                await finalizeVehicleExit({
+                                    ...paymentData,
+                                    method: 'app' // MercadoPago QR se registra como 'app'
+                                });
                                 toast({
                                     title: "Pago confirmado",
                                     description: "El vehículo puede salir"
@@ -1551,6 +1613,14 @@ export default function OperadorPage() {
                             }}
                         />
                     )}
+
+                    {/* Diálogo del ticket */}
+                    <TicketDialog
+                        ticket={ticket}
+                        isOpen={showTicketDialog}
+                        onClose={closeTicketDialog}
+                        loading={ticketLoading}
+                    />
                 </main>
             </div>
         </div>

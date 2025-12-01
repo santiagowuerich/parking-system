@@ -70,6 +70,7 @@ interface IngresoModalProps {
     agreed_price: number
     isAbono?: boolean
     abono_nro?: number
+    telefono?: string
   }) => Promise<void>
   loading?: boolean
   tarifas?: Tarifa[]
@@ -105,6 +106,7 @@ export default function IngresoModal({
   const [agreedPrice, setAgreedPrice] = useState<number>(0)
   const [selectedAbonoVehicle, setSelectedAbonoVehicle] = useState<string>("")
   const [selectedZona, setSelectedZona] = useState<string>("")
+  const [telefono, setTelefono] = useState<string>("")
 
   const [matchedAbonoPlaza, setMatchedAbonoPlaza] = useState<PlazaCompleta | null>(null)
   const [matchedReservaPlaza, setMatchedReservaPlaza] = useState<PlazaCompleta | null>(null)
@@ -274,6 +276,7 @@ export default function IngresoModal({
       setDetectedReservaData(null); // Reset detected reserva data
       setConflictType(null); // Reset conflict selection
       setAmbosDisponibles(false); // Reset conflict state
+      setTelefono(""); // Reset teléfono cuando se cierra
       return;
     }
 
@@ -552,7 +555,8 @@ export default function IngresoModal({
         agreed_price: isAbonoSelected ? 0 : agreedPrice,
         isAbono: isAbonoSelected,
         abono_nro: isAbonoSelected ? abonoSource?.abo_nro : undefined,
-        res_codigo: isReservaSelected && matchedReservaPlaza?.reserva ? matchedReservaPlaza.reserva.res_codigo : undefined
+        res_codigo: isReservaSelected && matchedReservaPlaza?.reserva ? matchedReservaPlaza.reserva.res_codigo : undefined,
+        telefono: telefono.trim() || undefined
       })
       onClose()
     } catch (error) {
@@ -836,18 +840,34 @@ export default function IngresoModal({
                 </div>
 
                 {/* Grid de plazas */}
-                <div className="border rounded-lg bg-gray-50 p-4 overflow-hidden">
-                  <div className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-2">
+                <div className="border-2 border-gray-300 rounded-lg bg-gray-50 p-4 overflow-hidden shadow-sm">
+                  <div 
+                    className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-2" 
+                    style={{ 
+                      transform: 'none !important',
+                      willChange: 'auto',
+                      contain: 'layout style paint'
+                    }}
+                  >
                     {plazasFiltradas.map((plazaItem) => (
-                      <Plaza
+                      <div 
                         key={plazaItem.pla_numero}
-                        numero={plazaItem.pla_numero}
-                        ocupado={false}
-                        abonado={false}
-                        tipo={getTipoVehiculo(plazaItem.catv_segmento)}
-                        onClick={() => setSelectedPlaza(plazaItem.pla_numero)}
-                        selected={selectedPlaza === plazaItem.pla_numero}
-                      />
+                        style={{
+                          width: '3.5rem',
+                          height: '3.5rem',
+                          flexShrink: 0,
+                          transform: 'none !important'
+                        }}
+                      >
+                        <Plaza
+                          numero={plazaItem.pla_numero}
+                          ocupado={false}
+                          abonado={false}
+                          tipo={getTipoVehiculo(plazaItem.catv_segmento)}
+                          onClick={() => setSelectedPlaza(plazaItem.pla_numero)}
+                          selected={selectedPlaza === plazaItem.pla_numero}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -943,6 +963,24 @@ export default function IngresoModal({
                 Plaza seleccionada: {selectedPlazaInfo.pla_numero} - {selectedPlazaInfo.pla_zona}
               </p>
             )}
+          </div>
+
+          {/* Teléfono opcional */}
+          <div className="space-y-2">
+            <Label htmlFor="telefono">
+              Teléfono (opcional)
+            </Label>
+            <Input
+              id="telefono"
+              type="tel"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="+54 9 11 1234-5678 o 11 1234-5678"
+              maxLength={20}
+            />
+            <p className="text-xs text-muted-foreground">
+              Se usará para enviar el ticket por WhatsApp al momento del egreso
+            </p>
           </div>
         </div>
 

@@ -638,7 +638,8 @@ export default function OperadorSimplePage() {
                 ocu_precio_acordado: datosReserva ? datosReserva.res_monto : (payload.precio_acordado || 0),
                 ocu_fecha_limite: datosReserva && reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
                 res_codigo: datosReserva ? datosReserva.res_codigo : null,
-                pag_nro: reservaActiva ? reservaActiva.pag_nro : null
+                pag_nro: reservaActiva ? reservaActiva.pag_nro : null,
+                ocu_telefono: payload.telefono || null
             };
 
             console.log('📝 Registrando ocupación con datos:', ocupacionData);

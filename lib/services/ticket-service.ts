@@ -154,11 +154,12 @@ export class TicketService {
         },
 
         // Conductor (opcional)
-        conductor: conductorData
+        // Priorizar teléfono de la ocupación si está disponible, sino usar el del conductor
+        conductor: conductorData || occupationData.ocu_telefono
           ? {
-              name: `${conductorData.usu_nom} ${conductorData.usu_ape}`,
-              email: conductorData.usu_email,
-              phone: conductorData.usu_tel || undefined,
+              name: conductorData ? `${conductorData.usu_nom} ${conductorData.usu_ape}` : 'Cliente',
+              email: conductorData?.usu_email,
+              phone: occupationData.ocu_telefono || conductorData?.usu_tel || undefined,
             }
           : undefined,
 
