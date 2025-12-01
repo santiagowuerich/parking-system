@@ -80,13 +80,13 @@ export async function GET(
     const [ocupacionesResult, reservasResult, abonosInicialesResult, abonosExtensionesResult] = await Promise.all([
       pagNrosOcupaciones.length > 0 ? supabase
         .from('ocupacion')
-        .select('pag_nro, pla_numero, ocu_fh_entrada, ocu_fh_salida, plazas(pla_zona)')
+        .select('pag_nro, pla_numero, est_id, ocu_fh_entrada, ocu_fh_salida')
         .in('pag_nro', pagNrosOcupaciones)
       : Promise.resolve({ data: [] }),
 
       pagNrosReservas.length > 0 ? supabase
         .from('reservas')
-        .select('pag_nro, res_codigo, res_fecha_reservada, pla_numero, plazas(pla_zona)')
+        .select('pag_nro, res_fh_ingreso, pla_numero, est_id, veh_patente')
         .in('pag_nro', pagNrosReservas)
       : Promise.resolve({ data: [] }),
 
@@ -103,11 +103,68 @@ export async function GET(
       : Promise.resolve({ data: [] })
     ]);
 
-    // 5. Crear maps para lookup rápido
+    // Try to recover plaza data from associated reservations for ocupations with missing data
+    let ocupacionesData = (ocupacionesResult.data as any[]) || [];
+    const reservasData = (reservasResult.data as any[]) || [];
+
+    if (ocupacionesData.length > 0) {
+      const ocupacionesSinPlaza = ocupacionesData.filter(o => !o.pla_numero || !o.est_id);
+      if (ocupacionesSinPlaza.length > 0) {
+        // Try to recover plaza data from associated reservations (matching by pag_nro if ocupacion is from a reservation)
+        for (const ocu of ocupacionesSinPlaza) {
+          // If ocupacion has pag_nro, try to find matching reservation with same pag_nro
+          if (ocu.pag_nro) {
+            const matchingReserva = reservasData.find((r: any) => r.pag_nro === ocu.pag_nro);
+            if (matchingReserva) {
+              if (!ocu.est_id && matchingReserva.est_id) ocu.est_id = matchingReserva.est_id;
+              if (!ocu.pla_numero && matchingReserva.pla_numero) ocu.pla_numero = matchingReserva.pla_numero;
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Obtener datos de plazas para poder mapear pla_zona
+    // Recopilar todos los (est_id, pla_numero) únicos de ocupaciones y reservas
+    const plazasParaBuscar = new Set<string>();
+    ((ocupacionesResult.data as any[]) || []).forEach((o: any) => {
+      if (o.est_id && o.pla_numero) {
+        plazasParaBuscar.add(`${o.est_id},${o.pla_numero}`);
+      }
+    });
+    ((reservasResult.data as any[]) || []).forEach((r: any) => {
+      if (r.est_id && r.pla_numero) {
+        plazasParaBuscar.add(`${r.est_id},${r.pla_numero}`);
+      }
+    });
+
+    // Query a plazas para obtener pla_zona
+    let plazasData: any[] = [];
+    if (plazasParaBuscar.size > 0) {
+      const plazasArray = Array.from(plazasParaBuscar).map((p) => {
+        const [est_id, pla_numero] = p.split(',');
+        return { est_id: parseInt(est_id), pla_numero: parseInt(pla_numero) };
+      });
+
+      // Query para cada plaza (necesario porque Supabase no soporta OR en filters de forma directa para claves compuestas)
+      const plazasQueries = plazasArray.map((p) =>
+        supabase
+          .from('plazas')
+          .select('est_id, pla_numero, pla_zona')
+          .eq('est_id', p.est_id)
+          .eq('pla_numero', p.pla_numero)
+      );
+
+      const plazasResults = await Promise.all(plazasQueries);
+      plazasData = plazasResults.flatMap((r) => (r.data as any[]) || []);
+    }
+
+    // 6. Crear maps para lookup rápido
     const ocupacionesMap = new Map((ocupacionesResult.data as any[])?.map((o: any) => [o.pag_nro, o]) || []);
     const reservasMap = new Map((reservasResult.data as any[])?.map((r: any) => [r.pag_nro, r]) || []);
     const abonosInicialesMap = new Map((abonosInicialesResult.data as any[])?.map((a: any) => [a.pag_nro, a]) || []);
     const abonosExtensionesMap = new Map((abonosExtensionesResult.data as any[])?.map((a: any) => [a.abo_nro, a]) || []);
+    const plazasMap = new Map(plazasData.map((p: any) => [`${p.est_id},${p.pla_numero}`, p]));
 
     // 6. Helper para normalizar método de pago
     const normalizarMetodoPago = (metodo: string | null | undefined): string => {
@@ -144,10 +201,9 @@ export async function GET(
         case 'ocupacion': {
           const ocu = ocupacionesMap.get(pago.pag_nro);
           let pla_zona = 'N/A';
-          if (Array.isArray(ocu?.plazas)) {
-            pla_zona = ocu.plazas[0]?.pla_zona || 'N/A';
-          } else if (ocu?.plazas?.pla_zona) {
-            pla_zona = ocu.plazas.pla_zona;
+          if (ocu?.est_id && ocu?.pla_numero) {
+            const plaza = plazasMap.get(`${ocu.est_id},${ocu.pla_numero}`);
+            pla_zona = plaza?.pla_zona || 'N/A';
           }
           movimiento = {
             ...base,
@@ -162,16 +218,15 @@ export async function GET(
         case 'reserva': {
           const res = reservasMap.get(pago.pag_nro);
           let pla_zona = 'N/A';
-          if (Array.isArray(res?.plazas)) {
-            pla_zona = res.plazas[0]?.pla_zona || 'N/A';
-          } else if (res?.plazas?.pla_zona) {
-            pla_zona = res.plazas.pla_zona;
+          if (res?.est_id && res?.pla_numero) {
+            const plaza = plazasMap.get(`${res.est_id},${res.pla_numero}`);
+            pla_zona = plaza?.pla_zona || 'N/A';
           }
           movimiento = {
             ...base,
             tipo: 'Reserva',
-            descripcion: `Código: ${res?.res_codigo || 'N/A'} - Plaza ${res?.pla_numero || 'N/A'} (${pla_zona})`,
-            ingreso: res?.res_fecha_reservada,
+            descripcion: `Plaza ${res?.pla_numero || 'N/A'} - ${pla_zona}`,
+            ingreso: res?.res_fh_ingreso,
             egreso: null
           };
           break;
