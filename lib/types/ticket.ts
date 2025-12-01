@@ -142,7 +142,7 @@ export interface TicketOptions {
 export interface TicketDBRecord {
   ticket_id: string;
   payment_id: number | null;
-  occupation_id: number;
+  occupation_id: number | null; // NULL para tickets de extensión de abono
   est_id: number;
   ticket_data: ParkingTicket;
   created_at: string;

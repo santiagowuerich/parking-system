@@ -253,28 +253,85 @@ export function ParkingTicket({
     }, 250);
   }, [ticket, onPrint]);
 
-  // Función para enviar por WhatsApp
-  const handleWhatsApp = useCallback(() => {
-    setShowWhatsAppDialog(true);
+  // Función para formatear número de teléfono al formato internacional
+  const formatPhoneNumber = useCallback((phone: string): string => {
+    // Remover espacios, guiones y paréntesis
+    const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    
+    // Asegurar formato internacional para Argentina
+    let formattedPhone = cleaned;
+    if (!formattedPhone.startsWith('+')) {
+      // Si no tiene código de país, asumir Argentina (+54)
+      if (formattedPhone.startsWith('54')) {
+        formattedPhone = '+' + formattedPhone;
+      } else if (formattedPhone.startsWith('9')) {
+        // Si empieza con 9, agregar código de país
+        formattedPhone = '+54' + formattedPhone;
+      } else {
+        // Si es número local, agregar código de país y 9
+        formattedPhone = '+549' + formattedPhone;
+      }
+    }
+    
+    return formattedPhone;
   }, []);
 
-  // Función para enviar el ticket por WhatsApp
-  const handleSendWhatsApp = useCallback(async (phoneNumber: string) => {
+  // Función para validar número de teléfono
+  const isValidPhoneNumber = useCallback((phone: string): boolean => {
+    const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    const phoneRegex = /^(\+?54)?9?\d{10}$/;
+    return phoneRegex.test(cleaned) || /^\d{10,15}$/.test(cleaned);
+  }, []);
+
+  // Función para enviar el ticket por WhatsApp (función interna reutilizable)
+  const sendTicketToWhatsApp = useCallback(async (phoneNumber: string, shouldCloseDialog = false) => {
     setWhatsappLoading(true);
     try {
       // Pasar el elemento del ticket para mejor calidad del PDF
       const ticketElement = ticketRef.current?.querySelector('.parking-ticket') as HTMLElement;
       await sendTicketViaWhatsApp(phoneNumber, ticket, ticketElement);
-      setShowWhatsAppDialog(false);
-      // El toast se muestra en el diálogo
+      
+      if (shouldCloseDialog) {
+        setShowWhatsAppDialog(false);
+      }
+      
+      // Mostrar mensaje informativo
+      toast({
+        title: 'WhatsApp abierto',
+        description: 'El PDF se descargó automáticamente. Adjútelo al chat desde su carpeta de descargas.',
+      });
     } catch (error) {
       console.error('Error enviando por WhatsApp:', error);
-      // El error ya se maneja en el diálogo
-      throw error; // Re-lanzar para que el diálogo lo maneje
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo enviar el ticket. Por favor, intente nuevamente.',
+      });
+      throw error; // Re-lanzar para que el diálogo lo maneje si está abierto
     } finally {
       setWhatsappLoading(false);
     }
   }, [ticket]);
+
+  // Función para enviar por WhatsApp
+  const handleWhatsApp = useCallback(() => {
+    // Verificar si el ticket tiene teléfono del conductor disponible
+    const conductorPhone = ticket.conductor?.phone;
+    
+    if (conductorPhone && isValidPhoneNumber(conductorPhone)) {
+      // Si hay teléfono disponible y es válido, usarlo directamente sin mostrar diálogo
+      const formattedPhone = formatPhoneNumber(conductorPhone);
+      sendTicketToWhatsApp(formattedPhone, false);
+    } else {
+      // Si no hay teléfono o no es válido, mostrar el diálogo para ingresarlo
+      setShowWhatsAppDialog(true);
+    }
+  }, [ticket, formatPhoneNumber, isValidPhoneNumber, sendTicketToWhatsApp]);
+
+  // Función para enviar el ticket por WhatsApp (desde el diálogo)
+  const handleSendWhatsApp = useCallback(async (phoneNumber: string) => {
+    await sendTicketToWhatsApp(phoneNumber, true);
+  }, [sendTicketToWhatsApp]);
 
   const isPrintFormat = format === 'print';
 

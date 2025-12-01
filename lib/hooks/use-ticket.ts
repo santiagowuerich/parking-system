@@ -23,6 +23,17 @@ interface UseTicketReturn {
     generatedBy: string,
     paymentId?: string | number,
     format?: TicketFormat,
+    notes?: string,
+    paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago'
+  ) => Promise<ParkingTicket | null>;
+  generateSubscriptionExtensionTicket: (
+    paymentId: string | number,
+    abo_nro: number,
+    est_id: number,
+    veh_patente: string,
+    generatedBy: string,
+    paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago',
+    format?: TicketFormat,
     notes?: string
   ) => Promise<ParkingTicket | null>;
   getTicket: (ticketId: string) => Promise<ParkingTicket | null>;
@@ -206,6 +217,68 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     []
   );
 
+  /**
+   * Genera un ticket de extensión de abono
+   */
+  const generateSubscriptionExtensionTicket = useCallback(
+    async (
+      paymentId: string | number,
+      abo_nro: number,
+      est_id: number,
+      veh_patente: string,
+      generatedBy: string,
+      paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago',
+      format?: TicketFormat,
+      notes?: string
+    ): Promise<ParkingTicket | null> => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/tickets/generate-subscription-extension', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            paymentId,
+            abo_nro,
+            est_id,
+            veh_patente,
+            generatedBy,
+            paymentMethod,
+            format: format || defaultFormat,
+            notes,
+          }),
+        });
+
+        const data: GenerateTicketResponse = await response.json();
+
+        if (!data.success || !data.ticket) {
+          setError(data.error || 'Error al generar el ticket');
+          return null;
+        }
+
+        setTicket(data.ticket);
+
+        if (autoShowOnGenerate) {
+          setIsDialogOpen(true);
+        }
+
+        return data.ticket;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Error al generar el ticket';
+        setError(message);
+        console.error('Error generando ticket de extensión:', err);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [autoShowOnGenerate, defaultFormat]
+  );
+
   const openDialog = useCallback(() => {
     setIsDialogOpen(true);
   }, []);
@@ -224,6 +297,7 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
     error,
     isDialogOpen,
     generateTicket,
+    generateSubscriptionExtensionTicket,
     getTicket,
     getTicketsByOccupation,
     markAsPrinted,

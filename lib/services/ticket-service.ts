@@ -332,7 +332,7 @@ export class TicketService {
     const record: Omit<TicketDBRecord, 'created_at'> = {
       ticket_id: ticket.ticketId,
       payment_id: typeof ticket.paymentId === 'number' ? ticket.paymentId : null,
-      occupation_id: ticket.occupationId,
+      occupation_id: ticket.occupationId && ticket.occupationId > 0 ? ticket.occupationId : null, // Permitir null para extensiones de abono
       est_id: ticket.parkingId,
       ticket_data: ticket,
       printed_at: ticket.printedAt || null,
@@ -493,6 +493,176 @@ export class TicketService {
     }
 
     return true;
+  }
+
+  /**
+   * Genera un ticket para extensión de abono (sin ocupación)
+   */
+  static async generateSubscriptionExtensionTicket(
+    request: {
+      paymentId: string | number;
+      abo_nro: number;
+      est_id: number;
+      veh_patente: string;
+      generatedBy: string;
+      paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago';
+      format?: TicketFormat;
+      notes?: string;
+    }
+  ): Promise<GenerateTicketResponse> {
+    try {
+      const { paymentId, abo_nro, est_id, veh_patente, generatedBy, format = 'reduced', notes, paymentMethod } = request;
+
+      // 1. Obtener datos del pago
+      const paymentData = await this.getPaymentData(paymentId);
+      if (!paymentData) {
+        return {
+          success: false,
+          error: 'Pago no encontrado',
+          details: `No se encontró el pago con ID ${paymentId}`,
+        };
+      }
+
+      // 2. Obtener datos del estacionamiento
+      const parkingData = await this.getParkingData(est_id);
+      if (!parkingData) {
+        return {
+          success: false,
+          error: 'Estacionamiento no encontrado',
+          details: `No se encontró el estacionamiento con ID ${est_id}`,
+        };
+      }
+
+      // 3. Obtener datos del abono (con conductor y plaza)
+      const { data: abonoData, error: abonoError } = await supabase
+        .from('abonos')
+        .select(`
+          abo_nro,
+          abo_fecha_inicio,
+          abo_fecha_fin,
+          abo_tipoabono,
+          pla_numero,
+          abonado!inner(con_id, abon_nombre, abon_apellido, abon_dni),
+          plazas(pla_zona)
+        `)
+        .eq('abo_nro', abo_nro)
+        .single();
+
+      if (abonoError || !abonoData) {
+        return {
+          success: false,
+          error: 'Abono no encontrado',
+          details: `No se encontró el abono con número ${abo_nro}`,
+        };
+      }
+
+      // 4. Obtener datos del conductor
+      const conductorId = (abonoData as any)?.abonado?.con_id;
+      let conductorData = null;
+      if (conductorId) {
+        conductorData = await this.getConductorData(conductorId);
+      }
+
+      // 5. Obtener datos del vehículo
+      const vehicleData = await this.getVehicleData(veh_patente);
+
+      // 6. Obtener datos de la plaza
+      let plazaData = null;
+      const plaNumero = abonoData.pla_numero;
+      if (plaNumero) {
+        plazaData = await this.getPlazaData(est_id, plaNumero);
+      }
+
+      // 7. Generar ID de ticket único
+      const ticketId = await this.getNextTicketId();
+
+      // 8. Construir el modelo de ticket
+      const ticket: ParkingTicket = {
+        // Identificadores
+        ticketId,
+        paymentId: paymentData.pag_nro,
+        occupationId: 0, // No hay ocupación para extensiones de abono
+
+        // Estacionamiento
+        parkingId: parkingData.est_id,
+        parkingName: parkingData.est_nombre,
+        parkingAddress: parkingData.est_direc,
+        parkingPhone: parkingData.est_telefono || undefined,
+        parkingEmail: parkingData.est_email || undefined,
+        plazaNumber: plaNumero || undefined,
+        zone: plazaData?.pla_zona || undefined,
+
+        // Vehículo
+        vehicleLicensePlate: veh_patente,
+        vehicleType: vehicleTypeMap[vehicleData?.catv_segmento || 'AUT'] || 'Auto',
+        vehicleBrand: vehicleData?.veh_marca || undefined,
+        vehicleModel: vehicleData?.veh_modelo || undefined,
+        vehicleColor: vehicleData?.veh_color || undefined,
+
+        // Tiempos (para extensión, usamos fechas del abono)
+        entryTime: abonoData.abo_fecha_inicio,
+        exitTime: abonoData.abo_fecha_fin,
+        duration: {
+          hours: 0,
+          minutes: 0,
+          formatted: 'Extensión de abono',
+        },
+
+        // Pago
+        payment: {
+          amount: paymentData.pag_monto || 0,
+          method: paymentMethod || paymentMethodMap[paymentData?.mepa_metodo || 'efectivo'] || 'efectivo',
+          status: (paymentData.pag_estado as PaymentStatus) || 'aprobado',
+          date: paymentData.pag_h_fh
+            ? new Date(paymentData.pag_h_fh).toISOString()
+            : new Date().toISOString(),
+          currency: 'ARS',
+          referenceId: paymentData.pag_nro?.toString() || undefined,
+        },
+
+        // Conductor
+        conductor: conductorData
+          ? {
+              name: `${conductorData.usu_nom} ${conductorData.usu_ape}`,
+              email: conductorData.usu_email,
+              phone: conductorData.usu_tel || undefined,
+            }
+          : undefined,
+
+        // Reserva (no aplica)
+        isReservation: false,
+        reservationCode: undefined,
+
+        // Abono (sí aplica)
+        isSubscription: true,
+        subscriptionNumber: abo_nro,
+
+        // Metadatos
+        generatedAt: new Date().toISOString(),
+        generatedBy,
+        status: 'generated',
+        format,
+        notes: notes || `Extensión de abono ${abo_nro}`,
+      };
+
+      // 9. Almacenar ticket en BD
+      const stored = await this.storeTicket(ticket);
+      if (!stored) {
+        console.warn('⚠️ No se pudo almacenar el ticket en BD, pero se generó correctamente');
+      }
+
+      return {
+        success: true,
+        ticket,
+      };
+    } catch (error) {
+      console.error('❌ Error generando ticket de extensión:', error);
+      return {
+        success: false,
+        error: 'Error interno al generar el ticket',
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   /**
