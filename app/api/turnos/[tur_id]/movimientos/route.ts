@@ -225,7 +225,7 @@ export async function GET(
           movimiento = {
             ...base,
             tipo: 'Reserva',
-            descripcion: `Plaza ${res?.pla_numero || 'N/A'} - ${pla_zona} (${res?.veh_patente || 'N/A'})`,
+            descripcion: `Plaza ${res?.pla_numero || 'N/A'} - ${pla_zona}`,
             ingreso: res?.res_fh_ingreso,
             egreso: null
           };
