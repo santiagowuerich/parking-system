@@ -45,12 +45,53 @@ export async function GET(request: NextRequest) {
                 est_publicado,
                 est_requiere_llave,
                 est_descripcion,
-                est_tolerancia_min
+                est_tolerancia_min,
+                due_id
             `)
             .eq('est_publicado', true) // ✅ Solo estacionamientos públicos
             .not('est_latitud', 'is', null)
             .not('est_longitud', 'is', null)
             .order('est_nombre');
+
+        // Obtener información de MercadoPago para cada dueño
+        const duenosIds = [...new Set(estacionamientos?.map(e => e.due_id).filter(Boolean) || [])];
+        
+        // Obtener auth_user_ids de los dueños
+        let mercadoPagoConfigMap: Record<number, boolean> = {};
+        
+        if (duenosIds.length > 0) {
+            const { data: usuariosData } = await supabase
+                .from('usuario')
+                .select('usu_id, auth_user_id')
+                .in('usu_id', duenosIds);
+
+            if (usuariosData && usuariosData.length > 0) {
+                const authUserIds = usuariosData
+                    .map(u => u.auth_user_id)
+                    .filter(Boolean);
+
+                if (authUserIds.length > 0) {
+                    // Obtener configuraciones de MercadoPago
+                    const { data: settingsData } = await supabase
+                        .from('user_settings')
+                        .select('user_id, mercadopago_api_key')
+                        .in('user_id', authUserIds);
+
+                    // Crear mapa de auth_user_id -> tiene MP configurado
+                    const authMpMap: Record<string, boolean> = {};
+                    settingsData?.forEach(s => {
+                        authMpMap[s.user_id] = !!(s.mercadopago_api_key && s.mercadopago_api_key.trim());
+                    });
+
+                    // Crear mapa de due_id -> tiene MP configurado
+                    usuariosData.forEach(u => {
+                        if (u.auth_user_id) {
+                            mercadoPagoConfigMap[u.usu_id] = authMpMap[u.auth_user_id] || false;
+                        }
+                    });
+                }
+            }
+        }
 
         if (error) {
             console.error('❌ Error obteniendo estacionamientos:', error);
@@ -83,10 +124,25 @@ export async function GET(request: NextRequest) {
                         .order('dia_semana')
                         .order('orden');
 
-                    const [{ data: plazasData, error: plazasError }, { data: horariosData, error: horariosError }] = await Promise.all([
+                    // Consultar valoraciones promedio
+                    const valoracionesQuery = supabase
+                        .from('estacionamiento_valoraciones')
+                        .select('val_rating')
+                        .eq('est_id', parking.est_id);
+
+                    const [{ data: plazasData, error: plazasError }, { data: horariosData, error: horariosError }, { data: valoracionesData }] = await Promise.all([
                         plazasQuery,
-                        horariosQuery
+                        horariosQuery,
+                        valoracionesQuery
                     ]);
+
+                    // Calcular promedio de valoraciones
+                    let promedioValoracion = 0;
+                    let totalValoraciones = 0;
+                    if (valoracionesData && valoracionesData.length > 0) {
+                        totalValoraciones = valoracionesData.length;
+                        promedioValoracion = valoracionesData.reduce((sum, v) => sum + v.val_rating, 0) / totalValoraciones;
+                    }
 
                     if (plazasError) {
                         console.error(`❌ Error obteniendo plazas para ${parking.est_id}:`, plazasError);
@@ -115,6 +171,9 @@ export async function GET(request: NextRequest) {
                             tolerancia: parking.est_tolerancia_min,
                             horarios: horarios,
                             estadoApertura: estadoApertura,
+                            promedioValoracion: promedioValoracion,
+                            totalValoraciones: totalValoraciones,
+                            tieneMercadoPago: mercadoPagoConfigMap[parking.due_id] || false, // ✅ Indica si tiene MercadoPago configurado
                             estado: parking.est_cantidad_espacios_disponibles > parking.est_capacidad * 0.5
                                 ? 'disponible'
                                 : parking.est_cantidad_espacios_disponibles > 0
@@ -234,6 +293,9 @@ export async function GET(request: NextRequest) {
                         horarios: horarios,
                         estadoApertura: estadoApertura,
                         tipoDisponibilidad: tipoDisponibilidad, // ✅ Nuevo: indica si es configurada o física
+                        promedioValoracion: promedioValoracion, // ✅ Promedio de valoraciones
+                        totalValoraciones: totalValoraciones, // ✅ Total de valoraciones
+                        tieneMercadoPago: mercadoPagoConfigMap[parking.due_id] || false, // ✅ Indica si tiene MercadoPago configurado
                         // Determinar estado basado en disponibilidad real
                         estado: espaciosDisponibles > capacidad * 0.5
                             ? 'disponible'
@@ -266,6 +328,9 @@ export async function GET(request: NextRequest) {
                         horarios: [],
                         estadoApertura: estadoAperturaFallback,
                         tipoDisponibilidad: 'fisica' as const, // Fallback usa disponibilidad física
+                        promedioValoracion: 0,
+                        totalValoraciones: 0,
+                        tieneMercadoPago: mercadoPagoConfigMap[parking.due_id] || false, // ✅ Indica si tiene MercadoPago configurado
                         estado: 'disponible' // Estado por defecto
                     };
                 }
