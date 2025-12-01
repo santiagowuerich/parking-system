@@ -151,15 +151,10 @@ export default function GestionAbonosPage() {
                 <main className="flex-1 overflow-auto">
                     <div className="container mx-auto p-6 space-y-6">
                         <TurnoGuard showAlert={true} redirectButton={true}>
-                            <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                                <Calendar className="h-6 w-6 text-white" />
-                            </div>
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900">Abonos actuales</h1>
                                 <p className="text-gray-600">Grilla con abonos vigentes. Ordenable por proximidad a vencer.</p>
                             </div>
-                        </div>
 
                         <Card>
                             <CardHeader>
@@ -225,20 +220,20 @@ export default function GestionAbonosPage() {
                                     </Alert>
                                 ) : (
                                     <>
-                                        <div className="rounded-md border">
+                                        <div className="rounded-md border-2 border-gray-400 overflow-hidden">
                                             <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Conductor</TableHead>
-                                                        <TableHead>DNI</TableHead>
-                                                        <TableHead>Zona</TableHead>
-                                                        <TableHead>Plaza</TableHead>
-                                                        <TableHead>Tipo</TableHead>
-                                                        <TableHead>Inicio</TableHead>
-                                                        <TableHead>Vence</TableHead>
-                                                        <TableHead>Restan</TableHead>
-                                                        <TableHead>Aviso</TableHead>
-                                                        <TableHead className="text-right">Acciones</TableHead>
+                                                <TableHeader className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                    <TableRow className="hover:bg-blue-100">
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Conductor</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">DNI</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Zona</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Plaza</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Tipo</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Inicio</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Vence</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Restan</TableHead>
+                                                        <TableHead className="text-center font-bold text-gray-900 border-r border-gray-300">Aviso</TableHead>
+                                                        <TableHead className="text-right font-bold text-gray-900">Acciones</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>

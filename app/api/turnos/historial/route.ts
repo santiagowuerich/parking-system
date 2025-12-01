@@ -1,6 +1,12 @@
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from '@/lib/logger';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export async function GET(request: NextRequest) {
     try {
@@ -61,8 +67,39 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Error al obtener historial" }, { status: 500 });
         }
 
+        // Calcular efectivo cobrado para cada turno
+        const historialConEfectivo = await Promise.all(
+            (historial || []).map(async (turno: any) => {
+                const fechaTurno = turno.tur_fecha;
+                const horaInicio = turno.tur_hora_entrada;
+                const horaFin = turno.tur_hora_salida;
+                const fechaSalida = turno.tur_fecha_salida || turno.tur_fecha;
+
+                if (!horaFin) {
+                    return { ...turno, efectivo_cobrado: 0 };
+                }
+
+                const timestampInicio = dayjs.tz(`${fechaTurno} ${horaInicio}`, 'America/Argentina/Buenos_Aires').toISOString();
+                const timestampFin = dayjs.tz(`${fechaSalida} ${horaFin}`, 'America/Argentina/Buenos_Aires').toISOString();
+
+                // Obtener pagos en efectivo del turno
+                const { data: pagosEfectivo } = await supabase
+                    .from('pagos')
+                    .select('pag_monto')
+                    .eq('est_id', estId)
+                    .gte('pag_h_fh', timestampInicio)
+                    .lte('pag_h_fh', timestampFin)
+                    .eq('pag_estado', 'completado')
+                    .ilike('mepa_metodo', 'efectivo');
+
+                const efectivoCobrado = pagosEfectivo?.reduce((sum: number, p: any) => sum + (p.pag_monto || 0), 0) || 0;
+
+                return { ...turno, efectivo_cobrado: efectivoCobrado };
+            })
+        );
+
         const jsonResponse = NextResponse.json({
-            historial: historial || []
+            historial: historialConEfectivo || []
         });
         return copyResponseCookies(response, jsonResponse);
     } catch (err) {

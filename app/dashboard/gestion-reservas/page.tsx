@@ -232,14 +232,9 @@ export default function GestionReservasPage() {
                 <main className="flex-1 overflow-auto">
                     <div className="container mx-auto p-6 space-y-6">
                         <TurnoGuard showAlert={true} redirectButton={true}>
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                                    <CalendarIcon className="h-6 w-6 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold text-gray-900">Gestión de Reservas</h1>
-                                    <p className="text-gray-600">Listado de todas las reservas con información de ingreso.</p>
-                                </div>
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900">Gestión de Reservas</h1>
+                                <p className="text-gray-600">Listado de todas las reservas con información de ingreso.</p>
                             </div>
 
                             <Card>

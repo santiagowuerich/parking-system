@@ -41,15 +41,15 @@ export default function ReportesPage() {
             component: <OcupacionReporte />
         },
         movimientos: {
-            titulo: "Movimientos Diarios",
+            titulo: "Movimientos de Playa",
             component: <MovimientosReporte />
         },
         ingresos: {
-            titulo: "Ingresos por Período",
+            titulo: "Ingresos",
             component: <IngresosReporte />
         },
         abonos: {
-            titulo: "Abonos y Suscripciones",
+            titulo: "Abonos",
             component: <AbonosReporte />
         }
     };
