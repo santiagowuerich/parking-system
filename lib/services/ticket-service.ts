@@ -27,12 +27,20 @@ const vehicleTypeMap: Record<string, VehicleType> = {
 
 /**
  * Mapeo de métodos de pago de BD a frontend
+ * En BD se guardan: 'Efectivo', 'Tarjeta', 'MercadoPago', 'Transferencia'
+ * En frontend se usan: 'efectivo', 'transferencia', 'link_pago', 'qr'
  */
 const paymentMethodMap: Record<string, PaymentMethod> = {
+  // Valores en minúsculas (por si acaso)
   efectivo: 'efectivo',
   transferencia: 'transferencia',
   link_pago: 'link_pago',
   qr: 'qr',
+  // Valores como se guardan en la BD (con mayúscula)
+  Efectivo: 'efectivo',
+  Transferencia: 'transferencia',
+  MercadoPago: 'qr', // MercadoPago en BD puede ser QR o Link de Pago, lo mapeamos a 'qr'
+  Tarjeta: 'efectivo', // Tarjeta no tiene equivalente exacto, lo dejamos como efectivo
 };
 
 /**
@@ -46,7 +54,7 @@ export class TicketService {
     request: GenerateTicketRequest
   ): Promise<GenerateTicketResponse> {
     try {
-      const { paymentId, occupationId, format = 'reduced', generatedBy, notes } = request;
+      const { paymentId, occupationId, format = 'reduced', generatedBy, notes, paymentMethod } = request;
 
       // 1. Obtener datos de la ocupación
       const occupationData = await this.getOccupationData(occupationId);
@@ -133,9 +141,10 @@ export class TicketService {
         duration,
 
         // Pago
+        // Priorizar el método de pago del request, luego el de la BD
         payment: {
           amount: paymentData?.pag_monto || occupationData.ocu_precio_acordado || 0,
-          method: paymentMethodMap[paymentData?.mepa_metodo || 'efectivo'] || 'efectivo',
+          method: paymentMethod || paymentMethodMap[paymentData?.mepa_metodo || 'efectivo'] || 'efectivo',
           status: (paymentData?.pag_estado as PaymentStatus) || 'aprobado',
           date: paymentData?.pag_h_fh
             ? new Date(paymentData.pag_h_fh).toISOString()

@@ -112,6 +112,8 @@ export interface GenerateTicketRequest {
   format?: TicketFormat;
   generatedBy: string;
   notes?: string;
+  // Método de pago original del frontend (opcional, para sobrescribir el de la BD)
+  paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago';
 }
 
 /**

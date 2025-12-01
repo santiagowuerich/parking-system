@@ -68,12 +68,14 @@ export default function QRPaymentDialog({
   }, [paymentData.expiresAt])
 
 
-  // Handle payment completion
+  // Handle payment completion - solo cuando cambia el status a aprobado
   useEffect(() => {
-    if (paymentStatus === 'aprobado') {
+    if (paymentStatus === 'aprobado' && isOpen) {
+      console.log('✅ QRPaymentDialog: Pago aprobado detectado, llamando onPaymentComplete');
       onPaymentComplete()
     }
-  }, [paymentStatus, onPaymentComplete])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentStatus]) // Solo depender de paymentStatus, no de onPaymentComplete para evitar llamadas múltiples
 
   const getStatusConfig = () => {
     switch (paymentStatus) {

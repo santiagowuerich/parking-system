@@ -1702,15 +1702,23 @@ export default function OperadorSimplePage() {
             // 🎫 GENERAR TICKET DE ESTACIONAMIENTO
             const occupationId = updateResult[0]?.ocu_id;
             if (occupationId) {
-                console.log('🎫 Generando ticket para ocupación:', occupationId);
+                console.log('🎫 Generando ticket para ocupación:', occupationId, 'método:', data.method);
+                
+                // Convertir método de pago al formato del ticket
+                // 'app' en el frontend significa MercadoPago (QR o Link)
+                const ticketPaymentMethod = data.method === 'app' ? 'qr' : 
+                    (data.method as 'efectivo' | 'transferencia' | 'qr' | 'link_pago');
+                
                 try {
                     await generateTicket(
                         occupationId,
                         user?.email || 'operador',
                         payment.pag_nro,
-                        'reduced'
+                        'reduced',
+                        undefined, // notes
+                        ticketPaymentMethod
                     );
-                    console.log('✅ Ticket generado exitosamente');
+                    console.log('✅ Ticket generado exitosamente con método:', ticketPaymentMethod);
                 } catch (ticketError) {
                     console.warn('⚠️ Error generando ticket (no crítico):', ticketError);
                     // No lanzar error aquí porque el pago ya se procesó
@@ -1789,7 +1797,7 @@ export default function OperadorSimplePage() {
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
-        setQRPaymentStatus('pending');
+        setQRPaymentStatus('pendiente');
         setReservationData(null);
         reservationExitDataRef.current = null;
     };

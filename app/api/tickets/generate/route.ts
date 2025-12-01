@@ -17,6 +17,7 @@ import { GenerateTicketRequest, TicketFormat } from '@/lib/types/ticket';
  *   format?: 'reduced' | 'detailed' | 'digital'
  *   generatedBy: string (requerido - ID o nombre del operador)
  *   notes?: string
+ *   paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago' (opcional - sobrescribe el de la BD)
  * }
  * 
  * Response:
@@ -67,6 +68,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar método de pago si se proporciona
+    const validPaymentMethods = ['efectivo', 'transferencia', 'qr', 'link_pago'];
+    if (body.paymentMethod && !validPaymentMethods.includes(body.paymentMethod)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Método de pago inválido',
+          details: `El método de pago debe ser uno de: ${validPaymentMethods.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Construir request
     const ticketRequest: GenerateTicketRequest = {
       paymentId: body.paymentId || '',
@@ -74,9 +88,10 @@ export async function POST(request: NextRequest) {
       format: body.format || 'reduced',
       generatedBy: body.generatedBy,
       notes: body.notes || undefined,
+      paymentMethod: body.paymentMethod || undefined,
     };
 
-    console.log('🎫 Generando ticket para ocupación:', ticketRequest.occupationId);
+    console.log('🎫 Generando ticket para ocupación:', ticketRequest.occupationId, 'método:', ticketRequest.paymentMethod);
 
     // Generar ticket
     const result = await TicketService.generateTicket(ticketRequest);

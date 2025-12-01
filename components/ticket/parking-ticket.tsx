@@ -3,15 +3,18 @@
 // components/ticket/parking-ticket.tsx
 // Componente principal de ticket de estacionamiento
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { ParkingTicket as ParkingTicketType, TicketFormat } from '@/lib/types/ticket';
 import { TicketHeader } from './ticket-header';
 import { TicketBody } from './ticket-body';
 import { TicketFooter } from './ticket-footer';
+import { WhatsAppDialog } from './whatsapp-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Printer, Download, Mail, X } from 'lucide-react';
+import { Printer, Download, Mail, X, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { sendTicketViaWhatsApp } from '@/lib/utils/ticket-utils';
+import { toast } from '@/components/ui/use-toast';
 
 interface ParkingTicketProps {
   ticket: ParkingTicketType;
@@ -35,6 +38,8 @@ export function ParkingTicket({
   className,
 }: ParkingTicketProps) {
   const ticketRef = useRef<HTMLDivElement>(null);
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
 
   // Función para imprimir el ticket
   const handlePrint = useCallback(() => {
@@ -248,6 +253,29 @@ export function ParkingTicket({
     }, 250);
   }, [ticket, onPrint]);
 
+  // Función para enviar por WhatsApp
+  const handleWhatsApp = useCallback(() => {
+    setShowWhatsAppDialog(true);
+  }, []);
+
+  // Función para enviar el ticket por WhatsApp
+  const handleSendWhatsApp = useCallback(async (phoneNumber: string) => {
+    setWhatsappLoading(true);
+    try {
+      // Pasar el elemento del ticket para mejor calidad del PDF
+      const ticketElement = ticketRef.current?.querySelector('.parking-ticket') as HTMLElement;
+      await sendTicketViaWhatsApp(phoneNumber, ticket, ticketElement);
+      setShowWhatsAppDialog(false);
+      // El toast se muestra en el diálogo
+    } catch (error) {
+      console.error('Error enviando por WhatsApp:', error);
+      // El error ya se maneja en el diálogo
+      throw error; // Re-lanzar para que el diálogo lo maneje
+    } finally {
+      setWhatsappLoading(false);
+    }
+  }, [ticket]);
+
   const isPrintFormat = format === 'print';
 
   return (
@@ -263,6 +291,15 @@ export function ParkingTicket({
           >
             <Printer className="h-4 w-4" />
             Imprimir
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleWhatsApp}
+            className="gap-2 bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+          >
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
           </Button>
           {onDownload && (
             <Button
@@ -312,6 +349,14 @@ export function ParkingTicket({
         <TicketBody ticket={ticket} showDetails={ticket.format !== 'reduced'} />
         <TicketFooter ticket={ticket} showNotes={ticket.format !== 'reduced'} />
       </Card>
+
+      {/* Diálogo de WhatsApp */}
+      <WhatsAppDialog
+        isOpen={showWhatsAppDialog}
+        onClose={() => setShowWhatsAppDialog(false)}
+        onSend={handleSendWhatsApp}
+        loading={whatsappLoading}
+      />
 
       {/* Estilos para impresión */}
       <style jsx global>{`

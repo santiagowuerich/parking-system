@@ -52,7 +52,8 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
       generatedBy: string,
       paymentId?: string | number,
       format?: TicketFormat,
-      notes?: string
+      notes?: string,
+      paymentMethod?: 'efectivo' | 'transferencia' | 'qr' | 'link_pago'
     ): Promise<ParkingTicket | null> => {
       setIsLoading(true);
       setError(null);
@@ -69,6 +70,7 @@ export function useTicket(options: UseTicketOptions = {}): UseTicketReturn {
             paymentId: paymentId || undefined,
             format: format || defaultFormat,
             notes,
+            paymentMethod,
           }),
         });
 
