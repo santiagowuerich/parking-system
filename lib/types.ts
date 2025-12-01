@@ -13,6 +13,7 @@ export interface VehicleEntryData extends Omit<Vehicle, 'entry_time'> {
   pla_numero?: number | null
   isAbono?: boolean
   abono_nro?: number
+  telefono?: string
 }
 
 export interface ParkingHistory extends Omit<Vehicle, 'entry_time'> {

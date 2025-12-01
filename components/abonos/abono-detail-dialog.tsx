@@ -16,6 +16,12 @@ import {
 import { Loader2, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatCurrency, segmentToName } from '@/lib/utils'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 interface Props {
     open: boolean
@@ -129,7 +135,7 @@ export function AbonoDetailDialog({ open, onOpenChange, abo_nro }: Props) {
                                         </div>
                                         <div>
                                             <span className="text-sm text-gray-600">Estado</span>
-                                            <Badge className={getEstadoAbono() === 'Activo' ? 'bg-green-100 text-green-800' : getEstadoAbono() === 'Por vencer' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}>
+                                            <Badge className={`${getEstadoAbono() === 'Activo' ? 'bg-green-100 text-green-800 hover:bg-green-100' : getEstadoAbono() === 'Por vencer' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' : 'bg-red-100 text-red-800 hover:bg-red-100'}`}>
                                                 {getEstadoAbono()}
                                             </Badge>
                                         </div>
@@ -239,7 +245,10 @@ export function AbonoDetailDialog({ open, onOpenChange, abo_nro }: Props) {
                                                         <TableRow key={p.pag_nro}>
                                                             <TableCell className="text-sm">{dayjs.utc(p.pag_h_fh).tz('America/Argentina/Buenos_Aires').format('DD/MM/YYYY')}</TableCell>
                                                             <TableCell>
-                                                                <Badge variant={p.pag_tipo === 'extension' ? 'default' : 'secondary'}>
+                                                                <Badge 
+                                                                    variant={p.pag_tipo === 'extension' ? 'default' : 'secondary'}
+                                                                    className={p.pag_tipo === 'extension' ? 'hover:bg-primary' : 'hover:bg-secondary'}
+                                                                >
                                                                     {p.pag_tipo === 'extension' ? 'Extensión' : 'Ocupación'}
                                                                 </Badge>
                                                             </TableCell>
@@ -247,7 +256,10 @@ export function AbonoDetailDialog({ open, onOpenChange, abo_nro }: Props) {
                                                             <TableCell className="text-sm">{p.mepa_metodo}</TableCell>
                                                             <TableCell className="text-sm">{p.pag_descripcion || 'N/A'}</TableCell>
                                                             <TableCell>
-                                                                <Badge variant={p.pag_estado === 'completado' ? 'default' : 'secondary'}>
+                                                                <Badge 
+                                                                    variant={p.pag_estado === 'completado' ? 'default' : 'secondary'}
+                                                                    className={p.pag_estado === 'completado' ? 'hover:bg-primary' : 'hover:bg-secondary'}
+                                                                >
                                                                     {p.pag_estado}
                                                                 </Badge>
                                                             </TableCell>

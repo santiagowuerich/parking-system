@@ -2,26 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { createClient, copyResponseCookies } from "@/lib/supabase/client";
 
-// Función auxiliar para obtener la API Key del usuario
-async function getApiKey(userId: string | null, request: NextRequest): Promise<{ key: string, response: NextResponse }> {
-  if (!userId) {
-    throw new Error('Se requiere un ID de usuario para obtener la API Key');
+// Función auxiliar para obtener la API Key del dueño del estacionamiento
+async function getApiKeyByEstacionamiento(estId: number, request: NextRequest): Promise<{ key: string, response: NextResponse }> {
+  if (!estId || estId <= 0) {
+    throw new Error('Se requiere un ID de estacionamiento válido para obtener la API Key');
   }
 
   const { supabase, response } = createClient(request);
+  
+  // Buscar el dueño del estacionamiento
+  const { data: estData, error: estError } = await supabase
+    .from("estacionamientos")
+    .select("due_id")
+    .eq("est_id", estId)
+    .single();
+
+  if (estError || !estData) {
+    console.error(`Error fetching estacionamiento ${estId}:`, estError?.message);
+    throw new Error('Estacionamiento no encontrado');
+  }
+
+  // Buscar el auth_user_id del dueño
+  const { data: usuarioData, error: usuarioError } = await supabase
+    .from("usuario")
+    .select("auth_user_id")
+    .eq("usu_id", estData.due_id)
+    .single();
+
+  if (usuarioError || !usuarioData?.auth_user_id) {
+    console.error(`Error fetching usuario ${estData.due_id}:`, usuarioError?.message);
+    throw new Error('No se pudo obtener el dueño del estacionamiento');
+  }
+
+  // Obtener la API Key del dueño
   const { data, error } = await supabase
     .from("user_settings")
     .select("mercadopago_api_key")
-    .eq("user_id", userId)
+    .eq("user_id", usuarioData.auth_user_id)
     .single();
 
   if (error) {
-    console.error(`Error fetching API key for user ${userId}:`, error.message);
-    throw new Error('Error al obtener la API Key del usuario');
+    console.error(`Error fetching API key for owner:`, error.message);
+    throw new Error('Error al obtener la API Key del dueño del estacionamiento');
   }
 
   if (!data?.mercadopago_api_key) {
-    throw new Error('No se encontró una API Key configurada. Por favor, configura tu API Key de MercadoPago en el panel de tarifas.');
+    throw new Error('No se encontró una API Key configurada para este estacionamiento. El dueño debe configurar su API Key de MercadoPago en el panel de configuración.');
   }
 
   const key = data.mercadopago_api_key.trim();
@@ -34,10 +60,19 @@ async function getApiKey(userId: string | null, request: NextRequest): Promise<{
 
 export async function POST(request: NextRequest) {
   try {
-    const { licensePlate, fee, vehicleType, userId, paymentType } = await request.json();
+    const { licensePlate, fee, vehicleType, userId, paymentType, est_id } = await request.json();
 
-    // userId solo se usa para buscar API key y referencia externa si está disponible
-    const { key: accessToken, response } = await getApiKey(userId || null, request);
+    // Validar que se proporcione el est_id
+    if (!est_id || est_id <= 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Se requiere el ID del estacionamiento',
+        details: 'El parámetro est_id es obligatorio'
+      }, { status: 400 });
+    }
+
+    // Obtener la API Key del dueño del estacionamiento
+    const { key: accessToken, response } = await getApiKeyByEstacionamiento(est_id, request);
     const client = new MercadoPagoConfig({ accessToken });
 
     // Obtener User Info

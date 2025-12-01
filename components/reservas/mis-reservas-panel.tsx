@@ -11,15 +11,10 @@ import {
     Clock,
     MapPin,
     Car,
-    Copy,
-    Eye,
     Navigation,
     AlertCircle,
     CheckCircle,
-    XCircle,
     CreditCard,
-    Loader2,
-    QrCode,
     ExternalLink
 } from 'lucide-react';
 import { useReservas } from '@/lib/hooks/use-reservas-unified';
@@ -70,17 +65,6 @@ export function MisReservasPanel() {
         };
     }, [obtenerMisReservas]);
 
-    const copiarCodigo = (codigo: string) => {
-        navigator.clipboard.writeText(codigo);
-        toast({
-            title: "Código copiado",
-            description: "El código de reserva se ha copiado al portapapeles",
-        });
-    };
-
-    const abrirDetalles = (reserva: ReservaConDetalles) => {
-        setReservaSeleccionada(reserva);
-    };
 
     const abrirDatosTransferencia = async (reserva: ReservaConDetalles) => {
         try {
@@ -162,6 +146,17 @@ export function MisReservasPanel() {
             reserva.ocupacion
         );
 
+        // Función helper para obtener la clase hover que mantiene el mismo color
+        const getHoverClass = (bgColor: string) => {
+            if (bgColor.includes('green')) return 'hover:!bg-green-100';
+            if (bgColor.includes('orange')) return 'hover:!bg-orange-100';
+            if (bgColor.includes('yellow')) return 'hover:!bg-yellow-100';
+            if (bgColor.includes('blue')) return 'hover:!bg-blue-100';
+            if (bgColor.includes('red')) return 'hover:!bg-red-100';
+            if (bgColor.includes('gray')) return 'hover:!bg-gray-100';
+            return '';
+        };
+
         return (
             <Card className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
@@ -170,28 +165,12 @@ export function MisReservasPanel() {
                             <Calendar className="w-4 h-4" />
                             {formatearCodigoReserva(reserva.res_codigo)}
                         </CardTitle>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => copiarCodigo(reserva.res_codigo)}
-                            >
-                                <Copy className="w-3 h-3" />
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => abrirDetalles(reserva)}
-                            >
-                                <Eye className="w-3 h-3" />
-                            </Button>
-                        </div>
                     </div>
-                    <Badge
-                        className={`${estadoVisual.bgColor} ${estadoVisual.textColor} border-0`}
+                    <div
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${estadoVisual.bgColor} ${estadoVisual.textColor} border-0`}
                     >
                         {estadoVisual.label}
-                    </Badge>
+                    </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3">
