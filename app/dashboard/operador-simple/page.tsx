@@ -1166,7 +1166,8 @@ export default function OperadorSimplePage() {
                     fee: data.amount,
                     vehicleType: 'Vehículo', // o determinar del contexto
                     paymentType: 'qr',
-                    userId: user?.id
+                    userId: user?.id,
+                    est_id: estId // ID del estacionamiento para obtener la API Key del dueño
                 }),
             });
 
@@ -1234,7 +1235,8 @@ export default function OperadorSimplePage() {
                     fee: data.amount,
                     vehicleType: 'Vehículo',
                     paymentType: 'regular', // Sin restricciones para link de pago
-                    userId: user?.id
+                    userId: user?.id,
+                    est_id: estId // ID del estacionamiento para obtener la API Key del dueño
                 }),
             });
 
