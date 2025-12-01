@@ -86,7 +86,7 @@ export async function GET(
 
       pagNrosReservas.length > 0 ? supabase
         .from('reservas')
-        .select('pag_nro, res_codigo, res_fecha_reservada, pla_numero, est_id')
+        .select('pag_nro, res_fh_ingreso, pla_numero, est_id, veh_patente')
         .in('pag_nro', pagNrosReservas)
       : Promise.resolve({ data: [] }),
 
@@ -204,8 +204,8 @@ export async function GET(
           movimiento = {
             ...base,
             tipo: 'Reserva',
-            descripcion: `Código: ${res?.res_codigo || 'N/A'} - Plaza ${res?.pla_numero || 'N/A'} (${pla_zona})`,
-            ingreso: res?.res_fecha_reservada,
+            descripcion: `Plaza ${res?.pla_numero || 'N/A'} - ${pla_zona} (${res?.veh_patente || 'N/A'})`,
+            ingreso: res?.res_fh_ingreso,
             egreso: null
           };
           break;
