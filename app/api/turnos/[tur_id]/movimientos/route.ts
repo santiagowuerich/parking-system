@@ -103,14 +103,29 @@ export async function GET(
       : Promise.resolve({ data: [] })
     ]);
 
-    // DEBUG: Log ocupaciones with missing plaza data
-    if (ocupacionesResult.data) {
-      const ocupacionesSinPlaza = (ocupacionesResult.data as any[]).filter(o => !o.pla_numero || !o.est_id);
+    // DEBUG: Log ocupaciones with missing plaza data and try to recover from reservations
+    let ocupacionesData = (ocupacionesResult.data as any[]) || [];
+    const reservasData = (reservasResult.data as any[]) || [];
+
+    if (ocupacionesData.length > 0) {
+      const ocupacionesSinPlaza = ocupacionesData.filter(o => !o.pla_numero || !o.est_id);
       if (ocupacionesSinPlaza.length > 0) {
-        logger.warn(`OCUPACIONES SIN PLAZA: ${ocupacionesSinPlaza.length} de ${(ocupacionesResult.data as any[]).length} registros`);
-        ocupacionesSinPlaza.forEach(o => {
-          logger.warn(`  - pag_nro: ${o.pag_nro}, pla_numero: ${o.pla_numero}, est_id: ${o.est_id}, entrada: ${o.ocu_fh_entrada}`);
-        });
+        logger.warn(`OCUPACIONES SIN PLAZA: ${ocupacionesSinPlaza.length} de ${ocupacionesData.length} registros`);
+
+        // Try to recover plaza data from associated reservations (matching by pag_nro if ocupacion is from a reservation)
+        for (const ocu of ocupacionesSinPlaza) {
+          logger.warn(`  - pag_nro: ${ocu.pag_nro}, pla_numero: ${ocu.pla_numero}, est_id: ${ocu.est_id}, entrada: ${ocu.ocu_fh_entrada}`);
+
+          // If ocupacion has pag_nro, try to find matching reservation with same pag_nro
+          if (ocu.pag_nro) {
+            const matchingReserva = reservasData.find((r: any) => r.pag_nro === ocu.pag_nro);
+            if (matchingReserva) {
+              logger.info(`  -> Recuperando plaza de reserva asociada: est_id=${matchingReserva.est_id}, pla_numero=${matchingReserva.pla_numero}`);
+              if (!ocu.est_id && matchingReserva.est_id) ocu.est_id = matchingReserva.est_id;
+              if (!ocu.pla_numero && matchingReserva.pla_numero) ocu.pla_numero = matchingReserva.pla_numero;
+            }
+          }
+        }
       }
     }
 
