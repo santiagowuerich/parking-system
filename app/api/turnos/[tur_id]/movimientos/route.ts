@@ -103,6 +103,17 @@ export async function GET(
       : Promise.resolve({ data: [] })
     ]);
 
+    // DEBUG: Log ocupaciones with missing plaza data
+    if (ocupacionesResult.data) {
+      const ocupacionesSinPlaza = (ocupacionesResult.data as any[]).filter(o => !o.pla_numero || !o.est_id);
+      if (ocupacionesSinPlaza.length > 0) {
+        logger.warn(`OCUPACIONES SIN PLAZA: ${ocupacionesSinPlaza.length} de ${(ocupacionesResult.data as any[]).length} registros`);
+        ocupacionesSinPlaza.forEach(o => {
+          logger.warn(`  - pag_nro: ${o.pag_nro}, pla_numero: ${o.pla_numero}, est_id: ${o.est_id}, entrada: ${o.ocu_fh_entrada}`);
+        });
+      }
+    }
+
     // 5. Obtener datos de plazas para poder mapear pla_zona
     // Recopilar todos los (est_id, pla_numero) únicos de ocupaciones y reservas
     const plazasParaBuscar = new Set<string>();
