@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import IniciarTurnoModal from "@/components/turnos/iniciar-turno-modal";
 import FinalizarTurnoModal from "@/components/turnos/finalizar-turno-modal";
 import ResumenTurnoModal from "@/components/turnos/resumen-turno-modal";
+import MovimientosTurnoModal from "@/components/turnos/movimientos-turno-modal";
 
 interface TurnoActivo {
     tur_id: number;
@@ -37,6 +38,7 @@ interface HistorialTurno {
     tur_observaciones_salida?: string;
     caja_inicio: number;
     caja_final?: number;
+    efectivo_cobrado?: number;
 }
 
 export default function MisTurnosPage() {
@@ -51,6 +53,8 @@ export default function MisTurnosPage() {
     const [turnoParaResumen, setTurnoParaResumen] = useState<number | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [paginaActual, setPaginaActual] = useState(1);
+    const [showMovimientos, setShowMovimientos] = useState(false);
+    const [turnoSeleccionado, setTurnoSeleccionado] = useState<number | null>(null);
     const itemsPorPagina = 10;
 
     // Actualizar la hora actual cada minuto para que la duración sea dinámica
@@ -150,6 +154,11 @@ export default function MisTurnosPage() {
         setShowResumenModal(true);
     };
 
+    const handleVerMovimientos = (turId: number) => {
+        setTurnoSeleccionado(turId);
+        setShowMovimientos(true);
+    };
+
     const calcularDuracion = (fechaEntrada: string, horaEntrada: string, fechaSalida?: string, horaSalida?: string) => {
         try {
             const entrada = dayjs(`${fechaEntrada} ${horaEntrada}`);
@@ -189,9 +198,10 @@ export default function MisTurnosPage() {
         }).format(amount);
     };
 
-    const calcularDiferenciaCaja = (fondoInicial: number, fondoFinal?: number) => {
+    const calcularDiferenciaCaja = (fondoInicial: number, fondoFinal?: number, efectivoCobrado?: number) => {
         if (!fondoFinal) return null;
-        return fondoFinal - fondoInicial;
+        const cajaEsperada = fondoInicial + (efectivoCobrado || 0);
+        return fondoFinal - cajaEsperada;
     };
 
     // Lógica de paginación
@@ -345,14 +355,16 @@ export default function MisTurnosPage() {
                                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Inicial</th>
                                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Caja Final</th>
                                                         <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Diferencia</th>
-                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Estado</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Estado</th>
+                                                        <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {historialPaginado.map((turno) => {
                                                     const diferencia = calcularDiferenciaCaja(
                                                         turno.caja_inicio || 0,
-                                                        turno.caja_final
+                                                        turno.caja_final,
+                                                        turno.efectivo_cobrado
                                                     );
                                                     const duracion = calcularDuracion(
                                                         turno.tur_fecha,
@@ -397,7 +409,7 @@ export default function MisTurnosPage() {
                                                                     </span>
                                                                 ) : '-'}
                                                             </td>
-                                                            <td className="py-4 px-4 text-sm text-center">
+                                                            <td className="py-4 px-4 text-sm text-center border-r border-gray-300">
                                                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                                                     turno.tur_estado === 'activo'
                                                                         ? 'bg-green-100 text-green-800'
@@ -405,6 +417,15 @@ export default function MisTurnosPage() {
                                                                 }`}>
                                                                     {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
                                                                 </span>
+                                                            </td>
+                                                            <td className="py-4 px-4 text-sm text-center">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleVerMovimientos(turno.tur_id)}
+                                                                >
+                                                                    Ver Movimientos
+                                                                </Button>
                                                             </td>
                                                         </tr>
                                                     );
@@ -492,6 +513,12 @@ export default function MisTurnosPage() {
                             });
                         }}
                         turnoId={turnoParaResumen}
+                    />
+
+                    <MovimientosTurnoModal
+                        isOpen={showMovimientos}
+                        onClose={() => setShowMovimientos(false)}
+                        turnoId={turnoSeleccionado}
                     />
                 </div>
             </DashboardLayout>
