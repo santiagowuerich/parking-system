@@ -80,13 +80,13 @@ export default function MovimientosTurnoModal({ isOpen, onClose, turnoId }: Movi
     switch (tipo) {
       case 'Abono Nuevo':
       case 'Extensión Abono':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-500';
       case 'Reserva':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-500';
       case 'Ocupación':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-500';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-400';
     }
   };
 
@@ -94,10 +94,7 @@ export default function MovimientosTurnoModal({ isOpen, onClose, turnoId }: Movi
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Movimientos del Turno
-          </DialogTitle>
+          <DialogTitle>Movimientos del Turno</DialogTitle>
         </DialogHeader>
 
         {loading ? (
@@ -123,7 +120,8 @@ export default function MovimientosTurnoModal({ isOpen, onClose, turnoId }: Movi
                   {movimientos.map((mov) => (
                     <tr key={mov.pag_nro} className="border-b border-gray-300 hover:bg-blue-50 transition-colors">
                       <td className="py-4 px-4 text-sm text-center border-r border-gray-300">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTipoBadgeColor(mov.tipo)}`}>
+                        <span className={`inline-flex items-center gap-2 text-sm font-medium`}>
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${getTipoBadgeColor(mov.tipo)}`} />
                           {mov.tipo}
                         </span>
                       </td>

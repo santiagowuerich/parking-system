@@ -410,11 +410,16 @@ export default function MisTurnosPage() {
                                                                 ) : '-'}
                                                             </td>
                                                             <td className="py-4 px-4 text-sm text-center border-r border-gray-300">
-                                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                <span className={`inline-flex items-center gap-2 text-sm font-medium ${
                                                                     turno.tur_estado === 'activo'
-                                                                        ? 'bg-green-100 text-green-800'
-                                                                        : 'bg-gray-100 text-gray-800'
+                                                                        ? 'text-green-600'
+                                                                        : 'text-gray-600'
                                                                 }`}>
+                                                                    <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                                                                        turno.tur_estado === 'activo'
+                                                                            ? 'bg-green-500'
+                                                                            : 'bg-gray-400'
+                                                                    }`} />
                                                                     {turno.tur_estado === 'activo' ? 'Activo' : 'Finalizado'}
                                                                 </span>
                                                             </td>
