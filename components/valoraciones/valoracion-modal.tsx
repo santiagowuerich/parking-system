@@ -285,11 +285,11 @@ export function ValoracionModal({
                                 {/* Botón de enviar (aparece después de seleccionar estrellas, pero no cuando se muestra el comentario) */}
                                 {ratingSeleccionado > 0 && !mostrarComentario && (miValoracion ? isEditing : true) ? (
                                     <div className="bg-white rounded-lg border p-4 space-y-3">
-                                        <div className="flex justify-between items-center">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                             <span className="text-sm text-gray-600">
                                                 {miValoracion ? "Actualizar valoración" : "¿Listo para publicar?"}
                                             </span>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-2">
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -365,11 +365,11 @@ export function ValoracionModal({
                                             className="resize-none"
                                             maxLength={maxComentarioLength}
                                         />
-                                        <div className="flex justify-between items-center">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                             <span className={`text-xs ${comentario.length > maxComentarioLength ? 'text-red-500' : 'text-gray-400'}`}>
                                                 {comentario.length}/{maxComentarioLength}
                                             </span>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-2">
                                                 {isEditing && (
                                                     <Button
                                                         variant="outline"

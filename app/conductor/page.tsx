@@ -481,7 +481,7 @@ export default function MapaEstacionamientos() {
                                                                                     Navegar
                                                                                 </Button>
 
-                                                                                {plazasDisponibles.length > 0 && parking.tieneMercadoPago && (
+                                                                                {plazasDisponibles.length > 0 && parking.tieneMercadoPago && parking.estadoApertura?.isOpen && (
                                                                                     <Button
                                                                                         className="flex-1 max-w-[200px] h-12 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg shadow-lg"
                                                                                         onClick={(e) => {
