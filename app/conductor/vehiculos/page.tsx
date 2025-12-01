@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Edit, Trash2, Plus } from "lucide-react";
@@ -250,61 +249,63 @@ export default function ConductorVehiculosPage() {
                                     </Button>
                                 </div>
                             ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Tipo</TableHead>
-                                            <TableHead>Patente</TableHead>
-                                            <TableHead>Marca</TableHead>
-                                            <TableHead>Modelo</TableHead>
-                                            <TableHead>Color</TableHead>
-                                            <TableHead className="text-center">Seleccionar</TableHead>
-                                            <TableHead className="text-center">Acciones</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {vehicles.map((vehicle) => (
-                                            <TableRow
-                                                key={vehicle.id}
-                                                className={selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}
-                                            >
-                                                <TableCell>{vehicle.tipo}</TableCell>
-                                                <TableCell className="font-medium">{vehicle.patente}</TableCell>
-                                                <TableCell>{vehicle.marca}</TableCell>
-                                                <TableCell>{vehicle.modelo}</TableCell>
-                                                <TableCell>{vehicle.color}</TableCell>
-                                                <TableCell className="text-center">
-                                                    <Button
-                                                        variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
-                                                        size="sm"
-                                                        onClick={() => setSelectedVehicle(vehicle)}
-                                                    >
-                                                        {selectedVehicle?.patente === vehicle.patente ? 'Seleccionado' : 'Seleccionar'}
-                                                    </Button>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex justify-center gap-2">
+                                <div className="overflow-x-auto border-2 border-gray-400 rounded-lg shadow-lg">
+                                    <table className="w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr className="bg-gradient-to-r from-blue-100 to-blue-200 border-b-2 border-gray-400">
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Tipo</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Patente</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Marca</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Modelo</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Color</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900 border-r-2 border-gray-300">Seleccionar</th>
+                                                <th className="py-4 px-4 text-center text-sm font-bold text-gray-900">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {vehicles.map((vehicle) => (
+                                                <tr 
+                                                    key={vehicle.id} 
+                                                    className={`border-b border-gray-300 hover:bg-blue-50 transition-colors ${selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}`}
+                                                >
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.tipo}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center font-medium">{vehicle.patente}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.marca}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.modelo}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.color}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
                                                         <Button
+                                                            variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
                                                             size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => handleEditVehicle(vehicle)}
+                                                            onClick={() => setSelectedVehicle(vehicle)}
                                                         >
-                                                            <Edit className="w-4 h-4" />
+                                                            {selectedVehicle?.patente === vehicle.patente ? 'Seleccionado' : 'Seleccionar'}
                                                         </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => handleDeleteVehicle(vehicle.id)}
-                                                            className="text-red-600 hover:text-red-700"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 text-center">
+                                                        <div className="flex justify-center gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => handleEditVehicle(vehicle)}
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => handleDeleteVehicle(vehicle.id)}
+                                                                className="text-red-600 hover:text-red-700"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             )}
                         </CardContent>
                     </Card>
