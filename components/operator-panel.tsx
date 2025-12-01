@@ -562,6 +562,7 @@ export default function OperatorPanel({
     plaza_number: number
     modality: string
     agreed_price: number
+    telefono?: string
   }) => {
     if (!selectedPlazaForActions) return;
 
@@ -576,7 +577,8 @@ export default function OperatorPanel({
         duracion_tipo: data.modality.toLowerCase(),
         precio_acordado: data.agreed_price,
         isAbono: esPlazaAbonada,
-        abono_nro: selectedPlazaForActions.abono?.abo_nro
+        abono_nro: selectedPlazaForActions.abono?.abo_nro,
+        telefono: data.telefono
       });
 
       toast.success(

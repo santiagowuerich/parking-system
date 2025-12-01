@@ -327,14 +327,6 @@ export function DetalleReservaDialog({ open, onOpenChange, res_codigo }: Props) 
                                         </div>
                                     </div>
 
-                                    {reserva?.payment_info && (
-                                        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                                            <h4 className="font-semibold mb-2">Información de Pago Adicional</h4>
-                                            <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words">
-                                                {JSON.stringify(reserva.payment_info, null, 2)}
-                                            </pre>
-                                        </div>
-                                    )}
                                 </CardContent>
                             </Card>
                         </TabsContent>

@@ -95,7 +95,18 @@ export async function POST(request: NextRequest) {
 
         return copyResponseCookies(
             response,
-            NextResponse.json({ success: true, data: { abo_nro, nuevoVencimiento, monto: Number(monto), metodoPago, pago_id: pago.pag_nro } })
+            NextResponse.json({ 
+                success: true, 
+                data: { 
+                    abo_nro, 
+                    nuevoVencimiento, 
+                    monto: Number(monto), 
+                    metodoPago, 
+                    pago_id: pago.pag_nro,
+                    est_id: abonoActual.est_id,
+                    veh_patente: vehPatente
+                } 
+            })
         )
     } catch (err: any) {
         console.error('Error en extender:', err)

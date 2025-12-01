@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useUserRole } from "@/lib/use-user-role";
 import { AbonoConductor } from "@/lib/types";
 import { AbonoDetailDialog } from "@/components/abonos/abono-detail-dialog";
-import { Search, Loader2, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { Search, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -30,17 +30,6 @@ export default function AbonosPage() {
 
     const itemsPerPage = 5;
 
-    // Si no es conductor, no mostrar nada (DashboardLayout manejará la redirección)
-    if (!isDriver && !roleLoading) {
-        return <DashboardLayout><div></div></DashboardLayout>;
-    }
-
-    useEffect(() => {
-        if (isDriver) {
-            cargarAbonos();
-        }
-    }, [isDriver]);
-
     const cargarAbonos = async () => {
         try {
             setLoading(true);
@@ -58,6 +47,17 @@ export default function AbonosPage() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (isDriver) {
+            cargarAbonos();
+        }
+    }, [isDriver]);
+
+    // Si no es conductor, no mostrar nada (DashboardLayout manejará la redirección)
+    if (!isDriver && !roleLoading) {
+        return <DashboardLayout><div></div></DashboardLayout>;
+    }
 
     // Filtrar abonos por búsqueda y estado (vencidos)
     const abonosFiltrados = abonos.filter(abono => {
@@ -135,14 +135,9 @@ export default function AbonosPage() {
                 <div className="flex-1 flex flex-col overflow-hidden">
                     <main className="flex-1 overflow-auto">
                         <div className="container mx-auto p-6 space-y-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                                    <Calendar className="h-6 w-6 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold text-gray-900">Mis Abonos</h1>
-                                    <p className="text-gray-600">Gestioná tus suscripciones y benefíciate de tarifas especiales</p>
-                                </div>
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900">Mis Abonos</h1>
+                                <p className="text-gray-600">Gestioná tus suscripciones y benefíciate de tarifas especiales</p>
                             </div>
 
                             <Card>

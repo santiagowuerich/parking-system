@@ -27,6 +27,8 @@ import { generatePaymentId, formatCurrency } from "@/lib/utils/payment-utils";
 import { calculateParkingFee } from "@/lib/tariff-calculator";
 import { useTurnos } from "@/lib/hooks/use-turnos";
 import { TurnoGuard } from "@/components/turno-guard";
+import { useTicket } from "@/lib/hooks/use-ticket";
+import { TicketDialog } from "@/components/ticket";
 
 
 type ExitInfo = {
@@ -43,6 +45,16 @@ export default function OperadorSimplePage() {
     const { canOperateParking, loading: roleLoading, role } = useUserRole();
     const { puedeOperar, isEmployee } = useTurnos();
     const router = useRouter();
+    
+    // Hook para generación de tickets
+    const { 
+        ticket, 
+        isLoading: ticketLoading, 
+        isDialogOpen: showTicketDialog, 
+        generateTicket, 
+        closeDialog: closeTicketDialog,
+        setTicket
+    } = useTicket({ autoShowOnGenerate: true });
 
     // Verificar que el usuario pueda operar el estacionamiento
     useEffect(() => {
@@ -626,7 +638,8 @@ export default function OperadorSimplePage() {
                 ocu_precio_acordado: datosReserva ? datosReserva.res_monto : (payload.precio_acordado || 0),
                 ocu_fecha_limite: datosReserva && reservaActiva ? reservaActiva.res_fh_fin : (fechaLimite ? fechaLimite.toISOString() : null),
                 res_codigo: datosReserva ? datosReserva.res_codigo : null,
-                pag_nro: reservaActiva ? reservaActiva.pag_nro : null
+                pag_nro: reservaActiva ? reservaActiva.pag_nro : null,
+                ocu_telefono: payload.telefono || null
             };
 
             console.log('📝 Registrando ocupación con datos:', ocupacionData);
@@ -1166,7 +1179,8 @@ export default function OperadorSimplePage() {
                     fee: data.amount,
                     vehicleType: 'Vehículo', // o determinar del contexto
                     paymentType: 'qr',
-                    userId: user?.id
+                    userId: user?.id,
+                    est_id: estId // ID del estacionamiento para obtener la API Key del dueño
                 }),
             });
 
@@ -1234,7 +1248,8 @@ export default function OperadorSimplePage() {
                     fee: data.amount,
                     vehicleType: 'Vehículo',
                     paymentType: 'regular', // Sin restricciones para link de pago
-                    userId: user?.id
+                    userId: user?.id,
+                    est_id: estId // ID del estacionamiento para obtener la API Key del dueño
                 }),
             });
 
@@ -1270,30 +1285,22 @@ export default function OperadorSimplePage() {
     };
 
 
-    // Función para procesar la salida del vehículo después del pago aprobado
+    // Función para procesar la salida del vehículo después del pago aprobado (QR manual)
     const processVehicleExitAfterPayment = async (data: PaymentData) => {
         try {
-            console.log('🚗 Procesando salida del vehículo después del pago aprobado');
+            console.log('🚗 Procesando salida del vehículo después del pago QR confirmado manualmente');
 
-            // Registrar la salida del vehículo usando el endpoint correcto
-            const exitResponse = await fetch(`/api/parking/${encodeURIComponent(data.vehicleLicensePlate)}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
+            // Usar finalizeVehicleExit para registrar correctamente y generar el ticket
+            // Asegurarnos de que el método sea 'app' (MercadoPago)
+            await finalizeVehicleExit({
+                ...data,
+                method: 'app' // MercadoPago QR se registra como 'app'
             });
 
-            if (!exitResponse.ok) {
-                const errorData = await exitResponse.json();
-                throw new Error(errorData.error || 'Error al registrar la salida del vehículo');
-            }
-
-            // Actualizar la lista de vehículos
-            await refreshParkedVehicles();
-            await refreshCapacity();
-
-            console.log('✅ Salida del vehículo registrada exitosamente');
+            console.log('✅ Salida del vehículo registrada exitosamente con ticket');
 
             toast({
-                title: "Salida registrada",
+                title: "Pago confirmado",
                 description: `El vehículo ${data.vehicleLicensePlate} puede salir`
             });
 
@@ -1693,6 +1700,34 @@ export default function OperadorSimplePage() {
             console.log('✅ Ocupación actualizada - pag_nro vinculado:', payment.pag_nro);
             console.log('✅ Filas actualizadas:', updateResult.length);
 
+            // 🎫 GENERAR TICKET DE ESTACIONAMIENTO
+            const occupationId = updateResult[0]?.ocu_id;
+            if (occupationId) {
+                console.log('🎫 Generando ticket para ocupación:', occupationId, 'método:', data.method);
+                
+                // Convertir método de pago al formato del ticket
+                // 'app' en el frontend significa MercadoPago (QR o Link)
+                const ticketPaymentMethod = data.method === 'app' ? 'qr' : 
+                    (data.method as 'efectivo' | 'transferencia' | 'qr' | 'link_pago');
+                
+                try {
+                    await generateTicket(
+                        occupationId,
+                        user?.email || 'operador',
+                        payment.pag_nro,
+                        'reduced',
+                        undefined, // notes
+                        ticketPaymentMethod
+                    );
+                    console.log('✅ Ticket generado exitosamente con método:', ticketPaymentMethod);
+                } catch (ticketError) {
+                    console.warn('⚠️ Error generando ticket (no crítico):', ticketError);
+                    // No lanzar error aquí porque el pago ya se procesó
+                }
+            } else {
+                console.warn('⚠️ No se pudo obtener ocu_id para generar ticket');
+            }
+
             // Si la ocupación tiene una reserva, marcarla como completada
             if (data.reservationCode) {
                 console.log(`📌 Actualizando estado de reserva ${data.reservationCode} a completada`);
@@ -1763,7 +1798,7 @@ export default function OperadorSimplePage() {
         setSelectedPaymentMethod(null);
         setPaymentLoading(false);
         setQrData(null);
-        setQRPaymentStatus('pending');
+        setQRPaymentStatus('pendiente');
         setReservationData(null);
         reservationExitDataRef.current = null;
     };
@@ -2101,6 +2136,16 @@ export default function OperadorSimplePage() {
                             </DialogContent>
                         </Dialog>
                     )}
+
+                    {/* Diálogo de Ticket de Estacionamiento */}
+                    <TicketDialog
+                        ticket={ticket}
+                        isOpen={showTicketDialog}
+                        onClose={closeTicketDialog}
+                        loading={ticketLoading}
+                        title="Ticket de Egreso"
+                        description="Imprima o guarde este ticket como comprobante"
+                    />
 
                     {/* Diálogo de confirmación de reserva */}
                     {showReservationConfirm && reservationData && (

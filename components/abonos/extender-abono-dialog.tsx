@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2 } from 'lucide-react'
 import { useAbonoExtension } from '@/hooks/use-abono-extension'
+import { useTicket } from '@/lib/hooks/use-ticket'
+import { TicketDialog } from '@/components/ticket/ticket-dialog'
+import { useAuth } from '@/lib/auth-context'
 import type { AbonoData, TipoExtension } from '@/lib/types'
 import { CONFIGURACIONES_ABONOS } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
@@ -33,15 +36,50 @@ const formatDate = (value: string) => {
 
 export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
     const ext = useAbonoExtension(abono)
+    const { user } = useAuth()
+    const { 
+        ticket, 
+        isLoading: ticketLoading, 
+        isDialogOpen: showTicketDialog, 
+        generateSubscriptionExtensionTicket, 
+        closeDialog: closeTicketDialog 
+    } = useTicket({ autoShowOnGenerate: true })
+    
     const config = CONFIGURACIONES_ABONOS[ext.state.tipoExtension]
     const unidadLabel = config?.unidad ?? 'periodos'
     const tipoDescripcion = config?.descripcion ?? `Abono ${ext.state.tipoExtension}`
     const total = ext.state.monto
 
+    // Mapear método de pago del frontend al formato del ticket
+    const mapPaymentMethod = (metodo: 'efectivo' | 'tarjeta' | 'transferencia'): 'efectivo' | 'transferencia' | 'qr' | 'link_pago' => {
+        if (metodo === 'tarjeta') return 'qr' // Tarjeta se mapea a QR (MercadoPago)
+        if (metodo === 'transferencia') return 'transferencia'
+        return 'efectivo'
+    }
+
     const handleSubmit = async () => {
         try {
-            await ext.submit()
-            // Si el submit fue exitoso, cerrar el modal
+            const result = await ext.submit()
+            
+            // Si el submit fue exitoso, generar el ticket
+            if (result?.success && result?.data && abono) {
+                const { pago_id, est_id, veh_patente } = result.data
+
+                if (pago_id && est_id && veh_patente) {
+                    await generateSubscriptionExtensionTicket(
+                        pago_id,
+                        abono.abo_nro,
+                        est_id,
+                        veh_patente,
+                        user?.email || 'Sistema',
+                        mapPaymentMethod(ext.state.metodoPago),
+                        'reduced',
+                        `Extensión ${ext.state.tipoExtension} x${ext.state.cantidad}`
+                    )
+                }
+            }
+            
+            // Cerrar el modal de extensión
             onOpenChange(false)
         } catch (error) {
             // El error ya se maneja en el hook con un toast
@@ -197,6 +235,15 @@ export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {
                     </Button>
                 </DialogFooter>
             </DialogContent>
+            
+            {/* Diálogo del ticket */}
+            <TicketDialog
+                ticket={ticket}
+                isOpen={showTicketDialog}
+                onClose={closeTicketDialog}
+                loading={ticketLoading}
+                title="Ticket de Extensión de Abono"
+            />
         </Dialog>
     )
 }
