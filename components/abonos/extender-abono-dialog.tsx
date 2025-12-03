@@ -16,22 +16,12 @@ import { useAuth } from '@/lib/auth-context'
 import type { AbonoData, TipoExtension } from '@/lib/types'
 import { CONFIGURACIONES_ABONOS } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
+import { formatDate } from '@/lib/utils/date-time'
 
 interface Props {
     open: boolean
     onOpenChange: (open: boolean) => void
     abono: AbonoData | null
-}
-
-const formatDate = (value: string) => {
-    if (!value) return '-'
-    const iso = value.split('T')[0] ?? value
-    const parts = iso.split('-')
-    if (parts.length === 3) {
-        const [year, month, day] = parts
-        return `${day}/${month}/${year}`
-    }
-    return iso
 }
 
 export function ExtenderAbonoDialog({ open, onOpenChange, abono }: Props) {

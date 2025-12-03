@@ -387,7 +387,8 @@ export function ParkingTicket({
               Enviar
             </Button>
           )}
-          {onClose && !ticket?.isSubscription && (
+          {/* Botón Cerrar removido según requerimiento del usuario */}
+          {/* Anteriormente: {onClose && !ticket?.isSubscription && (
             <Button
               variant="ghost"
               size="sm"
@@ -397,7 +398,7 @@ export function ParkingTicket({
               <X className="h-4 w-4" />
               Cerrar
             </Button>
-          )}
+          )} */}
         </div>
       )}
 

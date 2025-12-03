@@ -135,6 +135,7 @@ export interface ValoracionModalProps {
         est_id: number;
         est_nombre: string;
     };
+    readOnly?: boolean; // Si true, solo permite ver valoraciones, no crear/editar la propia
 }
 
 /**
