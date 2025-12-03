@@ -20,6 +20,33 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 import { useRouter } from "next/navigation";
+
+// Funciones de validación de tamaño de vehículo vs plaza
+const puedeVehiculoUsarPlaza = (tipoVehiculo: VehicleType, tipoPlaza: VehicleType): boolean => {
+    // Lógica de compatibilidad:
+    // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+    // - Plaza Auto: acepta Auto, Moto
+    // - Plaza Moto: acepta solo Moto
+
+    if (tipoPlaza === 'Camioneta') {
+        return ['Camioneta', 'Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Auto') {
+        return ['Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Moto') {
+        return tipoVehiculo === 'Moto';
+    }
+
+    return false;
+}
+
+const mapearTipoVehiculo = (segmento: string): VehicleType => {
+    switch (segmento) {
+        case 'MOT': return 'Moto'
+        case 'CAM': return 'Camioneta'
+        case 'AUT':
+        default: return 'Auto'
+    }
+}
 import PaymentMethodSelector from "@/components/payment-method-selector";
 import TransferInfoDialog from "@/components/transfer-info-dialog";
 import QRPaymentDialog from "@/components/qr-payment-dialog";
@@ -496,6 +523,21 @@ export default function OperadorSimplePage() {
                         : vehiculoAsociado.catv_segmento === 'CAM'
                             ? 'Camioneta'
                             : 'Auto';
+
+                    // Validar que el vehículo pueda usar la plaza según jerarquía de tamaños
+                    if (plazaSeleccionada?.catv_segmento) {
+                        const tipoVehiculo = mapearTipoVehiculo(vehiculoAsociado.catv_segmento);
+                        const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+
+                        if (!puedeVehiculoUsarPlaza(tipoVehiculo, tipoPlaza)) {
+                            toast({
+                                variant: "destructive",
+                                title: "Vehículo incompatible con la plaza",
+                                description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}. Verifique la compatibilidad de tamaños.`
+                            });
+                            return;
+                        }
+                    }
                 }
             }
 
