@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Loader2, Edit, Trash2, UserPlus, Key, RefreshCw, Clock } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -81,6 +82,8 @@ export default function GestionUsuariosPage() {
             estado: string;
         };
     } | null>(null);
+    const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+    const [empleadoToDelete, setEmpleadoToDelete] = useState<Empleado | null>(null);
 
     const resetFormularioUsuario = () => {
         setUsuarioSeleccionado({ ...usuarioInicial });
@@ -346,7 +349,7 @@ export default function GestionUsuariosPage() {
         setSaving(false);
     };
 
-    const handleDeleteUser = async (usuId: number) => {
+    const handleDeleteUser = (empleado: Empleado) => {
         // Los empleados no pueden eliminar empleados
         if (userRole === 'playero') {
             toast({
@@ -357,11 +360,15 @@ export default function GestionUsuariosPage() {
             return;
         }
 
-        if (!confirm('¿Estás seguro de que quieres eliminar este empleado? Esta acción no se puede deshacer.')) {
-            return;
-        }
+        setEmpleadoToDelete(empleado);
+        setDeleteConfirmationOpen(true);
+    };
 
-        const result = await eliminarEmpleado(usuId);
+    const confirmDeleteUser = async () => {
+        if (!empleadoToDelete) return;
+
+        setDeleteConfirmationOpen(false);
+        const result = await eliminarEmpleado(empleadoToDelete.usu_id);
 
         if (result.success) {
             toast({
@@ -377,6 +384,7 @@ export default function GestionUsuariosPage() {
                 description: result.error || "Error al eliminar empleado"
             });
         }
+        setEmpleadoToDelete(null);
     };
 
     const handleShowTurnos = (empleado: Empleado) => {
@@ -414,12 +422,17 @@ export default function GestionUsuariosPage() {
     };
 
     const generarContrasena = () => {
-        const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-        let contrasena = '';
-        for (let i = 0; i < 12; i++) {
-            contrasena += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+        // La contraseña temporal es igual al DNI
+        const dni = usuarioSeleccionado.dni || '';
+        if (dni.length < 7) {
+            toast({
+                variant: "destructive",
+                title: "DNI inválido",
+                description: "El DNI debe tener al menos 7 dígitos antes de generar la contraseña"
+            });
+            return;
         }
-        setContrasenaTemporal(contrasena);
+        setContrasenaTemporal(dni);
     };
 
     // Filtrar empleados
@@ -581,7 +594,7 @@ export default function GestionUsuariosPage() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleDeleteUser(empleado.usu_id)}
+                                                            onClick={() => handleDeleteUser(empleado)}
                                                             className="text-red-600 hover:text-red-800 hover:bg-red-50 border border-transparent hover:border-red-200 rounded px-2 py-1"
                                                             title="Eliminar empleado"
                                                         >
@@ -639,11 +652,20 @@ export default function GestionUsuariosPage() {
                                 <Input
                                     id="dni"
                                     value={usuarioSeleccionado.dni || ''}
-                                    onChange={(e) => setUsuarioSeleccionado(prev => ({ ...prev, dni: e.target.value }))}
+                                    onChange={(e) => {
+                                        const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
+                                        if (onlyNumbers.length <= 9) {
+                                            setUsuarioSeleccionado(prev => ({ ...prev, dni: onlyNumbers }));
+                                        }
+                                    }}
                                     disabled={!!usuarioSeleccionado.usu_id}
                                     placeholder="12345678"
+                                    maxLength={9}
                                     className="bg-white border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-blue-500"
                                 />
+                                {usuarioSeleccionado.dni && usuarioSeleccionado.dni.length < 7 && (
+                                    <p className="text-xs text-red-500 mt-1">El DNI debe tener entre 7 y 9 dígitos</p>
+                                )}
                             </div>
 
                             <div>
@@ -918,6 +940,50 @@ export default function GestionUsuariosPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* AlertDialog para confirmar eliminación */}
+            <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
+                <AlertDialogContent className="max-w-md">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-lg font-bold text-gray-900">
+                            ¿Eliminar empleado?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-gray-600 mt-2">
+                            Esta acción no se puede deshacer. Se eliminará permanentemente al empleado de la base de datos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    {empleadoToDelete && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+                            <h4 className="font-semibold text-red-800 mb-3">Empleado a eliminar:</h4>
+                            <div className="space-y-2 text-sm">
+                                <div>
+                                    <span className="font-medium text-gray-600">Nombre:</span>
+                                    <p className="text-gray-900">{empleadoToDelete.nombre} {empleadoToDelete.apellido}</p>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">Email:</span>
+                                    <p className="text-gray-900">{empleadoToDelete.email || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-600">DNI:</span>
+                                    <p className="text-gray-900">{empleadoToDelete.dni || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <AlertDialogCancel className="bg-gray-200 text-gray-900 hover:bg-gray-300 border-0">
+                        Cancelar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={confirmDeleteUser}
+                        className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                        Eliminar permanentemente
+                    </AlertDialogAction>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

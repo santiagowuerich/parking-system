@@ -113,6 +113,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [showEditModal, setShowEditModal] = useState(false);
     const [isCreatingNew, setIsCreatingNew] = useState(false);
     const [addressConfirmed, setAddressConfirmed] = useState<boolean>(false);
+    const [showHorariosModal, setShowHorariosModal] = useState(false);
+    const [selectedHorariosEstacionamiento, setSelectedHorariosEstacionamiento] = useState<Estacionamiento | null>(null);
     const MAX_PARKINGS_PER_USER = 5;
     const [configTabsValue, setConfigTabsValue] = useState("general");
 
@@ -271,6 +273,25 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
         }
         if (direccionIngresada.length < 5) {
             alert("La dirección debe tener al menos 5 caracteres");
+            return;
+        }
+
+        // Validar que se haya seleccionado una dirección de Google Places
+        if (!addressConfirmed) {
+            toast({
+                variant: "destructive",
+                title: "Dirección requerida",
+                description: "Debes seleccionar una dirección de las sugerencias de Google Places antes de continuar."
+            });
+            return;
+        }
+
+        if (!editingConfig.est_latitud || !editingConfig.est_longitud) {
+            toast({
+                variant: "destructive",
+                title: "Coordenadas faltantes",
+                description: "La dirección seleccionada debe tener coordenadas válidas. Por favor, selecciona otra dirección."
+            });
             return;
         }
 
@@ -570,6 +591,25 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
 
     const saveEditingConfig = async () => {
         if (!editingConfig) return;
+
+        // Validar dirección para modo edición
+        if (!addressConfirmed) {
+            toast({
+                variant: "destructive",
+                title: "Dirección requerida",
+                description: "Debes seleccionar una dirección válida de Google Places. Busca y selecciona una dirección de las sugerencias."
+            });
+            return;
+        }
+
+        if (!editingConfig.est_latitud || !editingConfig.est_longitud) {
+            toast({
+                variant: "destructive",
+                title: "Coordenadas faltantes",
+                description: "La dirección debe tener coordenadas GPS válidas. Por favor, vuelve a buscar y seleccionar la dirección."
+            });
+            return;
+        }
 
         setSavingConfig(true);
         try {
@@ -1067,10 +1107,6 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
 
                                                 {/* Información adicional */}
                                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                                    <div className="flex items-center gap-2 text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-                                                        <Timer className="h-4 w-4 text-gray-500" />
-                                                        <span><strong>{estacionamiento.est_tolerancia_min}</strong> min tolerancia</span>
-                                                    </div>
                                                     {estacionamiento.est_requiere_llave && estacionamiento.est_requiere_llave !== 'no' && (
                                                         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
                                                             estacionamiento.est_requiere_llave === 'requerida'
@@ -1130,35 +1166,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                                 });
                                                                 return;
                                                             }
-
-                                                            const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-                                                            const horariosPorDia: { [key: number]: HorarioFranja[] } = {};
-
-                                                            estacionamiento.horarios.forEach(h => {
-                                                                if (!horariosPorDia[h.dia_semana]) {
-                                                                    horariosPorDia[h.dia_semana] = [];
-                                                                }
-                                                                horariosPorDia[h.dia_semana].push(h);
-                                                            });
-
-                                                            let mensaje = `📅 Horarios de ${estacionamiento.est_nombre}\n\n`;
-                                                            mensaje += '═'.repeat(45) + '\n\n';
-
-                                                            for (let dia = 0; dia < 7; dia++) {
-                                                                const nombreDia = diasSemana[dia].padEnd(12, ' ');
-                                                                if (horariosPorDia[dia]) {
-                                                                    const franjas = horariosPorDia[dia]
-                                                                        .sort((a, b) => a.orden - b.orden)
-                                                                        .map(h => `${h.hora_apertura}-${h.hora_cierre}`)
-                                                                        .join(', ');
-                                                                    mensaje += `${nombreDia} ${franjas}\n`;
-                                                                } else {
-                                                                    mensaje += `${nombreDia} 🔒 Cerrado\n`;
-                                                                }
-                                                            }
-
-                                                            mensaje += '\n' + '═'.repeat(45);
-                                                            alert(mensaje);
+                                                            setSelectedHorariosEstacionamiento(estacionamiento);
+                                                            setShowHorariosModal(true);
                                                         }}
                                                         className="h-10 hover:bg-purple-50 hover:border-purple-300"
                                                     >
@@ -1279,34 +1288,18 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     return;
                                                 }
 
-                                                const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-                                                const horariosPorDia: { [key: number]: HorarioFranja[] } = {};
-
-                                                editingHorarios.forEach(h => {
-                                                    if (!horariosPorDia[h.dia_semana]) {
-                                                        horariosPorDia[h.dia_semana] = [];
-                                                    }
-                                                    horariosPorDia[h.dia_semana].push(h);
-                                                });
-
-                                                let mensaje = `📅 Horarios de ${editingConfig.est_nombre}\n\n`;
-                                                mensaje += '═'.repeat(45) + '\n\n';
-
-                                                for (let dia = 0; dia < 7; dia++) {
-                                                    const nombreDia = diasSemana[dia].padEnd(12, ' ');
-                                                    if (horariosPorDia[dia]) {
-                                                        const franjas = horariosPorDia[dia]
-                                                            .sort((a, b) => a.orden - b.orden)
-                                                            .map(h => `${h.hora_apertura}-${h.hora_cierre}`)
-                                                            .join(', ');
-                                                        mensaje += `${nombreDia} ${franjas}\n`;
-                                                    } else {
-                                                        mensaje += `${nombreDia} 🔒 Cerrado\n`;
-                                                    }
+                                                if (editingConfig) {
+                                                    setSelectedHorariosEstacionamiento({
+                                                        ...editingConfig,
+                                                        est_cantidad_espacios_disponibles: 0,
+                                                        plazas_totales_reales: 0,
+                                                        plazas_disponibles_reales: 0,
+                                                        plazas_ocupadas: 0,
+                                                        horarios: editingHorarios,
+                                                        estadoApertura: { isOpen: false, hasSchedule: true }
+                                                    } as Estacionamiento);
+                                                    setShowHorariosModal(true);
                                                 }
-
-                                                mensaje += '\n' + '═'.repeat(45);
-                                                alert(mensaje);
                                             }}
                                             className="gap-2"
                                         >
@@ -1394,28 +1387,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="edit-tolerancia" className="text-gray-700 flex items-center gap-1">
-                                                <Timer className="h-4 w-4" />
-                                                Tolerancia (min)
-                                            </Label>
-                                            <Select
-                                                value={String(editingConfig.est_tolerancia_min)}
-                                                onValueChange={(value) => updateEditingConfig('est_tolerancia_min', Number(value))}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="5">5 minutos</SelectItem>
-                                                    <SelectItem value="10">10 minutos</SelectItem>
-                                                    <SelectItem value="15">15 minutos</SelectItem>
-                                                    <SelectItem value="30">30 minutos</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="edit-telefono" className="text-gray-700 flex items-center gap-1">
                                                 <Phone className="h-4 w-4" />
@@ -1423,10 +1395,16 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                             </Label>
                                             <Input
                                                 id="edit-telefono"
+                                                type="tel"
                                                 value={editingConfig.est_telefono || ''}
-                                                onChange={(e) => updateEditingConfig('est_telefono', e.target.value)}
-                                                placeholder="Ej: +54 11 1234-5678"
+                                                onChange={(e) => {
+                                                    const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
+                                                    updateEditingConfig('est_telefono', onlyNumbers);
+                                                }}
+                                                placeholder="Solo números (ej: 1112345678)"
+                                                maxLength={15}
                                             />
+                                            <p className="text-xs text-gray-500">Solo se permiten números (sin espacios ni símbolos)</p>
                                         </div>
 
                                         <div className="space-y-2">
@@ -1460,9 +1438,21 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                 <CardContent className="space-y-4">
                                     {/* Búsqueda de Dirección con Autocompletado */}
                                     <div className="space-y-2 relative" data-search-container>
-                                        <Label htmlFor="edit-address-search" className="text-gray-700">
-                                            Buscar Dirección (Argentina)
-                                        </Label>
+                                        <div className="flex items-center justify-between">
+                                            <Label htmlFor="edit-address-search" className="text-gray-700">
+                                                Buscar Dirección (Argentina)
+                                            </Label>
+                                            {addressConfirmed ? (
+                                                <Badge className="bg-green-100 text-green-800 border-green-300 flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    Confirmada
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                                                    Selecciona de las sugerencias
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <div className="flex gap-2">
                                             <div className="relative flex-1">
                                                 <Input
@@ -1515,18 +1505,13 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="edit-provincia" className="text-gray-700">Provincia</Label>
-                                            <Select value={editingConfig.est_prov} onValueChange={(value) => updateEditingConfig('est_prov', value)}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar provincia" />
-                                                </SelectTrigger>
-                                                <SelectContent className="max-h-60">
-                                                    {provinciaOptions.map((provincia) => (
-                                                        <SelectItem key={provincia} value={provincia}>
-                                                            {provincia}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Input
+                                                id="edit-provincia"
+                                                value={editingConfig.est_prov}
+                                                readOnly
+                                                placeholder="Ej: Buenos Aires"
+                                                className="bg-gray-100 cursor-not-allowed"
+                                            />
                                         </div>
 
                                         <div className="space-y-2">
@@ -1534,8 +1519,9 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                             <Input
                                                 id="edit-localidad"
                                                 value={editingConfig.est_locali}
-                                                onChange={(e) => updateEditingConfig('est_locali', e.target.value)}
+                                                readOnly
                                                 placeholder="Ej: Capital Federal"
+                                                className="bg-gray-100 cursor-not-allowed"
                                             />
                                         </div>
 
@@ -1544,8 +1530,9 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                             <Input
                                                 id="edit-direccion"
                                                 value={editingConfig.est_direc}
-                                                onChange={(e) => updateEditingConfig('est_direc', e.target.value)}
+                                                readOnly
                                                 placeholder="Ej: Av. Corrientes 1234"
+                                                className="bg-gray-100 cursor-not-allowed"
                                             />
                                         </div>
 
@@ -1554,8 +1541,9 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                             <Input
                                                 id="edit-cp"
                                                 value={editingConfig.est_codigo_postal || ''}
-                                                onChange={(e) => updateEditingConfig('est_codigo_postal', e.target.value)}
+                                                readOnly
                                                 placeholder="Ej: 1043"
+                                                className="bg-gray-100 cursor-not-allowed"
                                             />
                                         </div>
                                     </div>
@@ -1674,6 +1662,131 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Modal de visualización de horarios */}
+            <Dialog open={showHorariosModal} onOpenChange={setShowHorariosModal}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-blue-600" />
+                            Horarios de Atención
+                        </DialogTitle>
+                        {selectedHorariosEstacionamiento && (
+                            <p className="text-sm text-gray-600 font-medium mt-1">
+                                {selectedHorariosEstacionamiento.est_nombre}
+                            </p>
+                        )}
+                    </DialogHeader>
+
+                    <div className="space-y-3 py-4">
+                        {selectedHorariosEstacionamiento && selectedHorariosEstacionamiento.horarios ? (
+                            (() => {
+                                const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                                const horariosPorDia: { [key: number]: HorarioFranja[] } = {};
+
+                                selectedHorariosEstacionamiento.horarios.forEach(h => {
+                                    if (!horariosPorDia[h.dia_semana]) {
+                                        horariosPorDia[h.dia_semana] = [];
+                                    }
+                                    horariosPorDia[h.dia_semana].push(h);
+                                });
+
+                                return diasSemana.map((nombreDia, dia) => {
+                                    const franjas = horariosPorDia[dia];
+                                    const tieneFranjas = franjas && franjas.length > 0;
+
+                                    return (
+                                        <Card
+                                            key={dia}
+                                            className={`transition-all ${
+                                                tieneFranjas
+                                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                                                    : 'bg-gray-50 border-gray-200'
+                                            }`}
+                                        >
+                                            <CardContent className="p-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                                            tieneFranjas
+                                                                ? 'bg-green-500 text-white'
+                                                                : 'bg-gray-300 text-gray-600'
+                                                        }`}>
+                                                            {tieneFranjas ? (
+                                                                <Clock className="h-5 w-5" />
+                                                            ) : (
+                                                                <span className="text-lg">🔒</span>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className={`font-semibold ${
+                                                                tieneFranjas ? 'text-green-900' : 'text-gray-600'
+                                                            }`}>
+                                                                {nombreDia}
+                                                            </h4>
+                                                            {tieneFranjas ? (
+                                                                <div className="space-y-1 mt-1">
+                                                                    {franjas
+                                                                        .sort((a, b) => a.orden - b.orden)
+                                                                        .map((franja, idx) => (
+                                                                            <div
+                                                                                key={idx}
+                                                                                className="flex items-center gap-2 text-sm"
+                                                                            >
+                                                                                <Badge
+                                                                                    variant="outline"
+                                                                                    className="bg-white border-green-300 text-green-700 font-mono"
+                                                                                >
+                                                                                    {franja.hora_apertura} - {franja.hora_cierre}
+                                                                                </Badge>
+                                                                                {franjas.length > 1 && (
+                                                                                    <span className="text-xs text-green-600">
+                                                                                        Franja {idx + 1}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        ))
+                                                                    }
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-sm text-gray-500 mt-1">Cerrado</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {tieneFranjas && (
+                                                        <div className="text-right">
+                                                            <Badge className="bg-green-100 text-green-800 border-green-300">
+                                                                Abierto
+                                                            </Badge>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                });
+                            })()
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                <p>No hay horarios configurados</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowHorariosModal(false);
+                                setSelectedHorariosEstacionamiento(null);
+                            }}
+                        >
+                            Cerrar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

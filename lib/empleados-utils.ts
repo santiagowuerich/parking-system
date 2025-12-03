@@ -87,6 +87,11 @@ export function validarEmpleado(empleado: Partial<Empleado>): string[] {
 
     if (!empleado.dni?.trim()) {
         errores.push('El DNI es requerido');
+    } else {
+        // Validar DNI: solo números, entre 7 y 9 dígitos
+        if (!/^\d{7,9}$/.test(empleado.dni)) {
+            errores.push('El DNI debe contener solo números y tener entre 7 y 9 dígitos');
+        }
     }
 
     if (!empleado.email?.trim()) {

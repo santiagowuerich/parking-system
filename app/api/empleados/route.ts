@@ -254,6 +254,16 @@ export async function POST(request: NextRequest) {
         }
         console.log('✅ Validaciones básicas pasaron');
 
+        // Validar DNI: solo números, entre 7 y 9 dígitos
+        if (!/^\d{7,9}$/.test(dni)) {
+            console.log('❌ DNI inválido:', dni);
+            return NextResponse.json(
+                { error: "El DNI debe contener solo números y tener entre 7 y 9 dígitos" },
+                { status: 400 }
+            );
+        }
+        console.log('✅ Validación de DNI pasada');
+
         // Verificar que el estacionamiento existe y pertenece al usuario autenticado
         const { data: usuarioAutenticado, error: userAuthError } = await supabase
             .from('usuario')
@@ -752,7 +762,32 @@ export async function DELETE(request: NextRequest) {
             console.error('Error eliminando playero:', playeroError);
         }
 
-        // 4. Finalmente eliminar el usuario
+        // 4. Obtener el email del usuario antes de eliminarlo
+        console.log('🔍 Obteniendo email del usuario...');
+        const { data: usuarioData, error: getUserError } = await supabaseAdmin
+            .from('usuario')
+            .select('usu_email, usu_auth_id')
+            .eq('usu_id', usu_id)
+            .single();
+
+        if (getUserError) {
+            console.error('Error obteniendo datos del usuario:', getUserError);
+        }
+
+        // 5. Eliminar la cuenta de Supabase Auth si existe
+        if (usuarioData?.usu_auth_id) {
+            console.log('🗑️ Eliminando usuario de Supabase Auth...');
+            const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(usuarioData.usu_auth_id);
+
+            if (authDeleteError) {
+                console.error('Error eliminando usuario de Auth:', authDeleteError);
+                // No es crítico si falla, continuamos
+            } else {
+                console.log('✅ Usuario eliminado de Supabase Auth');
+            }
+        }
+
+        // 6. Eliminar el registro de usuario de la tabla
         console.log('🗑️ Eliminando registro de usuario...');
         const { error: deleteError } = await supabaseAdmin
             .from('usuario')

@@ -68,6 +68,7 @@ export default function ParkingConfig() {
     const [showAutocomplete, setShowAutocomplete] = useState(false);
     const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
     const [loadingAutocomplete, setLoadingAutocomplete] = useState(false);
+    const [addressConfirmed, setAddressConfirmed] = useState<boolean>(false);
 
     // Cargar configuración actual
     useEffect(() => {
@@ -109,6 +110,10 @@ export default function ParkingConfig() {
                 setConfig(configData.estacionamiento);
                 if (configData.estacionamiento.est_direccion_completa) {
                     setAddressSearch(configData.estacionamiento.est_direccion_completa);
+                }
+                // Si tiene coordenadas, considerarla confirmada
+                if (configData.estacionamiento.est_latitud && configData.estacionamiento.est_longitud) {
+                    setAddressConfirmed(true);
                 }
             } else {
                 toast({
@@ -255,6 +260,7 @@ export default function ParkingConfig() {
             setAddressSearch(placeDetails.formatted_address);
             setShowAutocomplete(false);
             setAutocompleteSuggestions([]);
+            setAddressConfirmed(true);
 
             toast({
                 title: "Dirección seleccionada",
@@ -379,6 +385,25 @@ export default function ParkingConfig() {
 
     const saveConfig = async () => {
         if (!config || !estId) return;
+
+        // Validar que la dirección esté confirmada
+        if (!addressConfirmed) {
+            toast({
+                variant: "destructive",
+                title: "Dirección requerida",
+                description: "Debes seleccionar una dirección válida de Google Places antes de guardar."
+            });
+            return;
+        }
+
+        if (!config.est_latitud || !config.est_longitud) {
+            toast({
+                variant: "destructive",
+                title: "Coordenadas faltantes",
+                description: "La dirección debe tener coordenadas GPS válidas. Busca y selecciona una dirección de las sugerencias."
+            });
+            return;
+        }
 
         setSaving(true);
         try {
@@ -528,24 +553,6 @@ export default function ParkingConfig() {
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="tolerancia" className="text-gray-700 flex items-center gap-1">
-                                <Timer className="h-4 w-4" />
-                                Tolerancia (min)
-                            </Label>
-                            <Select value={String(config.est_tolerancia_min)} onValueChange={(value) => updateConfig('est_tolerancia_min', Number(value))}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="5">5 minutos</SelectItem>
-                                    <SelectItem value="10">10 minutos</SelectItem>
-                                    <SelectItem value="15">15 minutos</SelectItem>
-                                    <SelectItem value="30">30 minutos</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
                         <div className="flex items-center space-x-2">
                             <Checkbox
                                 id="publicado"
@@ -600,10 +607,16 @@ export default function ParkingConfig() {
                             <Label htmlFor="telefono" className="text-gray-700">Teléfono</Label>
                             <Input
                                 id="telefono"
+                                type="tel"
                                 value={config.est_telefono || ''}
-                                onChange={(e) => updateConfig('est_telefono', e.target.value)}
-                                placeholder="Ej: +54 11 1234-5678"
+                                onChange={(e) => {
+                                    const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
+                                    updateConfig('est_telefono', onlyNumbers);
+                                }}
+                                placeholder="Solo números (ej: 1112345678)"
+                                maxLength={15}
                             />
+                            <p className="text-xs text-gray-500">Solo se permiten números (sin espacios ni símbolos)</p>
                         </div>
 
                         <div className="space-y-2">
@@ -634,9 +647,21 @@ export default function ParkingConfig() {
                 <CardContent className="space-y-4">
                     {/* Búsqueda de Dirección con Autocompletado */}
                     <div className="space-y-2 relative" data-search-container>
-                        <Label htmlFor="address-search" className="text-gray-700">
-                            Buscar Dirección (Argentina)
-                        </Label>
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="address-search" className="text-gray-700">
+                                Buscar Dirección (Argentina)
+                            </Label>
+                            {addressConfirmed ? (
+                                <Badge className="bg-green-100 text-green-800 border-green-300 flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Confirmada
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                                    Selecciona de las sugerencias
+                                </Badge>
+                            )}
+                        </div>
                         <div className="flex gap-2">
                             <div className="relative flex-1">
                                 <Input
@@ -734,18 +759,13 @@ export default function ParkingConfig() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="provincia" className="text-gray-700">Provincia</Label>
-                            <Select value={config.est_prov} onValueChange={(value) => updateConfig('est_prov', value)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccionar provincia" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                    {provinciaOptions.map((provincia) => (
-                                        <SelectItem key={provincia} value={provincia}>
-                                            {provincia}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Input
+                                id="provincia"
+                                value={config.est_prov}
+                                readOnly
+                                placeholder="Ej: Buenos Aires"
+                                className="bg-gray-100 cursor-not-allowed"
+                            />
                         </div>
 
                         <div className="space-y-2">
@@ -753,8 +773,9 @@ export default function ParkingConfig() {
                             <Input
                                 id="localidad"
                                 value={config.est_locali}
-                                onChange={(e) => updateConfig('est_locali', e.target.value)}
+                                readOnly
                                 placeholder="Ej: Capital Federal"
+                                className="bg-gray-100 cursor-not-allowed"
                             />
                         </div>
 
@@ -763,8 +784,9 @@ export default function ParkingConfig() {
                             <Input
                                 id="direccion"
                                 value={config.est_direc}
-                                onChange={(e) => updateConfig('est_direc', e.target.value)}
+                                readOnly
                                 placeholder="Ej: Av. Corrientes 1234"
+                                className="bg-gray-100 cursor-not-allowed"
                             />
                         </div>
 
@@ -773,8 +795,9 @@ export default function ParkingConfig() {
                             <Input
                                 id="cp"
                                 value={config.est_codigo_postal || ''}
-                                onChange={(e) => updateConfig('est_codigo_postal', e.target.value)}
+                                readOnly
                                 placeholder="Ej: 1043"
+                                className="bg-gray-100 cursor-not-allowed"
                             />
                         </div>
                     </div>
