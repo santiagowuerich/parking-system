@@ -4,6 +4,7 @@
 import { ParkingTicket } from '@/lib/types/ticket';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { formatDateTime } from '@/lib/utils/date-time';
 
 /**
  * Genera un PDF del ticket como Blob usando jsPDF y html2canvas
@@ -156,12 +157,9 @@ export async function generateTicketPDF(ticket: ParkingTicket): Promise<void> {
  * Genera el HTML del ticket para PDF
  */
 function generateTicketHTML(ticket: ParkingTicket): string {
+  // Usar formatDateTime para manejar correctamente la zona horaria de Argentina
   const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString('es-AR');
-    } catch {
-      return dateStr;
-    }
+    return formatDateTime(dateStr);
   };
 
   const formatCurrency = (amount: number) => {

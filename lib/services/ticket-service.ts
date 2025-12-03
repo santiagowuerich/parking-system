@@ -15,6 +15,14 @@ import {
   generateTicketId,
 } from '@/lib/types/ticket';
 import { VehicleType, PaymentMethod, PaymentStatus } from '@/lib/types';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const ARGENTINA_TIMEZONE = 'America/Argentina/Buenos_Aires';
 
 /**
  * Mapeo de tipos de vehículo de BD a frontend
@@ -102,11 +110,15 @@ export class TicketService {
       }
 
       // 7. Calcular duración
-      const entryTime = new Date(occupationData.ocu_fh_entrada);
+      // Las fechas en BD están como strings "YYYY-MM-DD HH:mm:ss" sin zona horaria
+      // Se interpretan como hora de Argentina, no como hora local del servidor
+      const entryTime = occupationData.ocu_fh_entrada
+        ? dayjs.tz(occupationData.ocu_fh_entrada, ARGENTINA_TIMEZONE)
+        : dayjs().tz(ARGENTINA_TIMEZONE);
       const exitTime = occupationData.ocu_fh_salida
-        ? new Date(occupationData.ocu_fh_salida)
-        : new Date();
-      const durationMs = exitTime.getTime() - entryTime.getTime();
+        ? dayjs.tz(occupationData.ocu_fh_salida, ARGENTINA_TIMEZONE)
+        : dayjs().tz(ARGENTINA_TIMEZONE);
+      const durationMs = exitTime.diff(entryTime);
       const duration = formatDuration(durationMs);
 
       // 8. Generar ID de ticket único
@@ -136,8 +148,9 @@ export class TicketService {
         vehicleColor: vehicleData?.veh_color || undefined,
 
         // Tiempos
-        entryTime: entryTime.toISOString(),
-        exitTime: exitTime.toISOString(),
+        // Guardar como ISO string en UTC, pero preservando la hora de Argentina
+        entryTime: entryTime.utc().toISOString(),
+        exitTime: exitTime.utc().toISOString(),
         duration,
 
         // Pago
