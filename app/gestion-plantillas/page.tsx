@@ -362,12 +362,41 @@ export default function GestionPlantillasPage() {
     };
 
     const handlePriceChange = (field: keyof TariffPrices, value: string) => {
-        // Solo permitir números y un punto decimal
-        const regex = /^\d*\.?\d*$/;
-        if (regex.test(value) || value === '') {
+        // Remover caracteres no válidos - solo números y coma
+        let cleanValue = value.replace(/[^\d,]/g, '');
+
+        // Evitar múltiples comas
+        const parts = cleanValue.split(',');
+        if (parts.length > 2) {
+            cleanValue = parts[0] + ',' + parts.slice(1).join('');
+        }
+
+        // Limitar a máximo 2 decimales después de la coma
+        if (parts.length === 2) {
+            cleanValue = parts[0] + ',' + parts[1].slice(0, 2);
+        }
+
+        // Formatear con puntos cada 3 dígitos en la parte entera
+        let displayValue = cleanValue;
+        if (cleanValue.includes(',')) {
+            const [integerPart, decimalPart] = cleanValue.split(',');
+            const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            displayValue = formattedInteger + ',' + decimalPart;
+        } else {
+            displayValue = cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+
+        // Permitir valor vacío para poder editarlo
+        if (displayValue === '' || displayValue === '0') {
             setPrices(prev => ({
                 ...prev,
-                [field]: value
+                [field]: displayValue
+            }));
+        } else if (/^\d{1,}(,\d{1,2})?$/.test(displayValue)) {
+            // Validar que sea un número válido (al menos un dígito, puede tener coma y 1-2 decimales)
+            setPrices(prev => ({
+                ...prev,
+                [field]: displayValue
             }));
         }
     };
@@ -388,13 +417,18 @@ export default function GestionPlantillasPage() {
             // Preparar los datos para enviar
             const tarifas = [];
 
+            // Helper para convertir valor con coma a número
+            const parsePrice = (priceStr: string) => {
+                return parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
+            };
+
             // Hora (tipo 1)
             if (prices.hora) {
                 tarifas.push({
                     plantilla_id: savedPlantillaId,
                     tiptar_nro: 1,
-                    tar_precio: parseFloat(prices.hora),
-                    tar_fraccion: parseFloat(prices.hora)
+                    tar_precio: parsePrice(prices.hora),
+                    tar_fraccion: parsePrice(prices.hora)
                 });
             }
 
@@ -403,8 +437,8 @@ export default function GestionPlantillasPage() {
                 tarifas.push({
                     plantilla_id: savedPlantillaId,
                     tiptar_nro: 2,
-                    tar_precio: parseFloat(prices.dia),
-                    tar_fraccion: parseFloat(prices.dia)
+                    tar_precio: parsePrice(prices.dia),
+                    tar_fraccion: parsePrice(prices.dia)
                 });
             }
 
@@ -413,8 +447,8 @@ export default function GestionPlantillasPage() {
                 tarifas.push({
                     plantilla_id: savedPlantillaId,
                     tiptar_nro: 3,
-                    tar_precio: parseFloat(prices.mes),
-                    tar_fraccion: parseFloat(prices.mes)
+                    tar_precio: parsePrice(prices.mes),
+                    tar_fraccion: parsePrice(prices.mes)
                 });
             }
 
@@ -423,8 +457,8 @@ export default function GestionPlantillasPage() {
                 tarifas.push({
                     plantilla_id: savedPlantillaId,
                     tiptar_nro: 4,
-                    tar_precio: parseFloat(prices.semana),
-                    tar_fraccion: parseFloat(prices.semana)
+                    tar_precio: parsePrice(prices.semana),
+                    tar_fraccion: parsePrice(prices.semana)
                 });
             }
 
@@ -433,6 +467,17 @@ export default function GestionPlantillasPage() {
                     variant: "destructive",
                     title: "Error",
                     description: "Debes ingresar al menos un precio"
+                });
+                return;
+            }
+
+            // Validar que todos los precios sean mayores a 0
+            const invalidPrices = tarifas.filter(t => t.tar_precio <= 0 || isNaN(t.tar_precio));
+            if (invalidPrices.length > 0) {
+                toast({
+                    variant: "destructive",
+                    title: "Error en tarifas",
+                    description: "Todas las tarifas deben ser mayores a 0"
                 });
                 return;
             }
@@ -798,9 +843,9 @@ export default function GestionPlantillasPage() {
                                                 onChange={(e) => handlePriceChange('hora', e.target.value)}
                                                 className="text-right"
                                                 disabled={saving}
-                                                placeholder="100"
+                                                placeholder="100,00"
                                             />
-                                            <p className="text-xs text-gray-500">Se cobra este precio por cada hora completa</p>
+                                            <p className="text-xs text-gray-500">Número mayor a 0. Usar coma (,) para decimales. Máximo 2 decimales (ej: 150,50)</p>
                                         </div>
 
                                         {/* Precio por Día */}
@@ -816,9 +861,9 @@ export default function GestionPlantillasPage() {
                                                 onChange={(e) => handlePriceChange('dia', e.target.value)}
                                                 className="text-right"
                                                 disabled={saving}
-                                                placeholder="200"
+                                                placeholder="200,00"
                                             />
-                                            <p className="text-xs text-gray-500">Se cobra este precio por cada día completo</p>
+                                            <p className="text-xs text-gray-500">Número mayor a 0. Usar coma (,) para decimales. Máximo 2 decimales (ej: 250,75)</p>
                                         </div>
 
                                         {/* Precio por Semana */}
@@ -834,9 +879,9 @@ export default function GestionPlantillasPage() {
                                                 onChange={(e) => handlePriceChange('semana', e.target.value)}
                                                 className="text-right"
                                                 disabled={saving}
-                                                placeholder="300"
+                                                placeholder="1.500,00"
                                             />
-                                            <p className="text-xs text-gray-500">Se cobra este precio por cada semana completa</p>
+                                            <p className="text-xs text-gray-500">Número mayor a 0. Usar coma (,) para decimales. Máximo 2 decimales (ej: 1.500,50)</p>
                                         </div>
 
                                         {/* Precio por Mes */}
@@ -852,9 +897,9 @@ export default function GestionPlantillasPage() {
                                                 onChange={(e) => handlePriceChange('mes', e.target.value)}
                                                 className="text-right"
                                                 disabled={saving}
-                                                placeholder="400"
+                                                placeholder="5.000,00"
                                             />
-                                            <p className="text-xs text-gray-500">Se cobra este precio por cada mes completo</p>
+                                            <p className="text-xs text-gray-500">Número mayor a 0. Usar coma (,) para decimales. Máximo 2 decimales (ej: 5.000,99)</p>
                                         </div>
                                     </div>
                                 )}
