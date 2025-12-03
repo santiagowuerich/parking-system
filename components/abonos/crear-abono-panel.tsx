@@ -348,6 +348,60 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const handleSelectPlaza = (plaza: PlazaInfo) => {
         setPlazaSeleccionada(plaza);
         setShowZonaPlazaModal(false);
+        
+        // Ajustar tipo de vehículo si no es compatible con la plaza
+        if (plaza.catv_segmento) {
+            const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+                switch (segmento) {
+                    case "MOT":
+                        return "Moto";
+                    case "CAM":
+                        return "Camioneta";
+                    default:
+                        return "Auto";
+                }
+            };
+
+            const tipoPlaza = mapearTipoVehiculo(plaza.catv_segmento);
+            const puedeVehiculoUsarPlaza = (tipoVehiculo: "Auto" | "Moto" | "Camioneta", tipoPlaza: "Auto" | "Moto" | "Camioneta"): boolean => {
+                if (tipoPlaza === "Camioneta") {
+                    return ["Camioneta", "Auto", "Moto"].includes(tipoVehiculo);
+                } else if (tipoPlaza === "Auto") {
+                    return ["Auto", "Moto"].includes(tipoVehiculo);
+                } else if (tipoPlaza === "Moto") {
+                    return tipoVehiculo === "Moto";
+                }
+                return false;
+            };
+
+            // Si el tipo actual no es compatible, cambiarlo al primer tipo compatible
+            if (!puedeVehiculoUsarPlaza(nuevoVehiculoTipo, tipoPlaza)) {
+                if (tipoPlaza === "Camioneta") {
+                    setNuevoVehiculoTipo("Camioneta");
+                } else if (tipoPlaza === "Auto") {
+                    setNuevoVehiculoTipo("Auto");
+                } else if (tipoPlaza === "Moto") {
+                    setNuevoVehiculoTipo("Moto");
+                }
+            }
+
+            // También ajustar los vehículos existentes en la lista
+            setVehiculos(prevVehiculos => {
+                return prevVehiculos.map(veh => {
+                    if (!puedeVehiculoUsarPlaza(veh.tipo, tipoPlaza)) {
+                        if (tipoPlaza === "Camioneta") {
+                            return { ...veh, tipo: "Camioneta" };
+                        } else if (tipoPlaza === "Auto") {
+                            return { ...veh, tipo: "Auto" };
+                        } else if (tipoPlaza === "Moto") {
+                            return { ...veh, tipo: "Moto" };
+                        }
+                    }
+                    return veh;
+                });
+            });
+        }
+        
         // No cambiar de paso aquí, solo cerrar el modal
         // El flujo continuará desde donde se abrió el modal
     };
@@ -640,9 +694,52 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="Auto">Auto</SelectItem>
-                                                    <SelectItem value="Moto">Moto</SelectItem>
-                                                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                    {(() => {
+                                                        // Filtrar tipos según la plaza seleccionada
+                                                        if (!plazaSeleccionada?.catv_segmento) {
+                                                            // Si no hay plaza seleccionada, mostrar todos
+                                                            return (
+                                                                <>
+                                                                    <SelectItem value="Auto">Auto</SelectItem>
+                                                                    <SelectItem value="Moto">Moto</SelectItem>
+                                                                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                                </>
+                                                            );
+                                                        }
+
+                                                        // Mapear segmento de plaza a tipo
+                                                        const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+                                                            switch (segmento) {
+                                                                case "MOT":
+                                                                    return "Moto";
+                                                                case "CAM":
+                                                                    return "Camioneta";
+                                                                default:
+                                                                    return "Auto";
+                                                            }
+                                                        };
+
+                                                        const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+                                                        const tiposPermitidos: ("Auto" | "Moto" | "Camioneta")[] = [];
+
+                                                        // Lógica de compatibilidad:
+                                                        // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+                                                        // - Plaza Auto: acepta Auto, Moto
+                                                        // - Plaza Moto: acepta solo Moto
+                                                        if (tipoPlaza === "Camioneta") {
+                                                            tiposPermitidos.push("Camioneta", "Auto", "Moto");
+                                                        } else if (tipoPlaza === "Auto") {
+                                                            tiposPermitidos.push("Auto", "Moto");
+                                                        } else if (tipoPlaza === "Moto") {
+                                                            tiposPermitidos.push("Moto");
+                                                        }
+
+                                                        return tiposPermitidos.map((tipo) => (
+                                                            <SelectItem key={tipo} value={tipo}>
+                                                                {tipo}
+                                                            </SelectItem>
+                                                        ));
+                                                    })()}
                                                 </SelectContent>
                                             </Select>
                                         </div>

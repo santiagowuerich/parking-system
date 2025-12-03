@@ -214,23 +214,6 @@ export default function IngresoModal({
     // VehicleType ya está determinado por la plaza, no por el vehículo seleccionado
   }
 
-  // Función para validar si un vehículo puede ocupar una plaza
-  const puedeVehiculoUsarPlaza = (tipoVehiculo: VehicleType, tipoPlaza: VehicleType): boolean => {
-    // Lógica de compatibilidad:
-    // - Plaza Camioneta: acepta Camioneta, Auto, Moto
-    // - Plaza Auto: acepta Auto, Moto
-    // - Plaza Moto: acepta solo Moto
-
-    if (tipoPlaza === 'Camioneta') {
-        return ['Camioneta', 'Auto', 'Moto'].includes(tipoVehiculo);
-    } else if (tipoPlaza === 'Auto') {
-        return ['Auto', 'Moto'].includes(tipoVehiculo);
-    } else if (tipoPlaza === 'Moto') {
-        return tipoVehiculo === 'Moto';
-    }
-
-    return false;
-  }
 
   // Handler para selección de vehículos de reserva
   const handleReservaVehicleSelect = (value: string) => {
@@ -572,19 +555,6 @@ export default function IngresoModal({
     }
   }
 
-  const isFormValid = isAbono
-    ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0
-    : isReserva
-      ? selectedPlaza !== null && selectedReservaVehicle.trim().length > 0
-      : licensePlate.trim().length > 0 && selectedPlaza !== null
-  const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
-  const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
-  const selectedPlazaInfo = isAbono
-    ? matchedAbonoPlaza
-    : isReserva
-      ? matchedReservaPlaza
-      : selectedPlazaData || plaza || null
-
   // Función helper para mapear tipo de vehículo
   const getTipoVehiculo = (segmento: string) => {
     switch (segmento) {
@@ -594,6 +564,51 @@ export default function IngresoModal({
       default: return 'Auto';
     }
   };
+
+  // Función de validación de tamaño de vehículo vs plaza
+  const puedeVehiculoUsarPlaza = (tipoVehiculo: string, tipoPlaza: string): boolean => {
+    // Lógica de compatibilidad:
+    // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+    // - Plaza Auto: acepta Auto, Moto
+    // - Plaza Moto: acepta solo Moto
+
+    if (tipoPlaza === 'Camioneta') {
+        return ['Camioneta', 'Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Auto') {
+        return ['Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Moto') {
+        return tipoVehiculo === 'Moto';
+    }
+
+    return false;
+  };
+
+  // Determinar tipo de vehículo actual
+  const currentVehicleType = isAbono && matchedAbonoPlaza?.vehiculos
+    ? getTipoVehiculo(matchedAbonoPlaza.vehiculos.find(v => v.veh_patente?.toUpperCase() === selectedAbonoVehicle?.toUpperCase())?.catv_segmento || 'AUT')
+    : isReserva && matchedReservaPlaza?.reserva
+      ? getTipoVehiculo(matchedReservaPlaza.reserva.catv_segmento || 'AUT')
+      : vehicleType
+
+  const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
+  const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
+  const selectedPlazaInfo = isAbono
+    ? matchedAbonoPlaza
+    : isReserva
+      ? matchedReservaPlaza
+      : selectedPlazaData || plaza || null
+
+  // Determinar tipo de plaza seleccionada
+  const selectedPlazaType = selectedPlazaInfo?.catv_segmento ? getTipoVehiculo(selectedPlazaInfo.catv_segmento) : null
+
+  const isFormValid = isAbono
+    ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0 &&
+      (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
+    : isReserva
+      ? selectedPlaza !== null && selectedReservaVehicle.trim().length > 0 &&
+        (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
+      : licensePlate.trim().length > 0 && selectedPlaza !== null &&
+        (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
 
   // Obtener zonas disponibles
   const zonasDisponibles = useMemo(() => {
