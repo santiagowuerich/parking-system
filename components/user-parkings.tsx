@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff, Calendar } from "lucide-react";
-import { Building2, MapPin, Clock, Users, Settings, Plus, CheckCircle, Phone, Mail, Timer, Save, Trash2 } from "lucide-react";
+import { Building2, MapPin, Clock, Users, Settings, Plus, CheckCircle, Phone, Mail, Timer, Save, Trash2, Star } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import AddressAutocomplete from "./address-autocomplete";
@@ -30,6 +30,7 @@ import GoogleMap from "./google-map";
 import { Checkbox } from "@/components/ui/checkbox";
 import HorariosEditor from "./horarios-editor";
 import { HorarioFranja, RequiereLlaveOption, LLAVE_OPTIONS, EstadoApertura, isEstacionamientoAbierto } from "@/lib/types/horarios";
+import { ValoracionModal } from "./valoraciones/valoracion-modal";
 
 interface Estacionamiento {
     est_id: number;
@@ -115,6 +116,8 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
     const [addressConfirmed, setAddressConfirmed] = useState<boolean>(false);
     const [showHorariosModal, setShowHorariosModal] = useState(false);
     const [selectedHorariosEstacionamiento, setSelectedHorariosEstacionamiento] = useState<Estacionamiento | null>(null);
+    const [showValoracionesModal, setShowValoracionesModal] = useState(false);
+    const [selectedValoracionesEstacionamiento, setSelectedValoracionesEstacionamiento] = useState<Estacionamiento | null>(null);
     const MAX_PARKINGS_PER_USER = 5;
     const [configTabsValue, setConfigTabsValue] = useState("general");
 
@@ -1140,7 +1143,7 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     </div>
                                                 )}
                                                 {/* Botones de acción - MEJORADOS */}
-                                                <div className="grid grid-cols-4 gap-2 pt-3 border-t border-gray-100">
+                                                <div className="grid grid-cols-5 gap-2 pt-3 border-t border-gray-100">
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
@@ -1189,6 +1192,19 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                                                     >
                                                         <Trash2 className="h-4 w-4 mr-1" />
                                                         Eliminar
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedValoracionesEstacionamiento(estacionamiento);
+                                                            setShowValoracionesModal(true);
+                                                        }}
+                                                        className="h-10 hover:bg-yellow-50 hover:border-yellow-300"
+                                                    >
+                                                        <Star className="h-4 w-4 mr-1" />
+                                                        Valoraciones
                                                     </Button>
                                                     <Button
                                                         variant={currentEstId === estacionamiento.est_id ? "secondary" : "default"}
@@ -1787,6 +1803,16 @@ export default function UserParkings({ onSelectParking, currentEstId }: UserPark
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Modal de valoraciones */}
+            {selectedValoracionesEstacionamiento && (
+                <ValoracionModal
+                    open={showValoracionesModal}
+                    onOpenChange={setShowValoracionesModal}
+                    estacionamiento={selectedValoracionesEstacionamiento}
+                    readOnly={true}
+                />
+            )}
         </div>
     );
 }

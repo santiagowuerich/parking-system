@@ -40,7 +40,7 @@ export function TicketDialog({
 }: TicketDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto ${ticket?.isSubscription ? 'no-close-button' : ''}`}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -69,6 +69,13 @@ export function TicketDialog({
           </div>
         )}
       </DialogContent>
+
+      {/* Estilos para ocultar el botón de cerrar en tickets de abono */}
+      <style jsx>{`
+        .no-close-button button[data-radix-dialog-close] {
+          display: none !important;
+        }
+      `}</style>
     </Dialog>
   );
 }
