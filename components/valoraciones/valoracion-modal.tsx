@@ -227,186 +227,186 @@ export function ValoracionModal({
                                 {/* Sección de calificación rápida - Solo mostrar si NO es readOnly */}
                                 {!readOnly && (
                                     <>
-                                        <div className="bg-white rounded-xl p-5 border border-gray-200">
-                                            {miValoracion && !isEditing ? (
-                                                // Mostrar valoración existente
-                                                <div className="text-center">
-                                                    <p className="text-sm text-gray-600 mb-2">Tu valoración</p>
-                                                    <div className="flex justify-center mb-2">
-                                                        <StarRating
-                                                            rating={miValoracion.val_rating}
-                                                            readonly
-                                                            size="lg"
-                                                        />
-                                                    </div>
-                                                    <p className="text-lg font-medium text-gray-800 mb-2">
-                                                        {getRatingLabel(miValoracion.val_rating)}
-                                                    </p>
-                                                    {miValoracion.val_comentario && (
-                                                        <p className="text-sm text-gray-600 italic mb-3">
-                                                            &quot;{miValoracion.val_comentario}&quot;
-                                                        </p>
+                                <div className="bg-white rounded-xl p-5 border border-gray-200">
+                                    {miValoracion && !isEditing ? (
+                                        // Mostrar valoración existente
+                                        <div className="text-center">
+                                            <p className="text-sm text-gray-600 mb-2">Tu valoración</p>
+                                            <div className="flex justify-center mb-2">
+                                                <StarRating 
+                                                    rating={miValoracion.val_rating} 
+                                                    readonly 
+                                                    size="lg" 
+                                                />
+                                            </div>
+                                            <p className="text-lg font-medium text-gray-800 mb-2">
+                                                {getRatingLabel(miValoracion.val_rating)}
+                                            </p>
+                                            {miValoracion.val_comentario && (
+                                                <p className="text-sm text-gray-600 italic mb-3">
+                                                    &quot;{miValoracion.val_comentario}&quot;
+                                                </p>
+                                            )}
+                                            <div className="flex justify-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={handleEditarValoracion}
+                                                >
+                                                    Editar
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setShowDeleteDialog(true)}
+                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                    Eliminar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // Mostrar estrellas para calificar
+                                        <div className="text-center">
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                {isEditing ? "Edita tu calificación" : "¿Qué te pareció este estacionamiento?"}
+                                            </p>
+                                            <div className="flex justify-center mb-2">
+                                                <StarRating 
+                                                    rating={ratingSeleccionado} 
+                                                    onRatingChange={handleRatingChange}
+                                                    size="lg" 
+                                                />
+                                            </div>
+                                            <p className="text-lg font-medium text-gray-800">
+                                                {getRatingLabel(ratingSeleccionado)}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Botón de enviar (aparece después de seleccionar estrellas, pero no cuando se muestra el comentario) */}
+                                {ratingSeleccionado > 0 && !mostrarComentario && (miValoracion ? isEditing : true) ? (
+                                    <div className="bg-white rounded-lg border p-4 space-y-3">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <span className="text-sm text-gray-600">
+                                                {miValoracion ? "Actualizar valoración" : "¿Listo para publicar?"}
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setMostrarComentario(true)}
+                                                    disabled={loading}
+                                                >
+                                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                                    {isEditing ? "Editar comentario" : "Agregar comentario"}
+                                                </Button>
+                                                {isEditing && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={handleCancelEdit}
+                                                        disabled={loading}
+                                                    >
+                                                        Cancelar
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    onClick={handleSubmitValoracion}
+                                                    disabled={loading}
+                                                    size="sm"
+                                                    className="min-w-[120px]"
+                                                >
+                                                    {loading ? (
+                                                        <span className="flex items-center">
+                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            Guardando...
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center">
+                                                            <Send className="mr-2 h-4 w-4" />
+                                                            {miValoracion ? "Actualizar" : "Publicar"}
+                                                        </span>
                                                     )}
-                                                    <div className="flex justify-center gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={handleEditarValoracion}
-                                                        >
-                                                            Editar
-                                                        </Button>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setShowDeleteDialog(true)}
-                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                        >
-                                                            Eliminar
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                // Mostrar estrellas para calificar
-                                                <div className="text-center">
-                                                    <p className="text-sm text-gray-600 mb-3">
-                                                        {isEditing ? "Edita tu calificación" : "¿Qué te pareció este estacionamiento?"}
-                                                    </p>
-                                                    <div className="flex justify-center mb-2">
-                                                        <StarRating
-                                                            rating={ratingSeleccionado}
-                                                            onRatingChange={handleRatingChange}
-                                                            size="lg"
-                                                        />
-                                                    </div>
-                                                    <p className="text-lg font-medium text-gray-800">
-                                                        {getRatingLabel(ratingSeleccionado)}
-                                                    </p>
-                                                </div>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {/* Formulario de comentario (opcional, aparece después del botón de enviar) */}
+                                {mostrarComentario && (
+                                    <div className="bg-gray-50 rounded-lg border p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <MessageSquare className="h-4 w-4 text-gray-500" />
+                                                <Label className="text-sm font-medium">
+                                                    Agregar comentario (opcional)
+                                                </Label>
+                                            </div>
+                                            {!isEditing && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setMostrarComentario(false);
+                                                        setComentario("");
+                                                    }}
+                                                    disabled={loading}
+                                                    className="text-gray-400 hover:text-gray-600"
+                                                >
+                                                    Quitar
+                                                </Button>
                                             )}
                                         </div>
-
-                                        {/* Botón de enviar (aparece después de seleccionar estrellas, pero no cuando se muestra el comentario) */}
-                                        {ratingSeleccionado > 0 && !mostrarComentario && (miValoracion ? isEditing : true) ? (
-                                            <div className="bg-white rounded-lg border p-4 space-y-3">
-                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                                    <span className="text-sm text-gray-600">
-                                                        {miValoracion ? "Actualizar valoración" : "¿Listo para publicar?"}
-                                                    </span>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setMostrarComentario(true)}
-                                                            disabled={loading}
-                                                        >
-                                                            <MessageSquare className="mr-2 h-4 w-4" />
-                                                            {isEditing ? "Editar comentario" : "Agregar comentario"}
-                                                        </Button>
-                                                        {isEditing && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={handleCancelEdit}
-                                                                disabled={loading}
-                                                            >
-                                                                Cancelar
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            onClick={handleSubmitValoracion}
-                                                            disabled={loading}
-                                                            size="sm"
-                                                            className="min-w-[120px]"
-                                                        >
-                                                            {loading ? (
-                                                                <span className="flex items-center">
-                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                    Guardando...
-                                                                </span>
-                                                            ) : (
-                                                                <span className="flex items-center">
-                                                                    <Send className="mr-2 h-4 w-4" />
-                                                                    {miValoracion ? "Actualizar" : "Publicar"}
-                                                                </span>
-                                                            )}
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : null}
-
-                                        {/* Formulario de comentario (opcional, aparece después del botón de enviar) */}
-                                        {mostrarComentario && (
-                                            <div className="bg-gray-50 rounded-lg border p-4 space-y-3">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <MessageSquare className="h-4 w-4 text-gray-500" />
-                                                        <Label className="text-sm font-medium">
-                                                            Agregar comentario (opcional)
-                                                        </Label>
-                                                    </div>
-                                                    {!isEditing && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setMostrarComentario(false);
-                                                                setComentario("");
-                                                            }}
-                                                            disabled={loading}
-                                                            className="text-gray-400 hover:text-gray-600"
-                                                        >
-                                                            Quitar
-                                                        </Button>
+                                        <Textarea
+                                            placeholder="Comparte tu experiencia con otros usuarios..."
+                                            value={comentario}
+                                            onChange={(e) => setComentario(e.target.value)}
+                                            rows={3}
+                                            className="resize-none"
+                                            maxLength={maxComentarioLength}
+                                        />
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <span className={`text-xs ${comentario.length > maxComentarioLength ? 'text-red-500' : 'text-gray-400'}`}>
+                                                {comentario.length}/{maxComentarioLength}
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {isEditing && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={handleCancelEdit}
+                                                        disabled={loading}
+                                                    >
+                                                        Cancelar
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    onClick={handleSubmitValoracion}
+                                                    disabled={loading}
+                                                    size="sm"
+                                                    className="min-w-[120px]"
+                                                >
+                                                    {loading ? (
+                                                        <span className="flex items-center">
+                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                            Guardando...
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center">
+                                                            <Send className="mr-2 h-4 w-4" />
+                                                            {miValoracion ? "Actualizar" : "Publicar"}
+                                                        </span>
                                                     )}
-                                                </div>
-                                                <Textarea
-                                                    placeholder="Comparte tu experiencia con otros usuarios..."
-                                                    value={comentario}
-                                                    onChange={(e) => setComentario(e.target.value)}
-                                                    rows={3}
-                                                    className="resize-none"
-                                                    maxLength={maxComentarioLength}
-                                                />
-                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                                    <span className={`text-xs ${comentario.length > maxComentarioLength ? 'text-red-500' : 'text-gray-400'}`}>
-                                                        {comentario.length}/{maxComentarioLength}
-                                                    </span>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {isEditing && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={handleCancelEdit}
-                                                                disabled={loading}
-                                                            >
-                                                                Cancelar
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            onClick={handleSubmitValoracion}
-                                                            disabled={loading}
-                                                            size="sm"
-                                                            className="min-w-[120px]"
-                                                        >
-                                                            {loading ? (
-                                                                <span className="flex items-center">
-                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                    Guardando...
-                                                                </span>
-                                                            ) : (
-                                                                <span className="flex items-center">
-                                                                    <Send className="mr-2 h-4 w-4" />
-                                                                    {miValoracion ? "Actualizar" : "Publicar"}
-                                                                </span>
-                                                            )}
-                                                        </Button>
-                                                    </div>
-                                                </div>
+                                                </Button>
                                             </div>
-                                        )}
+                                        </div>
+                                    </div>
+                                )}
 
-                                        <Separator />
+                                <Separator />
                                     </>
                                 )}
 

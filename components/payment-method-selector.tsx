@@ -15,12 +15,7 @@ import { PaymentMethod, PaymentMethodOption, PaymentData } from "@/lib/types/pay
 import { getAvailablePaymentMethods, formatCurrency, getPaymentMethodColors } from "@/lib/utils/payment-utils"
 import { PAYMENT_METHOD_ICONS } from "@/lib/constants/payment-methods"
 import { Clock, CreditCard, Banknote, Link as LinkIcon, Smartphone } from "lucide-react"
-import dayjs from "dayjs"
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-
-dayjs.extend(utc)
-dayjs.extend(timezone)
+import { formatDateTime } from "@/lib/utils/date-time"
 
 interface PaymentMethodSelectorProps {
   isOpen: boolean
@@ -176,14 +171,14 @@ export default function PaymentMethodSelector({
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Fecha y hora de ingreso</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
-                {dayjs.tz(paymentData.entryTime, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
+                {formatDateTime(paymentData.entryTime)}
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Fecha y hora de egreso</label>
               <div className="w-full p-2 bg-gray-100 rounded-lg text-gray-900 text-sm">
-                {dayjs.tz(paymentData.exitTime, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
+                {formatDateTime(paymentData.exitTime)}
               </div>
             </div>
 
