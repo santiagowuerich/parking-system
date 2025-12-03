@@ -23,7 +23,7 @@ export function TicketHeader({ ticket, showLogo = true }: TicketHeaderProps) {
       )}
       
       <h1 className="text-lg font-bold uppercase tracking-wide">
-        Ticket de Estacionamiento
+        {ticket.isSubscription ? 'Conductor' : 'Ticket de Estacionamiento'}
       </h1>
       
       <div className="mt-2">
