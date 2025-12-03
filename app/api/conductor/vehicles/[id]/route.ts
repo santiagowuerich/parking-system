@@ -30,8 +30,8 @@ export async function PUT(
 
         const { tipo, patente, marca, modelo, color } = await request.json();
 
-        if (!tipo || !patente || !marca || !modelo || !color) {
-            return NextResponse.json({ error: "Campos requeridos faltantes" }, { status: 400 });
+        if (!tipo || !patente) {
+            return NextResponse.json({ error: "El tipo de vehículo y la patente son obligatorios" }, { status: 400 });
         }
 
         // Obtener usu_id del conductor autenticado
@@ -73,9 +73,9 @@ export async function PUT(
             .update({
                 veh_patente: patente.toUpperCase(),
                 catv_segmento: catv_segmento,
-                veh_marca: marca,
-                veh_modelo: modelo,
-                veh_color: color
+                veh_marca: marca || null,
+                veh_modelo: modelo || null,
+                veh_color: color || null
             })
             .eq('veh_patente', params.id)
             .eq('con_id', conductorData.con_id)
@@ -92,7 +92,7 @@ export async function PUT(
             vehicle: {
                 id: data.veh_patente,
                 patente: data.veh_patente,
-                tipo: tipo,
+                tipo: catv_segmento, // Devolver el código mapeado (AUT, MOT, CAM)
                 marca: marca,
                 modelo: modelo,
                 color: color

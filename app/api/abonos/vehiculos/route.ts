@@ -18,7 +18,7 @@ const segmentoToTipo: Record<string, string> = {
 async function obtenerContextoAbono(supabase: SupabaseClient, abo_nro: number) {
     return supabase
         .from("abonos")
-        .select("abo_nro, est_id, abonado(con_id)")
+        .select("abo_nro, est_id, pla_numero, abonado(con_id), plazas(catv_segmento)")
         .eq("abo_nro", abo_nro)
         .maybeSingle();
 }
@@ -78,6 +78,10 @@ export async function GET(request: NextRequest) {
 
         const data = await obtenerVehiculosData(supabase, abo_nro, est_id, con_id);
 
+        // Obtener información de la plaza del abono
+        const plaza = Array.isArray(abono.plazas) ? abono.plazas[0] : abono.plazas;
+        const plazaCatvSegmento = plaza?.catv_segmento || null;
+
         return copyResponseCookies(
             response,
             NextResponse.json({
@@ -86,6 +90,7 @@ export async function GET(request: NextRequest) {
                     ...data,
                     est_id,
                     con_id,
+                    plaza_catv_segmento: plazaCatvSegmento,
                 },
             }),
         );
@@ -251,6 +256,10 @@ export async function POST(request: NextRequest) {
                 : null,
         }));
 
+        // Obtener información de la plaza del abono
+        const plaza = Array.isArray(abono.plazas) ? abono.plazas[0] : abono.plazas;
+        const plazaCatvSegmento = plaza?.catv_segmento || null;
+
         return copyResponseCookies(
             response,
             NextResponse.json({
@@ -258,6 +267,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     vehiculosAbono: vehiculosNormalizados,
                     vehiculosConductor: data.vehiculosConductor,
+                    plaza_catv_segmento: plazaCatvSegmento,
                 },
             }),
         );
@@ -311,11 +321,18 @@ export async function DELETE(request: NextRequest) {
 
         const data = await obtenerVehiculosData(supabase, abo_nro, est_id, con_id);
 
+        // Obtener información de la plaza del abono
+        const plaza = Array.isArray(abono.plazas) ? abono.plazas[0] : abono.plazas;
+        const plazaCatvSegmento = plaza?.catv_segmento || null;
+
         return copyResponseCookies(
             response,
             NextResponse.json({
                 success: true,
-                data,
+                data: {
+                    ...data,
+                    plaza_catv_segmento: plazaCatvSegmento,
+                },
             }),
         );
     } catch (err) {

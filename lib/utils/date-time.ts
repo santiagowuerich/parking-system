@@ -26,7 +26,7 @@ export function nowInArgentina(): dayjs.Dayjs {
 
 /**
  * Convierte una fecha (ISO string, Date, o dayjs) a zona horaria de Argentina
- * Si la fecha viene de la BD en UTC, se convierte correctamente
+ * Las fechas de la BD están en UTC (con Z), se convierten correctamente a ART
  */
 export function toArgentinaTime(date: string | Date | dayjs.Dayjs | null | undefined): dayjs.Dayjs {
   if (!date) {
@@ -38,8 +38,8 @@ export function toArgentinaTime(date: string | Date | dayjs.Dayjs | null | undef
     return date.tz(ARGENTINA_TIMEZONE)
   }
 
-  // Si es string o Date, interpretar como zona horaria de Argentina (timestamps se guardan directamente en ART sin Z)
-  return dayjs.tz(date, ARGENTINA_TIMEZONE)
+  // Si es string o Date, interpretar como UTC primero (timestamps se guardan en UTC con Z), luego convertir a ART
+  return dayjs.utc(date).tz(ARGENTINA_TIMEZONE)
 }
 
 /**

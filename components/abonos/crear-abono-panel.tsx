@@ -118,7 +118,20 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                         modelo: v.veh_modelo || '',
                         color: v.veh_color || ''
                     }));
-                    setVehiculos(vehiculosFormato);
+                    
+                    // Filtrar vehículos según la plaza seleccionada (si hay una)
+                    const vehiculosFiltrados = filtrarVehiculosPorPlaza(vehiculosFormato);
+                    
+                    if (vehiculosFiltrados.length > 0) {
+                        setVehiculos(vehiculosFiltrados);
+                    } else {
+                        // Si no hay vehículos compatibles, mostrar mensaje y resetear a uno vacío
+                        // El usuario podrá agregar un vehículo compatible manualmente
+                        setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
+                        if (plazaSeleccionada) {
+                            setError(`El conductor no tiene vehículos compatibles con la plaza seleccionada (${mapearTipoVehiculo(plazaSeleccionada.catv_segmento)}). Puede agregar un vehículo compatible manualmente.`);
+                        }
+                    }
                 } else {
                     // Si no tiene vehículos, resetear a uno vacío
                     setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
@@ -155,6 +168,47 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
         return () => clearTimeout(timer);
     }, [dni, email]);
+
+    // ========================================
+    // FUNCIONES DE COMPATIBILIDAD VEHÍCULO-PLAZA
+    // ========================================
+    const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+        switch (segmento) {
+            case "MOT":
+                return "Moto";
+            case "CAM":
+                return "Camioneta";
+            default:
+                return "Auto";
+        }
+    };
+
+    const puedeVehiculoUsarPlaza = (tipoVehiculo: "Auto" | "Moto" | "Camioneta", tipoPlaza: "Auto" | "Moto" | "Camioneta"): boolean => {
+        // Lógica de compatibilidad:
+        // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+        // - Plaza Auto: acepta Auto, Moto
+        // - Plaza Moto: acepta solo Moto
+
+        if (tipoPlaza === "Camioneta") {
+            return ["Camioneta", "Auto", "Moto"].includes(tipoVehiculo);
+        } else if (tipoPlaza === "Auto") {
+            return ["Auto", "Moto"].includes(tipoVehiculo);
+        } else if (tipoPlaza === "Moto") {
+            return tipoVehiculo === "Moto";
+        }
+
+        return false;
+    };
+
+    const filtrarVehiculosPorPlaza = (vehiculosList: VehiculoFormData[]): VehiculoFormData[] => {
+        if (!plazaSeleccionada?.catv_segmento) {
+            // Si no hay plaza seleccionada, devolver todos los vehículos
+            return vehiculosList;
+        }
+
+        const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+        return vehiculosList.filter(veh => puedeVehiculoUsarPlaza(veh.tipo, tipoPlaza));
+    };
 
     // ========================================
     // FUNCIONES DE VEHÍCULOS
@@ -230,6 +284,26 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
 
         return fin.toISOString().split('T')[0];
     };
+
+    // Filtrar vehículos cuando cambia la plaza seleccionada (solo si hay vehículos cargados del conductor)
+    useEffect(() => {
+        if (plazaSeleccionada && conductorExistente && vehiculos.length > 0 && vehiculos[0].patente !== '') {
+            // Solo filtrar si hay vehículos con patente (no el placeholder vacío) y fueron cargados del conductor
+            const vehiculosFiltrados = filtrarVehiculosPorPlaza(vehiculos);
+            
+            if (vehiculosFiltrados.length === 0) {
+                // Si no hay vehículos compatibles, mostrar mensaje y resetear
+                setVehiculos([{ patente: '', tipo: 'Auto', marca: '', modelo: '', color: '' }]);
+                setError(`Los vehículos del conductor no son compatibles con la plaza seleccionada (${mapearTipoVehiculo(plazaSeleccionada.catv_segmento)}). Por favor, agregue un vehículo compatible.`);
+            } else if (vehiculosFiltrados.length < vehiculos.length) {
+                // Si se filtraron algunos vehículos, actualizar la lista
+                setVehiculos(vehiculosFiltrados);
+                const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+                setError(`Se filtraron ${vehiculos.length - vehiculosFiltrados.length} vehículo(s) que no son compatibles con la plaza seleccionada (${tipoPlaza}).`);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [plazaSeleccionada, conductorExistente]);
 
     // Calcular precio dinámicamente cuando cambia la plaza, tipo o cantidad
     useEffect(() => {
@@ -348,6 +422,60 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
     const handleSelectPlaza = (plaza: PlazaInfo) => {
         setPlazaSeleccionada(plaza);
         setShowZonaPlazaModal(false);
+        
+        // Ajustar tipo de vehículo si no es compatible con la plaza
+        if (plaza.catv_segmento) {
+            const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+                switch (segmento) {
+                    case "MOT":
+                        return "Moto";
+                    case "CAM":
+                        return "Camioneta";
+                    default:
+                        return "Auto";
+                }
+            };
+
+            const tipoPlaza = mapearTipoVehiculo(plaza.catv_segmento);
+            const puedeVehiculoUsarPlaza = (tipoVehiculo: "Auto" | "Moto" | "Camioneta", tipoPlaza: "Auto" | "Moto" | "Camioneta"): boolean => {
+                if (tipoPlaza === "Camioneta") {
+                    return ["Camioneta", "Auto", "Moto"].includes(tipoVehiculo);
+                } else if (tipoPlaza === "Auto") {
+                    return ["Auto", "Moto"].includes(tipoVehiculo);
+                } else if (tipoPlaza === "Moto") {
+                    return tipoVehiculo === "Moto";
+                }
+                return false;
+            };
+
+            // Si el tipo actual no es compatible, cambiarlo al primer tipo compatible
+            if (!puedeVehiculoUsarPlaza(nuevoVehiculoTipo, tipoPlaza)) {
+                if (tipoPlaza === "Camioneta") {
+                    setNuevoVehiculoTipo("Camioneta");
+                } else if (tipoPlaza === "Auto") {
+                    setNuevoVehiculoTipo("Auto");
+                } else if (tipoPlaza === "Moto") {
+                    setNuevoVehiculoTipo("Moto");
+                }
+            }
+
+            // También ajustar los vehículos existentes en la lista
+            setVehiculos(prevVehiculos => {
+                return prevVehiculos.map(veh => {
+                    if (!puedeVehiculoUsarPlaza(veh.tipo, tipoPlaza)) {
+                        if (tipoPlaza === "Camioneta") {
+                            return { ...veh, tipo: "Camioneta" };
+                        } else if (tipoPlaza === "Auto") {
+                            return { ...veh, tipo: "Auto" };
+                        } else if (tipoPlaza === "Moto") {
+                            return { ...veh, tipo: "Moto" };
+                        }
+                    }
+                    return veh;
+                });
+            });
+        }
+        
         // No cambiar de paso aquí, solo cerrar el modal
         // El flujo continuará desde donde se abrió el modal
     };
@@ -475,9 +603,46 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                 {/* PASO 1: DATOS DEL CONDUCTOR (con búsqueda automática) */}
                 {paso === 'datos-conductor' && (
                     <>
+                        {/* PASO 1: Selección de plaza */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm font-bold">1</span>
+                                    <MapPin className="w-5 h-5" />
+                                    Plaza
+                                </CardTitle>
+                                <CardDescription>
+                                    Selecciona la plaza para este abono
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {plazaSeleccionada ? (
+                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-sm font-semibold text-blue-900">Plaza seleccionada</p>
+                                                <p className="text-sm text-blue-800 mt-1">Zona {plazaSeleccionada.zona || 'A'} - Nº {plazaSeleccionada.pla_numero}</p>
+                                                <p className="text-xs text-blue-600 mt-1">Tipo: {plazaSeleccionada.catv_segmento}</p>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => setShowZonaPlazaModal(true)}>
+                                                Cambiar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Button onClick={() => setShowZonaPlazaModal(true)} className="w-full">
+                                        <MapPin className="w-4 h-4 mr-2" />
+                                        Seleccionar Plaza
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* PASO 2: Datos del Conductor */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm font-bold">2</span>
                                     <User className="w-5 h-5" />
                                     Datos del Conductor
                                 </CardTitle>
@@ -606,9 +771,11 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </CardContent>
                         </Card>
 
+                        {/* PASO 3: Vehículo */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm font-bold">3</span>
                                     <Car className="w-5 h-5" />
                                     Vehículo
                                 </CardTitle>
@@ -640,9 +807,52 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="Auto">Auto</SelectItem>
-                                                    <SelectItem value="Moto">Moto</SelectItem>
-                                                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                    {(() => {
+                                                        // Filtrar tipos según la plaza seleccionada
+                                                        if (!plazaSeleccionada?.catv_segmento) {
+                                                            // Si no hay plaza seleccionada, mostrar todos
+                                                            return (
+                                                                <>
+                                                                    <SelectItem value="Auto">Auto</SelectItem>
+                                                                    <SelectItem value="Moto">Moto</SelectItem>
+                                                                    <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                                </>
+                                                            );
+                                                        }
+
+                                                        // Mapear segmento de plaza a tipo
+                                                        const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+                                                            switch (segmento) {
+                                                                case "MOT":
+                                                                    return "Moto";
+                                                                case "CAM":
+                                                                    return "Camioneta";
+                                                                default:
+                                                                    return "Auto";
+                                                            }
+                                                        };
+
+                                                        const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+                                                        const tiposPermitidos: ("Auto" | "Moto" | "Camioneta")[] = [];
+
+                                                        // Lógica de compatibilidad:
+                                                        // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+                                                        // - Plaza Auto: acepta Auto, Moto
+                                                        // - Plaza Moto: acepta solo Moto
+                                                        if (tipoPlaza === "Camioneta") {
+                                                            tiposPermitidos.push("Camioneta", "Auto", "Moto");
+                                                        } else if (tipoPlaza === "Auto") {
+                                                            tiposPermitidos.push("Auto", "Moto");
+                                                        } else if (tipoPlaza === "Moto") {
+                                                            tiposPermitidos.push("Moto");
+                                                        }
+
+                                                        return tiposPermitidos.map((tipo) => (
+                                                            <SelectItem key={tipo} value={tipo}>
+                                                                {tipo}
+                                                            </SelectItem>
+                                                        ));
+                                                    })()}
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -728,44 +938,11 @@ export function CrearAbonoPanel({ estacionamientoId, estacionamientoNombre }: Cr
                             </CardContent>
                         </Card>
 
-                        {/* Selección de plaza */}
+                        {/* PASO 4: Configuración del abono */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <MapPin className="w-5 h-5" />
-                                    Plaza
-                                </CardTitle>
-                                <CardDescription>
-                                    Selecciona la plaza para este abono
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {plazaSeleccionada ? (
-                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="text-sm font-semibold text-blue-900">Plaza seleccionada</p>
-                                                <p className="text-sm text-blue-800 mt-1">Zona {plazaSeleccionada.zona || 'A'} - Nº {plazaSeleccionada.pla_numero}</p>
-                                                <p className="text-xs text-blue-600 mt-1">Tipo: {plazaSeleccionada.catv_segmento}</p>
-                                            </div>
-                                            <Button variant="outline" size="sm" onClick={() => setShowZonaPlazaModal(true)}>
-                                                Cambiar
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <Button onClick={() => setShowZonaPlazaModal(true)} className="w-full">
-                                        <MapPin className="w-4 h-4 mr-2" />
-                                        Seleccionar Plaza
-                                    </Button>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Configuración del abono */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm font-bold">4</span>
                                     <Calendar className="w-5 h-5" />
                                     Configuración del Abono
                                 </CardTitle>

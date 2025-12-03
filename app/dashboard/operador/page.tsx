@@ -37,6 +37,33 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+// Funciones de validación de tamaño de vehículo vs plaza
+const puedeVehiculoUsarPlaza = (tipoVehiculo: VehicleType, tipoPlaza: VehicleType): boolean => {
+    // Lógica de compatibilidad:
+    // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+    // - Plaza Auto: acepta Auto, Moto
+    // - Plaza Moto: acepta solo Moto
+
+    if (tipoPlaza === 'Camioneta') {
+        return ['Camioneta', 'Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Auto') {
+        return ['Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Moto') {
+        return tipoVehiculo === 'Moto';
+    }
+
+    return false;
+}
+
+const mapearTipoVehiculo = (segmento: string): VehicleType => {
+    switch (segmento) {
+        case 'MOT': return 'Moto'
+        case 'CAM': return 'Camioneta'
+        case 'AUT':
+        default: return 'Auto'
+    }
+}
+
 // Componente de reloj pequeño
 const Clock = () => {
     const [currentTime, setCurrentTime] = useState<string>('');
@@ -322,12 +349,13 @@ export default function OperadorPage() {
     // Función para registrar entrada de vehículo
     const registerEntry = async (vehicleData: VehicleEntryData) => {
         if (!estId || !user?.id) {
+            const errorMessage = "No se puede registrar entrada sin estacionamiento seleccionado";
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "No se puede registrar entrada sin estacionamiento seleccionado"
+                description: errorMessage
             });
-            return;
+            throw new Error(errorMessage);
         }
 
         try {
@@ -355,21 +383,23 @@ export default function OperadorPage() {
 
             if (esAbono) {
                 if (!abonoInfo) {
+                    const errorMessage = "La plaza seleccionada no tiene un abono activo.";
                     toast({
                         variant: "destructive",
                         title: "Abono no encontrado",
-                        description: "La plaza seleccionada no tiene un abono activo."
+                        description: errorMessage
                     });
-                    return;
+                    throw new Error(errorMessage);
                 }
 
                 if (!patentesAbono.includes(payload.license_plate)) {
+                    const errorMessage = `La patente ${payload.license_plate} no pertenece al abono asignado a esta plaza.`;
                     toast({
                         variant: "destructive",
                         title: "Vehículo no autorizado",
-                        description: `La patente ${payload.license_plate} no pertenece al abono asignado a esta plaza.`
+                        description: errorMessage
                     });
-                    return;
+                    throw new Error(errorMessage);
                 }
 
                 payload.isAbono = true;
@@ -402,6 +432,22 @@ export default function OperadorPage() {
                         : vehiculoAsociado.catv_segmento === 'CAM'
                             ? 'Camioneta'
                             : 'Auto';
+
+                    // Validar que el vehículo pueda usar la plaza según jerarquía de tamaños
+                    if (plazaSeleccionada?.catv_segmento) {
+                        const tipoVehiculo = mapearTipoVehiculo(vehiculoAsociado.catv_segmento);
+                        const tipoPlaza = mapearTipoVehiculo(plazaSeleccionada.catv_segmento);
+
+                        if (!puedeVehiculoUsarPlaza(tipoVehiculo, tipoPlaza)) {
+                            const errorMessage = `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}. Verifique la compatibilidad de tamaños.`;
+                            toast({
+                                variant: "destructive",
+                                title: "Vehículo incompatible con la plaza",
+                                description: errorMessage
+                            });
+                            throw new Error(errorMessage);
+                        }
+                    }
                 }
             }
 

@@ -64,6 +64,7 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
     const [vehiculosConductor, setVehiculosConductor] = useState<VehiculoConductor[]>([]);
     const [selectedExisting, setSelectedExisting] = useState("");
     const [nuevoVehiculo, setNuevoVehiculo] = useState(defaultNewVehicle);
+    const [plazaCatvSegmento, setPlazaCatvSegmento] = useState<string | null>(null);
 
     useEffect(() => {
         if (open && abo_nro) {
@@ -73,14 +74,57 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
             setError(null);
             setSelectedExisting("");
             setNuevoVehiculo(defaultNewVehicle);
+            setPlazaCatvSegmento(null);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, abo_nro]);
 
+    // Función para mapear segmento a tipo de vehículo
+    const mapearTipoVehiculo = (segmento: string): "Auto" | "Moto" | "Camioneta" => {
+        switch (segmento) {
+            case "MOT":
+                return "Moto";
+            case "CAM":
+                return "Camioneta";
+            default:
+                return "Auto";
+        }
+    };
+
+    // Función para verificar compatibilidad de vehículo con plaza
+    const puedeVehiculoUsarPlaza = (tipoVehiculo: "Auto" | "Moto" | "Camioneta", tipoPlaza: "Auto" | "Moto" | "Camioneta"): boolean => {
+        // Lógica de compatibilidad:
+        // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+        // - Plaza Auto: acepta Auto, Moto
+        // - Plaza Moto: acepta solo Moto
+
+        if (tipoPlaza === "Camioneta") {
+            return ["Camioneta", "Auto", "Moto"].includes(tipoVehiculo);
+        } else if (tipoPlaza === "Auto") {
+            return ["Auto", "Moto"].includes(tipoVehiculo);
+        } else if (tipoPlaza === "Moto") {
+            return tipoVehiculo === "Moto";
+        }
+
+        return false;
+    };
+
     const vehiculosDisponibles = useMemo(() => {
         const asociados = new Set(vehiculosAbono.map((v) => v.veh_patente));
-        return vehiculosConductor.filter((v) => !asociados.has(v.veh_patente));
-    }, [vehiculosAbono, vehiculosConductor]);
+        let disponibles = vehiculosConductor.filter((v) => !asociados.has(v.veh_patente));
+
+        // Si hay información de la plaza, filtrar por compatibilidad
+        if (plazaCatvSegmento) {
+            const tipoPlaza = mapearTipoVehiculo(plazaCatvSegmento);
+            disponibles = disponibles.filter((v) => {
+                const segmento = v.catv_segmento || "AUT";
+                const tipoVehiculo = mapearTipoVehiculo(segmento);
+                return puedeVehiculoUsarPlaza(tipoVehiculo, tipoPlaza);
+            });
+        }
+
+        return disponibles;
+    }, [vehiculosAbono, vehiculosConductor, plazaCatvSegmento]);
 
     const cargarVehiculos = async () => {
         if (!abo_nro) return;
@@ -94,6 +138,7 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
             }
             setVehiculosAbono(json.data.vehiculosAbono || []);
             setVehiculosConductor(json.data.vehiculosConductor || []);
+            setPlazaCatvSegmento(json.data.plaza_catv_segmento || null);
         } catch (err: any) {
             console.error(err);
             setError(err.message || "Error al cargar los vehiculos");
@@ -118,6 +163,7 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
             }
             setVehiculosAbono(json.data.vehiculosAbono || []);
             setVehiculosConductor(json.data.vehiculosConductor || vehiculosConductor);
+            setPlazaCatvSegmento(json.data.plaza_catv_segmento || null);
             setSelectedExisting("");
         } catch (err: any) {
             console.error(err);
@@ -155,6 +201,7 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
             }
             setVehiculosAbono(json.data.vehiculosAbono || []);
             setVehiculosConductor(json.data.vehiculosConductor || vehiculosConductor);
+            setPlazaCatvSegmento(json.data.plaza_catv_segmento || null);
             setNuevoVehiculo(defaultNewVehicle);
         } catch (err: any) {
             console.error(err);
@@ -327,9 +374,36 @@ export function ManageAbonoVehiclesDialog({ open, onOpenChange, abo_nro }: Props
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Auto">Auto</SelectItem>
-                                                <SelectItem value="Moto">Moto</SelectItem>
-                                                <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                {(() => {
+                                                    // Filtrar tipos según la plaza
+                                                    if (!plazaCatvSegmento) {
+                                                        // Si no hay información de plaza, mostrar todos
+                                                        return (
+                                                            <>
+                                                                <SelectItem value="Auto">Auto</SelectItem>
+                                                                <SelectItem value="Moto">Moto</SelectItem>
+                                                                <SelectItem value="Camioneta">Camioneta</SelectItem>
+                                                            </>
+                                                        );
+                                                    }
+
+                                                    const tipoPlaza = mapearTipoVehiculo(plazaCatvSegmento);
+                                                    const tiposPermitidos: ("Auto" | "Moto" | "Camioneta")[] = [];
+
+                                                    if (tipoPlaza === "Camioneta") {
+                                                        tiposPermitidos.push("Camioneta", "Auto", "Moto");
+                                                    } else if (tipoPlaza === "Auto") {
+                                                        tiposPermitidos.push("Auto", "Moto");
+                                                    } else if (tipoPlaza === "Moto") {
+                                                        tiposPermitidos.push("Moto");
+                                                    }
+
+                                                    return tiposPermitidos.map((tipo) => (
+                                                        <SelectItem key={tipo} value={tipo}>
+                                                            {tipo}
+                                                        </SelectItem>
+                                                    ));
+                                                })()}
                                             </SelectContent>
                                         </Select>
                                     </div>

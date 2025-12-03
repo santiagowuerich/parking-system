@@ -211,19 +211,9 @@ export default function IngresoModal({
     const vehiculoSeleccionado = abonoVehicles.find(
       v => v.veh_patente?.toUpperCase() === normalized
     )
-    if (vehiculoSeleccionado?.catv_segmento) {
-      setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
-    }
+    // VehicleType ya está determinado por la plaza, no por el vehículo seleccionado
   }
 
-  // Función para validar si un vehículo puede ocupar una plaza
-  const puedeVehiculoUsarPlaza = (tipoVehiculo: VehicleType, tipoPlaza: VehicleType): boolean => {
-    // Jerarquía de tamaños: Moto < Auto < Camioneta
-    const jerarquia = { 'Moto': 1, 'Auto': 2, 'Camioneta': 3 }
-
-    // Un vehículo puede usar una plaza si su tamaño es igual o menor al de la plaza
-    return jerarquia[tipoVehiculo] <= jerarquia[tipoPlaza]
-  }
 
   // Handler para selección de vehículos de reserva
   const handleReservaVehicleSelect = (value: string) => {
@@ -244,7 +234,7 @@ export default function IngresoModal({
         toast({
           variant: "destructive",
           title: "Vehículo incompatible con la plaza",
-          description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}. Los vehículos más grandes no pueden usar plazas más pequeñas.`
+          description: `La plaza es para ${tipoPlaza}, pero el vehículo seleccionado es ${tipoVehiculo}. Verifique la compatibilidad de tamaños.`
         })
         // Revertir selección
         setSelectedReservaVehicle("")
@@ -448,12 +438,15 @@ export default function IngresoModal({
       setSelectedAbonoVehicle(normalized)
       setSelectedReservaVehicle("")
 
+      // Configurar vehicleType basado en la plaza, no en el vehículo seleccionado
+      if (plazaAbono.catv_segmento) {
+        setVehicleType(mapearTipoVehiculo(plazaAbono.catv_segmento))
+      }
+
       const vehiculoSeleccionado = plazaAbono.abono?.vehiculos?.find(
         v => v.veh_patente?.toUpperCase() === normalized
       )
-      if (vehiculoSeleccionado?.catv_segmento) {
-        setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
-      }
+      // VehicleType ya está determinado por la plaza, no por el vehículo seleccionado
       return
     }
 
@@ -501,9 +494,7 @@ export default function IngresoModal({
       const vehiculoSeleccionado = matchedAbonoPlaza.abono?.vehiculos?.find(
         v => v.veh_patente?.toUpperCase() === licensePlate.trim().toUpperCase()
       )
-      if (vehiculoSeleccionado?.catv_segmento) {
-        setVehicleType(mapearTipoVehiculo(vehiculoSeleccionado.catv_segmento))
-      }
+      // VehicleType ya está determinado por la plaza, no por el vehículo seleccionado
     }
   }
 
@@ -564,19 +555,6 @@ export default function IngresoModal({
     }
   }
 
-  const isFormValid = isAbono
-    ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0
-    : isReserva
-      ? selectedPlaza !== null && selectedReservaVehicle.trim().length > 0
-      : licensePlate.trim().length > 0 && selectedPlaza !== null
-  const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
-  const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
-  const selectedPlazaInfo = isAbono
-    ? matchedAbonoPlaza
-    : isReserva
-      ? matchedReservaPlaza
-      : selectedPlazaData || plaza || null
-
   // Función helper para mapear tipo de vehículo
   const getTipoVehiculo = (segmento: string) => {
     switch (segmento) {
@@ -586,6 +564,51 @@ export default function IngresoModal({
       default: return 'Auto';
     }
   };
+
+  // Función de validación de tamaño de vehículo vs plaza
+  const puedeVehiculoUsarPlaza = (tipoVehiculo: string, tipoPlaza: string): boolean => {
+    // Lógica de compatibilidad:
+    // - Plaza Camioneta: acepta Camioneta, Auto, Moto
+    // - Plaza Auto: acepta Auto, Moto
+    // - Plaza Moto: acepta solo Moto
+
+    if (tipoPlaza === 'Camioneta') {
+        return ['Camioneta', 'Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Auto') {
+        return ['Auto', 'Moto'].includes(tipoVehiculo);
+    } else if (tipoPlaza === 'Moto') {
+        return tipoVehiculo === 'Moto';
+    }
+
+    return false;
+  };
+
+  // Determinar tipo de vehículo actual
+  const currentVehicleType = isAbono && matchedAbonoPlaza?.vehiculos
+    ? getTipoVehiculo(matchedAbonoPlaza.vehiculos.find(v => v.veh_patente?.toUpperCase() === selectedAbonoVehicle?.toUpperCase())?.catv_segmento || 'AUT')
+    : isReserva && matchedReservaPlaza?.reserva
+      ? getTipoVehiculo(matchedReservaPlaza.reserva.catv_segmento || 'AUT')
+      : vehicleType
+
+  const availablePlazasForVehicle = getAvailablePlazasForVehicleType(vehicleType)
+  const selectedPlazaData = availablePlazas.find(p => p.pla_numero === selectedPlaza)
+  const selectedPlazaInfo = isAbono
+    ? matchedAbonoPlaza
+    : isReserva
+      ? matchedReservaPlaza
+      : selectedPlazaData || plaza || null
+
+  // Determinar tipo de plaza seleccionada
+  const selectedPlazaType = selectedPlazaInfo?.catv_segmento ? getTipoVehiculo(selectedPlazaInfo.catv_segmento) : null
+
+  const isFormValid = isAbono
+    ? selectedPlaza !== null && selectedAbonoVehicle.trim().length > 0 &&
+      (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
+    : isReserva
+      ? selectedPlaza !== null && selectedReservaVehicle.trim().length > 0 &&
+        (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
+      : licensePlate.trim().length > 0 && selectedPlaza !== null &&
+        (!selectedPlazaType || !currentVehicleType || puedeVehiculoUsarPlaza(currentVehicleType, selectedPlazaType))
 
   // Obtener zonas disponibles
   const zonasDisponibles = useMemo(() => {
@@ -632,7 +655,7 @@ export default function IngresoModal({
               )}
               <p>
                 <span className="font-medium">Vehículos habilitados:</span>{" "}
-                {abonoVehicles.map(v => v.veh_patente).join(', ')}
+                {abonoVehicles.map(v => `${v.veh_patente} (${mapearTipoVehiculo(v.catv_segmento || 'AUT')})`).join(', ')}
               </p>
             </div>
           )}
@@ -687,7 +710,7 @@ export default function IngresoModal({
                         key={vehiculo.veh_patente}
                         value={vehiculo.veh_patente?.toUpperCase() || ''}
                       >
-                        {vehiculo.veh_patente?.toUpperCase() || 'Sin patente'}
+                        {vehiculo.veh_patente?.toUpperCase() || 'Sin patente'} ({mapearTipoVehiculo(vehiculo.catv_segmento || 'AUT')})
                       </SelectItem>
                     ))}
                   </SelectContent>

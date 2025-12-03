@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Plaza } from "@/components/Plaza";
 import { PlazaInfo } from "@/lib/types";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface ZonaPlazaSelectorProps {
     isOpen: boolean;
@@ -24,9 +25,10 @@ export function ZonaPlazaSelector({
     onSelectPlaza,
     onCancel
 }: ZonaPlazaSelectorProps) {
-    const [plazas, setPlazas] = useState<PlazaInfo[]>([]);
+    const [plazas, setPlazas] = useState<any[]>([]);
     const [selectedPlaza, setSelectedPlaza] = useState<PlazaInfo | null>(null);
     const [selectedZona, setSelectedZona] = useState<string>("");
+
     const [selectedTipo, setSelectedTipo] = useState<string>("Todos");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -46,42 +48,66 @@ export function ZonaPlazaSelector({
         setSelectedTipo("Todos");
 
         try {
-            console.log(`Cargando plazas para est_id: ${estacionamientoId}`);
             const response = await fetch(`/api/plazas?est_id=${estacionamientoId}`);
             const data = await response.json();
-
-            console.log('Respuesta del API:', data);
 
             if (data.error) {
                 throw new Error(data.error);
             }
 
             // El endpoint /api/plazas devuelve directamente las plazas con su estado real
-            const plazasFormateadas: PlazaInfo[] = data.plazas?.map((p: any) => ({
-                pla_numero: p.pla_numero,
-                est_id: estacionamientoId,
-                pla_estado: p.pla_estado, // Estado real de la base de datos
-                catv_segmento: p.catv_segmento || 'AUT',
-                zona: p.pla_zona || 'A',
-                plantilla_id: p.plantillas?.[0]?.plantilla_id || p.plantilla_id // Obtener de la relación o directo
-            })) || [];
-
-            console.log(`Plazas cargadas: ${plazasFormateadas.length}`);
-            console.log(`Estados de plazas:`, {
-                libres: plazasFormateadas.filter(p => p.pla_estado === 'Libre').length,
-                ocupadas: plazasFormateadas.filter(p => p.pla_estado === 'Ocupada').length,
-                abonadas: plazasFormateadas.filter(p => p.pla_estado === 'Abonado').length
-            });
+            const plazasFormateadas: any[] = data.plazas?.map((p: any) => {
+                // Preservar toda la información de la plantilla usando spread para mantener todas las propiedades
+                // p.plantillas puede ser un objeto directo o null
+                const plantillaInfo = p.plantillas && typeof p.plantillas === 'object' ? {
+                    ...p.plantillas, // Preservar todas las propiedades incluyendo caracteristicas si existe
+                    plantilla_id: p.plantillas.plantilla_id || p.plantilla_id, // Asegurar que plantilla_id exista
+                    // Asegurar explícitamente que caracteristicas esté presente (puede ser null, undefined, o un objeto)
+                    caracteristicas: p.plantillas.caracteristicas !== undefined ? p.plantillas.caracteristicas : null
+                } : null;
+                
+                return {
+                    pla_numero: p.pla_numero,
+                    est_id: estacionamientoId,
+                    pla_estado: p.pla_estado, // Estado real de la base de datos
+                    catv_segmento: p.catv_segmento || 'AUT',
+                    zona: p.pla_zona || 'A',
+                    plantilla_id: plantillaInfo?.plantilla_id || p.plantilla_id,
+                    plantillas: plantillaInfo
+                };
+            }) || [];
 
             if (plazasFormateadas.length === 0) {
                 setError('No hay plazas disponibles en este estacionamiento');
             } else {
                 // Ordenar plazas por número
                 plazasFormateadas.sort((a, b) => a.pla_numero - b.pla_numero);
+
                 setPlazas(plazasFormateadas);
-                // Seleccionar primera zona disponible automáticamente
-                const primeraZona = plazasFormateadas[0]?.zona || 'A';
-                setSelectedZona(primeraZona);
+
+                // Encontrar la zona con más plazas que tienen plantilla
+                const zonasConPlantilla = plazasFormateadas.reduce((acc, plaza) => {
+                    const zona = plaza.pla_zona || plaza.zona || 'A';
+                    if (!acc[zona]) {
+                        acc[zona] = { total: 0, conPlantilla: 0 };
+                    }
+                    acc[zona].total++;
+                    if (plaza.plantillas?.plantilla_id) {
+                        acc[zona].conPlantilla++;
+                    }
+                    return acc;
+                }, {} as Record<string, { total: number; conPlantilla: number }>);
+
+                // Seleccionar la zona con más plazas con plantilla
+                const zonaRecomendada = Object.entries(zonasConPlantilla)
+                    .filter(([_, stats]) => stats.conPlantilla > 0)
+                    .sort(([, a], [, b]) => b.conPlantilla - a.conPlantilla)[0]?.[0];
+
+                // Si hay zona con plantilla, seleccionarla; sino, la primera disponible
+                const zonaSeleccionada = zonaRecomendada || (plazasFormateadas[0]?.zona || 'A');
+
+
+                setSelectedZona(zonaSeleccionada);
             }
         } catch (err) {
             console.error('Error cargando plazas:', err);
@@ -120,23 +146,27 @@ export function ZonaPlazaSelector({
     };
 
     // Filtrar plazas por zona seleccionada y solo mostrar libres
-    const plazasFiltradasPorZona = selectedZona
-        ? plazas.filter(p => (p.zona || 'A') === selectedZona)
+    const plazasFiltradasPorZona = selectedZona && selectedZona !== ""
+        ? plazas.filter(p => (p.pla_zona || p.zona || 'A') === selectedZona)
         : plazas;
 
-    // Solo mostrar plazas libres (no ocupadas ni abonadas)
+    // TEMPORAL: Mostrar todas las plazas libres para verificar que llegan los datos
     const plazasLibres = plazasFiltradasPorZona.filter(p => p.pla_estado === 'Libre');
+
 
     // Filtrar por tipo de vehículo
     const plazasFiltradas = selectedTipo === "Todos"
         ? plazasLibres
         : plazasLibres.filter(p => getTipoVehiculo(p.catv_segmento) === selectedTipo);
 
+
     // Zonas disponibles
-    const zonasDisponibles = Array.from(new Set(plazas.map(p => p.zona || 'A')));
+    const zonasDisponibles = Array.from(new Set(plazas.map(p => p.pla_zona || p.zona || 'A')));
 
     // Tipos disponibles (de las plazas libres en la zona seleccionada)
     const tiposDisponibles = Array.from(new Set(plazasLibres.map(p => getTipoVehiculo(p.catv_segmento))));
+
+
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCancelar() }}>
@@ -148,7 +178,8 @@ export function ZonaPlazaSelector({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-6 overflow-visible">
+                <TooltipProvider>
+                    <div className="space-y-6 overflow-visible">
                     {error && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />
@@ -205,21 +236,28 @@ export function ZonaPlazaSelector({
                             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                             <span className="ml-2 text-gray-600">Cargando plazas...</span>
                         </div>
-                    ) : plazas.length === 0 ? (
+                    ) : plazasFiltradas.length === 0 ? (
                         <Alert>
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>
-                                No hay plazas disponibles en este estacionamiento.
+                                {plazas.length === 0
+                                    ? "No se encontraron plazas en este estacionamiento. Verifica que tu estacionamiento tenga plazas configuradas."
+                                    : plazasLibres.length === 0
+                                        ? `Hay ${plazas.length} plazas en total, pero ninguna está libre.`
+                                        : plazasFiltradasPorZona.length === 0
+                                            ? `Hay ${plazasLibres.length} plazas libres, pero ninguna en la zona "${selectedZona}".`
+                                            : `Hay ${plazasFiltradasPorZona.length} plazas libres en la zona, pero ninguna coincide con el filtro de tipo "${selectedTipo}".`
+                                }
                             </AlertDescription>
                         </Alert>
                     ) : (
                         <>
                             {/* Leyenda */}
                             <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
-                                <span className="font-medium">Plazas disponibles: {plazasFiltradas.length}</span>
+                                <span className="font-medium">Plazas con plantilla: {plazasFiltradas.length}</span>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 bg-green-600 rounded"></div>
-                                    <span className="text-xs">Disponibles</span>
+                                    <div className="w-3 h-3 bg-green-700 border border-green-400 rounded"></div>
+                                    <span className="text-xs">Disponibles con Plantilla</span>
                                 </div>
                             </div>
 
@@ -227,16 +265,20 @@ export function ZonaPlazaSelector({
                             {plazasFiltradas.length > 0 ? (
                                 <div className="border rounded-lg bg-gray-50 p-6 pt-14 pb-8 overflow-visible">
                                     <div className="grid grid-cols-6 gap-3 max-h-64 overflow-y-auto overflow-x-visible pr-2">
-                                        {plazasFiltradas.map((plaza) => (
-                                            <Plaza
-                                                key={plaza.pla_numero}
-                                                numero={plaza.pla_numero}
-                                                ocupado={false} // Todas son libres
-                                                abonado={false} // Todas son libres
-                                                tipo={getTipoVehiculo(plaza.catv_segmento)}
-                                                onClick={() => handleSelectPlaza(plaza)}
-                                            />
-                                        ))}
+                                        {plazasFiltradas.map((plaza) => {
+                                            return (
+                                                <Plaza
+                                                    key={plaza.pla_numero}
+                                                    numero={plaza.pla_numero}
+                                                    ocupado={false} // Todas son libres
+                                                    abonado={false} // Todas son libres
+                                                    tipo={getTipoVehiculo(plaza.catv_segmento)}
+                                                    caracteristicas={plaza.plantillas?.caracteristicas}
+                                                    plantilla={plaza.plantillas}
+                                                    onClick={() => handleSelectPlaza(plaza)}
+                                                />
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ) : (
@@ -265,7 +307,8 @@ export function ZonaPlazaSelector({
                             )}
                         </>
                     )}
-                </div>
+                    </div>
+                </TooltipProvider>
 
                 {/* Botones */}
                 <div className="flex gap-3 justify-end pt-4 border-t">

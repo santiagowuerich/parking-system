@@ -15,6 +15,7 @@ import { Printer, Download, Mail, X, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { sendTicketViaWhatsApp } from '@/lib/utils/ticket-utils';
 import { toast } from '@/components/ui/use-toast';
+import { formatDateTime } from '@/lib/utils/date-time';
 
 interface ParkingTicketProps {
   ticket: ParkingTicketType;
@@ -57,6 +58,12 @@ export function ParkingTicket({
       alert('Por favor, permita las ventanas emergentes para imprimir');
       return;
     }
+
+    // Formatear fechas correctamente con zona horaria de Argentina
+    const formattedEntryTime = formatDateTime(ticket.entryTime);
+    const formattedExitTime = formatDateTime(ticket.exitTime);
+    const formattedPaymentDate = formatDateTime(ticket.payment.date);
+    const formattedGeneratedAt = formatDateTime(ticket.generatedAt);
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -204,11 +211,11 @@ export function ParkingTicket({
           <div class="time-section">
             <div class="time-row">
               <span class="time-label">Entrada:</span>
-              <span>${new Date(ticket.entryTime).toLocaleString('es-AR')}</span>
+              <span>${formattedEntryTime}</span>
             </div>
             <div class="time-row">
               <span class="time-label">Salida:</span>
-              <span>${new Date(ticket.exitTime).toLocaleString('es-AR')}</span>
+              <span>${formattedExitTime}</span>
             </div>
             <div class="duration-box">
               <div class="time-label">Duración</div>
@@ -223,7 +230,7 @@ export function ParkingTicket({
             </div>
             <div class="payment-row">
               <span>Fecha pago:</span>
-              <span>${new Date(ticket.payment.date).toLocaleString('es-AR')}</span>
+              <span>${formattedPaymentDate}</span>
             </div>
             <div class="payment-row total-row">
               <span>Total:</span>
@@ -235,7 +242,7 @@ export function ParkingTicket({
             <div class="thank-you">¡Gracias por su visita!</div>
             <div style="font-size: 10px; color: #666;">Conserve este ticket para su referencia</div>
             <div class="meta-info">
-              Generado: ${new Date(ticket.generatedAt).toLocaleString('es-AR')}<br>
+              Generado: ${formattedGeneratedAt}<br>
               Operador: ${ticket.generatedBy}
             </div>
           </div>
@@ -380,7 +387,7 @@ export function ParkingTicket({
               Enviar
             </Button>
           )}
-          {onClose && (
+          {onClose && !ticket?.isSubscription && (
             <Button
               variant="ghost"
               size="sm"

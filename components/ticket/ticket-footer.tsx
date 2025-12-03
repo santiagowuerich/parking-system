@@ -4,8 +4,7 @@
 // Pie del ticket de estacionamiento
 
 import { ParkingTicket } from '@/lib/types/ticket';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDateTime } from '@/lib/utils/date-time';
 
 interface TicketFooterProps {
   ticket: ParkingTicket;
@@ -13,13 +12,6 @@ interface TicketFooterProps {
 }
 
 export function TicketFooter({ ticket, showNotes = true }: TicketFooterProps) {
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), "dd/MM/yyyy HH:mm:ss", { locale: es });
-    } catch {
-      return dateStr;
-    }
-  };
 
   return (
     <div className="ticket-footer border-t border-dashed border-gray-400 pt-3 mt-4">
@@ -42,10 +34,12 @@ export function TicketFooter({ ticket, showNotes = true }: TicketFooterProps) {
 
       {/* Metadatos del ticket */}
       <div className="text-center text-[10px] text-muted-foreground space-y-0.5">
-        <p>Ticket generado: {formatDate(ticket.generatedAt)}</p>
+        {!ticket.isSubscription && (
+          <p>Ticket generado: {formatDateTime(ticket.generatedAt)}</p>
+        )}
         <p>Operador: {ticket.generatedBy}</p>
         {ticket.printedAt && (
-          <p>Impreso: {formatDate(ticket.printedAt)}</p>
+          <p>Impreso: {formatDateTime(ticket.printedAt)}</p>
         )}
       </div>
 
