@@ -308,58 +308,67 @@ export async function GET(request: Request) {
             .eq('est_id', estId)
             .order('pla_numero');
 
-        // Si hay plazas con estado "Abonado", obtener información de los abonos
+        // Verificar abonos activos para todas las plazas y actualizar su estado
         let plazasConAbonos = plazas;
         if (plazas && plazas.length > 0) {
-            const plazasAbonadas = plazas.filter((p: any) => p.pla_estado === 'Abonado');
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const hoyISO = hoy.toISOString().split('T')[0];
 
-            if (plazasAbonadas.length > 0) {
-                console.log(`🎫 Obteniendo información de ${plazasAbonadas.length} plazas abonadas...`);
+            console.log(`🎫 Verificando abonos activos para ${plazas.length} plazas...`);
 
-                // Obtener abonos activos para estas plazas
-                const { data: abonos, error: abonosError } = await supabase
-                    .from('abonos')
-                    .select(`
-                        abo_nro,
-                        pla_numero,
-                        est_id,
-                        abo_fecha_inicio,
-                        abo_fecha_fin,
-                        abo_tipoabono,
-                        abonado (
-                            abon_id,
-                            abon_nombre,
-                            abon_apellido,
-                            abon_dni
-                        )
-                    `)
-                    .eq('est_id', estId)
-                    .in('pla_numero', plazasAbonadas.map((p: any) => p.pla_numero));
+            // Obtener todos los abonos activos (estado activo y fecha fin >= hoy)
+            const { data: abonosActivos, error: abonosError } = await supabase
+                .from('abonos')
+                .select(`
+                    abo_nro,
+                    pla_numero,
+                    est_id,
+                    abo_fecha_inicio,
+                    abo_fecha_fin,
+                    abo_tipoabono,
+                    abo_estado,
+                    abonado (
+                        abon_id,
+                        abon_nombre,
+                        abon_apellido,
+                        abon_dni
+                    )
+                `)
+                .eq('est_id', estId)
+                .eq('abo_estado', 'activo')
+                .gte('abo_fecha_fin', hoyISO);
 
-                if (!abonosError && abonos) {
-                    console.log(`✅ Información de abonos obtenida: ${abonos.length}`);
+            if (!abonosError && abonosActivos && abonosActivos.length > 0) {
+                console.log(`✅ Encontrados ${abonosActivos.length} abonos activos`);
 
-                    // Crear mapa de abonos por pla_numero
-                    const abonosMap = new Map();
-                    abonos.forEach((abono: any) => {
+                // Crear mapa de abonos activos por pla_numero
+                const abonosMap = new Map();
+                abonosActivos.forEach((abono: any) => {
+                    if (abono.pla_numero) {
                         abonosMap.set(abono.pla_numero, abono);
-                    });
+                    }
+                });
 
-                    // Combinar plazas con información de abonos
-                    plazasConAbonos = plazas.map((plaza: any) => {
-                        if (plaza.pla_estado === 'Abonado' && abonosMap.has(plaza.pla_numero)) {
-                            const abonoInfo = abonosMap.get(plaza.pla_numero);
-                            return {
-                                ...plaza,
-                                abono: abonoInfo
-                            };
-                        }
-                        return plaza;
-                    });
+                // Actualizar estado de plazas que tienen abonos activos
+                plazasConAbonos = plazas.map((plaza: any) => {
+                    if (abonosMap.has(plaza.pla_numero)) {
+                        const abonoInfo = abonosMap.get(plaza.pla_numero);
+                        return {
+                            ...plaza,
+                            pla_estado: 'Abonado', // Marcar como Abonado si tiene abono activo
+                            abono: abonoInfo
+                        };
+                    }
+                    return plaza;
+                });
 
-                    console.log(`🔄 Plazas combinadas con información de abonos`);
-                } else {
+                console.log(`🔄 Plazas actualizadas: ${plazasConAbonos.filter((p: any) => p.pla_estado === 'Abonado').length} marcadas como Abonado`);
+            } else {
+                if (abonosError) {
                     console.error('❌ Error obteniendo abonos:', abonosError);
+                } else {
+                    console.log(`ℹ️ No hay abonos activos para este estacionamiento`);
                 }
             }
         }
