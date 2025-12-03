@@ -224,7 +224,7 @@ export function ValoracionModal({
                         ) : (
                             <div className="space-y-4">
                                 {/* Sección de calificación rápida */}
-                                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-5 border border-yellow-200">
+                                <div className="bg-white rounded-xl p-5 border border-gray-200">
                                     {miValoracion && !isEditing ? (
                                         // Mostrar valoración existente
                                         <div className="text-center">
