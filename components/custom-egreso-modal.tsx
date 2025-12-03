@@ -24,6 +24,7 @@ import { createBrowserClient } from "@supabase/ssr"
 import dayjs from "dayjs"
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import { formatDateTime } from "@/lib/utils/date-time"
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -577,7 +578,7 @@ export default function CustomEgresoModal({
                 <div className="relative">
                   <Input
                     id="ingreso"
-                    value={dayjs.tz(vehicle.entry_time, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
+                    value={formatDateTime(vehicle.entry_time)}
                     readOnly
                     className="bg-muted"
                   />

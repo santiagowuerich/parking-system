@@ -12,12 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Vehicle, VehicleType, VehiculoAbonado } from "@/lib/types"
 import { useTurnos } from "@/lib/hooks/use-turnos"
 import { toast } from "@/components/ui/use-toast"
-import dayjs from "dayjs"
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-
-dayjs.extend(utc)
-dayjs.extend(timezone)
+import { formatDateTime } from "@/lib/utils/date-time"
 
 interface PlazaCompleta {
   pla_numero: number
@@ -168,7 +163,7 @@ export default function PlazaActionsModal({
               {vehicle?.entry_time && (
                 <>
                   {' '}
-                  • Ingreso: {dayjs.tz(vehicle.entry_time, 'America/Argentina/Buenos_Aires').format('DD/MM/YYYY HH:mm')}
+                  • Ingreso: {formatDateTime(vehicle.entry_time)}
                 </>
               )}
             </span>
