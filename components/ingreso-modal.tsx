@@ -22,6 +22,7 @@ import { VehicleType, VehiculoAbonado } from "@/lib/types"
 import { Loader2, Lock, AlertCircle } from "lucide-react"
 import { Plaza } from "@/components/Plaza"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { useTurnos } from "@/lib/hooks/use-turnos"
 import { toast } from "@/components/ui/use-toast"
 
@@ -863,37 +864,39 @@ export default function IngresoModal({
                 </div>
 
                 {/* Grid de plazas */}
-                <div className="border-2 border-gray-300 rounded-lg bg-gray-50 p-4 overflow-hidden shadow-sm">
-                  <div 
-                    className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-2" 
-                    style={{ 
-                      transform: 'none !important',
-                      willChange: 'auto',
-                      contain: 'layout style paint'
-                    }}
-                  >
-                    {plazasFiltradas.map((plazaItem) => (
-                      <div 
-                        key={plazaItem.pla_numero}
-                        style={{
-                          width: '3.5rem',
-                          height: '3.5rem',
-                          flexShrink: 0,
-                          transform: 'none !important'
-                        }}
-                      >
-                        <Plaza
-                          numero={plazaItem.pla_numero}
-                          ocupado={false}
-                          abonado={false}
-                          tipo={getTipoVehiculo(plazaItem.catv_segmento)}
-                          onClick={() => setSelectedPlaza(plazaItem.pla_numero)}
-                          selected={selectedPlaza === plazaItem.pla_numero}
-                        />
-                      </div>
-                    ))}
+                <TooltipProvider>
+                  <div className="border-2 border-gray-300 rounded-lg bg-gray-50 p-4 overflow-hidden shadow-sm">
+                    <div
+                      className="grid grid-cols-6 gap-2 max-h-48 overflow-y-auto pr-2"
+                      style={{
+                        transform: 'none !important',
+                        willChange: 'auto',
+                        contain: 'layout style paint'
+                      }}
+                    >
+                      {plazasFiltradas.map((plazaItem) => (
+                        <div
+                          key={plazaItem.pla_numero}
+                          style={{
+                            width: '3.5rem',
+                            height: '3.5rem',
+                            flexShrink: 0,
+                            transform: 'none !important'
+                          }}
+                        >
+                          <Plaza
+                            numero={plazaItem.pla_numero}
+                            ocupado={false}
+                            abonado={false}
+                            tipo={getTipoVehiculo(plazaItem.catv_segmento)}
+                            onClick={() => setSelectedPlaza(plazaItem.pla_numero)}
+                            selected={selectedPlaza === plazaItem.pla_numero}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </TooltipProvider>
 
                 {/* Plaza seleccionada */}
                 {selectedPlaza && selectedPlazaInfo && (
