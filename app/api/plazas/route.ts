@@ -292,8 +292,8 @@ export async function GET(request: Request) {
             });
         }
 
-        // Si no se especifica zona_id, obtener todas las plazas con información de plantillas (comportamiento original)
-        console.log('📊 Consultando todas las plazas del estacionamiento con información de plantillas y abonos');
+        // Si no se especifica zona_id, obtener todas las plazas con información de plantillas y características (comportamiento original)
+        console.log('📊 Consultando todas las plazas del estacionamiento con información de plantillas, características y abonos');
 
         const { data: plazas, error: plazasError } = await supabase
             .from('plazas')
@@ -308,14 +308,96 @@ export async function GET(request: Request) {
             .eq('est_id', estId)
             .order('pla_numero');
 
-        // Verificar abonos activos para todas las plazas y actualizar su estado
-        let plazasConAbonos = plazas;
+        // Obtener características de las plantillas si hay plazas con plantillas asignadas
+        let plazasConCaracteristicas = plazas;
         if (plazas && plazas.length > 0) {
+            const plantillaIds = plazas
+                .filter((p: any) => p.plantillas?.plantilla_id)
+                .map((p: any) => p.plantillas.plantilla_id);
+
+            if (plantillaIds.length > 0) {
+                const plantillaIdsUnicos = Array.from(new Set(plantillaIds));
+
+                // Obtener características directamente por plantilla_id usando función RPC optimizada
+                // Esto permite obtener características de plantillas que pertenecen a otros estacionamientos
+                const { data: plantillasConCaracteristicas, error: plantillasError } = await supabase
+                    .rpc('get_caracteristicas_por_plantilla_ids', { 
+                        plantilla_ids: plantillaIdsUnicos 
+                    });
+
+                if (!plantillasError && plantillasConCaracteristicas) {
+
+                    // Crear mapa de características por plantilla_id (guardar tanto como número como string para evitar problemas de tipos)
+                    const caracteristicasMap = new Map();
+                    plantillasConCaracteristicas.forEach((plantilla: any) => {
+                        const plantillaId = plantilla.plantilla_id;
+                        const caracteristicas = plantilla.caracteristicas || {};
+                        // Guardar con ambos tipos para evitar problemas de comparación
+                        caracteristicasMap.set(plantillaId, caracteristicas);
+                        caracteristicasMap.set(Number(plantillaId), caracteristicas);
+                        caracteristicasMap.set(String(plantillaId), caracteristicas);
+                    });
+
+                    // Agregar características a las plazas
+                    plazasConCaracteristicas = plazas.map((plaza: any) => {
+                        const plantillaId = plaza.plantillas?.plantilla_id;
+                        
+                        // Si tiene plantilla, buscar características en el mapa
+                        if (plantillaId) {
+                            // Buscar en el mapa (ya guardamos con múltiples tipos)
+                            const caracteristicas = caracteristicasMap.get(plantillaId) || 
+                                                   caracteristicasMap.get(Number(plantillaId)) || 
+                                                   caracteristicasMap.get(String(plantillaId));
+                            
+                            // Asegurar que caracteristicas sea un objeto válido (no string)
+                            let caracteristicasFinal = caracteristicas;
+                            if (caracteristicas && typeof caracteristicas === 'string') {
+                                try {
+                                    caracteristicasFinal = JSON.parse(caracteristicas);
+                                } catch (e) {
+                                    console.error(`❌ Error parseando características para plaza ${plaza.pla_numero}:`, e);
+                                    caracteristicasFinal = null;
+                                }
+                            }
+                            
+                            const plazaActualizada = {
+                                ...plaza,
+                                plantillas: {
+                                    ...plaza.plantillas,
+                                    caracteristicas: caracteristicasFinal || null // Siempre incluir la propiedad, usar null si no hay características
+                                }
+                            };
+
+                            return plazaActualizada;
+                        }
+                        
+                        // Si no tiene plantilla pero tiene plantillas objeto, asegurar que tenga caracteristicas: null
+                        if (plaza.plantillas && typeof plaza.plantillas === 'object') {
+                            return {
+                                ...plaza,
+                                plantillas: {
+                                    ...plaza.plantillas,
+                                    caracteristicas: null // Asegurar que siempre tenga la propiedad
+                                }
+                            };
+                        }
+                        
+                        return plaza;
+                    });
+
+                    // Características agregadas a plazasConCaracteristicas
+                }
+            }
+        }
+
+        // Verificar abonos activos para todas las plazas y actualizar su estado
+        let plazasConAbonos = plazasConCaracteristicas;
+        if (plazasConCaracteristicas && plazasConCaracteristicas.length > 0) {
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
             const hoyISO = hoy.toISOString().split('T')[0];
 
-            console.log(`🎫 Verificando abonos activos para ${plazas.length} plazas...`);
+            console.log(`🎫 Verificando abonos activos para ${plazasConCaracteristicas.length} plazas...`);
 
             // Obtener todos los abonos activos (estado activo y fecha fin >= hoy)
             const { data: abonosActivos, error: abonosError } = await supabase
@@ -351,7 +433,7 @@ export async function GET(request: Request) {
                 });
 
                 // Actualizar estado de plazas que tienen abonos activos
-                plazasConAbonos = plazas.map((plaza: any) => {
+                plazasConAbonos = plazasConCaracteristicas.map((plaza: any) => {
                     if (abonosMap.has(plaza.pla_numero)) {
                         const abonoInfo = abonosMap.get(plaza.pla_numero);
                         return {
@@ -394,10 +476,12 @@ export async function GET(request: Request) {
             }, { status: 500 });
         }
 
-        // Calcular estadísticas
+        // Calcular estadísticas (solo considerando plazas libres con plantilla para abonos)
+        const plazasLibresConPlantilla = plazasConAbonos?.filter(p => p.pla_estado === 'Libre' && p.plantillas?.plantilla_id) || [];
         const estadisticas = {
             total_plazas: plazasConAbonos?.length || 0,
             plazas_libres: plazasConAbonos?.filter(p => p.pla_estado === 'Libre').length || 0,
+            plazas_libres_con_plantilla: plazasLibresConPlantilla.length,
             plazas_ocupadas: plazasConAbonos?.filter(p => p.pla_estado === 'Ocupada').length || 0,
             plazas_reservadas: plazasConAbonos?.filter(p => p.pla_estado === 'Reservada').length || 0,
             plazas_abonadas: plazasConAbonos?.filter(p => p.pla_estado === 'Abonado').length || 0,
