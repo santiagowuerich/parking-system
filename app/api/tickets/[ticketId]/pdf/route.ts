@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TicketService } from '@/lib/services/ticket-service';
 import { ParkingTicket } from '@/lib/types/ticket';
+import { formatDateTime } from '@/lib/utils/date-time';
 
 /**
  * GET /api/tickets/[ticketId]/pdf
@@ -69,12 +70,9 @@ export async function GET(
  * Genera el HTML del ticket para PDF
  */
 function generateTicketHTML(ticket: ParkingTicket): string {
+  // Usar formatDateTime para manejar correctamente la zona horaria de Argentina
   const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString('es-AR');
-    } catch {
-      return dateStr;
-    }
+    return formatDateTime(dateStr);
   };
 
   const formatCurrency = (amount: number) => {
