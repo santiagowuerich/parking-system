@@ -76,10 +76,10 @@ export default function ConductorVehiculosPage() {
     };
 
     const handleSaveVehicle = async () => {
-        if (!formData.tipo || !formData.patente || !formData.marca || !formData.modelo || !formData.color) {
+        if (!formData.tipo || !formData.patente) {
             toast({
                 title: "Error",
-                description: "Todos los campos son requeridos",
+                description: "El tipo de vehículo y la patente son obligatorios",
                 variant: "destructive"
             });
             return;
@@ -263,16 +263,36 @@ export default function ConductorVehiculosPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {vehicles.map((vehicle) => (
-                                                <tr 
-                                                    key={vehicle.id} 
-                                                    className={`border-b border-gray-300 hover:bg-blue-50 transition-colors ${selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : ''}`}
+                                            {vehicles.map((vehicle) => {
+                                                const camposFaltantes = [];
+                                                if (!vehicle.marca?.trim()) camposFaltantes.push('marca');
+                                                if (!vehicle.modelo?.trim()) camposFaltantes.push('modelo');
+                                                if (!vehicle.color?.trim()) camposFaltantes.push('color');
+                                                const infoIncompleta = camposFaltantes.length > 0;
+
+                                                return (
+                                                <tr
+                                                    key={vehicle.id}
+                                                    className={`border-b border-gray-300 hover:bg-blue-50 transition-colors ${selectedVehicle?.patente === vehicle.patente ? 'bg-blue-50' : infoIncompleta ? 'bg-amber-50' : ''}`}
                                                 >
-                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.tipo}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                        {vehicle.tipo}
+                                                        {infoIncompleta && (
+                                                            <div className="inline-block ml-1" title={`Faltan: ${camposFaltantes.join(', ')}`}>
+                                                                <span className="text-amber-500 text-xs">⚠️</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                     <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center font-medium">{vehicle.patente}</td>
-                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.marca}</td>
-                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.modelo}</td>
-                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">{vehicle.color}</td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                        {vehicle.marca || <span className="text-gray-400 italic">Sin especificar</span>}
+                                                    </td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                        {vehicle.modelo || <span className="text-gray-400 italic">Sin especificar</span>}
+                                                    </td>
+                                                    <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
+                                                        {vehicle.color || <span className="text-gray-400 italic">Sin especificar</span>}
+                                                    </td>
                                                     <td className="py-4 px-4 text-sm text-gray-800 border-r border-gray-300 text-center">
                                                         <Button
                                                             variant={selectedVehicle?.patente === vehicle.patente ? "default" : "outline"}
@@ -302,7 +322,8 @@ export default function ConductorVehiculosPage() {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -326,14 +347,22 @@ export default function ConductorVehiculosPage() {
                         </DialogHeader>
 
                         <div className="space-y-4 py-4">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    <span className="font-medium">Campos obligatorios:</span> Tipo de vehículo y patente
+                                </p>
+                            </div>
+
                             <div className="space-y-2">
-                                <Label htmlFor="tipo">Tipo de vehículo</Label>
+                                <Label htmlFor="tipo" className="flex items-center gap-1">
+                                    Tipo de vehículo <span className="text-red-500">*</span>
+                                </Label>
                                 <Select
                                     value={formData.tipo}
                                     onValueChange={(value) => setFormData({ ...formData, tipo: value })}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue />
+                                        <SelectValue placeholder="Selecciona el tipo" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Auto">Auto</SelectItem>
@@ -344,40 +373,53 @@ export default function ConductorVehiculosPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="patente">Patente</Label>
+                                <Label htmlFor="patente" className="flex items-center gap-1">
+                                    Patente <span className="text-red-500">*</span>
+                                </Label>
                                 <Input
                                     id="patente"
                                     value={formData.patente}
                                     onChange={(e) => setFormData({ ...formData, patente: e.target.value.toUpperCase() })}
+                                    placeholder="Ej: ABC123"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="marca">Marca</Label>
+                                <Label htmlFor="marca" className="flex items-center gap-1">
+                                    Marca <span className="text-blue-500 text-xs">(opcional)</span>
+                                </Label>
                                 <Input
                                     id="marca"
                                     value={formData.marca}
                                     onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+                                    placeholder="Ej: Toyota"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="modelo">Modelo</Label>
+                                <Label htmlFor="modelo" className="flex items-center gap-1">
+                                    Modelo <span className="text-blue-500 text-xs">(opcional)</span>
+                                </Label>
                                 <Input
                                     id="modelo"
                                     value={formData.modelo}
                                     onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+                                    placeholder="Ej: Corolla"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="color">Color</Label>
+                                <Label htmlFor="color" className="flex items-center gap-1">
+                                    Color <span className="text-blue-500 text-xs">(opcional)</span>
+                                </Label>
                                 <Input
                                     id="color"
                                     value={formData.color}
                                     onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                    placeholder="Ej: Blanco"
                                 />
                             </div>
+
                         </div>
 
                         <DialogFooter>
